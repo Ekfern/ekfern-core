@@ -401,6 +401,7 @@ export default function GreetingCardPage(): React.ReactElement {
   const [showBgModal, setShowBgModal] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [fontSizeInput, setFontSizeInput] = useState<string>('')
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [userHasEditedText, setUserHasEditedText] = useState(false)
   const [pendingSample, setPendingSample] = useState<GreetingCardSample | null>(null)
@@ -903,10 +904,13 @@ export default function GreetingCardPage(): React.ReactElement {
                 type="number"
                 min={8}
                 max={200}
-                value={selectedBox?.fontSize ?? 32}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value, 10)
+                value={fontSizeInput !== '' ? fontSizeInput : (selectedBox?.fontSize ?? 32)}
+                onFocus={() => setFontSizeInput(String(selectedBox?.fontSize ?? 32))}
+                onChange={(e) => setFontSizeInput(e.target.value)}
+                onBlur={() => {
+                  const v = parseInt(fontSizeInput, 10)
                   if (!isNaN(v) && selectedBox) updateBox(selectedBox.id, 'fontSize', clamp(v, 8, 200))
+                  setFontSizeInput('')
                 }}
                 className="w-16 text-sm border border-gray-300 rounded px-2 py-1 text-center"
               />
@@ -1016,10 +1020,9 @@ export default function GreetingCardPage(): React.ReactElement {
           <div
             ref={canvasRef}
             className="relative overflow-hidden rounded-2xl shadow-2xl"
-            style={{ width: '100%', height: '100%' }}
+            style={{ width: '100%', height: '100%', touchAction: 'none' }}
             onPointerMove={handleCanvasPointerMove}
             onPointerUp={handleCanvasPointerUp}
-            onPointerLeave={handleCanvasPointerUp}
             onClick={(e) => {
               // Deselect if clicking canvas background directly
               if (e.target === canvasRef.current || e.target === e.currentTarget) {
@@ -1082,6 +1085,7 @@ export default function GreetingCardPage(): React.ReactElement {
                     borderRadius: '2px',
                     userSelect: isEditing ? 'text' : 'none',
                     zIndex: isSelected ? 10 : 5,
+                    touchAction: isEditing ? 'auto' : 'none',
                   }}
                   onPointerDown={(e) => {
                     if (isEditing) return // let contentEditable handle it
@@ -1102,6 +1106,8 @@ export default function GreetingCardPage(): React.ReactElement {
                       snapshot: [...textBoxesRef.current],
                     }
                   }}
+                  onPointerMove={handleCanvasPointerMove}
+                  onPointerUp={handleCanvasPointerUp}
                   onClick={(e) => {
                     e.stopPropagation()
                     setSelectedId(box.id)
@@ -1165,15 +1171,16 @@ export default function GreetingCardPage(): React.ReactElement {
                           key={handle}
                           style={{
                             position: 'absolute',
-                            [isTop ? 'top' : 'bottom']: 3,
-                            [isLeft ? 'left' : 'right']: 3,
-                            width: 10,
-                            height: 10,
+                            [isTop ? 'top' : 'bottom']: -6,
+                            [isLeft ? 'left' : 'right']: -6,
+                            width: 20,
+                            height: 20,
                             background: '#ffffff',
                             border: '2px solid #3b82f6',
-                            borderRadius: 2,
+                            borderRadius: 4,
                             cursor,
                             zIndex: 20,
+                            touchAction: 'none',
                           }}
                           onPointerDown={(e) => {
                             e.stopPropagation()

@@ -90,6 +90,7 @@ export default function TextOverlayEditorModal({
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [fontSizeInput, setFontSizeInput] = useState<string>('')
 
   // Keep a ref in sync so pointer-move callbacks always see the latest boxes
   const textBoxesRef = useRef<TextBox[]>([])
@@ -282,10 +283,13 @@ export default function TextOverlayEditorModal({
               <div className="flex items-center gap-1">
                 <input
                   type="number" min={8} max={200}
-                  value={selectedBox?.fontSize ?? 32}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10)
+                  value={fontSizeInput !== '' ? fontSizeInput : (selectedBox?.fontSize ?? 32)}
+                  onFocus={() => setFontSizeInput(String(selectedBox?.fontSize ?? 32))}
+                  onChange={(e) => setFontSizeInput(e.target.value)}
+                  onBlur={() => {
+                    const v = parseInt(fontSizeInput, 10)
                     if (!isNaN(v) && selectedBox) updateBox(selectedBox.id, 'fontSize', clamp(v, 8, 200))
+                    setFontSizeInput('')
                   }}
                   className="w-16 text-sm border border-gray-300 rounded px-2 py-1 text-center"
                 />
@@ -401,10 +405,9 @@ export default function TextOverlayEditorModal({
                 <div
                   ref={canvasRef}
                   className="relative overflow-hidden rounded-2xl shadow-2xl"
-                  style={{ width: '100%', height: '100%', background: !bgSrc && bgGradient ? bgGradient : undefined }}
+                  style={{ width: '100%', height: '100%', background: !bgSrc && bgGradient ? bgGradient : undefined, touchAction: 'none' }}
                   onPointerMove={handleCanvasPointerMove}
                   onPointerUp={handleCanvasPointerUp}
-                  onPointerLeave={handleCanvasPointerUp}
                   onClick={(e) => {
                     if (e.target === canvasRef.current || e.target === e.currentTarget) {
                       setSelectedId(null)
@@ -453,6 +456,7 @@ export default function TextOverlayEditorModal({
                           borderRadius: '2px',
                           userSelect: isEditing ? 'text' : 'none',
                           zIndex: isSelected ? 10 : 5,
+                          touchAction: isEditing ? 'auto' : 'none',
                         }}
                         onPointerDown={(e) => {
                           if (isEditing) return
@@ -472,6 +476,8 @@ export default function TextOverlayEditorModal({
                             startBoxHeight: 0,
                           }
                         }}
+                        onPointerMove={handleCanvasPointerMove}
+                        onPointerUp={handleCanvasPointerUp}
                         onClick={(e) => { e.stopPropagation(); setSelectedId(box.id) }}
                         onDoubleClick={(e) => {
                           e.stopPropagation()
@@ -523,15 +529,16 @@ export default function TextOverlayEditorModal({
                                 key={handle}
                                 style={{
                                   position: 'absolute',
-                                  [isTop ? 'top' : 'bottom']: 3,
-                                  [isLeft ? 'left' : 'right']: 3,
-                                  width: 10,
-                                  height: 10,
+                                  [isTop ? 'top' : 'bottom']: -6,
+                                  [isLeft ? 'left' : 'right']: -6,
+                                  width: 20,
+                                  height: 20,
                                   background: '#ffffff',
                                   border: '2px solid #3b82f6',
-                                  borderRadius: 2,
+                                  borderRadius: 4,
                                   cursor,
                                   zIndex: 20,
+                                  touchAction: 'none',
                                 }}
                                 onPointerDown={(e) => {
                                   e.stopPropagation()

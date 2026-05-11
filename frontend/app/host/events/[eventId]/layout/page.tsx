@@ -51,6 +51,7 @@ function applyCardDesignToConfig(
       if (t.type !== 'greeting-card') return t
       return {
         ...t,
+        enabled: true,
         settings: {
           ...(t.settings as GreetingCardTileSettings),
           src: bgUrl ?? undefined,

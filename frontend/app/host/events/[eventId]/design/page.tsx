@@ -417,6 +417,7 @@ export default function DesignInvitationPage(): JSX.Element {
               if (tileHasContent) return tile
               return {
                 ...tile,
+                enabled: true,
                 settings: {
                   ...s,
                   src: bgUrl ?? undefined,
