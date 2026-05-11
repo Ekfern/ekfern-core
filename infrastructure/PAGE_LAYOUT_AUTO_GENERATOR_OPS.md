@@ -14,7 +14,8 @@ until you complete the steps below and explicitly enable it per environment.
 
 ## 1. Anthropic console setup (per environment)
 
-Repeat for `production` and `staging`. **The Anthropic billing account is
+Repeat per Anthropic workspace (you currently ship one AWS stack branded
+“staging ECS” — treat its SSM prefix as canonical). **The Anthropic billing account is
 separate from any claude.ai subscription** — that subscription does not
 fund API calls.
 
@@ -51,23 +52,17 @@ definition, or git.
 ### 2.1 Create the SSM parameter
 
 ```bash
-# Production
-aws ssm put-parameter \
-  --name /event-registry-prod/ANTHROPIC_API_KEY \
-  --type SecureString \
-  --value "sk-ant-…" \
-  --description "Anthropic API key, workspace ekfern-page-layouts-prod"
-
-# Staging
+# Required for the live ECS backend (staging stack / single deploy today).
 aws ssm put-parameter \
   --name /event-registry-staging/ANTHROPIC_API_KEY \
   --type SecureString \
   --value "sk-ant-…" \
-  --description "Anthropic API key, workspace ekfern-page-layouts-staging"
+  --description "Anthropic API key (Page Layout Generator)"
+
+# If you later split a dedicated prod AWS stack, duplicate under /event-registry-prod/...
 ```
 
-Repeat for any environment-specific operational toggles you want to flip
-without a code deploy:
+Repeat for other optional staging toggles (only if you want to manage them outside the task-definition `environment` block):
 
 ```bash
 aws ssm put-parameter --name /event-registry-staging/LLM_GENERATION_ENABLED --type String --value "False"
@@ -85,34 +80,20 @@ The execution role referenced by `infrastructure/ecs-task-definitions/backend-ta
   "Effect": "Allow",
   "Action": ["ssm:GetParameters"],
   "Resource": [
-    "arn:aws:ssm:us-east-1:630147069059:parameter/event-registry-prod/ANTHROPIC_API_KEY",
     "arn:aws:ssm:us-east-1:630147069059:parameter/event-registry-staging/ANTHROPIC_API_KEY"
   ]
 }
 ```
 
+(Add a second resource ARN later if you introduce `/event-registry-prod/` parameters.)
 ### 2.3 Reference the secret from the task definition
 
-Once the SSM parameters exist and IAM is updated, append entries to the
-`secrets` array in `infrastructure/ecs-task-definitions/backend-task-definition.json`:
+The staging task definition **`infrastructure/ecs-task-definitions/backend-task-definition.json`** already includes **`ANTHROPIC_API_KEY`** in `secrets`
+(pointing at `/event-registry-staging/ANTHROPIC_API_KEY`). Terraform or a one-off ECS console/register-task-definition workflow must publish that revision to the cluster **after** (1) the SSM parameter exists and (2) the execution role can read it.
 
-```json
-{
-  "name": "ANTHROPIC_API_KEY",
-  "valueFrom": "arn:aws:ssm:us-east-1:630147069059:parameter/event-registry-staging/ANTHROPIC_API_KEY"
-},
-{
-  "name": "LLM_GENERATION_ENABLED",
-  "valueFrom": "arn:aws:ssm:us-east-1:630147069059:parameter/event-registry-staging/LLM_GENERATION_ENABLED"
-},
-{
-  "name": "LLM_COST_ALERT_EMAIL",
-  "valueFrom": "arn:aws:ssm:us-east-1:630147069059:parameter/event-registry-staging/LLM_COST_ALERT_EMAIL"
-}
-```
+Optional: expose **`LLM_GENERATION_ENABLED`** or **`LLM_COST_ALERT_EMAIL`** via SSM the same way (add `secrets[]` rows and plain `environment` entries for defaults), then remove duplicate names from `environment` if you migrate.
 
-Then redeploy the backend service (the existing `deploy-staging.yml`
-workflow handles this).
+Push to `main` (or manually register the task revision and **force-new-deployment** backend) once SSM + IAM are in place so tasks do not fail on missing `/ANTHROPIC_API_KEY`.
 
 ### 2.4 Verification
 

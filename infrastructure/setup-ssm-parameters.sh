@@ -119,6 +119,17 @@ create_param "${PARAM_PREFIX}/WHATSAPP_ENABLED" "String" "$WHATSAPP_ENABLED" "Wh
 # Debug mode
 create_param "${PARAM_PREFIX}/DEBUG" "String" "False" "Django DEBUG setting"
 
+# Anthropic API key (secure; ECS task-definition secrets pull from this — create before referencing in deploy)
+echo ""
+echo "Anthropic LLM — optional unless you enable LLM features (LLM_GENERATION_ENABLED=True)."
+read -rp "Configure ANTHROPIC_API_KEY in SSM now? (y/n, default n): " CONFIG_ANTHROPIC
+CONFIG_ANTHROPIC="${CONFIG_ANTHROPIC:-n}"
+if [[ "$CONFIG_ANTHROPIC" == "y" || "$CONFIG_ANTHROPIC" == "Y" ]]; then
+    read -rsp "Paste ANTHROPIC_API_KEY (hidden): " ANTHROPIC_API_KEY
+    echo
+    create_param "${PARAM_PREFIX}/ANTHROPIC_API_KEY" "SecureString" "$ANTHROPIC_API_KEY" "Anthropic API key for Page Layout Generator"
+fi
+
 # Future Razorpay parameters (commented out for now)
 # read -p "Enter RAZORPAY_KEY_ID (optional, for future use): " RAZORPAY_KEY_ID
 # if [ -n "$RAZORPAY_KEY_ID" ]; then

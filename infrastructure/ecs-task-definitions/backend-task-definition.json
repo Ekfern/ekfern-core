@@ -95,6 +95,10 @@
         {
           "name": "CLOUDFRONT_IMAGE_DOMAIN",
           "valueFrom": "arn:aws:ssm:us-east-1:630147069059:parameter/event-registry-staging/CLOUDFRONT_IMAGE_DOMAIN"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "valueFrom": "arn:aws:ssm:us-east-1:630147069059:parameter/event-registry-staging/ANTHROPIC_API_KEY"
         }
       ],
       "logConfiguration": {
