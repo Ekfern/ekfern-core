@@ -13,7 +13,7 @@ from django.http import HttpResponse, Http404, HttpResponseRedirect
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import F, Sum
+from django.db.models import F, Sum, Q
 import csv
 import re
 import os
@@ -3807,10 +3807,48 @@ class MessageTemplateViewSet(viewsets.ModelViewSet):
         })
 
 
+def _invite_layout_thumbnail_url_variants(raw: str) -> list[str]:
+    """Build a small set of equivalent strings for matching stored layout thumbnails.
+
+    Covers trivial differences (trailing slash, http vs https) when staff paste
+    URLs from different surfaces (S3, CloudFront, browser bar).
+    """
+    u = (raw or "").strip()
+    if not u:
+        return []
+    if len(u) > 2000:
+        u = u[:2000]
+    variants: set[str] = {u}
+    variants.add(u.rstrip("/"))
+    if not u.endswith("/"):
+        variants.add(u + "/")
+    try:
+        from urllib.parse import urlparse, urlunparse
+
+        p = urlparse(u)
+        if p.scheme == "https":
+            variants.add(urlunparse(("http", p.netloc, p.path, p.params, p.query, p.fragment)))
+        elif p.scheme == "http":
+            variants.add(urlunparse(("https", p.netloc, p.path, p.params, p.query, p.fragment)))
+    except Exception:
+        pass
+    out = [v for v in variants if v]
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for v in out:
+        if v not in seen:
+            seen.add(v)
+            uniq.append(v)
+    return uniq
+
+
 class InvitePageLayoutViewSet(viewsets.ModelViewSet):
     """
     ViewSet for invite page layouts (Page Layout Studio).
     List: hosts see published+public; staff see all (optional ?mine=1).
+    Optional filtering (list only): ``?card_url=``, ``?thumbnail=``, ``?source_image_url=``
+    narrowed to thumbnail field (AI save-for-review uses source card URL as thumbnail).
+
     Create/Update/Delete: staff only. created_by/updated_by set from request.user.
     """
     # Full list for host library + staff search (global PAGE_SIZE=20 would truncate).
@@ -3826,11 +3864,23 @@ class InvitePageLayoutViewSet(viewsets.ModelViewSet):
             qs = InvitePageLayout.objects.all().select_related('created_by', 'updated_by')
             if self.request.query_params.get('mine') == '1':
                 qs = qs.filter(created_by=user)
-            return qs
-        return InvitePageLayout.objects.filter(
-            status='published',
-            visibility='public',
-        ).select_related('created_by')
+        else:
+            qs = InvitePageLayout.objects.filter(
+                status='published',
+                visibility='public',
+            ).select_related('created_by')
+
+        card_src = (
+            self.request.query_params.get('card_url')
+            or self.request.query_params.get('thumbnail')
+            or self.request.query_params.get('source_image_url')
+            or ''
+        ).strip()
+        if card_src:
+            thumb_variants = _invite_layout_thumbnail_url_variants(card_src)
+            if thumb_variants:
+                qs = qs.filter(thumbnail__in=thumb_variants)
+        return qs
 
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -3931,6 +3981,13 @@ def upload_greeting_card_image(request):
         return Response({'error': 'Max file size is 20 MB.'}, status=status.HTTP_400_BAD_REQUEST)
     try:
         url = _upload_greeting_card_to_s3(image_file)
+        # In dev (no S3 creds), `_upload_greeting_card_to_s3` returns a relative
+        # `/media/...` path. Downstream consumers — page-layout auto-generator,
+        # the palette extractor, the vision LLM — fetch this URL over HTTP from
+        # the backend, so it MUST be absolute. `build_absolute_uri` is a no-op
+        # on already-absolute S3/CloudFront URLs in production.
+        if url and not url.startswith(('http://', 'https://')):
+            url = request.build_absolute_uri(url)
         return Response({'url': url})
     except Exception as e:
         logger.error(f'Greeting card image upload failed: {e}', exc_info=True)

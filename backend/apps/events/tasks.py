@@ -21,6 +21,48 @@ logger = logging.getLogger(__name__)
 
 
 @background(schedule=0)
+def cleanup_layout_drafts_task(days: int = 30, repeat_seconds: int = 24 * 3600):
+    """Daily cleanup of stale auto-generated InvitePageLayout drafts.
+
+    Wraps ``manage.py cleanup_layout_drafts`` so the deletion runs through
+    the same idempotent path. After completing, the task self-reschedules
+    ``repeat_seconds`` in the future. ``django-background-tasks`` does not
+    support a built-in cron interval; self-rescheduling is the codebase's
+    convention for recurring jobs.
+    """
+    from datetime import timedelta as _td
+
+    from django.core.management import call_command
+    from django.utils import timezone as _tz
+
+    try:
+        days = max(1, int(days))
+    except (TypeError, ValueError):
+        days = 30
+
+    try:
+        call_command("cleanup_layout_drafts", days=days)
+        logger.info("[cleanup_layout_drafts_task] completed for days=%s", days)
+    except Exception:
+        # Never let a cleanup failure abort the recurring schedule. Log and
+        # let the next interval try again.
+        logger.exception("[cleanup_layout_drafts_task] failed for days=%s", days)
+
+    try:
+        try:
+            repeat_seconds = max(60, int(repeat_seconds))
+        except (TypeError, ValueError):
+            repeat_seconds = 24 * 3600
+        cleanup_layout_drafts_task(
+            days=days,
+            repeat_seconds=repeat_seconds,
+            schedule=_tz.now() + _td(seconds=repeat_seconds),
+        )
+    except Exception:
+        logger.exception("[cleanup_layout_drafts_task] failed to self-reschedule")
+
+
+@background(schedule=0)
 def dispatch_campaign(campaign_id: int):
     """
     Background task: resolve recipients and dispatch messages.

@@ -88,11 +88,20 @@ export async function getInvitePageLayouts(): Promise<InvitePageLayout[]> {
   }
 }
 
-/** Fetch all page layouts for Page Layout Studio (staff); optional ?mine=1 for current user's only */
-export async function getInvitePageLayoutsForStudio(mine?: boolean): Promise<InvitePageLayoutResponse[]> {
-  const response = await api.get<InvitePageLayoutResponse[] | { results: InvitePageLayoutResponse[] }>('/api/events/invite-page-layouts/', {
-    params: mine ? { mine: '1' } : undefined,
-  })
+/** Fetch all page layouts for Page Layout Studio (staff). */
+export async function getInvitePageLayoutsForStudio(options?: {
+  mine?: boolean
+  /** Exact match against saved thumbnail (AI save-for-review uses source card URL here). */
+  cardUrl?: string
+}): Promise<InvitePageLayoutResponse[]> {
+  const params: Record<string, string> = {}
+  if (options?.mine) params.mine = '1'
+  const c = options?.cardUrl?.trim()
+  if (c) params.card_url = c
+  const response = await api.get<InvitePageLayoutResponse[] | { results: InvitePageLayoutResponse[] }>(
+    '/api/events/invite-page-layouts/',
+    Object.keys(params).length ? { params } : undefined,
+  )
   if (Array.isArray(response.data)) return response.data
   const paginated = response.data as { results?: InvitePageLayoutResponse[] }
   return Array.isArray(paginated?.results) ? paginated.results : []

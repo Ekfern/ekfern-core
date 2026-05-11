@@ -28,9 +28,10 @@ export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Pro
       .finally(() => setLoading(false))
   }, [open])
 
-  if (!open) return null
-
-  const allTags = Array.from(new Set(cards.flatMap((c) => c.tags))).sort()
+  const allTags = useMemo(
+    () => Array.from(new Set(cards.flatMap((c) => c.tags))).sort(),
+    [cards]
+  )
   const tagFiltered = useMemo(
     () => (activeTag ? cards.filter((c) => c.tags.includes(activeTag)) : cards),
     [cards, activeTag]
@@ -39,6 +40,8 @@ export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Pro
     () => fuzzyFilter(tagFiltered, searchQuery, ['name', 'description', 'tags']),
     [tagFiltered, searchQuery]
   )
+
+  if (!open) return null
 
   return (
     <div

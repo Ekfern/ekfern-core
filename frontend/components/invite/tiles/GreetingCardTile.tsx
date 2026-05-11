@@ -83,7 +83,11 @@ export default function GreetingCardTile({ settings, preview = false }: Greeting
     )
   }
 
-  // Image card (with optional text overlays)
+  // Image card (with optional text overlays).
+  // imageFit defaults to 'cover' (fills frame, may crop sides) for back-compat
+  // with cards designed in the 9:16 card editor. Auto-generated layouts pass
+  // 'contain' so a user-uploaded card with a non-9:16 aspect isn't cropped.
+  const fit = settings.imageFit === 'contain' ? 'contain' : 'cover'
   return (
     <div className="w-full flex justify-center">
       <div
@@ -97,7 +101,7 @@ export default function GreetingCardTile({ settings, preview = false }: Greeting
           decoding="async"
           fetchPriority="high"
           className="absolute inset-0 w-full h-full"
-          style={{ objectFit: 'cover', objectPosition: 'center center' }}
+          style={{ objectFit: fit, objectPosition: 'center center' }}
         />
         {renderTextOverlays()}
       </div>

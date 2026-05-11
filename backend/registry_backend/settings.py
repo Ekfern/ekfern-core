@@ -233,6 +233,92 @@ WHATSAPP_APP_SECRET = os.environ.get('WHATSAPP_APP_SECRET', '')
 WHATSAPP_WEBHOOK_VERIFY_TOKEN = os.environ.get('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'change_me_in_production')
 WHATSAPP_SEND_DELAY_SECONDS = float(os.environ.get('WHATSAPP_SEND_DELAY_SECONDS', '0.2'))
 
+# ---------------------------------------------------------------------------
+# Page Layout Auto-Generator — LLM cost & abuse controls
+# ---------------------------------------------------------------------------
+# This block configures the Anthropic-backed page-layout generator. The
+# defaults are deliberately conservative: generation is OFF until a human
+# explicitly flips LLM_GENERATION_ENABLED=True in the environment.
+#
+# Realistic spend at default values: ~$1–5/month.
+# Worst plausible failure mode: $50/month (then provider-side cap stops it).
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+LLM_VISION_MODEL = os.environ.get('LLM_VISION_MODEL', 'claude-sonnet-4-5')
+LLM_TEXT_MODEL = os.environ.get('LLM_TEXT_MODEL', 'claude-sonnet-4-5')
+
+# Master kill-switch. Defaults to OFF so a misconfigured deploy can never
+# spend money. Flipping to True takes effect immediately (no code deploy).
+LLM_GENERATION_ENABLED = os.environ.get('LLM_GENERATION_ENABLED', 'False') == 'True'
+
+# Per-user quotas (counted from LLMUsageLedger, not cache).
+LLM_GENERATION_RATE_LIMIT_PER_MIN = int(
+    os.environ.get('LLM_GENERATION_RATE_LIMIT_PER_MIN', '1')
+)
+LLM_GENERATION_DAILY_PER_USER = int(
+    os.environ.get('LLM_GENERATION_DAILY_PER_USER', '30')
+)
+LLM_GENERATION_MONTHLY_PER_USER = int(
+    os.environ.get('LLM_GENERATION_MONTHLY_PER_USER', '300')
+)
+
+# Global cost caps in USD (counted from LLMUsageLedger).
+LLM_DAILY_COST_CAP_USD = float(os.environ.get('LLM_DAILY_COST_CAP_USD', '5'))
+LLM_MONTHLY_COST_CAP_USD = float(os.environ.get('LLM_MONTHLY_COST_CAP_USD', '50'))
+
+# Email alert when daily or monthly spend crosses this percent of cap.
+LLM_COST_ALERT_THRESHOLD_PCT = int(os.environ.get('LLM_COST_ALERT_THRESHOLD_PCT', '80'))
+LLM_COST_ALERT_EMAIL = os.environ.get('LLM_COST_ALERT_EMAIL', '')
+
+# Per-LLM-call wall-clock timeout. Stuck connections release the worker.
+LLM_REQUEST_TIMEOUT_SECONDS = int(os.environ.get('LLM_REQUEST_TIMEOUT_SECONDS', '45'))
+
+# Hard token caps per request — independent of LLM behaviour. Anything above
+# is rejected at llm_client.py before the network call. Caps the worst-case
+# single-request cost to a known number.
+LLM_VISION_MAX_INPUT_TOKENS = int(os.environ.get('LLM_VISION_MAX_INPUT_TOKENS', '4000'))
+LLM_VISION_MAX_OUTPUT_TOKENS = int(os.environ.get('LLM_VISION_MAX_OUTPUT_TOKENS', '800'))
+LLM_TEXT_MAX_INPUT_TOKENS = int(os.environ.get('LLM_TEXT_MAX_INPUT_TOKENS', '2000'))
+LLM_TEXT_MAX_OUTPUT_TOKENS = int(os.environ.get('LLM_TEXT_MAX_OUTPUT_TOKENS', '1200'))
+
+# Anthropic Sonnet 4.5 list price. Override only for testing or to model a
+# future price drop. Used to compute cost_usd from real token counts.
+LLM_INPUT_PRICE_PER_MTOK_USD = float(os.environ.get('LLM_INPUT_PRICE_PER_MTOK_USD', '3.0'))
+LLM_OUTPUT_PRICE_PER_MTOK_USD = float(os.environ.get('LLM_OUTPUT_PRICE_PER_MTOK_USD', '15.0'))
+
+# Vision-result cache TTL. Same card URL is never charged twice within this
+# window even across thousands of generations.
+LLM_VISION_CACHE_TTL_SECONDS = int(
+    os.environ.get('LLM_VISION_CACHE_TTL_SECONDS', str(60 * 60 * 24 * 30))
+)
+
+# Remix snapshot TTL: how long a previous generation's vision + copy stay
+# replayable without re-paying for LLM calls. Short by design — remix is a
+# tight feedback-loop tool, not long-term storage.
+LLM_REMIX_CACHE_TTL_SECONDS = int(
+    os.environ.get('LLM_REMIX_CACHE_TTL_SECONDS', str(60 * 60))
+)
+
+# Image fetch timeout used by palette extraction.
+LLM_IMAGE_FETCH_TIMEOUT_SECONDS = int(
+    os.environ.get('LLM_IMAGE_FETCH_TIMEOUT_SECONDS', '5')
+)
+
+# SSRF allowlist for any backend-side image fetch (vision base64 fallback,
+# palette extraction, etc.). Comma-separated list. ``*.suffix`` matches any
+# subdomain. Defaults are S3 + CloudFront only — safe for prod. Local dev
+# must opt in via env: LLM_IMAGE_FETCH_ALLOWED_HOSTS=*.amazonaws.com,*.cloudfront.net,localhost
+LLM_IMAGE_FETCH_ALLOWED_HOSTS = os.environ.get(
+    'LLM_IMAGE_FETCH_ALLOWED_HOSTS',
+    '*.amazonaws.com,*.cloudfront.net',
+)
+# Allow loopback/private addresses for image fetches. ONLY for local dev
+# (``localhost`` resolves to 127.0.0.1 which the IP-routability check would
+# normally reject). Must be explicitly enabled per-environment. NEVER set
+# True in staging/prod task definitions.
+LLM_IMAGE_FETCH_ALLOW_PRIVATE = os.environ.get(
+    'LLM_IMAGE_FETCH_ALLOW_PRIVATE', 'False'
+) == 'True'
+
 # Analytics Batch Collection Settings
 # Batch processing interval in minutes
 # Default: 2 minutes for development (DEBUG=True), 30 minutes for production

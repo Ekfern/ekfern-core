@@ -35,3 +35,28 @@ export function convertToCloudFrontUrl(s3Url: string): string {
   return s3Url
 }
 
+
+/**
+ * Convert an absolute localhost / 127.0.0.1 media URL to a relative `/media/...`
+ * path so it routes through Next.js' rewrite proxy (and reaches the backend
+ * container via `host.docker.internal:8000` in dev).
+ *
+ * Why this exists: in local dev, Django stores greeting card / thumbnail URLs
+ * as absolute "http://localhost:8000/media/..." (because that's how the
+ * uploading browser saw the request host). When `next/image`'s optimizer
+ * tries to fetch that URL from inside the frontend Docker container,
+ * "localhost:8000" resolves to the frontend container itself — nothing
+ * listens on 8000 there, so the optimizer 502s and the thumbnail renders
+ * broken. Stripping the host turns it into "/media/..." which next.config.js
+ * rewrites to `${NEXT_PUBLIC_API_BASE}/media/...` — that variable points to
+ * `host.docker.internal:8000` in the dev compose stack and reaches the
+ * backend cleanly.
+ *
+ * S3 / CloudFront URLs are left untouched.
+ */
+export function normalizeMediaUrlForNextImage(url: string | null | undefined): string {
+  if (!url) return ''
+  // Strip http(s)://localhost(:port)/ or http(s)://127.0.0.1(:port)/ prefix only.
+  return url.replace(/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\//, '/')
+}
+

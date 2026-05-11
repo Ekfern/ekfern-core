@@ -8,6 +8,20 @@ const nextConfig = {
     'fuse.js',
     'react-markdown',
   ],
+  // Allowed hosts for `next/image`. Without this, next/image refuses to
+  // load any non-relative src and the host throws an
+  // "Invalid src prop ... hostname X is not configured" error at runtime.
+  // - localhost / 127.0.0.1: local Django serving /media/ uploads
+  // - *.amazonaws.com: S3 buckets (staging + prod)
+  // - *.cloudfront.net: CDN-served versions of the same assets
+  images: {
+    remotePatterns: [
+      { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'http', hostname: '127.0.0.1' },
+      { protocol: 'https', hostname: '**.amazonaws.com' },
+      { protocol: 'https', hostname: '**.cloudfront.net' },
+    ],
+  },
   // Proxy /media/ and /q/ requests to Django backend
   async rewrites() {
     const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'

@@ -17,7 +17,36 @@
           "protocol": "tcp"
         }
       ],
-      "environment": [],
+      "environment": [
+        {
+          "name": "LLM_GENERATION_ENABLED",
+          "value": "False"
+        },
+        {
+          "name": "LLM_VISION_MODEL",
+          "value": "claude-sonnet-4-5"
+        },
+        {
+          "name": "LLM_TEXT_MODEL",
+          "value": "claude-sonnet-4-5"
+        },
+        {
+          "name": "LLM_DAILY_COST_CAP_USD",
+          "value": "5"
+        },
+        {
+          "name": "LLM_MONTHLY_COST_CAP_USD",
+          "value": "50"
+        },
+        {
+          "name": "LLM_COST_ALERT_THRESHOLD_PCT",
+          "value": "80"
+        },
+        {
+          "name": "LLM_REQUEST_TIMEOUT_SECONDS",
+          "value": "45"
+        }
+      ],
       "secrets": [
         {
           "name": "DJANGO_SECRET_KEY",

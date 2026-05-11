@@ -37,6 +37,21 @@ services:
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-}
       - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-}
+      # Page Layout Auto-Generator (LLM). OFF by default; flip the kill-switch
+      # to True only when ready and an ANTHROPIC_API_KEY is configured.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_GENERATION_ENABLED=${LLM_GENERATION_ENABLED:-False}
+      - LLM_VISION_MODEL=${LLM_VISION_MODEL:-claude-sonnet-4-5}
+      - LLM_TEXT_MODEL=${LLM_TEXT_MODEL:-claude-sonnet-4-5}
+      - LLM_DAILY_COST_CAP_USD=${LLM_DAILY_COST_CAP_USD:-5}
+      - LLM_MONTHLY_COST_CAP_USD=${LLM_MONTHLY_COST_CAP_USD:-50}
+      - LLM_COST_ALERT_EMAIL=${LLM_COST_ALERT_EMAIL:-}
+      # SSRF allowlist for backend-side image fetches. Prod default is
+      # S3+CloudFront only; local dev needs `localhost` because greeting
+      # card uploads return /media/... URLs that the backend fetches from
+      # itself when feeding the vision LLM as base64.
+      - LLM_IMAGE_FETCH_ALLOWED_HOSTS=${LLM_IMAGE_FETCH_ALLOWED_HOSTS:-*.amazonaws.com,*.cloudfront.net}
+      - LLM_IMAGE_FETCH_ALLOW_PRIVATE=${LLM_IMAGE_FETCH_ALLOW_PRIVATE:-False}
     depends_on:
       db:
         condition: service_healthy

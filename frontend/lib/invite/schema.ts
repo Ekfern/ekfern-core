@@ -70,6 +70,11 @@ export interface GreetingCardTileSettings {
   src?: string                  // Image URL or data URL
   backgroundGradient?: string   // CSS gradient when no image e.g. 'linear-gradient(135deg, #fce4ec, #f48fb1)'
   textOverlays?: TextOverlay[]  // Positioned text boxes from the card designer (9:16 coordinate system)
+  // How the source image fills the 9:16 card frame.
+  //   'cover'   (default) — fills the frame and crops sides/top to fit
+  //   'contain' — shows the entire image, may letterbox if aspect mismatches 9:16
+  // Auto-generated layouts use 'contain' so user-uploaded cards aren't cropped.
+  imageFit?: 'cover' | 'contain'
 }
 
 export interface TimerTileSettings {

@@ -1623,6 +1623,73 @@ class WhatsAppSettings(models.Model):
         return config
 
 
+class LLMUsageLedger(models.Model):
+    """
+    Persistent ledger of every external LLM call made by the platform.
+
+    Source of truth for per-user, per-day, and per-month spend used by the
+    Page Layout Auto-Generator and any future LLM-powered feature. All cap
+    checks read from this table — never from cache — so a Redis flush, ECS
+    task restart, or in-memory reset cannot reset the spend window.
+
+    Every successful or failed call writes one row before returning. Cache
+    hits are also recorded with `cache_hit=True` and `cost_usd=0` so the
+    cost dashboard shows realized spend accurately.
+    """
+    OPERATION_CHOICES = [
+        ('vision', 'Vision'),
+        ('text', 'Text'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='llm_usage',
+        help_text='Superuser who triggered the call. Null only if the call was system-initiated.',
+    )
+    request_id = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text='Client-supplied idempotency key. Same request_id within 60s reuses the prior result.',
+    )
+    operation = models.CharField(max_length=32, choices=OPERATION_CHOICES)
+    provider = models.CharField(max_length=32, default='anthropic')
+    model = models.CharField(max_length=64)
+    input_tokens = models.IntegerField(default=0)
+    output_tokens = models.IntegerField(default=0)
+    # 10 digits, 6 decimal places: max $9,999.999999, granular to micro-USD.
+    cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=0)
+    cache_hit = models.BooleanField(
+        default=False,
+        help_text='True when the call was served from cache and incurred no provider cost.',
+    )
+    success = models.BooleanField(default=True)
+    error = models.TextField(blank=True)
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Arbitrary debug context: card_url, event_type, attempt #, etc.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'llm_usage_ledger'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at'], name='llm_usage_user_time_idx'),
+            models.Index(fields=['created_at', 'success'], name='llm_usage_time_success_idx'),
+            models.Index(fields=['request_id', 'created_at'], name='llm_usage_request_idx'),
+        ]
+        verbose_name = 'LLM Usage Ledger Entry'
+        verbose_name_plural = 'LLM Usage Ledger Entries'
+
+    def __str__(self):
+        cost = f'${self.cost_usd:.4f}' if not self.cache_hit else 'cached'
+        return f'{self.created_at:%Y-%m-%d %H:%M} {self.operation} {self.model} ({cost})'
+
+
 # Signal to keep InvitePage.slug in sync with Event.slug
 @receiver(post_save, sender=Event)
 def sync_invite_page_slug(sender, instance, **kwargs):

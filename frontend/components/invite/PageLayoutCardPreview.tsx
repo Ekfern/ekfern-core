@@ -4,6 +4,7 @@ import React, { useMemo } from 'react'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { getTheme } from '@/lib/invite/themes'
 import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
+import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 
 // Inviting sample copy for library previews so cards look like real invites, not placeholders
 export const PREVIEW_SAMPLE = {
@@ -57,12 +58,25 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
 
   return (
     <div
-      className={`w-full aspect-[9/16] overflow-hidden ${className}`}
+      className={`relative w-full aspect-[9/16] overflow-hidden ${className}`}
       style={{ backgroundColor, background: backgroundColor }}
       aria-hidden
     >
+      {/*
+        Texture is also rendered on the wrapper so it fills the whole 9:16
+        thumbnail. The LivingPosterPage's own texture only spans its content
+        height — when tiles end well before the bottom of the preview the
+        remainder used to look flat / dead-cream. Rendering the texture here
+        as a backdrop keeps the look continuous.
+      */}
+      <TextureOverlay
+        type={config.texture?.type || 'none'}
+        intensity={config.texture?.intensity ?? 40}
+        imageUrl={config.texture?.imageUrl}
+        textureBlend={config.texture?.textureBlend}
+      />
       <div
-        className="w-full h-full overflow-hidden"
+        className="relative w-full h-full overflow-hidden"
         style={{
           transform: `scale(${CARD_SCALE})`,
           transformOrigin: 'top left',
@@ -77,7 +91,9 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
           hasRsvp={true}
           hasRegistry={true}
           skipBackgroundColor={true}
-          skipTextureOverlay={false}
+          // The wrapper above already paints the texture, so suppress the
+          // inner one to avoid a double-density pattern where they overlap.
+          skipTextureOverlay={true}
           allowedSubEvents={[]}
         />
       </div>

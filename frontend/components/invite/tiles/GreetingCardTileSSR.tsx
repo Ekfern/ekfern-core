@@ -78,6 +78,9 @@ export default function GreetingCardTileSSR({ settings }: GreetingCardTileSSRPro
     )
   }
 
+  // Mirror GreetingCardTile.tsx: 'contain' lets auto-generated cards with
+  // off-9:16 aspects render without side-cropping the title.
+  const fit = settings.imageFit === 'contain' ? 'contain' : 'cover'
   return (
     <div className="w-full flex justify-center">
       <div
@@ -92,7 +95,7 @@ export default function GreetingCardTileSSR({ settings }: GreetingCardTileSSRPro
           decoding="async"
           fetchPriority="high"
           className="absolute inset-0 w-full h-full"
-          style={{ objectFit: 'cover', objectPosition: 'center center' }}
+          style={{ objectFit: fit, objectPosition: 'center center' }}
         />
         {renderTextOverlays()}
       </div>

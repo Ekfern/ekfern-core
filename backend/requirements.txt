@@ -13,4 +13,7 @@ whitenoise==6.6.0
 django-background-tasks==1.2.8
 requests==2.31.0
 vobject==0.9.9
+anthropic>=0.40.0,<1.0.0
+colorthief==0.2.1
+Pillow==10.4.0
 
