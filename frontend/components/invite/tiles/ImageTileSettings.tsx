@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import type { ImageTileSettings } from '@/lib/invite/schema'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { Button } from '@/components/ui/button'
 import { extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
 import { uploadImage } from '@/lib/api'
@@ -136,13 +137,13 @@ export default function ImageTileSettings({ settings, onChange, eventId }: Image
             <div className="flex items-center gap-2">
               <input
                 type="color"
-                value={settings.backgroundColor || '#ffffff'}
+                value={colorInputValue(settings.backgroundColor, '#ffffff')}
                 onChange={(e) => onChange({ ...settings, backgroundColor: e.target.value })}
                 className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
               />
               <input
                 type="text"
-                value={settings.backgroundColor || '#ffffff'}
+                value={settings.backgroundColor ?? ''}
                 onChange={(e) => onChange({ ...settings, backgroundColor: e.target.value })}
                 placeholder="#FFFFFF"
                 className="flex-1 text-sm border rounded px-3 py-2"

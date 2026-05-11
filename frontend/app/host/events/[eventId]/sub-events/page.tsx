@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Eye, EyeOff, Maximize2 } from 'lucide-react'
 import { extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import RichTextEditor from '@/components/invite/RichTextEditor'
 import DescriptionEditorModal from '@/components/invite/DescriptionEditorModal'
 
@@ -571,13 +572,13 @@ export default function SubEventsPage() {
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
-                            value={formData.background_color || '#ffffff'}
+                            value={colorInputValue(formData.background_color || undefined, '#ffffff')}
                             onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
                             className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
                           />
                           <input
                             type="text"
-                            value={formData.background_color || '#ffffff'}
+                            value={formData.background_color ?? ''}
                             onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
                             placeholder="#FFFFFF"
                             className="flex-1 text-sm border rounded px-3 py-2"
@@ -1034,13 +1035,13 @@ export default function SubEventsPage() {
                       <div className="flex items-center gap-2">
                         <input
                           type="color"
-                          value={formData.background_color || '#ffffff'}
+                          value={colorInputValue(formData.background_color || undefined, '#ffffff')}
                           onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
                           className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
                         />
                         <input
                           type="text"
-                          value={formData.background_color || '#ffffff'}
+                          value={formData.background_color ?? ''}
                           onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
                           placeholder="#FFFFFF"
                           className="flex-1 text-sm border rounded px-3 py-2"

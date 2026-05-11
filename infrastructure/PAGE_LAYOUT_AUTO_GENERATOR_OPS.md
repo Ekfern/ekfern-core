@@ -65,7 +65,7 @@ aws ssm put-parameter \
 Repeat for other optional staging toggles (only if you want to manage them outside the task-definition `environment` block):
 
 ```bash
-aws ssm put-parameter --name /event-registry-staging/LLM_GENERATION_ENABLED --type String --value "False"
+aws ssm put-parameter --name /event-registry-staging/LLM_GENERATION_ENABLED --type String --value "True" --overwrite
 aws ssm put-parameter --name /event-registry-staging/LLM_COST_ALERT_EMAIL  --type String --value "ops@ekfern.com"
 ```
 

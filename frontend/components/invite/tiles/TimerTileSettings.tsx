@@ -2,6 +2,7 @@
 
 import React from 'react'
 import type { TimerTileSettings } from '@/lib/invite/schema'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { Input } from '@/components/ui/input'
 
 interface TimerTileSettingsProps {
@@ -10,6 +11,8 @@ interface TimerTileSettingsProps {
 }
 
 export default function TimerTileSettings({ settings, onChange }: TimerTileSettingsProps) {
+  const textColorFallback =
+    settings.circleColor === 'transparent' ? '#000000' : '#ffffff'
   return (
     <div className="space-y-4">
       <div>
@@ -55,13 +58,13 @@ export default function TimerTileSettings({ settings, onChange }: TimerTileSetti
         <div className="flex items-center gap-2">
           <input
             type="color"
-            value={settings.textColor || (settings.circleColor === 'transparent' ? '#000000' : '#ffffff')}
+            value={colorInputValue(settings.textColor, textColorFallback)}
             onChange={(e) => onChange({ ...settings, textColor: e.target.value })}
             className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
           />
           <Input
             type="text"
-            value={settings.textColor || (settings.circleColor === 'transparent' ? '#000000' : '#ffffff')}
+            value={settings.textColor ?? ''}
             onChange={(e) => onChange({ ...settings, textColor: e.target.value })}
             placeholder="#000000"
             className="flex-1"

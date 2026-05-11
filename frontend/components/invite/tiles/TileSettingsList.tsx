@@ -46,6 +46,8 @@ interface TileSettingsListProps {
   hasRegistry?: boolean
   forceExpanded?: boolean
   eventStructure?: 'SIMPLE' | 'ENVELOPE'
+  /** Staff page layout studio: allow Event carousel in Add tile without ENVELOPE context */
+  templateStudio?: boolean
 }
 
 export default function TileSettingsList({
@@ -60,6 +62,7 @@ export default function TileSettingsList({
   hasRegistry = false,
   forceExpanded = false,
   eventStructure,
+  templateStudio = false,
 }: TileSettingsListProps) {
   const [showPicker, setShowPicker] = useState(false)
 
@@ -79,7 +82,7 @@ export default function TileSettingsList({
   // Tile types available to add (not yet present; event-carousel only for ENVELOPE events)
   const availableToAdd = TILE_CATALOG.filter((c) => {
     if (presentTypes.has(c.type)) return false
-    if (c.type === 'event-carousel' && eventStructure !== 'ENVELOPE') return false
+    if (c.type === 'event-carousel' && eventStructure !== 'ENVELOPE' && !templateStudio) return false
     return true
   })
 

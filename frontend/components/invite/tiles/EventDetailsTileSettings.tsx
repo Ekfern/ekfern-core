@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import type { EventDetailsTileSettings } from '@/lib/invite/schema'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { Input } from '@/components/ui/input'
 import { 
   isValidMapUrl, 
@@ -344,13 +345,13 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <div className="flex items-center gap-2">
           <input
             type="color"
-            value={settings.fontColor || '#1F2937'}
+            value={colorInputValue(settings.fontColor, '#1F2937')}
             onChange={(e) => onChange({ ...settings, fontColor: e.target.value })}
             className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
           />
           <Input
             type="text"
-            value={settings.fontColor || '#1F2937'}
+            value={settings.fontColor ?? ''}
             onChange={(e) => onChange({ ...settings, fontColor: e.target.value })}
             placeholder="#1F2937"
             className="flex-1"
@@ -366,13 +367,13 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <div className="flex items-center gap-2">
           <input
             type="color"
-            value={settings.buttonColor || '#1F2937'}
+            value={colorInputValue(settings.buttonColor, '#1F2937')}
             onChange={(e) => onChange({ ...settings, buttonColor: e.target.value })}
             className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
           />
           <Input
             type="text"
-            value={settings.buttonColor || '#1F2937'}
+            value={settings.buttonColor ?? ''}
             onChange={(e) => onChange({ ...settings, buttonColor: e.target.value })}
             placeholder="#1F2937"
             className="flex-1"
@@ -500,13 +501,13 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
               <div className="flex items-center gap-2">
                 <input
                   type="color"
-                  value={settings.borderColor || '#D1D5DB'}
+                  value={colorInputValue(settings.borderColor, '#D1D5DB')}
                   onChange={(e) => onChange({ ...settings, borderColor: e.target.value })}
                   className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
                 />
                 <Input
                   type="text"
-                  value={settings.borderColor || '#D1D5DB'}
+                  value={settings.borderColor ?? ''}
                   onChange={(e) => onChange({ ...settings, borderColor: e.target.value })}
                   placeholder="#D1D5DB"
                   className="flex-1"
@@ -517,13 +518,13 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
             {/* Border Width */}
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">
-                Border Width: {settings.borderWidth || 1}px
+                Border Width: {settings.borderWidth ?? 1}px
               </label>
               <input
                 type="range"
                 min="1"
                 max="4"
-                value={settings.borderWidth || 1}
+                value={settings.borderWidth ?? 1}
                 onChange={(e) => onChange({ 
                   ...settings, 
                   borderWidth: parseInt(e.target.value) 
@@ -611,7 +612,7 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
           <div className="flex items-center gap-2">
             <input
               type="color"
-              value={settings.backgroundColor || '#FFFFFF'}
+              value={colorInputValue(settings.backgroundColor, '#FFFFFF')}
               onChange={(e) => onChange({ ...settings, backgroundColor: e.target.value })}
               className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
             />

@@ -20,7 +20,7 @@
       "environment": [
         {
           "name": "LLM_GENERATION_ENABLED",
-          "value": "False"
+          "value": "True"
         },
         {
           "name": "LLM_VISION_MODEL",

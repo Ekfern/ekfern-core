@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import PageLayoutStudioCanvas from '@/components/invite/PageLayoutStudioCanvas'
-import { InviteConfig, Tile } from '@/lib/invite/schema'
+import { InviteConfig } from '@/lib/invite/schema'
+import { minimalStaffPageLayoutStarterTiles } from '@/lib/invite/pageLayoutTileDefaults'
 import { createInvitePageLayout } from '@/lib/invite/api'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 
@@ -21,21 +22,14 @@ const DUMMY_EVENT = {
   has_registry: true,
 }
 
-const DEFAULT_TILES: Tile[] = [
-  { id: 'tile-title-0', type: 'title', enabled: true, order: 0, settings: { text: 'Sample Event' } },
-  { id: 'tile-image-1', type: 'image', enabled: false, order: 1, settings: { src: '', fitMode: 'fit-to-screen' } },
-  { id: 'tile-event-details-2', type: 'event-details', enabled: true, order: 2, settings: { location: 'Venue Name', date: '2025-06-15' } },
-  { id: 'tile-description-3', type: 'description', enabled: false, order: 3, settings: { content: '' } },
-  { id: 'tile-timer-4', type: 'timer', enabled: false, order: 4, settings: { enabled: true, format: 'circle', circleColor: '#0D6EFD', textColor: '#000000' } },
-  { id: 'tile-feature-buttons-5', type: 'feature-buttons', enabled: true, order: 5, settings: { buttonColor: '#0D6EFD' } },
-  { id: 'tile-event-carousel-7', type: 'event-carousel', enabled: false, order: 7, settings: { showFields: { image: true, title: true, dateTime: true, location: true, cta: true } } },
-  { id: 'tile-footer-8', type: 'footer', enabled: false, order: 8, settings: { text: '' } },
-]
-
 const DEFAULT_CONFIG: InviteConfig = {
   themeId: 'classic-noir',
   customColors: {},
-  tiles: DEFAULT_TILES,
+  tiles: minimalStaffPageLayoutStarterTiles({
+    title: DUMMY_EVENT.title,
+    date: DUMMY_EVENT.date,
+    city: DUMMY_EVENT.city,
+  }),
   tileSetComplete: true,
 }
 

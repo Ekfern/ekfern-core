@@ -9,7 +9,7 @@ export interface GreetingCardTileProps {
   preview?: boolean
 }
 
-export default function GreetingCardTile({ settings, preview = false }: GreetingCardTileProps) {
+export default function GreetingCardTile({ settings, preview: _preview = false }: GreetingCardTileProps) {
   const hasImage = !!settings.src
   const hasGradient = !!settings.backgroundGradient
   const hasTextOverlays = settings.textOverlays && settings.textOverlays.length > 0
@@ -59,9 +59,21 @@ export default function GreetingCardTile({ settings, preview = false }: Greeting
     })
   }
 
-  // Nothing to render
+  // No image or gradient: still show text overlays (e.g. template with missing asset URL).
+  // In preview, never return null so the tile slot is visible in page-layout / design previews.
   if (!hasImage && !hasGradient) {
-    if (preview) return null
+    if (hasTextOverlays) {
+      return (
+        <div className="w-full flex justify-center">
+          <div
+            className="relative w-full max-w-sm overflow-hidden bg-gray-100"
+            style={{ aspectRatio: '9 / 16' }}
+          >
+            {renderTextOverlays()}
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="w-full h-48 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
         <p className="text-gray-400 text-sm">No greeting card content</p>

@@ -330,7 +330,7 @@ export default function RSVPPage() {
         {currentStep === 'verify' && stepCard('Verify your phone', 'For private events, phone verification is required before RSVP.', (
           <div className="space-y-4">
             <div className="flex gap-2">
-              <CountryCodeSelector name="country_code" value={watch('country_code') || event.country_code || '+91'} defaultValue={event.country_code || '+91'} onChange={(v) => setValue('country_code', v, { shouldValidate: true })} className="w-44" />
+              <CountryCodeSelector name="country_code" value={watch('country_code') ?? event.country_code ?? '+91'} defaultValue={event.country_code || '+91'} onChange={(v) => setValue('country_code', v, { shouldValidate: true })} className="w-44" />
               <Input type="tel" {...register('phone')} placeholder="10-digit phone number" />
             </div>
             <Button onClick={verifyPhone} disabled={verifyingPhone} className="w-full">{verifyingPhone ? 'Verifying...' : 'Verify phone'}</Button>
@@ -343,7 +343,7 @@ export default function RSVPPage() {
             <div>
               <label className="text-sm font-medium">Phone number</label>
               <div className="flex gap-2 mt-1">
-                <CountryCodeSelector name="country_code" value={watch('country_code') || event.country_code || '+91'} defaultValue={event.country_code || '+91'} onChange={(v) => setValue('country_code', v, { shouldValidate: true })} className="w-44" />
+                <CountryCodeSelector name="country_code" value={watch('country_code') ?? event.country_code ?? '+91'} defaultValue={event.country_code || '+91'} onChange={(v) => setValue('country_code', v, { shouldValidate: true })} className="w-44" />
                 <Input type="tel" {...register('phone')} />
               </div>
               {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone.message}</p>}

@@ -2,6 +2,7 @@
 
 import React from 'react'
 import type { TitleTileSettings } from '@/lib/invite/schema'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { FONT_OPTIONS, findFontByFamily } from '@/lib/invite/fonts'
 import { Input } from '@/components/ui/input'
 
@@ -49,13 +50,13 @@ export default function TitleTileSettings({ settings, onChange }: TitleTileSetti
         <div className="flex items-center gap-2">
           <input
             type="color"
-            value={settings.color || '#000000'}
+            value={colorInputValue(settings.color, '#000000')}
             onChange={(e) => onChange({ ...settings, color: e.target.value })}
             className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
           />
           <Input
             type="text"
-            value={settings.color || '#000000'}
+            value={settings.color ?? ''}
             onChange={(e) => onChange({ ...settings, color: e.target.value })}
             placeholder="#000000"
             className="flex-1"
@@ -108,7 +109,7 @@ export default function TitleTileSettings({ settings, onChange }: TitleTileSetti
               <label className="text-xs font-medium text-gray-600">Subtitle color</label>
               <input
                 type="color"
-                value={settings.subtitleColor || settings.color || '#000000'}
+                value={colorInputValue(settings.subtitleColor, colorInputValue(settings.color, '#000000'))}
                 onChange={(e) => onChange({ ...settings, subtitleColor: e.target.value })}
                 className="w-8 h-8 rounded border cursor-pointer"
               />

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { EventCarouselTileSettings } from '@/lib/invite/schema'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { Input } from '@/components/ui/input'
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { FONT_OPTIONS, findFontByFamily } from '@/lib/invite/fonts'
@@ -172,13 +173,13 @@ export default function EventCarouselTileSettingsComponent({
               <div className="flex items-center gap-2">
                 <input
                   type="color"
-                  value={settings.subEventTitleStyling?.color || '#111827'}
+                  value={colorInputValue(settings.subEventTitleStyling?.color, '#111827')}
                   onChange={(e) => handleTitleStylingUpdate({ color: e.target.value })}
                   className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
                 />
                 <Input
                   type="text"
-                  value={settings.subEventTitleStyling?.color || '#111827'}
+                  value={settings.subEventTitleStyling?.color ?? ''}
                   onChange={(e) => handleTitleStylingUpdate({ color: e.target.value })}
                   placeholder="#111827"
                   className="flex-1"
@@ -228,13 +229,13 @@ export default function EventCarouselTileSettingsComponent({
               <div className="flex items-center gap-2">
                 <input
                   type="color"
-                  value={settings.subEventDetailsStyling?.fontColor || '#4B5563'}
+                  value={colorInputValue(settings.subEventDetailsStyling?.fontColor, '#4B5563')}
                   onChange={(e) => handleDetailsStylingUpdate({ fontColor: e.target.value })}
                   className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
                 />
                 <Input
                   type="text"
-                  value={settings.subEventDetailsStyling?.fontColor || '#4B5563'}
+                  value={settings.subEventDetailsStyling?.fontColor ?? ''}
                   onChange={(e) => handleDetailsStylingUpdate({ fontColor: e.target.value })}
                   placeholder="#4B5563"
                   className="flex-1"
@@ -279,14 +280,14 @@ export default function EventCarouselTileSettingsComponent({
             {settings.autoPlay !== false && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Auto-play Interval: {settings.autoPlayInterval || 5000}ms
+                  Auto-play Interval: {settings.autoPlayInterval ?? 5000}ms
                 </label>
                 <input
                   type="range"
                   min="3000"
                   max="10000"
                   step="500"
-                  value={settings.autoPlayInterval || 5000}
+                  value={settings.autoPlayInterval ?? 5000}
                   onChange={(e) => handleUpdate({ autoPlayInterval: parseInt(e.target.value) })}
                   className="w-full"
                 />
@@ -403,13 +404,13 @@ export default function EventCarouselTileSettingsComponent({
               <div className="flex gap-2">
                 <input
                   type="color"
-                  value={settings.cardBackgroundColor || '#ffffff'}
+                  value={colorInputValue(settings.cardBackgroundColor, '#ffffff')}
                   onChange={(e) => handleUpdate({ cardBackgroundColor: e.target.value })}
                   className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
                 />
                 <Input
                   type="text"
-                  value={settings.cardBackgroundColor || '#ffffff'}
+                  value={settings.cardBackgroundColor ?? ''}
                   onChange={(e) => handleUpdate({ cardBackgroundColor: e.target.value })}
                   placeholder="#ffffff"
                   className="flex-1"
@@ -448,14 +449,14 @@ export default function EventCarouselTileSettingsComponent({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Border Width: {settings.cardBorderWidth || 0}px
+                Border Width: {settings.cardBorderWidth ?? 0}px
               </label>
               <input
                 type="range"
                 min="0"
                 max="4"
                 step="1"
-                value={settings.cardBorderWidth || 0}
+                value={settings.cardBorderWidth ?? 0}
                 onChange={(e) => handleUpdate({ cardBorderWidth: parseInt(e.target.value) })}
                 className="w-full"
               />
@@ -469,13 +470,13 @@ export default function EventCarouselTileSettingsComponent({
                   <div className="flex gap-2">
                     <input
                       type="color"
-                      value={settings.cardBorderColor || '#000000'}
+                      value={colorInputValue(settings.cardBorderColor, '#000000')}
                       onChange={(e) => handleUpdate({ cardBorderColor: e.target.value })}
                       className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
                     />
                     <Input
                       type="text"
-                      value={settings.cardBorderColor || '#000000'}
+                      value={settings.cardBorderColor ?? ''}
                       onChange={(e) => handleUpdate({ cardBorderColor: e.target.value })}
                       placeholder="#000000"
                       className="flex-1"

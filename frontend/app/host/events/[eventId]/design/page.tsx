@@ -29,6 +29,7 @@ import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage } from '@/lib/invite/imageAnalysis'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import WizardProgress from '@/components/host/WizardProgress'
 
 interface Event {
@@ -1955,8 +1956,8 @@ export default function DesignInvitationPage(): JSX.Element {
                                 ...prev.pageBorder,
                                 enabled: e.target.checked,
                                 style: prev.pageBorder?.style || 'solid',
-                                color: prev.pageBorder?.color || '#D1D5DB',
-                                width: prev.pageBorder?.width || 2,
+                                color: prev.pageBorder?.color ?? '#D1D5DB',
+                                width: prev.pageBorder?.width ?? 2,
                               },
                             }))}
                             className="w-4 h-4 text-eco-green focus:ring-eco-green border-gray-300 rounded"
@@ -1993,7 +1994,7 @@ export default function DesignInvitationPage(): JSX.Element {
                               <div className="flex items-center gap-2">
                                 <input
                                   type="color"
-                                  value={config.pageBorder?.color || '#D1D5DB'}
+                                  value={colorInputValue(config.pageBorder?.color, '#D1D5DB')}
                                   onChange={(e) => setConfig(prev => ({
                                     ...prev,
                                     pageBorder: {
@@ -2005,7 +2006,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                 />
                                 <Input
                                   type="text"
-                                  value={config.pageBorder?.color || '#D1D5DB'}
+                                  value={config.pageBorder?.color ?? ''}
                                   onChange={(e) => setConfig(prev => ({
                                     ...prev,
                                     pageBorder: {
@@ -2020,13 +2021,13 @@ export default function DesignInvitationPage(): JSX.Element {
                             </div>
                             <div>
                               <label className="block text-sm font-medium mb-2">
-                                Border Width: {config.pageBorder?.width || 2}px
+                                Border Width: {config.pageBorder?.width ?? 2}px
                               </label>
                               <input
                                 type="range"
                                 min="1"
                                 max="8"
-                                value={config.pageBorder?.width || 2}
+                                value={config.pageBorder?.width ?? 2}
                                 onChange={(e) => setConfig(prev => ({
                                   ...prev,
                                   pageBorder: {

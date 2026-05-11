@@ -3,6 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import type { FeatureButtonsTileSettings } from '@/lib/invite/schema'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { Input } from '@/components/ui/input'
 import { ExternalLink } from 'lucide-react'
 
@@ -28,13 +29,13 @@ export default function FeatureButtonsTileSettings({
         <div className="flex items-center gap-2">
           <input
             type="color"
-            value={settings.buttonColor || '#0D6EFD'}
+            value={colorInputValue(settings.buttonColor, '#0D6EFD')}
             onChange={(e) => onChange({ ...settings, buttonColor: e.target.value })}
             className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
           />
           <Input
             type="text"
-            value={settings.buttonColor || '#0D6EFD'}
+            value={settings.buttonColor ?? ''}
             onChange={(e) => onChange({ ...settings, buttonColor: e.target.value })}
             placeholder="#0D6EFD"
             className="flex-1"
@@ -51,7 +52,7 @@ export default function FeatureButtonsTileSettings({
           <label className="block text-sm font-medium mb-2">RSVP Button Label</label>
           <Input
             type="text"
-            value={settings.rsvpLabel || 'RSVP'}
+            value={settings.rsvpLabel ?? ''}
             onChange={(e) => onChange({ ...settings, rsvpLabel: e.target.value })}
             placeholder="RSVP"
             className="w-full"
@@ -85,7 +86,7 @@ export default function FeatureButtonsTileSettings({
           <label className="block text-sm font-medium mb-2">Registry Button Label</label>
           <Input
             type="text"
-            value={settings.registryLabel || 'Registry'}
+            value={settings.registryLabel ?? ''}
             onChange={(e) => onChange({ ...settings, registryLabel: e.target.value })}
             placeholder="Registry"
             className="w-full"

@@ -1,7 +1,9 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { InviteConfig, Tile } from '@/lib/invite/schema'
+import React, { useState, useEffect, useCallback } from 'react'
+import { InviteConfig, Tile, TileType } from '@/lib/invite/schema'
+import { buildDefaultTileSettingsRecord } from '@/lib/invite/pageLayoutTileDefaults'
+import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { getTheme } from '@/lib/invite/themes'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
@@ -87,6 +89,45 @@ export default function PageLayoutStudioCanvas({
       ),
     }))
   }
+
+  const handleAddTile = useCallback(
+    (type: TileType) => {
+      const defaultSettings = buildDefaultTileSettingsRecord({
+        title: eventLike.title,
+        date: eventLike.date,
+        city: eventLike.city,
+      })
+      setConfig((prev) => {
+        const maxOrder = Math.max(...(prev.tiles?.map((t) => t.order ?? 0) ?? [0]), 0)
+        const newTile: Tile = {
+          id: `tile-${type}-${Date.now().toString(36)}`,
+          type,
+          enabled: true,
+          order: maxOrder + 1,
+          settings: defaultSettings[type],
+        }
+        return { ...prev, tiles: [...(prev.tiles ?? []), newTile] }
+      })
+    },
+    [eventLike.city, eventLike.date, eventLike.title, setConfig]
+  )
+
+  const handleRemoveTile = useCallback(
+    (tileId: string) => {
+      setConfig((prev) => ({
+        ...prev,
+        tiles: (prev.tiles ?? [])
+          .filter((t) => t.id !== tileId)
+          .map((t) =>
+            t.type === 'title' && t.overlayTargetId === tileId
+              ? { ...t, overlayTargetId: undefined }
+              : t
+          ),
+      }))
+      setSelectedTileId((prev) => (prev === tileId ? null : prev))
+    },
+    [setConfig]
+  )
 
   const displayBackgroundColor =
     config.customColors?.backgroundColor ?? getTheme(config?.themeId ?? 'classic-noir').palette.bg
@@ -327,8 +368,8 @@ export default function PageLayoutStudioCanvas({
                               ...prev.pageBorder,
                               enabled: e.target.checked,
                               style: prev.pageBorder?.style || 'solid',
-                              color: prev.pageBorder?.color || '#D1D5DB',
-                              width: prev.pageBorder?.width || 2,
+                              color: prev.pageBorder?.color ?? '#D1D5DB',
+                              width: prev.pageBorder?.width ?? 2,
                             },
                           }))
                         }
@@ -365,7 +406,7 @@ export default function PageLayoutStudioCanvas({
                           <div className="flex items-center gap-2">
                             <input
                               type="color"
-                              value={config.pageBorder?.color || '#D1D5DB'}
+                              value={colorInputValue(config.pageBorder?.color, '#D1D5DB')}
                               onChange={(e) =>
                                 setConfig((prev) => ({
                                   ...prev,
@@ -376,7 +417,7 @@ export default function PageLayoutStudioCanvas({
                             />
                             <Input
                               type="text"
-                              value={config.pageBorder?.color || '#D1D5DB'}
+                              value={config.pageBorder?.color ?? ''}
                               onChange={(e) =>
                                 setConfig((prev) => ({
                                   ...prev,
@@ -389,13 +430,13 @@ export default function PageLayoutStudioCanvas({
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-2">
-                            Border Width: {config.pageBorder?.width || 2}px
+                            Border Width: {config.pageBorder?.width ?? 2}px
                           </label>
                           <input
                             type="range"
                             min="1"
                             max="8"
-                            value={config.pageBorder?.width || 2}
+                            value={config.pageBorder?.width ?? 2}
                             onChange={(e) =>
                               setConfig((prev) => ({
                                 ...prev,
@@ -480,13 +521,30 @@ export default function PageLayoutStudioCanvas({
               onUpdate={handleTileUpdate}
               onToggle={handleTileToggle}
               onOverlayToggle={handleOverlayToggle}
+              onAddTile={handleAddTile}
+              onRemoveTile={handleRemoveTile}
               eventId={eventIdForTiles}
               hasRsvp={eventLike.has_rsvp}
               hasRegistry={eventLike.has_registry}
               forceExpanded={allTilesExpanded}
+              templateStudio
             />
           ) : (
-            <p className="text-gray-500 text-sm">No tiles available</p>
+            <div className="space-y-3">
+              <p className="text-gray-500 text-sm">No tiles yet — add one below.</p>
+              <TileSettingsList
+                tiles={[]}
+                onReorder={() => {}}
+                onUpdate={() => {}}
+                onToggle={() => {}}
+                onAddTile={handleAddTile}
+                eventId={eventIdForTiles}
+                hasRsvp={eventLike.has_rsvp}
+                hasRegistry={eventLike.has_registry}
+                forceExpanded={allTilesExpanded}
+                templateStudio
+              />
+            </div>
           )}
         </div>
       </div>
