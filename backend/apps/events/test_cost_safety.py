@@ -77,11 +77,21 @@ class SafetyStackTests(TestCase):
         self.assertEqual(cm.exception.status_code, 401)
         self.assertEqual(cm.exception.code, "not_authenticated")
 
-    def test_blocks_non_superuser(self):
+    def test_blocks_user_without_superuser_or_flag(self):
         with self.assertRaises(SafetyStackError) as cm:
             enforce_safety_stack(user=self.normal, request_id="r-normal")
         self.assertEqual(cm.exception.status_code, 403)
-        self.assertEqual(cm.exception.code, "not_superuser")
+        self.assertEqual(cm.exception.code, "no_llm_access")
+
+    def test_allows_user_with_llm_module_access(self):
+        flagged = User.objects.create_user(
+            email="flagged@test.com", name="Flagged",
+        )
+        flagged.llm_module_access = True
+        flagged.save(update_fields=["llm_module_access"])
+        ctx = enforce_safety_stack(user=flagged, request_id="r-flagged")
+        self.assertEqual(ctx.user_id, flagged.id)
+        self.assertIsNone(ctx.cached_response)
 
     @override_settings(LLM_GENERATION_ENABLED=False)
     def test_kill_switch_off_blocks(self):

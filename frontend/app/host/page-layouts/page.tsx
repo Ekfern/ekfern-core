@@ -23,6 +23,7 @@ interface MeResponse {
   name: string
   is_staff?: boolean
   is_superuser?: boolean
+  llm_module_access?: boolean
 }
 
 export default function PageLayoutStudioListPage() {
@@ -35,7 +36,7 @@ export default function PageLayoutStudioListPage() {
   const [layouts, setLayouts] = useState<InvitePageLayoutResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [isStaff, setIsStaff] = useState<boolean | null>(null)
-  const [isSuperuser, setIsSuperuser] = useState(false)
+  const [canUseLlm, setCanUseLlm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [cardUrlInput, setCardUrlInput] = useState('')
 
@@ -82,7 +83,8 @@ export default function PageLayoutStudioListPage() {
         if (cancelled) return
         const staff = meRes.data?.is_staff === true
         setIsStaff(staff)
-        setIsSuperuser(meRes.data?.is_superuser === true)
+        const me = meRes.data
+        setCanUseLlm(me?.is_superuser === true || me?.llm_module_access === true)
         if (!staff) {
           router.push('/host/dashboard')
           return
@@ -143,7 +145,7 @@ export default function PageLayoutStudioListPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {isSuperuser && (
+            {canUseLlm && (
               <Link href="/host/templates/layouts/llm-usage">
                 <Button variant="outline" className="gap-2">
                   <BarChart3 size={16} />
@@ -151,7 +153,7 @@ export default function PageLayoutStudioListPage() {
                 </Button>
               </Link>
             )}
-            {isSuperuser && (
+            {canUseLlm && (
               <Link href="/host/templates/layouts/generate">
                 <Button variant="outline" className="gap-2 border-eco-green text-eco-green hover:bg-eco-green-light">
                   <Sparkles size={16} />

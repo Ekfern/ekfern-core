@@ -14,6 +14,7 @@ import { logError } from '@/lib/error-handler'
 interface MeResponse {
   id: number
   is_superuser?: boolean
+  llm_module_access?: boolean
 }
 
 function ProgressBar({ pct, threshold }: { pct: number; threshold: number }) {
@@ -82,7 +83,8 @@ export default function LLMUsageDashboardPage() {
       try {
         const meRes = await api.get<MeResponse>('/api/auth/me/')
         if (cancelled) return
-        if (!meRes.data?.is_superuser) {
+        const me = meRes.data
+        if (me?.is_superuser !== true && me?.llm_module_access !== true) {
           router.push('/host/dashboard')
           return
         }
@@ -168,7 +170,7 @@ export default function LLMUsageDashboardPage() {
             <CardContent className="py-4">
               <p className="text-xs text-gray-500 mb-1">Status</p>
               <Badge variant={usage.kill_switch_enabled ? 'success' : 'warning'}>
-                {usage.kill_switch_enabled ? 'Kill-switch ON' : 'Kill-switch OFF'}
+                {usage.kill_switch_enabled ? 'Generation ON' : 'Generation OFF'}
               </Badge>
               <p className="text-xs text-gray-600 mt-2">
                 API key: {usage.api_key_configured ? 'configured' : <span className="text-red-700">missing</span>}

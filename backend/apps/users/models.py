@@ -29,6 +29,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
+    llm_module_access = models.BooleanField(
+        'LLM module access',
+        default=False,
+        help_text='Allow Page Layout Auto-Generator and related LLM APIs (in addition to superusers).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     
     # Email verification

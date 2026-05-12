@@ -24,6 +24,7 @@ interface MeResponse {
   name: string
   is_staff?: boolean
   is_superuser?: boolean
+  llm_module_access?: boolean
 }
 
 const EVENT_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
@@ -72,7 +73,7 @@ function newRequestId(): string {
 export default function GeneratePageLayoutPage() {
   const router = useRouter()
   const [authChecked, setAuthChecked] = useState(false)
-  const [isSuperuser, setIsSuperuser] = useState(false)
+  const [canUseLlm, setCanUseLlm] = useState(false)
   const [usage, setUsage] = useState<LLMUsageSummary | null>(null)
   const [usageError, setUsageError] = useState<string | null>(null)
 
@@ -104,11 +105,12 @@ export default function GeneratePageLayoutPage() {
       try {
         const meRes = await api.get<MeResponse>('/api/auth/me/')
         if (cancelled) return
-        if (!meRes.data?.is_superuser) {
+        const me = meRes.data
+        if (me?.is_superuser !== true && me?.llm_module_access !== true) {
           router.push('/host/dashboard')
           return
         }
-        setIsSuperuser(true)
+        setCanUseLlm(true)
         try {
           const summary = await getLLMUsageSummary(7)
           if (!cancelled) setUsage(summary)
@@ -146,7 +148,7 @@ export default function GeneratePageLayoutPage() {
     && usage.user.daily_count >= usage.user.daily_quota
 
   const blockReason = useMemo(() => {
-    if (killSwitchOff) return 'LLM generation is currently disabled (kill-switch off).'
+    if (killSwitchOff) return 'LLM generation is currently disabled (toggle Generation enabled in Django Admin → LLM Platform Settings, or set LLM_GENERATION_ENABLED in env).'
     if (apiKeyMissing) return 'ANTHROPIC_API_KEY is not configured on the server.'
     if (dailyCapHit) return 'Daily cost cap reached. Try again tomorrow.'
     if (monthlyCapHit) return 'Monthly cost cap reached. Try again next month.'
@@ -209,7 +211,7 @@ export default function GeneratePageLayoutPage() {
     }
   }
 
-  if (!authChecked || !isSuperuser) {
+  if (!authChecked || !canUseLlm) {
     return (
       <div className="min-h-screen bg-eco-beige flex items-center justify-center">
         <p className="text-gray-600">Checking permissions\u2026</p>
@@ -244,7 +246,7 @@ export default function GeneratePageLayoutPage() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
                 <div className="flex flex-wrap items-center gap-3">
                   <Badge variant={usage.kill_switch_enabled ? 'success' : 'warning'}>
-                    {usage.kill_switch_enabled ? 'Kill-switch ON' : 'Kill-switch OFF'}
+                    {usage.kill_switch_enabled ? 'Generation ON' : 'Generation OFF'}
                   </Badge>
                   <span className="text-gray-700">
                     Today: <strong>${usage.daily.spend_usd.toFixed(4)}</strong> of ${usage.daily.cap_usd.toFixed(2)} ({dailyPct}%)
@@ -269,10 +271,18 @@ export default function GeneratePageLayoutPage() {
               <AlertTriangle className="w-5 h-5 text-yellow-700 shrink-0 mt-0.5" />
               <div className="text-sm text-yellow-900">
                 {killSwitchOff && (
-                  <p><strong>Generation disabled.</strong> Set <code>LLM_GENERATION_ENABLED=True</code> in the backend environment.</p>
+                  <p>
+                    <strong>Generation disabled.</strong> In <strong>Django Admin → LLM Platform Settings</strong>, enable{' '}
+                    <strong>Generation enabled</strong> and save (no redeploy needed). If there is no admin row yet, set{' '}
+                    <code>LLM_GENERATION_ENABLED=True</code> in the backend environment and restart workers.
+                  </p>
                 )}
                 {apiKeyMissing && (
-                  <p className="mt-1"><strong>API key missing.</strong> Configure <code>ANTHROPIC_API_KEY</code> via secrets manager.</p>
+                  <p className="mt-1">
+                    <strong>API key missing in the running container.</strong> The parameter must be attached to the{' '}
+                    <strong>ECS task definition</strong> as env <code>ANTHROPIC_API_KEY</code> (SSM/Secrets{' '}
+                    <code>valueFrom</code>), then redeploy so tasks pick it up. A parameter in SSM alone does not inject the key.
+                  </p>
                 )}
               </div>
             </CardContent>

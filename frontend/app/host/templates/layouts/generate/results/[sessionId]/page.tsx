@@ -33,6 +33,7 @@ function normalizeDynamicParam(val: string | string[] | undefined): string | und
 interface MeResponse {
   id: number
   is_superuser?: boolean
+  llm_module_access?: boolean
 }
 
 type DraftState = 'pending' | 'published' | 'rejected'
@@ -84,7 +85,8 @@ export default function GenerateResultsPage() {
       try {
         const meRes = await api.get<MeResponse>('/api/auth/me/')
         if (cancelled) return
-        if (!meRes.data?.is_superuser) {
+        const me = meRes.data
+        if (me?.is_superuser !== true && me?.llm_module_access !== true) {
           router.push('/host/dashboard')
           return
         }

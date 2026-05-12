@@ -1,7 +1,8 @@
 """
-Superuser-only HTTP endpoints for the Page Layout Auto-Generator.
+HTTP endpoints for the Page Layout Auto-Generator.
 
-Routes (all behind ``IsSuperUser``):
+Routes (all behind ``HasLLMModuleAccess`` — superusers or users with
+``User.llm_module_access``):
 
   POST /api/admin/page-layouts/generate            — synchronous generation (previews only)
   POST /api/admin/page-layouts/remix               — resample without LLM cost (previews only)
@@ -12,7 +13,7 @@ Routes (all behind ``IsSuperUser``):
   GET  /api/admin/page-layouts/recipes             — diagnostic catalogue
 
 These are intentionally separate from `InvitePageLayoutViewSet` because:
-  1. They require `IsSuperUser`, not `IsAuthenticated`+is_staff.
+  1. They require ``HasLLMModuleAccess``, not mere ``IsAuthenticated``+is_staff.
   2. They drive an external paid API and need the full safety stack.
   3. Their lifecycle (create-as-draft / publish) is one-step, not full CRUD.
 
@@ -33,7 +34,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from apps.common.permissions import IsSuperUser
+from apps.common.permissions import HasLLMModuleAccess
 
 from .models import InvitePageLayout, GreetingCardSample
 from .serializers import InvitePageLayoutSerializer
@@ -225,7 +226,7 @@ def _validate_payload(data: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 @api_view(["POST"])
-@permission_classes([IsSuperUser])
+@permission_classes([HasLLMModuleAccess])
 def generate_page_layouts(request):
     """Synchronous generation endpoint. Blocks ~5–60s.
 
@@ -351,7 +352,7 @@ def generate_page_layouts(request):
 # ---------------------------------------------------------------------------
 
 @api_view(["POST"])
-@permission_classes([IsSuperUser])
+@permission_classes([HasLLMModuleAccess])
 def remix_page_layouts(request):
     """Resample a previous generation without paying for fresh LLM calls.
 
@@ -557,7 +558,7 @@ def _validate_save_review_payload(data: dict) -> dict:
 
 
 @api_view(["POST"])
-@permission_classes([IsSuperUser])
+@permission_classes([HasLLMModuleAccess])
 def save_review_drafts(request):
     """Persist selected ephemeral AI drafts as internal studio rows."""
     try:
@@ -606,7 +607,7 @@ def save_review_drafts(request):
 # ---------------------------------------------------------------------------
 
 @api_view(["POST"])
-@permission_classes([IsSuperUser])
+@permission_classes([HasLLMModuleAccess])
 def publish_page_layout(request, layout_id: int):
     """Flip a single draft to ``status='published', visibility='public'``."""
     layout = get_object_or_404(InvitePageLayout, pk=layout_id)
@@ -642,7 +643,7 @@ def publish_page_layout(request, layout_id: int):
 # ---------------------------------------------------------------------------
 
 @api_view(["POST"])
-@permission_classes([IsSuperUser])
+@permission_classes([HasLLMModuleAccess])
 def bulk_publish_page_layouts(request):
     """Publish many drafts in one call. Body: ``{ids: [int], visibility?: str}``."""
     ids = request.data.get("ids") or []
@@ -683,7 +684,7 @@ def bulk_publish_page_layouts(request):
 # ---------------------------------------------------------------------------
 
 @api_view(["GET"])
-@permission_classes([IsSuperUser])
+@permission_classes([HasLLMModuleAccess])
 def llm_usage_summary(request):
     """Cost dashboard data: today/MTD spend, caps, recent calls, kill-switch."""
     try:
@@ -699,7 +700,7 @@ def llm_usage_summary(request):
 # ---------------------------------------------------------------------------
 
 @api_view(["GET"])
-@permission_classes([IsSuperUser])
+@permission_classes([HasLLMModuleAccess])
 def list_recipes_and_presets(request):
     """Return the current recipe + style preset catalogue for staff debugging."""
     return Response(

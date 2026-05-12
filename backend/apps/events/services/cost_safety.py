@@ -324,9 +324,13 @@ def enforce_safety_stack(
         raise SafetyStackError(
             "Authentication required.", status_code=401, code="not_authenticated"
         )
-    if not getattr(user, "is_superuser", False):
+    from apps.common.permissions import user_has_llm_module_access
+
+    if not user_has_llm_module_access(user):
         raise SafetyStackError(
-            "Superuser access required.", status_code=403, code="not_superuser"
+            "LLM module access is not enabled for this account.",
+            status_code=403,
+            code="no_llm_access",
         )
 
     from apps.events.models import LLMPlatformSettings

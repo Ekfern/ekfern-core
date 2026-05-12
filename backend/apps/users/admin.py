@@ -573,9 +573,9 @@ admin_site = CustomAdminSite(name='customadmin')
 
 # Register User model with custom admin site
 class UserAdmin(admin.ModelAdmin):
-    list_display = ('email', 'name', 'is_active', 'is_staff', 'is_superuser', 'created_at')
+    list_display = ('email', 'name', 'is_active', 'is_staff', 'is_superuser', 'llm_module_access', 'created_at')
     search_fields = ('email', 'name')
-    list_filter = ('is_active', 'is_staff', 'is_superuser', 'created_at')
+    list_filter = ('is_active', 'is_staff', 'is_superuser', 'llm_module_access', 'created_at')
     readonly_fields = ('created_at',)
     actions = ['admin_send_otp', 'admin_unlock_account']
 

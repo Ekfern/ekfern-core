@@ -9,8 +9,14 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'name', 'email_verified', 'created_at', 'has_password', 'is_staff', 'is_superuser')
-        read_only_fields = ('id', 'email_verified', 'created_at', 'has_password', 'is_staff', 'is_superuser')
+        fields = (
+            'id', 'email', 'name', 'email_verified', 'created_at', 'has_password',
+            'is_staff', 'is_superuser', 'llm_module_access',
+        )
+        read_only_fields = (
+            'id', 'email_verified', 'created_at', 'has_password',
+            'is_staff', 'is_superuser', 'llm_module_access',
+        )
     
     def get_has_password(self, obj):
         """Check if user has a usable password set"""

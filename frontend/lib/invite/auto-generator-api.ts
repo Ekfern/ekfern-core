@@ -6,9 +6,9 @@ import type { InviteConfig } from './schema'
 /**
  * Client-side API helpers for the Page Layout Auto-Generator.
  *
- * All endpoints are superuser-only (server-side enforced via IsSuperUser).
- * The frontend additionally checks `is_superuser` on the user-info response
- * for UX, but the API is the authoritative gate.
+ * All endpoints require ``HasLLMModuleAccess`` on the backend (superuser or
+ * ``llm_module_access`` on the user). The frontend mirrors that on `/api/auth/me/`
+ * for UX; the API remains authoritative.
  */
 
 export interface GenerateLayoutDraft {
