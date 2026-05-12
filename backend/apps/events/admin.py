@@ -1,8 +1,25 @@
+from decimal import Decimal
+
 from django import forms
+from django.conf import settings as django_settings
 from django.contrib import admin
 from django.forms import PasswordInput
 from apps.users.admin import admin_site
-from .models import Event, Guest, RSVP, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, AnalyticsBatchRun, GreetingCardSample, HostSendQuota, WhatsAppSettings, WaitlistEntry
+from .models import (
+    Event,
+    Guest,
+    RSVP,
+    InvitePage,
+    SubEvent,
+    GuestSubEventInvite,
+    MessageTemplate,
+    AnalyticsBatchRun,
+    GreetingCardSample,
+    HostSendQuota,
+    LLMPlatformSettings,
+    WhatsAppSettings,
+    WaitlistEntry,
+)
 
 
 class EventAdmin(admin.ModelAdmin):
@@ -198,6 +215,72 @@ class WhatsAppSettingsAdmin(admin.ModelAdmin):
 
 
 admin_site.register(WhatsAppSettings, WhatsAppSettingsAdmin)
+
+
+class LLMPlatformSettingsAdmin(admin.ModelAdmin):
+    fieldsets = [
+        (
+            'Generation & caps',
+            {
+                'fields': ['generation_enabled', 'daily_cost_cap_usd', 'monthly_cost_cap_usd'],
+                'description': (
+                    'When this row exists, these values take effect app-wide (cached ~60s). '
+                    'If no row exists yet, the process falls back to environment variables.'
+                ),
+            },
+        ),
+        (
+            'Alerts',
+            {
+                'fields': ['cost_alert_email'],
+            },
+        ),
+        (
+            'Image fetch (SSRF)',
+            {
+                'fields': ['image_fetch_allowed_hosts', 'image_fetch_allow_private'],
+                'description': (
+                    'Host allowlist for any server-side image URL fetch. '
+                    'Leave allowlist blank to use LLM_IMAGE_FETCH_ALLOWED_HOSTS from the environment.'
+                ),
+            },
+        ),
+        (
+            'Audit',
+            {
+                'fields': ['updated_by', 'updated_at'],
+                'classes': ['collapse'],
+            },
+        ),
+    ]
+    readonly_fields = ['updated_at']
+
+    def has_add_permission(self, request):
+        return not LLMPlatformSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def changelist_view(self, request, extra_context=None):
+        LLMPlatformSettings.objects.get_or_create(
+            pk=1,
+            defaults={
+                'generation_enabled': django_settings.LLM_GENERATION_ENABLED,
+                'cost_alert_email': django_settings.LLM_COST_ALERT_EMAIL or '',
+                'daily_cost_cap_usd': Decimal(str(django_settings.LLM_DAILY_COST_CAP_USD)),
+                'monthly_cost_cap_usd': Decimal(str(django_settings.LLM_MONTHLY_COST_CAP_USD)),
+                'image_fetch_allowed_hosts': django_settings.LLM_IMAGE_FETCH_ALLOWED_HOSTS or '',
+                'image_fetch_allow_private': django_settings.LLM_IMAGE_FETCH_ALLOW_PRIVATE,
+            },
+        )
+        return self.change_view(request, '1', extra_context=extra_context)
+
+
+admin_site.register(LLMPlatformSettings, LLMPlatformSettingsAdmin)
 
 
 class WaitlistEntryAdmin(admin.ModelAdmin):

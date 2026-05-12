@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models, IntegrityError
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
@@ -1620,6 +1622,126 @@ class WhatsAppSettings(models.Model):
             }
 
         cache.set('whatsapp_settings', config, 60)
+        return config
+
+
+class LLMPlatformSettings(models.Model):
+    """
+    Singleton (pk=1) — operational LLM knobs for super-admins via Django admin.
+
+    When no row exists, ``get_config()`` falls back to ``django.conf.settings``
+    (environment / task definition), matching :class:`WhatsAppSettings`.
+    """
+    generation_enabled = models.BooleanField(
+        default=False,
+        help_text='Master switch for LLM generation (Page Layout Auto-Generator, etc.).',
+    )
+    cost_alert_email = models.EmailField(
+        blank=True,
+        help_text='Recipient for cost threshold and kill-switch alert emails.',
+    )
+    daily_cost_cap_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('5.00'),
+        help_text='Global daily spend cap in USD (ledger-based, all users).',
+    )
+    monthly_cost_cap_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('50.00'),
+        help_text='Global monthly spend cap in USD (ledger-based, all users).',
+    )
+    image_fetch_allowed_hosts = models.TextField(
+        blank=True,
+        help_text='Comma-separated host allowlist for server-side image fetches '
+        '(*.suffix patterns allowed). Leave blank to use '
+        'LLM_IMAGE_FETCH_ALLOWED_HOSTS from the environment.',
+    )
+    image_fetch_allow_private = models.BooleanField(
+        default=False,
+        help_text='Allow private/loopback DNS targets for image fetches. '
+        'Local development only — keep False in staging and production.',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
+
+    class Meta:
+        db_table = 'llm_platform_settings'
+        verbose_name = 'LLM Platform Settings'
+        verbose_name_plural = 'LLM Platform Settings'
+
+    def __str__(self):
+        return f"LLM Platform Settings ({'on' if self.generation_enabled else 'off'})"
+
+    def save(self, *args, **kwargs):
+        from django.core.cache import cache
+
+        self.pk = 1
+        super().save(*args, **kwargs)
+        cache.delete('llm_platform_settings')
+
+    @classmethod
+    def get_config(cls) -> dict:
+        """
+        Cached config dict from DB or env fallback. Safe to call — never raises.
+        """
+        from django.conf import settings as django_settings
+        from django.core.cache import cache
+
+        cached = cache.get('llm_platform_settings')
+        if cached is not None:
+            return cached
+
+        def _split_hosts(raw: str) -> list[str]:
+            if not raw:
+                return []
+            return [h.strip().lower() for h in raw.split(',') if h.strip()]
+
+        def _hosts_from_env() -> list[str]:
+            raw = getattr(django_settings, 'LLM_IMAGE_FETCH_ALLOWED_HOSTS', '') or ''
+            hosts = _split_hosts(str(raw))
+            if hosts:
+                return hosts
+            return ['*.amazonaws.com', '*.cloudfront.net']
+
+        try:
+            obj = cls.objects.get(pk=1)
+            hosts_raw = (obj.image_fetch_allowed_hosts or '').strip()
+            image_fetch_allowed_hosts = (
+                _split_hosts(hosts_raw) if hosts_raw else _hosts_from_env()
+            )
+            config = {
+                'generation_enabled': obj.generation_enabled,
+                'cost_alert_email': (obj.cost_alert_email or '').strip(),
+                'daily_cost_cap_usd': float(obj.daily_cost_cap_usd),
+                'monthly_cost_cap_usd': float(obj.monthly_cost_cap_usd),
+                'image_fetch_allowed_hosts': image_fetch_allowed_hosts,
+                'image_fetch_allow_private': bool(obj.image_fetch_allow_private),
+            }
+        except cls.DoesNotExist:
+            config = {
+                'generation_enabled': bool(
+                    getattr(django_settings, 'LLM_GENERATION_ENABLED', False)
+                ),
+                'cost_alert_email': (
+                    getattr(django_settings, 'LLM_COST_ALERT_EMAIL', '') or ''
+                ).strip(),
+                'daily_cost_cap_usd': float(
+                    getattr(django_settings, 'LLM_DAILY_COST_CAP_USD', 5.0)
+                ),
+                'monthly_cost_cap_usd': float(
+                    getattr(django_settings, 'LLM_MONTHLY_COST_CAP_USD', 50.0)
+                ),
+                'image_fetch_allowed_hosts': _hosts_from_env(),
+                'image_fetch_allow_private': bool(
+                    getattr(django_settings, 'LLM_IMAGE_FETCH_ALLOW_PRIVATE', False)
+                ),
+            }
+
+        cache.set('llm_platform_settings', config, 60)
         return config
 
 

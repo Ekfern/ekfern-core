@@ -31,8 +31,6 @@ import socket
 from typing import Iterable
 from urllib.parse import urlparse
 
-from django.conf import settings
-
 logger = logging.getLogger(__name__)
 
 
@@ -49,12 +47,13 @@ def _split_hosts(raw: str) -> list[str]:
 def _allowed_hosts() -> list[str]:
     """Configured allowlist; defaults are safe for prod (S3 + CloudFront only).
 
-    Set via ``LLM_IMAGE_FETCH_ALLOWED_HOSTS`` env var as a comma-separated
-    list. A leading ``*.`` means "any subdomain of"; a bare hostname matches
-    only the exact host.
+    Set via admin (LLM Platform Settings), ``LLM_IMAGE_FETCH_ALLOWED_HOSTS`` env,
+    or comma-separated list. A leading ``*.`` means "any subdomain of".
     """
-    configured = getattr(settings, "LLM_IMAGE_FETCH_ALLOWED_HOSTS", "")
-    return _split_hosts(configured) or [
+    from apps.events.models import LLMPlatformSettings
+
+    hosts = LLMPlatformSettings.get_config()['image_fetch_allowed_hosts']
+    return hosts or [
         "*.amazonaws.com",
         "*.cloudfront.net",
     ]
@@ -126,6 +125,8 @@ def validate_image_url(url: str, *, context: str = "image") -> None:
     ``context`` is folded into the error message so callers can distinguish
     "card_url failed" from "vision base64 fetch failed" in logs.
     """
+    from apps.events.models import LLMPlatformSettings
+
     if not url or not isinstance(url, str):
         raise UnsafeUrlError(f"{context}: url is required.")
 
@@ -146,7 +147,7 @@ def validate_image_url(url: str, *, context: str = "image") -> None:
 
     # DNS belt-and-braces — even an allowlisted host can resolve to a private
     # IP via a CNAME, AAAA-only response, or hosts-file override.
-    if getattr(settings, "LLM_IMAGE_FETCH_ALLOW_PRIVATE", False):
+    if LLMPlatformSettings.get_config()["image_fetch_allow_private"]:
         # Local dev opt-in: still resolve so DNS failures surface, but skip
         # the routability gate so http://localhost/media works.
         try:

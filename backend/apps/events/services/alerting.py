@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import logging
 
-from django.conf import settings
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,9 @@ _DEDUP_TTL_SECONDS = 6 * 60 * 60  # 6 hours
 
 
 def _send_email_safe(*, subject: str, body: str) -> None:
-    target = (settings.LLM_COST_ALERT_EMAIL or "").strip()
+    from apps.events.models import LLMPlatformSettings
+
+    target = (LLMPlatformSettings.get_config()['cost_alert_email'] or "").strip()
     if not target:
         logger.info("[llm_alert] no LLM_COST_ALERT_EMAIL configured; would send: %s", subject)
         return
@@ -71,8 +72,9 @@ def alert_cost_threshold(
         f"Spend so far: ${spend_usd:.4f}\n"
         f"Cap: ${cap_usd:.2f}\n"
         f"Threshold: {threshold_pct}%\n\n"
-        "If this looks unexpected, flip LLM_GENERATION_ENABLED=False to halt "
-        "all generation immediately while you investigate.\n"
+        "If this looks unexpected, disable generation in Django Admin → "
+        "LLM Platform Settings (or set LLM_GENERATION_ENABLED=False in env) "
+        "to halt all generation immediately while you investigate.\n"
     )
     _send_email_safe(subject=subject, body=body)
 
@@ -103,7 +105,9 @@ def alert_kill_switch_tripped(
         f"Spend: ${spend_usd:.4f}\n"
         f"Cap: ${cap_usd:.2f}\n\n"
         "All generate requests are now returning 429 until the window rolls "
-        "over or the cap is raised. To raise the cap immediately, update "
-        f"LLM_{window.upper()}_COST_CAP_USD and restart the backend.\n"
+        "over or the cap is raised. Raise the cap in Django Admin → "
+        "LLM Platform Settings, or set "
+        f"LLM_{window.upper()}_COST_CAP_USD in the environment, then restart "
+        "workers if you rely on env-only config.\n"
     )
     _send_email_safe(subject=subject, body=body)

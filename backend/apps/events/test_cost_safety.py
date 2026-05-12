@@ -19,7 +19,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from apps.events.models import LLMUsageLedger
+from apps.events.models import LLMPlatformSettings, LLMUsageLedger
 from apps.events.services import cost_safety
 from apps.events.services.cost_safety import SafetyStackError, enforce_safety_stack
 
@@ -187,6 +187,49 @@ class SafetyStackTests(TestCase):
         self.assertEqual(ctx.cached_response, None)
         # Spend is zero in a fresh DB.
         self.assertEqual(ctx.daily_spend_usd, Decimal("0"))
+
+    def test_db_row_disables_generation_when_settings_enabled(self):
+        """Singleton row wins over LLM_GENERATION_ENABLED from settings."""
+        LLMPlatformSettings.objects.create(
+            generation_enabled=False,
+            daily_cost_cap_usd=Decimal("10.00"),
+            monthly_cost_cap_usd=Decimal("100.00"),
+        )
+        with self.assertRaises(SafetyStackError) as cm:
+            enforce_safety_stack(user=self.user, request_id="r-db-kill")
+        self.assertEqual(cm.exception.status_code, 503)
+        self.assertEqual(cm.exception.code, "kill_switch_off")
+
+    def test_db_row_lowers_daily_cap(self):
+        LLMPlatformSettings.objects.create(
+            generation_enabled=True,
+            daily_cost_cap_usd=Decimal("0.01"),
+            monthly_cost_cap_usd=Decimal("100.00"),
+        )
+        with self.assertRaises(SafetyStackError) as cm:
+            enforce_safety_stack(user=self.user, request_id="r-db-cap")
+        self.assertEqual(cm.exception.code, "daily_cost_cap")
+
+    def test_usage_summary_reflects_db_config(self):
+        LLMPlatformSettings.objects.create(
+            generation_enabled=False,
+            daily_cost_cap_usd=Decimal("10.00"),
+            monthly_cost_cap_usd=Decimal("100.00"),
+        )
+        summary = cost_safety.get_usage_summary(user=self.user)
+        self.assertFalse(summary["kill_switch_enabled"])
+        self.assertEqual(summary["daily"]["cap_usd"], 10.0)
+        self.assertEqual(summary["monthly"]["cap_usd"], 100.0)
+
+    def test_llm_platform_get_config_parses_image_hosts(self):
+        LLMPlatformSettings.objects.create(
+            generation_enabled=True,
+            image_fetch_allowed_hosts="foo.example, BAR.com ",
+            daily_cost_cap_usd=Decimal("10.00"),
+            monthly_cost_cap_usd=Decimal("100.00"),
+        )
+        cfg = LLMPlatformSettings.get_config()
+        self.assertEqual(cfg["image_fetch_allowed_hosts"], ["foo.example", "bar.com"])
 
 
 @override_settings(

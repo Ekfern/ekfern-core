@@ -329,7 +329,10 @@ def enforce_safety_stack(
             "Superuser access required.", status_code=403, code="not_superuser"
         )
 
-    if not settings.LLM_GENERATION_ENABLED:
+    from apps.events.models import LLMPlatformSettings
+
+    llm_cfg = LLMPlatformSettings.get_config()
+    if not llm_cfg["generation_enabled"]:
         raise SafetyStackError(
             "LLM generation is currently disabled (kill-switch off).",
             status_code=503,
@@ -360,8 +363,8 @@ def enforce_safety_stack(
     daily_spend = agg["daily_spend"]
     monthly_spend = agg["monthly_spend"]
 
-    daily_cap = Decimal(str(settings.LLM_DAILY_COST_CAP_USD))
-    monthly_cap = Decimal(str(settings.LLM_MONTHLY_COST_CAP_USD))
+    daily_cap = Decimal(str(llm_cfg["daily_cost_cap_usd"]))
+    monthly_cap = Decimal(str(llm_cfg["monthly_cost_cap_usd"]))
 
     # Layer 3 — global caps (pre-flight). The headroom estimate is recomputed
     # every request so price/token-cap settings changes take effect without
@@ -470,13 +473,14 @@ def get_usage_summary(*, user=None, days: int = 30) -> dict:
     Includes today/MTD spend, current caps, kill-switch state, top spenders,
     and a daily breakdown for the last `days` days.
     """
-    from apps.events.models import LLMUsageLedger
+    from apps.events.models import LLMPlatformSettings, LLMUsageLedger
 
     agg = _aggregate_ledger()
     threshold = int(settings.LLM_COST_ALERT_THRESHOLD_PCT or 80)
 
-    daily_cap = float(settings.LLM_DAILY_COST_CAP_USD)
-    monthly_cap = float(settings.LLM_MONTHLY_COST_CAP_USD)
+    llm_cfg = LLMPlatformSettings.get_config()
+    daily_cap = float(llm_cfg["daily_cost_cap_usd"])
+    monthly_cap = float(llm_cfg["monthly_cost_cap_usd"])
 
     days = max(1, min(int(days or 30), 90))
     since = timezone.now() - timedelta(days=days)
@@ -549,7 +553,7 @@ def get_usage_summary(*, user=None, days: int = 30) -> dict:
     health = _compute_health_metrics(days=min(days, 7))
 
     return {
-        "kill_switch_enabled": bool(settings.LLM_GENERATION_ENABLED),
+        "kill_switch_enabled": bool(llm_cfg["generation_enabled"]),
         "api_key_configured": bool(settings.ANTHROPIC_API_KEY),
         "models": {
             "vision": settings.LLM_VISION_MODEL,
