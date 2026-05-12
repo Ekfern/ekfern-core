@@ -185,7 +185,11 @@ export default function AboutPage() {
                 >
                   Alisha
                 </p>
-                <p className="text-xs uppercase tracking-widest mb-5" style={{ color: C.gold }}>
+                <p
+                  className="text-xs uppercase tracking-widest mb-5"
+                  style={{ color: C.gold }}
+                  suppressHydrationWarning
+                >
                   The planner, Founder
                 </p>
                 <p className="leading-relaxed" style={{ color: C.earth }}>
@@ -215,7 +219,11 @@ export default function AboutPage() {
                 >
                   Aakash
                 </p>
-                <p className="text-xs uppercase tracking-widest mb-5" style={{ color: C.gold }}>
+                <p
+                  className="text-xs uppercase tracking-widest mb-5"
+                  style={{ color: C.gold }}
+                  suppressHydrationWarning
+                >
                   The techie, Co-founder
                 </p>
                 <p className="leading-relaxed" style={{ color: C.earth }}>
