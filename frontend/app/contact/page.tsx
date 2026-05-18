@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import Logo from '@/components/Logo'
+import SiteNav from '@/components/SiteNav'
 import { BRAND_NAME, SUPPORT_EMAIL } from '@/lib/brand_utility'
 import { Mail, Phone, MapPin } from 'lucide-react'
 import ContactForm from '@/components/ContactForm'
@@ -14,24 +14,7 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation Bar */}
-      <nav className="bg-white border-b border-pastel-green sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Logo
-            href="/"
-            iconClassName="text-bright-teal"
-            textClassName="text-bright-teal"
-          />
-          <div className="flex gap-4">
-            <Link href="/host/login">
-              <Button variant="ghost" className="text-bright-teal">Host Login</Button>
-            </Link>
-            <Link href="/host/signup">
-              <Button className="bg-bright-teal hover:bg-forest-green text-white">Get Started</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <SiteNav activePage="/contact" />
 
       <main className="container mx-auto px-4 py-12 max-w-5xl">
         <div className="mb-10">

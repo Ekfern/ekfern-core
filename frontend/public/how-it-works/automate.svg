@@ -1,0 +1,28 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="100" fill="#EAF4F4"/>
+  <!-- Outer gear ring -->
+  <circle cx="100" cy="96" r="46" fill="none" stroke="#E8D8C3" stroke-width="12"/>
+  <!-- Gear teeth -->
+  <rect x="94" y="44" width="12" height="14" rx="4" fill="#0B3D2E"/>
+  <rect x="94" y="134" width="12" height="14" rx="4" fill="#0B3D2E"/>
+  <rect x="44" y="90" width="14" height="12" rx="4" fill="#0B3D2E"/>
+  <rect x="142" y="90" width="14" height="12" rx="4" fill="#0B3D2E"/>
+  <rect x="62" y="58" width="12" height="14" rx="4" fill="#0B3D2E" transform="rotate(-45 68 65)"/>
+  <rect x="122" y="58" width="12" height="14" rx="4" fill="#0B3D2E" transform="rotate(45 128 65)"/>
+  <rect x="62" y="118" width="12" height="14" rx="4" fill="#0B3D2E" transform="rotate(45 68 125)"/>
+  <rect x="122" y="118" width="12" height="14" rx="4" fill="#0B3D2E" transform="rotate(-45 128 125)"/>
+  <!-- Inner circle -->
+  <circle cx="100" cy="96" r="32" fill="#0B3D2E"/>
+  <circle cx="100" cy="96" r="26" fill="#218085"/>
+  <!-- Clock face -->
+  <circle cx="100" cy="96" r="20" fill="white"/>
+  <!-- Clock hands -->
+  <line x1="100" y1="96" x2="100" y2="80" stroke="#0B3D2E" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="100" y1="96" x2="112" y2="100" stroke="#D4A017" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="100" cy="96" r="2.5" fill="#0B3D2E"/>
+  <!-- Lightning bolt (automation) -->
+  <polygon points="110,148 104,162 116,158 110,172" fill="#D4A017"/>
+  <!-- Small circular arrows -->
+  <path d="M 56 148 A 14 14 0 1 1 70 162" fill="none" stroke="#218085" stroke-width="3" stroke-linecap="round"/>
+  <polygon points="70,156 76,162 64,166" fill="#218085"/>
+</svg>

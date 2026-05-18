@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import Logo from '@/components/Logo'
+import SiteNav from '@/components/SiteNav'
 import { BRAND_NAME } from '@/lib/brand_utility'
 
 const SERIF = "'Cormorant Garamond', Georgia, serif"
@@ -46,33 +46,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ background: C.parch, cursor: `url('/cursor-fern.svg') 2 21, auto` }}>
 
-      {/* ── Navigation ─────────────────────────────────────────── */}
-      <nav
-        className="sticky top-0 z-50"
-        style={{
-          background: 'rgba(232,216,195,0.88)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          borderBottom: `1px solid rgba(139,94,60,0.12)`,
-        }}
-      >
-        <div className="max-w-6xl mx-auto px-6 py-5 flex justify-between items-center">
-          <Logo href="/" iconClassName="text-bright-teal" textClassName="text-bright-teal" />
-          <div className="flex gap-3 items-center">
-            <Link href="/contact" className="text-sm font-medium transition-colors duration-200 hidden sm:block" style={{ color: C.earth }}>
-              Contact
-            </Link>
-            <Link href="/host/login">
-              <Button variant="ghost" className="text-sm" style={{ color: C.earth }}>Host Login</Button>
-            </Link>
-            <Link href="/host/signup">
-              <Button className="text-white text-sm px-5 rounded-full transition-all duration-200 hover:scale-[0.98]" style={{ background: C.dark }}>
-                Get Started
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <SiteNav activePage="/about" />
 
       <main>
 
@@ -180,21 +154,26 @@ export default function AboutPage() {
                   A
                 </div>
                 <p
-                  className="text-2xl font-light mb-2"
+                  className="text-2xl font-light mb-1"
                   style={{ fontFamily: SERIF, color: C.dark }}
                 >
                   Alisha
                 </p>
                 <p
-                  className="text-xs uppercase tracking-widest mb-5"
+                  className="text-xs uppercase tracking-widest mb-3"
                   style={{ color: C.gold }}
                   suppressHydrationWarning
                 >
-                  The planner, Founder
+                  Founder
                 </p>
-                <p className="leading-relaxed" style={{ color: C.earth }}>
-                  The executor, and the person who connects ideas, people, and possibilities into a bigger vision.
-                  Alisha sees the full picture every detail, every relationship, every moment that makes an event feel alive.
+                <p
+                  className="text-sm font-medium mb-5 leading-relaxed"
+                  style={{ color: C.teal }}
+                >
+                  The planner&nbsp;&middot;&nbsp;the executor&nbsp;&middot;&nbsp;who connects ideas, people and possibilities into a bigger vision
+                </p>
+                <p className="leading-relaxed text-sm" style={{ color: C.earth }}>
+                  Alisha sees the full picture — every detail, every relationship, every moment that makes an event feel alive. She turns chaotic to-do lists into seamless experiences.
                 </p>
               </motion.div>
 
@@ -214,21 +193,26 @@ export default function AboutPage() {
                   A
                 </div>
                 <p
-                  className="text-2xl font-light mb-2"
+                  className="text-2xl font-light mb-1"
                   style={{ fontFamily: SERIF, color: C.dark }}
                 >
                   Aakash
                 </p>
                 <p
-                  className="text-xs uppercase tracking-widest mb-5"
+                  className="text-xs uppercase tracking-widest mb-3"
                   style={{ color: C.gold }}
                   suppressHydrationWarning
                 >
-                  The techie, Co-founder
+                  Co-founder
                 </p>
-                <p className="leading-relaxed" style={{ color: C.earth }}>
-                  The systems thinker, the nerd who loves simplifying chaos.
-                  Aakash finds the patterns underneath complexity and turns them into tools that just work quietly, reliably, elegantly.
+                <p
+                  className="text-sm font-medium mb-5 leading-relaxed"
+                  style={{ color: C.teal }}
+                >
+                  The techie&nbsp;&middot;&nbsp;systems thinker&nbsp;&middot;&nbsp;the nerd who loves simplifying chaos
+                </p>
+                <p className="leading-relaxed text-sm" style={{ color: C.earth }}>
+                  Aakash finds the patterns underneath complexity and turns them into tools that just work — quietly, reliably, elegantly.
                 </p>
               </motion.div>
 
@@ -372,17 +356,17 @@ export default function AboutPage() {
                 {
                   number: '01',
                   title: 'Simple',
-                  body: 'Every feature is designed to remove steps, not add them. If something feels complicated, we haven\'t finished building it.',
+                  body: 'Less effort, more clarity. Ekfern removes the noise from hosting so you can focus on what actually matters — the people.',
                 },
                 {
                   number: '02',
                   title: 'Smart',
-                  body: 'Technology should anticipate your needs. From real-time RSVPs to automated reminders, Ekfern thinks ahead so you don\'t have to.',
+                  body: 'Automation, slots, reminders — built so you stay one step ahead. Technology should anticipate your needs, not create new ones.',
                 },
                 {
                   number: '03',
                   title: 'Sustainable',
-                  body: 'Every digital invite is paper not printed. Every managed guest list is a spreadsheet not sent. Beautiful celebrations shouldn\'t cost the earth.',
+                  body: 'Going digital reduces waste and supports more conscious celebrations. Beautiful events shouldn\'t cost the earth.',
                 },
               ].map((v, i) => (
                 <div
@@ -411,6 +395,52 @@ export default function AboutPage() {
                     {v.body}
                   </p>
                 </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Sustainability ─────────────────────────────────────── */}
+        <section className="py-24 px-6" style={{ background: C.parch }}>
+          <div className="max-w-4xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.7 }}
+              className="text-center mb-14"
+            >
+              <p className="text-xs uppercase tracking-[0.22em] font-medium mb-4" style={{ color: C.gold }}>
+                Our philosophy
+              </p>
+              <h2
+                className="text-4xl md:text-5xl font-light"
+                style={{ fontFamily: SERIF, color: C.dark }}
+              >
+                Better experiences. Less waste.
+              </h2>
+            </motion.div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {[
+                { icon: '✦', heading: 'Reduce effort', body: 'One platform replaces a dozen apps and spreadsheets. Less friction means more energy for what matters.' },
+                { icon: '✦', heading: 'Simplify systems', body: 'Invites, RSVPs, reminders, guest lists — unified into a single seamless flow, not scattered across tools.' },
+                { icon: '✦', heading: 'Intentional experiences', body: 'Every feature is deliberate. We build only what genuinely helps hosts create moments worth remembering.' },
+                { icon: '✦', heading: 'Organise mindfully', body: 'Digital-first events mean less paper, less waste, and a lighter footprint — without compromising on beauty.' },
+              ].map((item, i) => (
+                <motion.div
+                  key={item.heading}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.65, delay: i * 0.1 }}
+                  className="rounded-2xl p-8"
+                  style={{ background: 'white', border: `1px solid rgba(139,94,60,0.12)` }}
+                >
+                  <span className="block text-lg mb-3" style={{ color: C.teal }}>{item.icon}</span>
+                  <h3 className="text-lg font-medium mb-2" style={{ fontFamily: SERIF, color: C.dark }}>{item.heading}</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: C.earth }}>{item.body}</p>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -453,16 +483,35 @@ export default function AboutPage() {
       </main>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer className="py-10 px-6" style={{ background: C.dark, borderTop: `1px solid rgba(212,160,23,0.12)` }}>
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p className="text-sm font-medium" style={{ color: C.gold, fontFamily: SERIF, opacity: 0.8 }}>{BRAND_NAME}</p>
-          <div className="flex gap-6 items-center">
-            <Link href="/privacy" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.45 }}>
-              Privacy Policy
-            </Link>
-            <Link href="/contact" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.45 }}>
-              Contact
-            </Link>
+      <footer className="py-12 px-6" style={{ background: C.dark, borderTop: `1px solid rgba(212,160,23,0.12)` }}>
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-8 mb-8">
+            <div>
+              <p className="text-base font-medium mb-1" style={{ color: C.gold, fontFamily: SERIF }}>{BRAND_NAME}</p>
+              <p className="text-xs" style={{ color: 'rgba(212,160,23,0.45)' }}>Simple. Smart. Sustainable.</p>
+            </div>
+            <div className="flex flex-wrap gap-6 items-center">
+              <Link href="/" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.5 }}>
+                Home
+              </Link>
+              <Link href="/#features" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.5 }}>
+                Features
+              </Link>
+              <Link href="/about" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.85 }}>
+                About
+              </Link>
+              <Link href="/contact" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.5 }}>
+                Contact
+              </Link>
+              <Link href="/privacy" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.5 }}>
+                Privacy Policy
+              </Link>
+            </div>
+          </div>
+          <div className="pt-6" style={{ borderTop: `1px solid rgba(212,160,23,0.08)` }}>
+            <p className="text-xs" style={{ color: 'rgba(212,160,23,0.3)' }} suppressHydrationWarning>
+              &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
+            </p>
           </div>
         </div>
       </footer>

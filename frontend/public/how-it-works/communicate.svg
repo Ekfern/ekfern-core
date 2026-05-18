@@ -1,0 +1,32 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="100" fill="#F0EDE8"/>
+  <!-- Phone -->
+  <rect x="66" y="38" width="68" height="118" rx="12" fill="#0B3D2E"/>
+  <rect x="66" y="56" width="68" height="88" fill="#F5ECD8"/>
+  <rect x="88" y="44" width="24" height="5" rx="2.5" fill="#072b1f"/>
+  <!-- Chat bubble 1 (received) -->
+  <rect x="74" y="64" width="50" height="20" rx="10" fill="#218085"/>
+  <polygon points="74,78 68,84 80,84" fill="#218085"/>
+  <rect x="80" y="70" width="36" height="4" rx="2" fill="white" opacity="0.8"/>
+  <rect x="80" y="77" width="24" height="3" rx="1.5" fill="white" opacity="0.5"/>
+  <!-- Chat bubble 2 (sent) -->
+  <rect x="76" y="92" width="44" height="18" rx="9" fill="#E8D8C3"/>
+  <polygon points="120,104 126,110 114,110" fill="#E8D8C3"/>
+  <rect x="82" y="97" width="30" height="4" rx="2" fill="#8B5E3C" opacity="0.5"/>
+  <rect x="82" y="104" width="20" height="3" rx="1.5" fill="#8B5E3C" opacity="0.3"/>
+  <!-- Chat bubble 3 (received) -->
+  <rect x="74" y="117" width="52" height="18" rx="9" fill="#218085"/>
+  <polygon points="74,129 68,135 80,135" fill="#218085"/>
+  <rect x="80" y="122" width="38" height="4" rx="2" fill="white" opacity="0.8"/>
+  <rect x="80" y="129" width="26" height="3" rx="1.5" fill="white" opacity="0.5"/>
+  <!-- Notification badge -->
+  <circle cx="148" cy="52" r="14" fill="#D4A017"/>
+  <text x="148" y="57" font-family="Arial" font-size="12" text-anchor="middle" fill="white" font-weight="bold">3</text>
+  <!-- WhatsApp-style icon -->
+  <circle cx="148" cy="148" r="16" fill="#218085"/>
+  <text x="148" y="154" font-family="Arial" font-size="14" text-anchor="middle" fill="white">✉</text>
+  <!-- Signal dots -->
+  <circle cx="52" cy="80" r="3" fill="#D4A017" opacity="0.6"/>
+  <circle cx="44" cy="95" r="2" fill="#218085" opacity="0.4"/>
+  <circle cx="52" cy="110" r="3.5" fill="#D4A017" opacity="0.4"/>
+</svg>

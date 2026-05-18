@@ -1,0 +1,36 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="100" fill="#F0EDE8"/>
+  <!-- Clipboard body -->
+  <rect x="48" y="52" width="104" height="118" rx="10" fill="white" stroke="#D4A017" stroke-width="2"/>
+  <!-- Clipboard top clip -->
+  <rect x="80" y="44" width="40" height="16" rx="8" fill="#0B3D2E"/>
+  <rect x="88" y="47" width="24" height="10" rx="5" fill="#F0EDE8"/>
+  <!-- Guest rows -->
+  <!-- Row 1 -->
+  <circle cx="70" cy="82" r="10" fill="#218085" opacity="0.15"/>
+  <text x="70" y="86" font-family="Arial" font-size="8" text-anchor="middle" fill="#218085" font-weight="bold">RS</text>
+  <rect x="86" y="78" width="44" height="4" rx="2" fill="#0B3D2E" opacity="0.2"/>
+  <rect x="86" y="85" width="30" height="3" rx="1.5" fill="#8B5E3C" opacity="0.2"/>
+  <circle cx="140" cy="82" r="7" fill="#218085"/>
+  <text x="140" y="85" font-family="Arial" font-size="7" text-anchor="middle" fill="white">✓</text>
+  <!-- Divider -->
+  <line x1="58" y1="98" x2="142" y2="98" stroke="#E8D8C3" stroke-width="1"/>
+  <!-- Row 2 -->
+  <circle cx="70" cy="112" r="10" fill="#D4A017" opacity="0.15"/>
+  <text x="70" y="116" font-family="Arial" font-size="8" text-anchor="middle" fill="#D4A017" font-weight="bold">PK</text>
+  <rect x="86" y="108" width="44" height="4" rx="2" fill="#0B3D2E" opacity="0.2"/>
+  <rect x="86" y="115" width="30" height="3" rx="1.5" fill="#8B5E3C" opacity="0.2"/>
+  <circle cx="140" cy="112" r="7" fill="#218085"/>
+  <text x="140" y="115" font-family="Arial" font-size="7" text-anchor="middle" fill="white">✓</text>
+  <!-- Divider -->
+  <line x1="58" y1="128" x2="142" y2="128" stroke="#E8D8C3" stroke-width="1"/>
+  <!-- Row 3 -->
+  <circle cx="70" cy="142" r="10" fill="#8B5E3C" opacity="0.15"/>
+  <text x="70" y="146" font-family="Arial" font-size="8" text-anchor="middle" fill="#8B5E3C" font-weight="bold">AM</text>
+  <rect x="86" y="138" width="44" height="4" rx="2" fill="#0B3D2E" opacity="0.2"/>
+  <rect x="86" y="145" width="30" height="3" rx="1.5" fill="#8B5E3C" opacity="0.2"/>
+  <circle cx="140" cy="142" r="7" fill="#D4A017" opacity="0.6"/>
+  <text x="140" y="145" font-family="Arial" font-size="7" text-anchor="middle" fill="white">?</text>
+  <!-- Label -->
+  <text x="100" y="74" font-family="Arial" font-size="7" text-anchor="middle" fill="#D4A017" font-weight="bold" letter-spacing="1">GUEST RESPONSES</text>
+</svg>
