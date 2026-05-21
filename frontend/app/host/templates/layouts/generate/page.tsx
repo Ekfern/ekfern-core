@@ -17,6 +17,7 @@ import {
   type LLMUsageSummary,
 } from '@/lib/invite/auto-generator-api'
 import { logError } from '@/lib/error-handler'
+import EventTypeSelect from '@/components/ui/EventTypeSelect'
 
 interface MeResponse {
   id: number
@@ -27,36 +28,6 @@ interface MeResponse {
   llm_module_access?: boolean
 }
 
-const EVENT_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'wedding', label: 'Wedding' },
-  { value: 'engagement', label: 'Engagement' },
-  { value: 'reception', label: 'Reception' },
-  { value: 'anniversary', label: 'Anniversary' },
-  { value: 'birthday', label: 'Birthday' },
-  { value: 'baby_shower', label: 'Baby Shower' },
-  { value: 'bridal_shower', label: 'Bridal Shower' },
-  { value: 'naming_ceremony', label: 'Naming Ceremony' },
-  { value: 'housewarming', label: 'Housewarming' },
-  { value: 'graduation', label: 'Graduation' },
-  { value: 'religious_ceremony', label: 'Religious Ceremony' },
-  { value: 'puja', label: 'Puja' },
-  // Professional & business (matches Event.EVENT_TYPE_CHOICES)
-  { value: 'corporate_event', label: 'Corporate Event' },
-  { value: 'conference', label: 'Conference' },
-  { value: 'seminar', label: 'Seminar' },
-  { value: 'workshop', label: 'Workshop' },
-  { value: 'networking', label: 'Networking Event' },
-  { value: 'product_launch', label: 'Product Launch' },
-  { value: 'team_building', label: 'Team Building' },
-  { value: 'award_ceremony', label: 'Award Ceremony' },
-  { value: 'fundraiser', label: 'Fundraiser' },
-  { value: 'festival', label: 'Festival' },
-  { value: 'cultural_event', label: 'Cultural Event' },
-  { value: 'concert', label: 'Concert' },
-  { value: 'dinner_party', label: 'Dinner Party' },
-  { value: 'cocktail_party', label: 'Cocktail Party' },
-  { value: 'other', label: 'Other' },
-]
 
 const MAX_CONCEPT_LENGTH = 500
 
@@ -377,16 +348,11 @@ export default function GeneratePageLayoutPage() {
               <label htmlFor="event_type" className="block text-sm font-medium text-gray-800 mb-2">
                 Event type
               </label>
-              <select
+              <EventTypeSelect
                 id="event_type"
                 value={eventType}
-                onChange={(e) => setEventType(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
-              >
-                {EVENT_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+                onChange={(v) => setEventType(v)}
+              />
             </div>
 
             {/* Concept */}

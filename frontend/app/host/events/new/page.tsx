@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import api from '@/lib/api'
@@ -13,19 +13,12 @@ import { useToast } from '@/components/ui/toast'
 import { COUNTRY_CODES } from '@/lib/countryCodesFull'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
+import { EVENT_TYPE_VALUES } from '@/lib/eventTypes'
+import EventTypeSelect from '@/components/ui/EventTypeSelect'
 
 const eventSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  event_type: z.enum([
-    'wedding', 'engagement', 'reception', 'anniversary', 'birthday', 'baby_shower', 'bridal_shower',
-    'bachelor_party', 'bachelorette_party', 'gender_reveal', 'naming_ceremony', 'housewarming',
-    'graduation', 'retirement', 'religious_ceremony', 'puja', 'satsang', 'church_service',
-    'bar_mitzvah', 'bat_mitzvah', 'communion', 'confirmation', 'corporate_event', 'conference',
-    'seminar', 'workshop', 'networking', 'product_launch', 'team_building', 'award_ceremony',
-    'fundraiser', 'charity_event', 'community_event', 'festival', 'cultural_event', 'exhibition',
-    'art_show', 'concert', 'music_event', 'theater', 'comedy_show', 'sports_event',
-    'dinner_party', 'brunch', 'cocktail_party', 'tea_party', 'potluck', 'other'
-  ], { errorMap: () => ({ message: 'Please select an event type' }) }),
+  event_type: z.enum(EVENT_TYPE_VALUES, { errorMap: () => ({ message: 'Please select an event type' }) }),
   date: z.string().optional(),
   city: z.string().optional(),
   country: z.string().default('IN'),
@@ -43,6 +36,7 @@ export default function NewEventPage() {
   const [loading, setLoading] = useState(false)
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<EventForm>({
@@ -107,74 +101,17 @@ export default function NewEventPage() {
                 <label className="block text-sm font-medium mb-1">
                   What type of event are you hosting?
                 </label>
-                <select
-                  {...register('event_type')}
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
-                >
-                  <option value="" disabled>Wedding, birthday, corporate, and more…</option>
-                  <optgroup label="Life Events">
-                    <option value="wedding">Wedding</option>
-                    <option value="engagement">Engagement</option>
-                    <option value="reception">Reception</option>
-                    <option value="anniversary">Anniversary</option>
-                    <option value="birthday">Birthday</option>
-                    <option value="baby_shower">Baby Shower</option>
-                    <option value="bridal_shower">Bridal Shower</option>
-                    <option value="bachelor_party">Bachelor Party</option>
-                    <option value="bachelorette_party">Bachelorette Party</option>
-                    <option value="gender_reveal">Gender Reveal</option>
-                    <option value="naming_ceremony">Naming Ceremony</option>
-                    <option value="housewarming">Housewarming</option>
-                    <option value="graduation">Graduation</option>
-                    <option value="retirement">Retirement</option>
-                  </optgroup>
-                  <optgroup label="Religious & Ceremonial">
-                    <option value="religious_ceremony">Religious Ceremony</option>
-                    <option value="puja">Puja</option>
-                    <option value="satsang">Satsang</option>
-                    <option value="church_service">Church Service</option>
-                    <option value="bar_mitzvah">Bar Mitzvah</option>
-                    <option value="bat_mitzvah">Bat Mitzvah</option>
-                    <option value="communion">Communion</option>
-                    <option value="confirmation">Confirmation</option>
-                  </optgroup>
-                  <optgroup label="Professional & Business">
-                    <option value="corporate_event">Corporate Event</option>
-                    <option value="conference">Conference</option>
-                    <option value="seminar">Seminar</option>
-                    <option value="workshop">Workshop</option>
-                    <option value="networking">Networking Event</option>
-                    <option value="product_launch">Product Launch</option>
-                    <option value="team_building">Team Building</option>
-                    <option value="award_ceremony">Award Ceremony</option>
-                  </optgroup>
-                  <optgroup label="Social & Community">
-                    <option value="fundraiser">Fundraiser</option>
-                    <option value="charity_event">Charity Event</option>
-                    <option value="community_event">Community Event</option>
-                    <option value="festival">Festival</option>
-                    <option value="cultural_event">Cultural Event</option>
-                    <option value="exhibition">Exhibition</option>
-                    <option value="art_show">Art Show</option>
-                  </optgroup>
-                  <optgroup label="Entertainment">
-                    <option value="concert">Concert</option>
-                    <option value="music_event">Music Event</option>
-                    <option value="theater">Theater</option>
-                    <option value="comedy_show">Comedy Show</option>
-                    <option value="sports_event">Sports Event</option>
-                  </optgroup>
-                  <optgroup label="Food & Dining">
-                    <option value="dinner_party">Dinner Party</option>
-                    <option value="brunch">Brunch</option>
-                    <option value="cocktail_party">Cocktail Party</option>
-                    <option value="tea_party">Tea Party</option>
-                    <option value="potluck">Potluck</option>
-                  </optgroup>
-                  <optgroup label="Other">
-                    <option value="other">Other</option>
-                  </optgroup>
-                </select>
+                <Controller
+                  name="event_type"
+                  control={control}
+                  render={({ field }) => (
+                    <EventTypeSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      hasError={!!errors.event_type}
+                    />
+                  )}
+                />
                 {errors.event_type && (
                   <p className="text-red-500 text-sm mt-1">{errors.event_type.message}</p>
                 )}

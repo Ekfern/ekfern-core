@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, Search, Tag, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { fuzzyFilter } from '@/lib/fuzzyFilter'
@@ -16,32 +16,61 @@ interface Props {
 export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Props) {
   const [cards, setCards] = useState<GreetingCardSample[]>([])
   const [loading, setLoading] = useState(false)
-  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [activeTags, setActiveTags] = useState<string[]>([])
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     setSearchQuery('')
+    setActiveTags([])
     setLoading(true)
     getGreetingCardSamples()
       .then(setCards)
       .finally(() => setLoading(false))
   }, [open])
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!tagDropdownOpen) return
+    function handleOutsideClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [tagDropdownOpen])
+
   const allTags = useMemo(
     () => Array.from(new Set(cards.flatMap((c) => c.tags))).sort(),
     [cards]
   )
+
+  // OR logic: card matches if it has any of the selected tags
   const tagFiltered = useMemo(
-    () => (activeTag ? cards.filter((c) => c.tags.includes(activeTag)) : cards),
-    [cards, activeTag]
+    () =>
+      activeTags.length === 0
+        ? cards
+        : cards.filter((c) => activeTags.some((t) => c.tags.includes(t))),
+    [cards, activeTags]
   )
+
   const filtered = useMemo(
     () => fuzzyFilter(tagFiltered, searchQuery, ['name', 'description', 'tags']),
     [tagFiltered, searchQuery]
   )
 
+  function toggleTag(tag: string) {
+    setActiveTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    )
+  }
+
   if (!open) return null
+
+  const isFiltering = activeTags.length > 0 || searchQuery.trim().length > 0
 
   return (
     <div
@@ -61,48 +90,115 @@ export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Pro
           </button>
         </div>
 
+        {/* Search + Tag dropdown row */}
         <div className="px-5 py-3 border-b shrink-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
-            <Input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, tags… (typos OK)"
-              className="pl-9"
-              aria-label="Search greeting card backgrounds"
-            />
-          </div>
-        </div>
+          <div className="flex gap-2 items-center">
+            {/* Fuzzy search input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
+              <Input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, tags… (typos OK)"
+                className="pl-9"
+                aria-label="Search greeting card backgrounds"
+              />
+            </div>
 
-        {/* Tag filters */}
-        {allTags.length > 0 && (
-          <div className="px-5 py-3 border-b flex flex-wrap gap-2 shrink-0">
-            <button
-              onClick={() => setActiveTag(null)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                activeTag === null
-                  ? 'bg-eco-green text-white border-eco-green'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-              }`}
-            >
-              All
-            </button>
-            {allTags.map((tag) => (
+            {/* Tags dropdown */}
+            <div className="relative shrink-0" ref={dropdownRef}>
               <button
-                key={tag}
-                onClick={() => setActiveTag(tag === activeTag ? null : tag)}
-                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
-                  activeTag === tag
+                onClick={() => setTagDropdownOpen((v) => !v)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm font-medium transition-colors ${
+                  activeTags.length > 0
                     ? 'bg-eco-green text-white border-eco-green'
                     : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
                 }`}
+                aria-expanded={tagDropdownOpen}
+                aria-haspopup="listbox"
               >
-                {tag}
+                <Tag className="h-3.5 w-3.5" />
+                Tags
+                {activeTags.length > 0 && (
+                  <span className="bg-white/25 text-white text-xs rounded-full px-1.5 py-0.5 leading-none font-semibold">
+                    {activeTags.length}
+                  </span>
+                )}
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${tagDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
-            ))}
+
+              {tagDropdownOpen && allTags.length > 0 && (
+                <div className="absolute right-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg w-56">
+                  <ul
+                    role="listbox"
+                    aria-multiselectable="true"
+                    className="max-h-64 overflow-y-auto py-1"
+                  >
+                    {allTags.map((tag) => {
+                      const checked = activeTags.includes(tag)
+                      return (
+                        <li key={tag}>
+                          <label className="flex items-center gap-2.5 px-3 py-1.5 text-sm capitalize cursor-pointer hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleTag(tag)}
+                              className="h-3.5 w-3.5 rounded accent-eco-green"
+                            />
+                            <span className={checked ? 'font-medium text-gray-900' : 'text-gray-600'}>
+                              {tag}
+                            </span>
+                          </label>
+                        </li>
+                      )
+                    })}
+                  </ul>
+
+                  {activeTags.length > 0 && (
+                    <div className="border-t px-3 py-2">
+                      <button
+                        onClick={() => setActiveTags([])}
+                        className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1"
+                      >
+                        <X className="h-3 w-3" />
+                        Clear all tags
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+
+          {/* Active tag chips + result count */}
+          {(activeTags.length > 0 || isFiltering) && (
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex flex-wrap gap-1.5">
+                {activeTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-eco-green/10 text-eco-green capitalize border border-eco-green/30"
+                  >
+                    {tag}
+                    <button
+                      onClick={() => toggleTag(tag)}
+                      aria-label={`Remove ${tag} filter`}
+                      className="hover:text-eco-green/70"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              {!loading && (
+                <span className="text-xs text-gray-400 shrink-0 ml-2">
+                  {filtered.length} of {cards.length} cards
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Grid */}
         <div className="overflow-y-auto flex-1 p-5">
