@@ -1,13 +1,81 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Component, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import api from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
-import { logError } from '@/lib/error-handler'
+import type { InviteConfig } from '@/lib/invite/schema'
+
+const PageLayoutCardPreview = dynamic(
+  () => import('@/components/invite/PageLayoutCardPreview'),
+  { ssr: false }
+)
+
+// ── Invite preview helpers ────────────────────────────────────────
+
+class PreviewErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode; onError: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false }
+  static getDerivedStateFromError() { return { hasError: true } }
+  componentDidCatch() { this.props.onError() }
+  render() { return this.state.hasError ? this.props.fallback : this.props.children }
+}
+
+function LazyPreviewWrapper({ children, fallback }: { children: ReactNode; fallback: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(([e]) => { if (e?.isIntersecting) setInView(true) }, { rootMargin: '120px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  return <div ref={ref} className="h-full w-full">{inView ? children : fallback}</div>
+}
+
+function EventCardPreview({ invitePageSummary }: { invitePageSummary?: InvitePageSummary | null }) {
+  const [failed, setFailed] = useState(false)
+  const config = invitePageSummary?.config as InviteConfig | null | undefined
+  const isLive = invitePageSummary?.is_published && config?.tiles && config.tiles.length > 0 && !failed
+
+  const comingSoon = (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1"
+      style={{ background: '#0B3D2E' }}>
+      <span className="text-xs font-medium tracking-widest uppercase" style={{ color: '#E8D8C3', opacity: 0.7 }}>
+        Coming Soon
+      </span>
+      <span className="text-[10px]" style={{ color: '#E8D8C3', opacity: 0.45 }}>
+        Invite not published yet
+      </span>
+    </div>
+  )
+
+  return (
+    <div className="h-36 w-full overflow-hidden rounded-t-lg">
+      {isLive ? (
+        <LazyPreviewWrapper fallback={comingSoon}>
+          <PreviewErrorBoundary fallback={comingSoon} onError={() => setFailed(true)}>
+            <PageLayoutCardPreview config={config!} className="h-full w-full" />
+          </PreviewErrorBoundary>
+        </LazyPreviewWrapper>
+      ) : comingSoon}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+
+interface InvitePageSummary {
+  is_published: boolean
+  config: Record<string, unknown> | null
+}
 
 interface Event {
   id: number
@@ -19,6 +87,7 @@ interface Event {
   is_expired?: boolean
   city: string
   is_public: boolean
+  invite_page_summary?: InvitePageSummary | null
 }
 
 interface ImpactData {
@@ -43,7 +112,6 @@ export default function DashboardPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [impact, setImpact] = useState<ImpactData | null>(null)
-  const [loadingImpact, setLoadingImpact] = useState(false)
   const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set())
   const [isHydrated, setIsHydrated] = useState(false)
 
@@ -109,53 +177,6 @@ export default function DashboardPage() {
       setSelectedEventIds(new Set(impact.events.map(e => e.event_id)))
     }
   }, [impact])
-
-  const fetchEvents = async () => {
-    // Double-check auth before making request
-    const token = localStorage.getItem('access_token')
-    if (!token) {
-      setLoading(false) // CRITICAL: Clear loading state before redirect
-      router.push('/host/login')
-      return
-    }
-    
-    try {
-      const response = await api.get('/api/events/')
-      setEvents(response.data.results || response.data)
-    } catch (error: any) {
-      if (error.response?.status === 401) {
-        setLoading(false) // Clear loading before redirect
-        router.push('/host/login')
-      } else {
-        showToast('Failed to load events', 'error')
-        setLoading(false) // Always clear loading on error
-      }
-    } finally {
-      setLoading(false) // Always clear loading
-    }
-  }
-
-  const fetchImpact = async () => {
-    // Double-check auth before making request
-    const token = localStorage.getItem('access_token')
-    if (!token) {
-      setLoadingImpact(false)
-      return
-    }
-    
-    setLoadingImpact(true)
-    try {
-      const response = await api.get('/api/events/impact/overall/')
-      setImpact(response.data)
-    } catch (error: any) {
-      if (error.response?.status !== 401) {
-        // Silently fail - impact is optional
-        logError('Failed to load impact data:', error)
-      }
-    } finally {
-      setLoadingImpact(false) // Always clear loading
-    }
-  }
 
   const handleExtendExpiry = async (eventId: number) => {
     // Navigate to event detail page where they can extend expiry
@@ -257,30 +278,23 @@ export default function DashboardPage() {
               <div className="h-10 w-24 animate-pulse rounded-lg bg-gray-100" />
             </div>
           </div>
-          {/* Stat card skeletons */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="animate-pulse rounded-2xl bg-white border-2 border-eco-green-light p-6 space-y-3">
-                <div className="h-4 w-28 rounded bg-gray-200" />
-                <div className="h-8 w-12 rounded bg-gray-200" />
-                <div className="h-3 w-36 rounded bg-gray-100" />
-              </div>
-            ))}
-          </div>
           {/* Event card skeletons */}
           <div className="h-8 w-40 animate-pulse rounded bg-gray-200 mb-6" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="animate-pulse rounded-2xl bg-white border-2 border-eco-green-light p-5 space-y-3">
-                <div className="h-5 w-2/3 rounded bg-gray-200" />
-                <div className="h-3 w-1/3 rounded bg-gray-100" />
-                <div className="space-y-2 mt-2">
-                  <div className="h-3 w-1/2 rounded bg-gray-100" />
-                  <div className="h-3 w-2/5 rounded bg-gray-100" />
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <div className="h-9 flex-1 rounded-lg bg-gray-200" />
-                  <div className="h-9 flex-1 rounded-lg bg-gray-100" />
+              <div key={i} className="animate-pulse rounded-2xl bg-white border-2 border-eco-green-light overflow-hidden">
+                <div className="h-36 w-full bg-gray-200" />
+                <div className="p-5 space-y-3">
+                  <div className="h-5 w-2/3 rounded bg-gray-200" />
+                  <div className="h-3 w-1/3 rounded bg-gray-100" />
+                  <div className="space-y-2 mt-2">
+                    <div className="h-3 w-1/2 rounded bg-gray-100" />
+                    <div className="h-3 w-2/5 rounded bg-gray-100" />
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <div className="h-9 flex-1 rounded-lg bg-gray-200" />
+                    <div className="h-9 flex-1 rounded-lg bg-gray-100" />
+                  </div>
                 </div>
               </div>
             ))}
@@ -294,16 +308,11 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-eco-beige">
       <div className="container mx-auto px-4 py-8 md:py-10">
         {/* Welcome Section */}
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2 text-eco-green md:text-4xl">Welcome Back</h1>
-            <p className="text-lg text-gray-700">
-              Keep the important things in view and jump into event tasks quickly.
-            </p>
-          </div>
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <h1 className="text-3xl font-bold text-eco-green md:text-4xl">Host Workspace</h1>
           <div className="flex gap-2">
             <Link href="/host/events/new">
-              <Button className="bg-eco-green hover:bg-green-600 text-white">
+              <Button className="bg-eco-green hover:bg-eco-green-dark text-white">
                 + Create Event
               </Button>
             </Link>
@@ -313,49 +322,6 @@ export default function DashboardPage() {
               </Button>
             </Link>
           </div>
-        </div>
-
-        <div className="mb-8">
-          <p className="text-lg text-gray-700">
-            Manage your events and track sustainable outcomes without dashboard noise.
-          </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-white border-2 border-eco-green-light">
-            <CardHeader>
-              <CardTitle className="text-eco-green">Active Events</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-eco-green">{activeEvents.length}</p>
-              <CardDescription>Currently active events</CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white border-2 border-eco-green-light">
-            <CardHeader>
-              <CardTitle className="text-eco-green">Expired Events</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-gray-500">
-                {expiredEvents.length}
-              </p>
-              <CardDescription>Events that have passed</CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white border-2 border-eco-green-light">
-            <CardHeader>
-              <CardTitle className="text-eco-green">Public Registries</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-eco-green">
-                {events.filter(e => e.is_public).length}
-              </p>
-              <CardDescription>Live and accessible</CardDescription>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Impact Section */}
@@ -462,7 +428,7 @@ export default function DashboardPage() {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-eco-green">Active Events</h2>
           <Link href="/host/events/new">
-            <Button className="bg-eco-green hover:bg-green-600 text-white">
+            <Button className="bg-eco-green hover:bg-eco-green-dark text-white">
               + New Event
             </Button>
           </Link>
@@ -477,7 +443,7 @@ export default function DashboardPage() {
                 Create your first event to start planning sustainable celebrations
               </p>
               <Link href="/host/events/new">
-                <Button className="bg-eco-green hover:bg-green-600 text-white px-8 py-6 text-lg">
+                <Button className="bg-eco-green hover:bg-eco-green-dark text-white px-8 py-6 text-lg">
                   Create Your First Event →
                 </Button>
               </Link>
@@ -489,8 +455,9 @@ export default function DashboardPage() {
               return (
                 <Card
                   key={event.id}
-                  className="bg-white border-2 border-eco-green-light hover:shadow-lg transition-shadow"
+                  className="bg-white border-2 border-eco-green-light hover:shadow-lg transition-shadow overflow-hidden"
                 >
+                  <EventCardPreview invitePageSummary={event.invite_page_summary} />
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-xl text-eco-green">
@@ -535,7 +502,7 @@ export default function DashboardPage() {
                     <div className="flex gap-2">
                       <Button
                         onClick={() => handleManageEvent(event.id)}
-                        className="w-full flex-1 bg-eco-green hover:bg-green-700 text-white"
+                        className="w-full flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                       >
                         Manage
                       </Button>
@@ -589,7 +556,7 @@ export default function DashboardPage() {
                           </Button>
                           <Button
                             onClick={() => handleExtendExpiry(event.id)}
-                            className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                            className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                           >
                             Extend
                           </Button>

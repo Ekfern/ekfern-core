@@ -129,9 +129,9 @@ export default function DesignInvitationPage(): JSX.Element {
   const headerRef = useRef<HTMLDivElement>(null)
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const gridContainerRef = useRef<HTMLDivElement>(null)
+  const [stickyTop, setStickyTop] = useState(0)
   const previewImageInputRef = useRef<HTMLInputElement>(null)
   const previewWindowRef = useRef<Window | null>(null)
-  const [rightPanelStyle, setRightPanelStyle] = useState<React.CSSProperties>({})
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showLinkMetadata, setShowLinkMetadata] = useState(false)
   const [uploadingPreviewImage, setUploadingPreviewImage] = useState(false)
@@ -139,7 +139,6 @@ export default function DesignInvitationPage(): JSX.Element {
   const [previewCropSrc, setPreviewCropSrc] = useState<string | null>(null)
   const [previewCropDimensions, setPreviewCropDimensions] = useState<{ width: number; height: number; aspectRatio: number } | null>(null)
   const [previewCropFilename, setPreviewCropFilename] = useState<string>('preview.jpg')
-  const [spacerHeight, setSpacerHeight] = useState<number | null>(null)
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
   const [config, setConfig] = useState<InviteConfig>({
     themeId: 'classic-noir',
@@ -480,67 +479,23 @@ export default function DesignInvitationPage(): JSX.Element {
     const updateHeaderHeight = () => {
       if (headerRef.current) {
         const height = headerRef.current.offsetHeight
-        setHeaderHeight(height + 16) // Add 16px for spacing
+        setHeaderHeight(height + 16)
+        setStickyTop(height + 8)
       }
     }
 
     updateHeaderHeight()
+    const t1 = setTimeout(updateHeaderHeight, 100)
+    const t2 = setTimeout(updateHeaderHeight, 500)
     window.addEventListener('resize', updateHeaderHeight)
-    
+
     return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
       window.removeEventListener('resize', updateHeaderHeight)
     }
   }, [event])
 
-  // Calculate right panel position for fixed positioning on desktop
-  useEffect(() => {
-    const updateRightPanelPosition = () => {
-      if (rightPanelRef.current && gridContainerRef.current && window.innerWidth >= 1024) {
-        // Use requestAnimationFrame to ensure DOM is updated
-        requestAnimationFrame(() => {
-          if (rightPanelRef.current) {
-            const rightPanelRect = rightPanelRef.current.getBoundingClientRect()
-            const height = rightPanelRef.current.offsetHeight
-            
-            setRightPanelStyle({
-              position: 'fixed',
-              top: `${headerHeight + 20}px`,
-              left: `${rightPanelRect.left}px`,
-              width: `${rightPanelRect.width}px`,
-              maxHeight: `calc(100vh - ${headerHeight}px - 20px)`,
-            })
-            setSpacerHeight(height)
-          }
-        })
-      } else {
-        setRightPanelStyle({
-          position: 'relative',
-          top: 'auto',
-          left: 'auto',
-          width: 'auto',
-          maxHeight: 'none',
-        })
-        setSpacerHeight(null)
-      }
-    }
-
-    // Initial calculation with multiple attempts to ensure it works
-    const timeoutId1 = setTimeout(updateRightPanelPosition, 50)
-    const timeoutId2 = setTimeout(updateRightPanelPosition, 200)
-    const timeoutId3 = setTimeout(updateRightPanelPosition, 500)
-    
-    // Update on resize and scroll
-    window.addEventListener('resize', updateRightPanelPosition)
-    window.addEventListener('scroll', updateRightPanelPosition, { passive: true })
-    
-    return () => {
-      clearTimeout(timeoutId1)
-      clearTimeout(timeoutId2)
-      clearTimeout(timeoutId3)
-      window.removeEventListener('resize', updateRightPanelPosition)
-      window.removeEventListener('scroll', updateRightPanelPosition)
-    }
-  }, [event, headerHeight, config])
 
   const handleSave = async () => {
     setSaving(true)
@@ -1373,7 +1328,7 @@ export default function DesignInvitationPage(): JSX.Element {
           <div className="flex flex-wrap gap-4 mb-8">
             <Button
               onClick={() => setShowLayoutLibraryOnStart(true)}
-              className="bg-eco-green hover:bg-green-600 text-white"
+              className="bg-eco-green hover:bg-eco-green-dark text-white"
             >
               Start from page layout
             </Button>
@@ -1514,34 +1469,15 @@ export default function DesignInvitationPage(): JSX.Element {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 w-full overflow-x-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 w-full">
           <div className="flex-1 min-w-0 w-full">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
+            <div className="mb-2">
               <Link
                 href={`/host/events/${eventId}/layout`}
-                className="text-xs text-eco-green hover:underline flex items-center gap-1 mr-1"
+                className="text-xs text-gray-500 hover:text-eco-green transition-colors flex items-center gap-1"
               >
                 <span aria-hidden>&#8592;</span> Back to Layout
               </Link>
-              <Link href={`/host/events/${eventId}`}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-eco-green text-eco-green hover:bg-eco-green-light"
-                >
-                  Back to Event
-                </Button>
-              </Link>
-              <Link href={`/host/events/${eventId}/guests`}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-eco-green text-eco-green hover:bg-eco-green-light"
-                >
-                  Guests
-                </Button>
-              </Link>
             </div>
-            <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-eco-green break-words">Design Invitation Page</h1>
-              <p className="text-gray-600 mt-1 text-xs sm:text-sm break-words">Customize your invitation page by arranging and configuring tiles. Drag tiles in the mobile preview to reorder them.</p>
+            <h1 className="text-xl font-bold text-eco-green">Invitation Design</h1>
           </div>
           <div className="flex gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto items-center">
             {/* Save status indicator */}
@@ -1637,7 +1573,7 @@ export default function DesignInvitationPage(): JSX.Element {
             <Button
               onClick={handleSave}
               disabled={saving}
-              className="bg-eco-green hover:bg-green-600 text-white text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
+              className="bg-eco-green hover:bg-eco-green-dark text-white text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
             >
               {saving ? 'Saving...' : <><span className="hidden sm:inline">💾 </span>Save</>}
             </Button>
@@ -1693,9 +1629,9 @@ export default function DesignInvitationPage(): JSX.Element {
           const state = getInvitePageState(invitePage)
           if (state === InvitePageState.NOT_CREATED) {
             return (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  💡 Design and save your invitation to create the invite page.
+              <div className="mb-4 p-3 bg-eco-green-light/20 border border-eco-green-light rounded-lg">
+                <p className="text-sm text-eco-green">
+                  Design and save your invitation to create the invite page.
                 </p>
               </div>
             )
@@ -1745,7 +1681,7 @@ export default function DesignInvitationPage(): JSX.Element {
                         },
                       }))}
                       placeholder="#ffffff"
-                      className="flex-1"
+                      className="w-32 font-mono text-sm"
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
@@ -1892,56 +1828,9 @@ export default function DesignInvitationPage(): JSX.Element {
                               ...prev,
                               animations: { ...prev.animations, envelope: e.target.checked },
                             }))}
-                            className="w-4 h-4 text-eco-green focus:ring-eco-green border-gray-300 rounded"
+                            className="w-4 h-4 accent-eco-green border-gray-300 rounded"
                           />
                         </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <label className="block text-sm font-medium">Tile edge fade while scrolling</label>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              Tiles fade near the top and bottom of the screen. Off by default.
-                            </p>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={config.animations?.tileViewportFade === true}
-                            onChange={(e) => setConfig(prev => ({
-                              ...prev,
-                              animations: {
-                                ...prev.animations,
-                                tileViewportFade: e.target.checked,
-                              },
-                            }))}
-                            className="w-4 h-4 text-eco-green focus:ring-eco-green border-gray-300 rounded"
-                          />
-                        </div>
-                        {config.animations?.tileViewportFade === true && (
-                          <div>
-                            <label className="block text-sm font-medium mb-2">Fade band depth (px)</label>
-                            <input
-                              type="number"
-                              min={4}
-                              max={120}
-                              step={1}
-                              value={config.animations?.tileViewportFadeInsetPx ?? 10}
-                              onChange={(e) => {
-                                const raw = parseInt(e.target.value, 10)
-                                const n = Number.isFinite(raw) ? Math.min(120, Math.max(4, raw)) : 10
-                                setConfig((prev) => ({
-                                  ...prev,
-                                  animations: {
-                                    ...prev.animations,
-                                    tileViewportFadeInsetPx: n,
-                                  },
-                                }))
-                              }}
-                              className="w-full max-w-[8rem] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Inset from top and bottom of the viewport where fading ramps.
-                            </p>
-                          </div>
-                        )}
                       </div>
 
                       {/* Page Border Settings */}
@@ -1961,7 +1850,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                 width: prev.pageBorder?.width ?? 2,
                               },
                             }))}
-                            className="w-4 h-4 text-eco-green focus:ring-eco-green border-gray-300 rounded"
+                            className="w-4 h-4 accent-eco-green border-gray-300 rounded"
                           />
                         </div>
                         {config.pageBorder?.enabled && (
@@ -2431,8 +2320,8 @@ export default function DesignInvitationPage(): JSX.Element {
                         </div>
                       </div>
 
-                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                        <p className="text-xs text-blue-800">
+                      <div className="bg-eco-green-light/20 border border-eco-green-light rounded-md p-3">
+                        <p className="text-xs text-eco-green">
                           <strong>Tip:</strong> These settings control how your invite appears when shared on WhatsApp, Facebook, Twitter, and other platforms. If left empty, the system will automatically generate previews from your page content.
                         </p>
                       </div>
@@ -2483,19 +2372,15 @@ export default function DesignInvitationPage(): JSX.Element {
 
           {/* Right Panel - Preview */}
           <>
-            {/* Spacer to maintain grid layout when panel is fixed */}
-            {rightPanelStyle.position === 'fixed' && spacerHeight !== null && (
-              <div className="lg:col-span-2 w-full min-w-0" style={{ height: `${spacerHeight}px` }} />
-            )}
-            <div 
+            <div
               ref={rightPanelRef}
-              className="lg:col-span-2 w-full min-w-0 overflow-x-hidden"
-              style={rightPanelStyle}
+              className="lg:col-span-2 w-full min-w-0 overflow-x-hidden self-start lg:sticky"
+              style={{ top: stickyTop > 0 ? `${stickyTop}px` : undefined }}
             >
-            <div 
+            <div
               className="lg:z-40 bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden"
-              style={{ 
-                maxHeight: `calc(100vh - ${headerHeight}px - 20px - 1rem)`,
+              style={{
+                maxHeight: `calc(100vh - ${stickyTop + 16}px)`,
                 overflowY: 'auto'
               }}
             >
@@ -2573,7 +2458,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             ></div>
                           </div>
                           {/* Content Area */}
-                          <div className="overflow-y-auto flex-1 w-full overflow-x-hidden" style={{ paddingBottom: '24px' }}>
+                          <div className="overflow-y-auto flex-1 w-full overflow-x-hidden [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                     {sortedTiles && sortedTiles.length > 0 ? (
                       <>
                         <TileList

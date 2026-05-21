@@ -188,55 +188,6 @@ export default function PageLayoutStudioCanvas({
                   className="w-4 h-4 shrink-0 text-eco-green focus:ring-eco-green border-gray-300 rounded"
                 />
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <label className="block text-sm font-medium">Tile edge fade while scrolling</label>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Tiles fade near the top and bottom of the guest&apos;s screen
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={config.animations?.tileViewportFade === true}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      animations: {
-                        ...prev.animations,
-                        tileViewportFade: e.target.checked,
-                      },
-                    }))
-                  }
-                  className="w-4 h-4 shrink-0 text-eco-green focus:ring-eco-green border-gray-300 rounded"
-                />
-              </div>
-              {config.animations?.tileViewportFade === true && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Fade band depth (px)</label>
-                  <Input
-                    type="number"
-                    min={4}
-                    max={120}
-                    step={1}
-                    value={config.animations?.tileViewportFadeInsetPx ?? 10}
-                    onChange={(e) => {
-                      const raw = parseInt(e.target.value, 10)
-                      const n = Number.isFinite(raw) ? Math.min(120, Math.max(4, raw)) : 10
-                      setConfig((prev) => ({
-                        ...prev,
-                        animations: {
-                          ...prev.animations,
-                          tileViewportFadeInsetPx: n,
-                        },
-                      }))
-                    }}
-                    className="w-full max-w-[8rem]"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Vertical inset from viewport top and bottom where fading ramps to full opacity.
-                  </p>
-                </div>
-              )}
             </div>
             <div className="border-t border-gray-200 pt-4 mt-4">
               <button

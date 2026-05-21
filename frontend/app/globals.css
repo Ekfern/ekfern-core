@@ -5,11 +5,11 @@
 @tailwind utilities;
 
 :root {
-  --background: #F5F5DC;
-  --foreground: #2D5016;
-  --primary: #4CAF50;
-  --primary-light: #A5D6A7;
-  --accent: #81C784;
+  --background: #E8D8C3;
+  --foreground: #0B3D2E;
+  --primary: #0B3D2E;
+  --primary-light: #C8B8A2;
+  --accent: #218085;
 }
 
 html, body {
@@ -102,27 +102,43 @@ body {
 
 /* Eco-friendly theme colors */
 .bg-eco-beige {
-  background-color: #F5F5DC;
+  background-color: #E8D8C3;
 }
 
 .bg-eco-green {
-  background-color: #4CAF50;
+  background-color: #0B3D2E;
+}
+
+.bg-eco-green-dark {
+  background-color: #1a4d38;
 }
 
 .bg-eco-green-light {
-  background-color: #A5D6A7;
+  background-color: #C8B8A2;
+}
+
+.bg-eco-teal {
+  background-color: #218085;
 }
 
 .text-eco-green {
-  color: #4CAF50;
+  color: #0B3D2E;
+}
+
+.text-eco-teal {
+  color: #218085;
 }
 
 .border-eco-green {
-  border-color: #4CAF50;
+  border-color: #0B3D2E;
+}
+
+.border-eco-teal {
+  border-color: #218085;
 }
 
 .border-eco-green-light {
-  border-color: #A5D6A7;
+  border-color: #C8B8A2;
 }
 
 /* Range slider styles */
@@ -148,7 +164,7 @@ input[type="range"].slider::-webkit-slider-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #4CAF50;
+  background: #0B3D2E;
   cursor: pointer;
   border: 2px solid #ffffff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -156,7 +172,7 @@ input[type="range"].slider::-webkit-slider-thumb {
 }
 
 input[type="range"].slider::-webkit-slider-thumb:hover {
-  background: #45a049;
+  background: #1a4d38;
   transform: scale(1.1);
 }
 
@@ -164,7 +180,7 @@ input[type="range"].slider::-moz-range-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #4CAF50;
+  background: #0B3D2E;
   cursor: pointer;
   border: 2px solid #ffffff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -172,7 +188,7 @@ input[type="range"].slider::-moz-range-thumb {
 }
 
 input[type="range"].slider::-moz-range-thumb:hover {
-  background: #45a049;
+  background: #1a4d38;
   transform: scale(1.1);
 }
 
@@ -181,10 +197,10 @@ input[type="range"].slider:focus {
 }
 
 input[type="range"].slider:focus::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+  box-shadow: 0 0 0 3px rgba(11, 61, 46, 0.3);
 }
 
 input[type="range"].slider:focus::-moz-range-thumb {
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+  box-shadow: 0 0 0 3px rgba(11, 61, 46, 0.3);
 }
 

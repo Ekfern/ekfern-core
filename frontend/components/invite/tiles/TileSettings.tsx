@@ -82,20 +82,17 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
   }
 
   return (
-    <div className={`border rounded-lg w-full overflow-x-hidden ${tile.enabled ? 'bg-white' : 'bg-gray-50 opacity-75'}`}>
-      <div className="flex items-center justify-between p-3 sm:p-4 border-b w-full min-w-0">
+    <div className={`border rounded-lg w-full overflow-x-hidden transition-opacity ${tile.enabled ? 'bg-white border-gray-200' : 'bg-gray-50 border-dashed border-gray-300 opacity-50'}`}>
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-inherit w-full min-w-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 pl-8 sm:pl-10">
             <input
               type="checkbox"
               checked={tile.enabled}
               onChange={(e) => onToggle(tile.id, e.target.checked)}
-              className="w-4 h-4 text-eco-green flex-shrink-0 cursor-pointer"
+              className="w-4 h-4 flex-shrink-0 cursor-pointer accent-eco-green"
             />
-          <h3 className={`font-semibold text-sm sm:text-base truncate min-w-0 ${tile.enabled ? 'text-gray-800' : 'text-gray-500'}`}>
+          <h3 className={`font-semibold text-sm sm:text-base truncate min-w-0 ${tile.enabled ? 'text-gray-800' : 'text-gray-400'}`}>
             {TILE_LABELS[tile.type]}
-            {!tile.enabled && (
-              <span className="text-xs text-gray-400 ml-2 font-normal">(Disabled)</span>
-            )}
           </h3>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">

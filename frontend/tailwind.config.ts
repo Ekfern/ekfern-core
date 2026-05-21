@@ -11,9 +11,11 @@ const config: Config = {
       colors: {
         background: 'var(--background)',
         foreground: 'var(--foreground)',
-        'eco-beige': '#F5F5DC',
-        'eco-green': '#4CAF50',
-        'eco-green-light': '#A5D6A7',
+        'eco-beige': '#E8D8C3',
+        'eco-green': '#0B3D2E',
+        'eco-green-dark': '#1a4d38',
+        'eco-green-light': '#C8B8A2',
+        'eco-teal': '#218085',
         // Pastel & Bright Sustainability Colors from reference
         'pastel-green': '#A8D5BA',
         'bright-teal': '#218085',
@@ -72,10 +74,17 @@ const config: Config = {
   safelist: [
     'bg-eco-beige',
     'bg-eco-green',
+    'bg-eco-green-dark',
     'bg-eco-green-light',
+    'bg-eco-teal',
     'text-eco-green',
+    'text-eco-teal',
     'border-eco-green',
+    'border-eco-teal',
     'border-eco-green-light',
+    'hover:bg-eco-green-dark',
+    'hover:bg-eco-green-light',
+    'accent-eco-green',
   ],
 }
 export default config

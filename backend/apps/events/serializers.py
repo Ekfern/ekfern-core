@@ -31,6 +31,12 @@ def _display_label_for_booking_slot(slot, event) -> str:
         return 'Booked'
 
 
+class InvitePageSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InvitePage
+        fields = ('is_published', 'config')
+
+
 class EventSerializer(serializers.ModelSerializer):
     # Only include minimal host info for privacy (name only, no email)
     host_name = serializers.CharField(source='host.name', read_only=True, allow_null=True)
@@ -43,11 +49,12 @@ class EventSerializer(serializers.ModelSerializer):
     rsvp_mode_readiness = serializers.SerializerMethodField()
     mode_switch_locked = serializers.SerializerMethodField()
     mode_switch_lock_reasons = serializers.SerializerMethodField()
+    invite_page_summary = InvitePageSummarySerializer(source='invite_page', read_only=True)
 
     class Meta:
         model = Event
-        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'created_at', 'updated_at')
+        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary')
+        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'created_at', 'updated_at', 'invite_page_summary')
     
     def validate_slug(self, value):
         """Ensure slug is unique (excluding current instance on update)"""

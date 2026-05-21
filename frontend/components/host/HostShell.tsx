@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   CalendarCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   GalleryHorizontal,
@@ -36,26 +37,16 @@ const AUTH_ROUTES = new Set([
 ])
 
 function isActivePath(pathname: string, href: string, exact = false) {
-  if (exact) {
-    return pathname === href
-  }
-  if (href === '/host/dashboard') {
-    return pathname === href
-  }
+  if (exact) return pathname === href
+  if (href === '/host/dashboard') return pathname === href
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
 function getEventIdFromPath(pathname: string): string | null {
   const eventRouteMatch = pathname.match(/^\/host\/events\/(\d+)(?:\/|$)/)
-  if (eventRouteMatch) {
-    return eventRouteMatch[1]
-  }
-
+  if (eventRouteMatch) return eventRouteMatch[1]
   const registryRouteMatch = pathname.match(/^\/host\/items\/(\d+)(?:\/|$)/)
-  if (registryRouteMatch) {
-    return registryRouteMatch[1]
-  }
-
+  if (registryRouteMatch) return registryRouteMatch[1]
   return null
 }
 
@@ -65,103 +56,91 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
   const [isDesktopNavCollapsed, setIsDesktopNavCollapsed] = useState(false)
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [switcherOpen, setSwitcherOpen] = useState(false)
+  const switcherRef = useRef<HTMLDivElement>(null)
 
-  // Sync collapsed state from localStorage after mount to avoid SSR/client mismatch
   useEffect(() => {
     const stored = localStorage.getItem('host-nav-collapsed')
     if (stored === 'true') setIsDesktopNavCollapsed(true)
   }, [])
+
   const [eventSettings, setEventSettings] = useState<{
+    title: string
     has_rsvp: boolean
     has_registry: boolean
     event_structure: 'SIMPLE' | 'ENVELOPE'
   } | null>(null)
+  const [allEvents, setAllEvents] = useState<{ id: number; title: string }[]>([])
   const [isStaff, setIsStaff] = useState(false)
 
   const isAuthRoute = AUTH_ROUTES.has(pathname)
   const eventId = getEventIdFromPath(pathname)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (isAuthRoute) return
     api.get('/api/auth/me/').then((r) => {
       if (r?.data?.is_staff === true) setIsStaff(true)
     }).catch(() => {})
+    api.get('/api/events/').then((r) => {
+      const list = r.data.results ?? r.data
+      setAllEvents(list.map((e: { id: number; title: string }) => ({ id: e.id, title: e.title })))
+    }).catch(() => {})
   }, [isAuthRoute])
 
-  const globalNavItems = useMemo(
-    () => [
-      {
-        href: '/host/dashboard',
-        label: 'Dashboard',
-        icon: LayoutDashboard,
-      },
-      {
-        href: '/host/events/new',
-        label: 'Create Event',
-        icon: PlusCircle,
-      },
-      {
-        href: '/host/profile',
-        label: 'Profile',
-        icon: User,
-      },
-    ],
-    []
-  )
+  useEffect(() => {
+    if (!eventId) { setEventSettings(null); return }
+    let isCancelled = false
+    api.get(`/api/events/${eventId}/`).then((r) => {
+      if (!isCancelled && r.data) {
+        setEventSettings({
+          title: r.data.title ?? '',
+          has_rsvp: r.data.has_rsvp ?? true,
+          has_registry: r.data.has_registry ?? true,
+          event_structure: r.data.event_structure || 'SIMPLE',
+        })
+      }
+    }).catch(() => { if (!isCancelled) setEventSettings(null) })
+    return () => { isCancelled = true }
+  }, [eventId])
 
-  const eventNavItems = useMemo(() => {
+  // Close switcher on outside click
+  useEffect(() => {
+    if (!switcherOpen) return
+    const handler = (e: MouseEvent) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
+        setSwitcherOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [switcherOpen])
+
+  const globalNavItems = useMemo(() => [
+    { href: '/host/dashboard',  label: 'Dashboard',    icon: LayoutDashboard },
+    { href: '/host/events/new', label: 'Create Event', icon: PlusCircle },
+    { href: '/host/profile',    label: 'Profile',      icon: User },
+  ], [])
+
+  const eventTabItems = useMemo(() => {
     if (!eventId) return []
-    const hasRsvp = eventSettings?.has_rsvp ?? true
-    const hasRegistry = eventSettings?.has_registry ?? true
-    const isEnvelope = eventSettings?.event_structure === 'ENVELOPE'
+    const hasRsvp     = eventSettings?.has_rsvp      ?? true
+    const hasRegistry = eventSettings?.has_registry   ?? true
+    const isEnvelope  = eventSettings?.event_structure === 'ENVELOPE'
     const items: { href: string; label: string; icon: LucideIcon }[] = [
-      { href: `/host/events/${eventId}`, label: 'Overview', icon: LayoutDashboard },
-      { href: `/host/events/${eventId}/design`, label: 'Design', icon: Paintbrush },
-      { href: `/host/events/${eventId}/guests`, label: 'Guests', icon: Users },
+      { href: `/host/events/${eventId}`,               label: 'Overview',   icon: LayoutDashboard },
+      { href: `/host/events/${eventId}/design`,        label: 'Design',     icon: Paintbrush },
+      { href: `/host/events/${eventId}/guests`,        label: 'Guests',     icon: Users },
     ]
-    if (hasRsvp) items.push({ href: `/host/events/${eventId}/rsvp`, label: 'RSVP', icon: CalendarCheck })
-    if (isEnvelope) items.push({ href: `/host/events/${eventId}/sub-events`, label: 'Sub-Events', icon: Layers })
-    items.push({ href: `/host/events/${eventId}/communications`, label: 'Messages', icon: MessageSquare })
-    if (hasRegistry) items.push({ href: `/host/items/${eventId}`, label: 'Registry', icon: Gift })
-
+    if (hasRsvp)     items.push({ href: `/host/events/${eventId}/rsvp`,        label: 'RSVP',       icon: CalendarCheck })
+    if (isEnvelope)  items.push({ href: `/host/events/${eventId}/sub-events`,  label: 'Sub-Events', icon: Layers })
+    items.push(        { href: `/host/events/${eventId}/communications`, label: 'Messages',   icon: MessageSquare })
+    if (hasRegistry) items.push({ href: `/host/items/${eventId}`,              label: 'Registry',   icon: Gift })
     return items
   }, [eventId, eventSettings])
 
-  useEffect(() => {
-    if (!eventId) {
-      setEventSettings(null)
-      return
-    }
-
-    let isCancelled = false
-    const fetchEvent = async () => {
-      try {
-        const response = await api.get(`/api/events/${eventId}/`)
-        if (!isCancelled && response.data) {
-          setEventSettings({
-            has_rsvp: response.data.has_rsvp ?? true,
-            has_registry: response.data.has_registry ?? true,
-            event_structure: response.data.event_structure || 'SIMPLE',
-          })
-        }
-      } catch {
-        if (!isCancelled) setEventSettings(null)
-      }
-    }
-
-    fetchEvent()
-    return () => {
-      isCancelled = true
-    }
-  }, [eventId])
-
-  if (isAuthRoute) {
-    return <>{children}</>
-  }
+  if (isAuthRoute) return <>{children}</>
 
   const handleLogout = () => {
     localStorage.removeItem('access_token')
@@ -180,6 +159,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
+      {/* ── Sidebar ───────────────────────────────────────────────── */}
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-40 bg-white border-r border-eco-green-light shadow-sm transition-all md:static md:translate-x-0',
@@ -195,8 +175,8 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
               type="button"
               className="hidden rounded-md p-1 text-eco-green hover:bg-eco-green-light md:inline-flex"
               aria-label={isDesktopNavCollapsed ? 'Expand navigation panel' : 'Collapse navigation panel'}
-              onClick={() => setIsDesktopNavCollapsed((previous) => {
-                const next = !previous
+              onClick={() => setIsDesktopNavCollapsed((prev) => {
+                const next = !prev
                 localStorage.setItem('host-nav-collapsed', String(next))
                 return next
               })}
@@ -228,24 +208,19 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
                 return isDesktopNavCollapsed ? (
                   <div key={item.href} className="group relative">
                     {link}
-                    <TooltipContent side="right">
-                      {item.label}
-                    </TooltipContent>
+                    <TooltipContent side="right">{item.label}</TooltipContent>
                   </div>
-                ) : (
-                  link
-                )
+                ) : link
               })}
 
               {isStaff && (() => {
+                const active = isActivePath(pathname, '/host/page-layouts') && !pathname.startsWith('/host/templates/greeting-cards')
                 const link = (
                   <Link
                     href="/host/page-layouts"
                     className={cn(
                       'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                      isActivePath(pathname, '/host/page-layouts') && !pathname.startsWith('/host/templates/greeting-cards')
-                        ? 'bg-eco-green text-white'
-                        : 'text-gray-700 hover:bg-eco-green-light',
+                      active ? 'bg-eco-green text-white' : 'text-gray-700 hover:bg-eco-green-light',
                       isDesktopNavCollapsed && 'md:justify-center md:px-0'
                     )}
                     onClick={() => setIsMobileDrawerOpen(false)}
@@ -255,26 +230,18 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
                   </Link>
                 )
                 return isDesktopNavCollapsed ? (
-                  <div className="group relative">
-                    {link}
-                    <TooltipContent side="right">
-                      Page Layout Studio
-                    </TooltipContent>
-                  </div>
-                ) : (
-                  link
-                )
+                  <div className="group relative">{link}<TooltipContent side="right">Page Layout Studio</TooltipContent></div>
+                ) : link
               })()}
 
               {isStaff && (() => {
+                const active = pathname.startsWith('/host/templates/greeting-cards')
                 const link = (
                   <Link
                     href="/host/templates/greeting-cards"
                     className={cn(
                       'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                      pathname.startsWith('/host/templates/greeting-cards')
-                        ? 'bg-eco-green text-white'
-                        : 'text-gray-700 hover:bg-eco-green-light',
+                      active ? 'bg-eco-green text-white' : 'text-gray-700 hover:bg-eco-green-light',
                       isDesktopNavCollapsed && 'md:justify-center md:px-0'
                     )}
                     onClick={() => setIsMobileDrawerOpen(false)}
@@ -284,66 +251,12 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
                   </Link>
                 )
                 return isDesktopNavCollapsed ? (
-                  <div className="group relative">
-                    {link}
-                    <TooltipContent side="right">
-                      Greeting Card Studio
-                    </TooltipContent>
-                  </div>
-                ) : (
-                  link
-                )
+                  <div className="group relative">{link}<TooltipContent side="right">Greeting Card Studio</TooltipContent></div>
+                ) : link
               })()}
-
-              {mounted && eventId && eventNavItems.length > 0 && (
-                <>
-                  <div className="my-3 border-t border-eco-green-light" aria-hidden="true" />
-                  <p
-                    className={cn(
-                      'px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500',
-                      isDesktopNavCollapsed && 'md:hidden'
-                    )}
-                  >
-                    Event
-                  </p>
-                  {eventNavItems.map((item) => {
-                    const isEventRootLink = item.href === `/host/events/${eventId}`
-                    const isActive = isActivePath(pathname, item.href, isEventRootLink)
-                    const Icon = item.icon
-                    const link = (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                          isActive
-                            ? 'bg-eco-green text-white'
-                            : 'text-gray-700 hover:bg-eco-green-light hover:text-eco-green',
-                          isDesktopNavCollapsed && 'md:justify-center md:px-0'
-                        )}
-                        onClick={() => setIsMobileDrawerOpen(false)}
-                      >
-                        <Icon size={18} />
-                        <span className={cn(isDesktopNavCollapsed && 'md:hidden')}>{item.label}</span>
-                      </Link>
-                    )
-                    return isDesktopNavCollapsed ? (
-                      <div key={item.href} className="group relative">
-                        {link}
-                        <TooltipContent side="right">
-                          {item.label}
-                        </TooltipContent>
-                      </div>
-                    ) : (
-                      link
-                    )
-                  })}
-                </>
-              )}
             </TooltipProvider>
           </nav>
 
-          {/* Pinned bottom — Help & Support */}
           <div className="border-t border-eco-green-light p-3">
             <TooltipProvider delayDuration={400}>
               {isDesktopNavCollapsed ? (
@@ -372,10 +285,13 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* ── Main column ───────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col">
+
+        {/* Primary header */}
         <header className="sticky top-0 z-20 border-b border-eco-green-light bg-white/95 backdrop-blur-sm">
-          <div className="flex items-center justify-between px-4 py-4 md:px-6">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between px-4 py-3 md:px-6">
+            <div className="flex items-center gap-3 min-w-0">
               <button
                 type="button"
                 className="rounded-md p-2 text-eco-green hover:bg-eco-green-light md:hidden"
@@ -384,19 +300,134 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
               >
                 <Menu size={20} />
               </button>
-              <div className="text-sm text-gray-700">
-                <span className="font-semibold text-eco-green">Host Workspace</span>
+
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-1.5 min-w-0 text-sm">
+                <Link
+                  href="/host/dashboard"
+                  className="font-semibold text-eco-green hover:text-eco-green/80 transition-colors whitespace-nowrap"
+                >
+                  Host Workspace
+                </Link>
+
+                {mounted && eventId && (
+                  <>
+                    <span className="text-eco-green-light select-none">/</span>
+
+                    {/* Event switcher */}
+                    <div ref={switcherRef} className="relative min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => setSwitcherOpen((o) => !o)}
+                        className={cn(
+                          'flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium transition-colors max-w-[180px] md:max-w-[260px]',
+                          switcherOpen
+                            ? 'bg-eco-green text-white'
+                            : 'text-gray-800 hover:bg-eco-green-light'
+                        )}
+                      >
+                        <span className="truncate">
+                          {eventSettings?.title ?? '…'}
+                        </span>
+                        <ChevronDown
+                          size={14}
+                          className={cn('shrink-0 transition-transform duration-150', switcherOpen && 'rotate-180')}
+                        />
+                      </button>
+
+                      <AnimatePresence>
+                        {switcherOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.12 }}
+                            className="absolute left-0 top-full mt-1.5 z-50 w-64 rounded-xl border border-eco-green-light bg-white shadow-lg overflow-hidden"
+                          >
+                            <div className="px-3 py-2 border-b border-eco-green-light">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                                Switch Event
+                              </p>
+                            </div>
+                            <ul className="max-h-64 overflow-y-auto py-1">
+                              {allEvents.map((ev) => (
+                                <li key={ev.id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSwitcherOpen(false)
+                                      router.push(`/host/events/${ev.id}`)
+                                    }}
+                                    className={cn(
+                                      'w-full text-left px-4 py-2.5 text-sm transition-colors',
+                                      String(ev.id) === eventId
+                                        ? 'bg-eco-green/10 text-eco-green font-medium'
+                                        : 'text-gray-700 hover:bg-eco-green-light/60'
+                                    )}
+                                  >
+                                    {ev.title}
+                                  </button>
+                                </li>
+                              ))}
+                              {allEvents.length === 0 && (
+                                <li className="px-4 py-3 text-sm text-gray-400">No events found</li>
+                              )}
+                            </ul>
+                            <div className="border-t border-eco-green-light px-3 py-2">
+                              <Link
+                                href="/host/events/new"
+                                onClick={() => setSwitcherOpen(false)}
+                                className="flex items-center gap-2 text-sm font-medium text-eco-green hover:underline"
+                              >
+                                <PlusCircle size={14} />
+                                Create new event
+                              </Link>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
+
             <button
               type="button"
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-eco-green-light hover:text-eco-green"
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-eco-green-light hover:text-eco-green shrink-0"
               onClick={handleLogout}
             >
               <LogOut size={18} />
-              <span>Logout</span>
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
+
+          {/* Event pill tab bar — only shown when inside an event */}
+          {mounted && eventId && eventTabItems.length > 0 && (
+            <div className="border-t border-eco-green-light/60 bg-white/95 px-4 md:px-6">
+              <div className="flex items-center gap-1.5 overflow-x-auto py-2 scrollbar-none">
+                {eventTabItems.map((item) => {
+                  const isRoot = item.href === `/host/events/${eventId}`
+                  const isActive = isActivePath(pathname, item.href, isRoot)
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors shrink-0',
+                        isActive
+                          ? 'bg-eco-green text-white shadow-sm'
+                          : 'border border-eco-green-light text-gray-600 hover:border-eco-green hover:text-eco-green hover:bg-eco-green-light/30'
+                      )}
+                    >
+                      <item.icon size={13} />
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </header>
 
         <main className="min-w-0 flex-1">

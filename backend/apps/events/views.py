@@ -231,10 +231,10 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         try:
-            return Event.objects.filter(host=self.request.user)
+            return Event.objects.filter(host=self.request.user).select_related('invite_page')
         except Exception:
             try:
-                return Event.objects.filter(host=self.request.user).only(
+                return Event.objects.filter(host=self.request.user).select_related('invite_page').only(
                     'id', 'host_id', 'slug', 'title', 'event_type', 'date',
                     'city', 'country', 'is_public', 'has_rsvp',
                     'has_registry', 'banner_image', 'description',
