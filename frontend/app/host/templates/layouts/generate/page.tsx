@@ -427,7 +427,7 @@ export default function GeneratePageLayoutPage() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting || !!blockReason}
-                className="bg-eco-green hover:bg-green-600 text-white"
+                className="bg-eco-green hover:bg-eco-green-dark text-white"
               >
                 {submitting ? `Generating ${nOutputs} layouts\u2026` : `Generate ${nOutputs} layouts`}
               </Button>

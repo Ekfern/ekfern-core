@@ -255,7 +255,7 @@ export default function NewGreetingCardSamplePage(): React.ReactElement {
             type="button"
             onClick={() => void handleSave()}
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-eco-green text-white text-sm font-medium hover:bg-green-700 disabled:opacity-60"
+            className="px-4 py-2 rounded-lg bg-eco-green text-white text-sm font-medium hover:bg-eco-green-dark disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Save sample'}
           </button>

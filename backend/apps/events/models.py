@@ -84,10 +84,12 @@ class Event(models.Model):
     RSVP_EXPERIENCE_MODE_STANDARD = 'standard'
     RSVP_EXPERIENCE_MODE_SUB_EVENT = 'sub_event'
     RSVP_EXPERIENCE_MODE_SLOT_BASED = 'slot_based'
+    RSVP_EXPERIENCE_MODE_AUTO_CONFIRM = 'auto_confirm'
     RSVP_EXPERIENCE_MODE_CHOICES = [
         (RSVP_EXPERIENCE_MODE_STANDARD, 'Standard RSVP'),
         (RSVP_EXPERIENCE_MODE_SUB_EVENT, 'Sub-event RSVP'),
         (RSVP_EXPERIENCE_MODE_SLOT_BASED, 'Slot-based RSVP'),
+        (RSVP_EXPERIENCE_MODE_AUTO_CONFIRM, 'Confirm attendance'),
     ]
     
     host = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events')
@@ -113,6 +115,19 @@ class Event(models.Model):
         choices=RSVP_EXPERIENCE_MODE_CHOICES,
         default=RSVP_EXPERIENCE_MODE_STANDARD,
         help_text="Canonical RSVP mode used for host settings and guest rendering."
+    )
+    rsvp_total_capacity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional max attendance cap for registration-style RSVP (shown in host stats).",
+    )
+    rsvp_block_on_full_capacity = models.BooleanField(
+        default=False,
+        help_text="When enabled with a total capacity, block new yes/confirm RSVPs once full.",
+    )
+    rsvp_require_sub_event_selection = models.BooleanField(
+        default=False,
+        help_text="PER_SUBEVENT only: guests must select at least one session before submitting a Yes RSVP.",
     )
     
     # Cached sub-event counts for performance optimization
@@ -215,6 +230,7 @@ class Event(models.Model):
             self.RSVP_EXPERIENCE_MODE_STANDARD,
             self.RSVP_EXPERIENCE_MODE_SUB_EVENT,
             self.RSVP_EXPERIENCE_MODE_SLOT_BASED,
+            self.RSVP_EXPERIENCE_MODE_AUTO_CONFIRM,
         }:
             return self.rsvp_experience_mode
 
@@ -237,7 +253,7 @@ class Event(models.Model):
         if not self.has_rsvp:
             reasons.append('RSVP is disabled for this event.')
 
-        if mode == self.RSVP_EXPERIENCE_MODE_STANDARD:
+        if mode in {self.RSVP_EXPERIENCE_MODE_STANDARD, self.RSVP_EXPERIENCE_MODE_AUTO_CONFIRM}:
             return {
                 'mode': mode,
                 'ready': bool(self.has_rsvp),
@@ -295,6 +311,84 @@ class Event(models.Model):
             'locked': has_live_rsvps or has_live_bookings,
             'reasons': reasons,
         }
+
+    def get_rsvp_yes_attendee_count(self):
+        """Count unique main-event RSVPs with will_attend=yes (one per phone/guest)."""
+        qs = RSVP.objects.filter(
+            event=self,
+            is_removed=False,
+            will_attend='yes',
+            sub_event__isnull=True,
+        ).only('id', 'phone', 'guest_id')
+        seen = set()
+        count = 0
+        for rsvp in qs:
+            key = rsvp.phone or (f'guest:{rsvp.guest_id}' if rsvp.guest_id else f'rsvp:{rsvp.id}')
+            if key in seen:
+                continue
+            seen.add(key)
+            count += 1
+        return count
+
+    def is_rsvp_registration_full(self):
+        mode = self.get_canonical_rsvp_mode()
+        if mode not in {
+            self.RSVP_EXPERIENCE_MODE_STANDARD,
+            self.RSVP_EXPERIENCE_MODE_AUTO_CONFIRM,
+        }:
+            return False
+        if not self.rsvp_block_on_full_capacity or not self.rsvp_total_capacity:
+            return False
+        return self.get_rsvp_yes_attendee_count() >= self.rsvp_total_capacity
+
+    def find_main_rsvp_by_phone(self, phone, country_code=None):
+        """Return the main (non sub-event) RSVP row for a phone, if any."""
+        import re
+
+        from .utils import format_phone_with_country_code, get_country_code, parse_phone_number
+
+        event_country_code = get_country_code(self.country)
+        if phone and not str(phone).startswith('+'):
+            phone = format_phone_with_country_code(phone, country_code or event_country_code)
+
+        phone_digits_only = re.sub(r'\D', '', phone or '')
+        provided_country_code = country_code or event_country_code
+
+        existing_rsvp = RSVP.objects.filter(
+            event=self,
+            phone=phone,
+            sub_event__isnull=True,
+            is_removed=False,
+        ).first()
+
+        if existing_rsvp:
+            return existing_rsvp
+
+        for rsvp in RSVP.objects.filter(event=self, sub_event__isnull=True, is_removed=False):
+            rsvp_phone_digits = re.sub(r'\D', '', rsvp.phone or '')
+            if rsvp_phone_digits == phone_digits_only:
+                return rsvp
+            if len(phone_digits_only) >= 10 and len(rsvp_phone_digits) >= 10:
+                local_number = phone_digits_only[-10:]
+                if rsvp_phone_digits.endswith(local_number):
+                    stored_country_code, _ = parse_phone_number(rsvp.phone)
+                    if stored_country_code == provided_country_code:
+                        return rsvp
+        return None
+
+    def can_phone_submit_yes_rsvp(self, existing_rsvp=None):
+        """Whether this phone may submit or keep a yes/confirm RSVP when capacity is full."""
+        if not self.is_rsvp_registration_full():
+            return True
+        return existing_rsvp is not None and existing_rsvp.will_attend == 'yes'
+
+    def rsvp_capacity_is_full_for_new_yes(self, existing_rsvp=None):
+        """True when blocking is on, capacity is set, and a new yes would exceed it."""
+        if not self.is_rsvp_registration_full():
+            return False
+        if existing_rsvp and existing_rsvp.will_attend == 'yes':
+            return False
+        return True
 
 
 class InvitePage(models.Model):

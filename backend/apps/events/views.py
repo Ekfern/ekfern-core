@@ -2381,6 +2381,17 @@ def get_rsvp(request, event_id):
         }, status=status.HTTP_404_NOT_FOUND)
 
 
+RSVP_CAPACITY_FULL_MESSAGE = 'No seats available. Please reach out to the host.'
+
+
+def _rsvp_capacity_response_fields(event, existing_rsvp=None):
+    return {
+        'registration_full': event.is_rsvp_registration_full(),
+        'can_register_yes': event.can_phone_submit_yes_rsvp(existing_rsvp),
+        'existing_will_attend': existing_rsvp.will_attend if existing_rsvp else None,
+    }
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def check_phone_for_rsvp(request, event_id):
@@ -2407,7 +2418,6 @@ def check_phone_for_rsvp(request, event_id):
     # Format phone with country code
     from .utils import format_phone_with_country_code, get_country_code, parse_phone_number
     event_country_code = get_country_code(event.country)
-    original_phone = phone
     
     if phone and not phone.startswith('+'):
         if country_code:
@@ -2418,29 +2428,7 @@ def check_phone_for_rsvp(request, event_id):
     phone_digits_only = re.sub(r'\D', '', phone)
     provided_country_code = country_code or event_country_code
     
-    # GRANDFATHER CLAUSE: First check if there's an existing RSVP (even if not in guest list)
-    # This handles people who RSVP'd when event was public but later became private
-    existing_rsvp = None
-    # Try exact phone match first
-    existing_rsvp = RSVP.objects.filter(event=event, phone=phone, is_removed=False).first()
-    
-    # If not found, try matching by digits only
-    if not existing_rsvp:
-        all_rsvps = RSVP.objects.filter(event=event, is_removed=False)
-        for rsvp in all_rsvps:
-            rsvp_phone_digits = re.sub(r'\D', '', rsvp.phone)
-            if rsvp_phone_digits == phone_digits_only:
-                existing_rsvp = rsvp
-                break
-            
-            # Try matching last 10 digits with country code verification
-            if len(phone_digits_only) >= 10 and len(rsvp_phone_digits) >= 10:
-                local_number = phone_digits_only[-10:]
-                if rsvp_phone_digits.endswith(local_number):
-                    stored_country_code, _ = parse_phone_number(rsvp.phone)
-                    if stored_country_code == provided_country_code:
-                        existing_rsvp = rsvp
-                        break
+    existing_rsvp = event.find_main_rsvp_by_phone(phone, country_code)
     
     # If existing RSVP found (grandfather clause), return RSVP data
     if existing_rsvp:
@@ -2456,8 +2444,19 @@ def check_phone_for_rsvp(request, event_id):
         rsvp_data = RSVPSerializer(existing_rsvp).data
         rsvp_data['found_in'] = 'rsvp'
         rsvp_data['phone_verified'] = True
+        rsvp_data.update(_rsvp_capacity_response_fields(event, existing_rsvp))
         return Response(rsvp_data, status=status.HTTP_200_OK)
     
+    if event.is_rsvp_registration_full():
+        return Response(
+            {
+                'error': RSVP_CAPACITY_FULL_MESSAGE,
+                'errorCode': 'CAPACITY_FULL',
+                **_rsvp_capacity_response_fields(event, None),
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
     # If no existing RSVP, check guest list (exclude removed guests)
     guest = None
     # First try exact phone match
@@ -2492,8 +2491,54 @@ def check_phone_for_rsvp(request, event_id):
     guest_data = GuestSerializer(guest).data
     guest_data['found_in'] = 'guest_list'
     guest_data['phone_verified'] = True
+    guest_data.update(_rsvp_capacity_response_fields(event, None))
     
     return Response(guest_data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def rsvp_registration_status(request, event_id):
+    """Check whether a phone can still submit a yes/confirm RSVP when capacity is full."""
+    try:
+        event = get_object_or_404(Event, id=event_id)
+    except Event.DoesNotExist:
+        return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not event.has_rsvp:
+        return Response({'error': 'RSVP is not enabled for this event'}, status=status.HTTP_400_BAD_REQUEST)
+
+    phone = request.data.get('phone', '').strip()
+    country_code = request.data.get('country_code', '')
+
+    if not phone:
+        return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    from .utils import format_phone_with_country_code, get_country_code
+
+    event_country_code = get_country_code(event.country)
+    if phone and not phone.startswith('+'):
+        phone = format_phone_with_country_code(phone, country_code or event_country_code)
+
+    existing_rsvp = event.find_main_rsvp_by_phone(phone, country_code)
+    payload = _rsvp_capacity_response_fields(event, existing_rsvp)
+
+    if existing_rsvp:
+        from .serializers import RSVPSerializer
+        payload.update(RSVPSerializer(existing_rsvp).data)
+        payload['found_in'] = 'rsvp'
+
+    if payload['registration_full'] and not payload['can_register_yes']:
+        return Response(
+            {
+                'error': RSVP_CAPACITY_FULL_MESSAGE,
+                'errorCode': 'CAPACITY_FULL',
+                **payload,
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    return Response(payload, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -2547,6 +2592,11 @@ def get_guest_by_token(request, event_id):
                 exc_info=True
             )
         
+        sub_event_invites = list(
+            GuestSubEventInvite.objects.filter(guest=guest)
+            .values_list('sub_event_id', flat=True)
+        )
+
         guest_data = {
             'name': guest.name,
             'phone': guest.phone,
@@ -2556,6 +2606,7 @@ def get_guest_by_token(request, event_id):
             'found_in': 'guest_list',
             'has_rsvp': False,
             'phone_verified': True,
+            'sub_event_invites': sub_event_invites,
         }
         
         return Response(guest_data, status=status.HTTP_200_OK)
@@ -2850,6 +2901,33 @@ def create_rsvp(request, event_id):
         
         active_rsvp_mode = event.get_canonical_rsvp_mode()
 
+        if active_rsvp_mode == Event.RSVP_EXPERIENCE_MODE_AUTO_CONFIRM:
+            # Force confirmation regardless of what the guest payload says.
+            rsvp_data['will_attend'] = 'yes'
+            if event.rsvp_capacity_is_full_for_new_yes(existing_rsvp):
+                return Response(
+                    {
+                        'error': RSVP_CAPACITY_FULL_MESSAGE,
+                        'errorCode': 'CAPACITY_FULL',
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if existing_rsvp:
+                for key, value in rsvp_data.items():
+                    setattr(existing_rsvp, key, value)
+                if rsvp_guest is None and event.is_public:
+                    rsvp_guest = ensure_form_submission_guest()
+                if rsvp_guest:
+                    existing_rsvp.guest = rsvp_guest
+                existing_rsvp.save()
+                _notify_host_rsvp(event, existing_rsvp)
+                return Response(RSVPSerializer(existing_rsvp).data, status=status.HTTP_200_OK)
+            if rsvp_guest is None and event.is_public:
+                rsvp_guest = ensure_form_submission_guest()
+            rsvp = RSVP.objects.create(event=event, guest=rsvp_guest, **rsvp_data)
+            _notify_host_rsvp(event, rsvp)
+            return Response(RSVPSerializer(rsvp).data, status=status.HTTP_201_CREATED)
+
         if active_rsvp_mode == Event.RSVP_EXPERIENCE_MODE_SLOT_BASED:
             # Slot mode accepts explicit declines in RSVP endpoint.
             if rsvp_data.get('will_attend') == 'no':
@@ -2938,16 +3016,27 @@ def create_rsvp(request, event_id):
                     # If no assignments, guest can still RSVP for MAIN event, but has no sub-events available
                     allowed_sub_events = eligible_sub_events.filter(id__in=assigned_ids) if assigned_ids else SubEvent.objects.none()
                 else:
-                    # No guest context:
-                    # - Public events: allow selection from all RSVP-enabled sub-events
-                    # - Private events (defensive): restrict to public-visible sub-events
-                    allowed_sub_events = eligible_sub_events
-                    if not event.is_public:
-                        allowed_sub_events = allowed_sub_events.filter(is_public_visible=True)
+                    # Open link: session catalog is public-visible RSVP-enabled sub-events only.
+                    allowed_sub_events = eligible_sub_events.filter(is_public_visible=True)
 
                 allowed_ids = set(allowed_sub_events.values_list('id', flat=True))
 
-                # Sub-event selection is optional. If none selected, return MAIN RSVP only.
+                will_attend = rsvp_data.get('will_attend', 'yes')
+                if (
+                    event.rsvp_require_sub_event_selection
+                    and allowed_ids
+                    and will_attend == 'yes'
+                    and not selected_sub_event_ids
+                ):
+                    return Response(
+                        {
+                            'error': 'Please select at least one session',
+                            'errorCode': 'SESSION_REQUIRED',
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Sub-event selection is optional unless required above. If none selected, return MAIN RSVP only.
                 if rsvp_guest is None and event.is_public:
                     rsvp_guest = ensure_form_submission_guest()
                     if main_rsvp and main_rsvp.guest_id != rsvp_guest.id:
@@ -3072,16 +3161,11 @@ def create_rsvp(request, event_id):
                     guest.custom_fields = current
                     guest.save(update_fields=['custom_fields', 'updated_at'])
 
-                # Get allowed sub-events for this guest/context
+                # ONE_TAP_ALL: sub-event rows only for invited guests with assignments.
                 if guest:
                     allowed_sub_events = eligible_sub_events.filter(guest_invites__guest=guest)
                 else:
-                    # No guest context:
-                    # - Public events: allow RSVPs for all RSVP-enabled sub-events (regardless of public visibility)
-                    # - Private events (defensive): restrict to public-visible sub-events
-                    allowed_sub_events = eligible_sub_events
-                    if not event.is_public:
-                        allowed_sub_events = allowed_sub_events.filter(is_public_visible=True)
+                    allowed_sub_events = SubEvent.objects.none()
 
                 if rsvp_guest is None and event.is_public:
                     rsvp_guest = ensure_form_submission_guest()
@@ -3136,6 +3220,15 @@ def create_rsvp(request, event_id):
                 )
 
         # Standard mode: keep existing behavior (sub_event = NULL)
+        if rsvp_data.get('will_attend') == 'yes' and event.rsvp_capacity_is_full_for_new_yes(existing_rsvp):
+            return Response(
+                {
+                    'error': RSVP_CAPACITY_FULL_MESSAGE,
+                    'errorCode': 'CAPACITY_FULL',
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
         if existing_rsvp:
             # Check if RSVP itself is removed (shouldn't happen due to filter, but double-check)
             if existing_rsvp.is_removed:
@@ -4811,6 +4904,44 @@ def public_booking_calendar(request, slug):
         results.append(payload)
 
     return Response({'results': results})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_rsvp_sub_events(request, slug):
+    """Public session catalog for PER_SUBEVENT RSVP (open link or guest-token assignments)."""
+    event = get_object_or_404(Event, slug=slug.lower())
+    if not event.has_rsvp or event.get_canonical_rsvp_mode() != 'sub_event':
+        return Response({'results': []})
+    if event.rsvp_mode != 'PER_SUBEVENT':
+        return Response({'results': []})
+
+    eligible = SubEvent.objects.filter(
+        event=event,
+        is_removed=False,
+        rsvp_enabled=True,
+    ).order_by('start_at', 'id')
+
+    guest_token = (
+        request.query_params.get('g', '').strip()
+        or request.query_params.get('token', '').strip()
+    )
+    if guest_token:
+        guest = Guest.objects.filter(
+            guest_token=guest_token,
+            event=event,
+            is_removed=False,
+        ).first()
+        if not guest:
+            return Response({'results': []})
+        assigned_ids = GuestSubEventInvite.objects.filter(guest=guest).values_list(
+            'sub_event_id', flat=True
+        )
+        queryset = eligible.filter(id__in=assigned_ids) if assigned_ids else SubEvent.objects.none()
+    else:
+        queryset = eligible.filter(is_public_visible=True)
+
+    return Response({'results': SubEventSerializer(queryset, many=True).data})
 
 
 @api_view(['GET'])

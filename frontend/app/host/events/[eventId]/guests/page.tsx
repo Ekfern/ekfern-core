@@ -1883,7 +1883,7 @@ export default function GuestsPage() {
                     setShowForm(true)
                   }
                 }}
-                className="bg-eco-green hover:bg-green-600 text-white text-sm w-full sm:w-auto whitespace-nowrap"
+                className="bg-eco-green hover:bg-eco-green-dark text-white text-sm w-full sm:w-auto whitespace-nowrap"
               >
                 {showForm ? 'Cancel' : '+ Add Guest'}
               </Button>
@@ -2094,7 +2094,7 @@ export default function GuestsPage() {
                 <Button type="button" variant="outline" onClick={() => setShowCustomFieldsManager(false)}>
                   Close
                 </Button>
-                <Button type="button" className="bg-eco-green hover:bg-green-600 text-white" onClick={handleSaveCustomFields}>
+                <Button type="button" className="bg-eco-green hover:bg-eco-green-dark text-white" onClick={handleSaveCustomFields}>
                   Save
                 </Button>
               </div>
@@ -2198,7 +2198,7 @@ export default function GuestsPage() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" className="flex-1 bg-eco-green hover:bg-green-600 text-white">
+                  <Button type="submit" className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white">
                     {editingGuest ? 'Update Guest' : 'Add Guest'}
                   </Button>
                 </div>
@@ -2252,7 +2252,7 @@ export default function GuestsPage() {
                       </p>
                       <Button
                         type="button"
-                        className="w-full bg-eco-green hover:bg-green-600 text-white"
+                        className="w-full bg-eco-green hover:bg-eco-green-dark text-white"
                         disabled={uploading}
                         onClick={() => void handleContactPickerImport()}
                       >
@@ -2332,7 +2332,7 @@ export default function GuestsPage() {
                   </details>
                   <Button
                     type="button"
-                    className="w-full bg-eco-green hover:bg-green-600 text-white"
+                    className="w-full bg-eco-green hover:bg-eco-green-dark text-white"
                     disabled={uploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -3008,7 +3008,7 @@ export default function GuestsPage() {
                     reset()
                     setShowForm(true)
                   }}
-                  className="bg-eco-green hover:bg-green-600 text-white"
+                  className="bg-eco-green hover:bg-eco-green-dark text-white"
                 >
                   Add First Guest
                 </Button>
@@ -3565,7 +3565,7 @@ export default function GuestsPage() {
                                     <button
                                       type="button"
                                       role="menuitem"
-                                      className="w-full text-left px-3 py-2 text-xs text-green-700 hover:bg-green-50 flex items-center gap-2"
+                                      className="w-full text-left px-3 py-2 text-xs text-green-700 hover:bg-eco-green-light flex items-center gap-2"
                                       disabled={sharingWhatsApp === guest.id}
                                       onClick={() => {
                                         handleShareWhatsApp(guest)
@@ -3726,7 +3726,7 @@ export default function GuestsPage() {
                               <Button
                                 variant="outline"
                                 onClick={() => handleReinstateGuest(guest.id)}
-                                className="border-green-300 text-green-600 hover:bg-green-50 text-xs"
+                                className="border-green-300 text-green-600 hover:bg-eco-green-light text-xs"
                               >
                                 Include
                               </Button>
@@ -3897,7 +3897,7 @@ export default function GuestsPage() {
                           <Button
                             variant="outline"
                             onClick={() => handleReinstateRSVP(guest.id)}
-                            className="border-green-300 text-green-600 hover:bg-green-50 text-xs"
+                            className="border-green-300 text-green-600 hover:bg-eco-green-light text-xs"
                           >
                             Include
                           </Button>
@@ -3956,7 +3956,7 @@ export default function GuestsPage() {
                       setImportErrors(null)
                       setImportSummary(null)
                     }}
-                    className="bg-eco-green hover:bg-green-600 text-white"
+                    className="bg-eco-green hover:bg-eco-green-dark text-white"
                   >
                     Close
                   </Button>
@@ -4031,7 +4031,7 @@ export default function GuestsPage() {
                       setSavingGroup(false)
                     }
                   }}
-                  className="px-4 py-2 bg-eco-green text-white text-sm font-medium rounded-md hover:bg-green-600 disabled:opacity-50"
+                  className="px-4 py-2 bg-eco-green text-white text-sm font-medium rounded-md hover:bg-eco-green-dark disabled:opacity-50"
                 >
                   {savingGroup ? 'Saving...' : 'Save Group'}
                 </button>
@@ -4130,7 +4130,7 @@ export default function GuestsPage() {
                       }
                       handleBulkAssignSubEvents(Array.from(bulkSelectedSubEventIds), 'assign')
                     }}
-                    className="bg-eco-green hover:bg-green-600 text-white"
+                    className="bg-eco-green hover:bg-eco-green-dark text-white"
                     disabled={subEvents.length === 0 || bulkSelectedSubEventIds.size === 0}
                   >
                     Assign Selected
@@ -4207,7 +4207,7 @@ export default function GuestsPage() {
                   </Button>
                   <Button
                     onClick={() => handleSaveSubEventAssignments(showSubEventAssignment)}
-                    className="bg-eco-green hover:bg-green-600 text-white"
+                    className="bg-eco-green hover:bg-eco-green-dark text-white"
                     disabled={subEvents.length === 0}
                   >
                     Save Assignments

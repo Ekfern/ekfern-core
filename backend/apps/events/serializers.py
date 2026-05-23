@@ -49,12 +49,13 @@ class EventSerializer(serializers.ModelSerializer):
     rsvp_mode_readiness = serializers.SerializerMethodField()
     mode_switch_locked = serializers.SerializerMethodField()
     mode_switch_lock_reasons = serializers.SerializerMethodField()
+    rsvp_registration_full = serializers.SerializerMethodField()
     invite_page_summary = InvitePageSummarySerializer(source='invite_page', read_only=True)
 
     class Meta:
         model = Event
-        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary')
-        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'created_at', 'updated_at', 'invite_page_summary')
+        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary')
+        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'created_at', 'updated_at', 'invite_page_summary')
     
     def validate_slug(self, value):
         """Ensure slug is unique (excluding current instance on update)"""
@@ -95,6 +96,9 @@ class EventSerializer(serializers.ModelSerializer):
     def get_mode_switch_lock_reasons(self, obj):
         return self._mode_switch_lock_payload(obj)['reasons']
 
+    def get_rsvp_registration_full(self, obj):
+        return obj.is_rsvp_registration_full()
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['rsvp_experience_mode'] = instance.get_canonical_rsvp_mode()
@@ -119,6 +123,7 @@ class EventSerializer(serializers.ModelSerializer):
             Event.RSVP_EXPERIENCE_MODE_STANDARD,
             Event.RSVP_EXPERIENCE_MODE_SUB_EVENT,
             Event.RSVP_EXPERIENCE_MODE_SLOT_BASED,
+            Event.RSVP_EXPERIENCE_MODE_AUTO_CONFIRM,
         }:
             raise serializers.ValidationError({'rsvp_experience_mode': 'Invalid RSVP mode.'})
 
@@ -140,6 +145,7 @@ class EventSerializer(serializers.ModelSerializer):
         if incoming_mode == Event.RSVP_EXPERIENCE_MODE_STANDARD:
             attrs['event_structure'] = 'SIMPLE'
             attrs['rsvp_mode'] = 'ONE_TAP_ALL'
+            attrs['rsvp_require_sub_event_selection'] = False
         elif incoming_mode == Event.RSVP_EXPERIENCE_MODE_SUB_EVENT:
             attrs['event_structure'] = 'ENVELOPE'
             attrs['rsvp_mode'] = attrs.get(
@@ -148,9 +154,16 @@ class EventSerializer(serializers.ModelSerializer):
             )
             if attrs['rsvp_mode'] not in {'PER_SUBEVENT', 'ONE_TAP_ALL'}:
                 attrs['rsvp_mode'] = 'PER_SUBEVENT'
+            if attrs.get('rsvp_mode') == 'ONE_TAP_ALL':
+                attrs['rsvp_require_sub_event_selection'] = False
+        elif incoming_mode == Event.RSVP_EXPERIENCE_MODE_AUTO_CONFIRM:
+            attrs['event_structure'] = 'SIMPLE'
+            attrs['rsvp_mode'] = 'ONE_TAP_ALL'
+            attrs['rsvp_require_sub_event_selection'] = False
         else:  # slot_based
             attrs['event_structure'] = 'SIMPLE'
             attrs['rsvp_mode'] = 'ONE_TAP_ALL'
+            attrs['rsvp_require_sub_event_selection'] = False
 
         return attrs
 
@@ -271,6 +284,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
             Event.RSVP_EXPERIENCE_MODE_STANDARD,
             Event.RSVP_EXPERIENCE_MODE_SUB_EVENT,
             Event.RSVP_EXPERIENCE_MODE_SLOT_BASED,
+            Event.RSVP_EXPERIENCE_MODE_AUTO_CONFIRM,
         }:
             raise serializers.ValidationError({'rsvp_experience_mode': 'Invalid RSVP mode.'})
         attrs['rsvp_experience_mode'] = mode
@@ -469,7 +483,7 @@ class RSVPCreateSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=20)  # Format: +91XXXXXXXXXX or just digits
     country_code = serializers.CharField(required=False, allow_blank=True)  # Optional, defaults to event country
     email = serializers.EmailField(required=False, allow_blank=True)
-    will_attend = serializers.ChoiceField(choices=RSVP.STATUS_CHOICES)
+    will_attend = serializers.ChoiceField(choices=RSVP.STATUS_CHOICES, required=False)
     guests_count = serializers.IntegerField(default=1, min_value=0)
     notes = serializers.CharField(required=False, allow_blank=True)
     custom_fields = serializers.DictField(required=False)

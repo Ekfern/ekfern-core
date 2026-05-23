@@ -394,13 +394,15 @@ class CreateRSVPEnvelopeTestCase(TestCase):
             event=self.event,
             title='Sub Event 1',
             start_at=timezone.now() + timedelta(days=1),
-            rsvp_enabled=True
+            rsvp_enabled=True,
+            is_public_visible=True,
         )
         self.sub_event2 = SubEvent.objects.create(
             event=self.event,
             title='Sub Event 2',
             start_at=timezone.now() + timedelta(days=2),
-            rsvp_enabled=True
+            rsvp_enabled=True,
+            is_public_visible=True,
         )
     
     def test_new_rsvp_returns_201(self):
@@ -496,6 +498,37 @@ class CreateRSVPEnvelopeTestCase(TestCase):
         self.assertTrue(isinstance(response.data, list))
         # main + 1 selected sub-event
         self.assertEqual(len(response.data), 2)
+
+    def test_required_session_blocks_yes_without_selection(self):
+        self.event.rsvp_require_sub_event_selection = True
+        self.event.save(update_fields=['rsvp_require_sub_event_selection'])
+        response = self.client.post(
+            f'/api/events/{self.event.id}/rsvp/',
+            {
+                'name': 'Test Guest',
+                'phone': '+911234567890',
+                'will_attend': 'yes',
+                'selectedSubEventIds': [],
+            },
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data.get('errorCode'), 'SESSION_REQUIRED')
+
+    def test_required_session_allows_no_without_selection(self):
+        self.event.rsvp_require_sub_event_selection = True
+        self.event.save(update_fields=['rsvp_require_sub_event_selection'])
+        response = self.client.post(
+            f'/api/events/{self.event.id}/rsvp/',
+            {
+                'name': 'Test Guest',
+                'phone': '+911234567890',
+                'will_attend': 'no',
+                'selectedSubEventIds': [],
+            },
+            format='json'
+        )
+        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_201_CREATED])
     
     def test_mixed_new_and_existing_returns_201(self):
         """Test that if any new RSVP is created, return 201 even if some exist"""
@@ -545,7 +578,8 @@ class CreateRSVPEnvelopeOneTapAllTestCase(TestCase):
             event=self.event,
             title='Sub Event 1',
             start_at=timezone.now() + timedelta(days=1),
-            rsvp_enabled=True
+            rsvp_enabled=True,
+            is_public_visible=True,
         )
         self.guest = Guest.objects.create(
             event=self.event,
@@ -588,6 +622,21 @@ class CreateRSVPEnvelopeOneTapAllTestCase(TestCase):
         self.assertIsNone(response.data[0].get('sub_event'))
         self.assertEqual(response.data[1].get('sub_event_id'), self.sub_event1.id)
 
+    def test_public_open_does_not_fan_out_subevents(self):
+        """ONE_TAP_ALL open link: main RSVP only, no sub-event rows without guest assignments."""
+        response = self.client.post(
+            f'/api/events/{self.event.id}/rsvp/',
+            {
+                'name': 'Open Guest',
+                'phone': '+919876543210',
+                'will_attend': 'yes',
+            },
+            format='json'
+        )
+        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_201_CREATED])
+        self.assertEqual(len(response.data), 1)
+        self.assertIsNone(response.data[0].get('sub_event_id'))
+
 
 class CreateRSVPCustomFieldsWritebackTestCase(TestCase):
     """RSVP custom_fields should be saved on MAIN RSVP and (optionally) copied into Guest.custom_fields."""
@@ -619,7 +668,8 @@ class CreateRSVPCustomFieldsWritebackTestCase(TestCase):
             event=self.event,
             title='Sub Event 1',
             start_at=timezone.now() + timedelta(days=1),
-            rsvp_enabled=True
+            rsvp_enabled=True,
+            is_public_visible=True,
         )
         self.guest = Guest.objects.create(
             event=self.event,

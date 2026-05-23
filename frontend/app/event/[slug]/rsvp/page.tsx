@@ -27,7 +27,9 @@ const rsvpSchema = z.object({
 })
 
 type RSVPForm = z.infer<typeof rsvpSchema>
-type Step = 'verify' | 'details' | 'decision' | 'slot' | 'optional' | 'review' | 'success'
+type Step = 'verify' | 'details' | 'decision' | 'sessions' | 'slot' | 'optional' | 'review' | 'success'
+
+const CAPACITY_FULL_MESSAGE = 'No seats available. Please reach out to the host.'
 
 interface Event {
   id: number
@@ -37,7 +39,13 @@ interface Event {
   has_registry?: boolean
   is_public?: boolean
   slug?: string
-  rsvp_experience_mode?: 'standard' | 'sub_event' | 'slot_based'
+  host_name?: string | null
+  rsvp_experience_mode?: 'standard' | 'sub_event' | 'slot_based' | 'auto_confirm'
+  rsvp_mode?: 'PER_SUBEVENT' | 'ONE_TAP_ALL'
+  rsvp_total_capacity?: number | null
+  rsvp_block_on_full_capacity?: boolean
+  rsvp_registration_full?: boolean
+  rsvp_require_sub_event_selection?: boolean
   page_config?: { rsvpForm?: RsvpFormConfig }
 }
 interface CalendarDayAvailability { date: string; status: 'available' | 'sold_out'; availabilityLabel: string }
@@ -50,6 +58,12 @@ interface SlotAvailability {
   remainingSeats: number | null
   status: 'available' | 'unavailable' | 'sold_out' | 'hidden'
 }
+interface RsvpSubEvent {
+  id: number
+  title: string
+  start_at?: string | null
+  location?: string | null
+}
 
 const formatMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
@@ -57,6 +71,7 @@ const STEP_TITLES: Record<Exclude<Step, 'success'>, string> = {
   verify: 'Verify phone',
   details: 'Your details',
   decision: 'Will you be joining us?',
+  sessions: 'Choose sessions',
   slot: 'Pick a slot',
   optional: 'Additional details',
   review: 'Review and confirm',
@@ -83,12 +98,27 @@ export default function RSVPPage() {
   const [summary, setSummary] = useState<any>(null)
   const [phoneVerified, setPhoneVerified] = useState(false)
   const [verifyingPhone, setVerifyingPhone] = useState(false)
+  const [checkingRegistration, setCheckingRegistration] = useState(false)
+  const [registrationBlocked, setRegistrationBlocked] = useState(false)
+  const [availableSubEvents, setAvailableSubEvents] = useState<RsvpSubEvent[]>([])
+  const [selectedSubEventIds, setSelectedSubEventIds] = useState<number[]>([])
   const [currentStep, setCurrentStep] = useState<Step>('details')
 
   const guestToken = searchParams.get('g') || searchParams.get('token')
   const sourceChannel = searchParams.get('source') === 'qr' ? 'qr' : 'link'
   const needsVerification = !!event && !event.is_public && !guestToken
   const isSlotMode = event?.rsvp_experience_mode === 'slot_based'
+  const isSubEventMode = event?.rsvp_experience_mode === 'sub_event'
+  const isPerSubeventRsvp = isSubEventMode && event?.rsvp_mode === 'PER_SUBEVENT'
+  const showSessionPicker = isPerSubeventRsvp && availableSubEvents.length > 0
+  const requireSessionSelection = !!event?.rsvp_require_sub_event_selection && showSessionPicker
+  const isAutoConfirm = event?.rsvp_experience_mode === 'auto_confirm'
+  const capacityApplies =
+    !!event &&
+    !isSlotMode &&
+    (event.rsvp_experience_mode === 'standard' || event.rsvp_experience_mode === 'auto_confirm') &&
+    !!event.rsvp_block_on_full_capacity &&
+    !!event.rsvp_total_capacity
   const isIntentFirstFlow = !!event?.is_public && isSlotMode
 
   const { register, watch, setValue, getValues, formState: { errors } } = useForm<RSVPForm>({
@@ -107,13 +137,39 @@ export default function RSVPPage() {
 
   useEffect(() => { fetchEvent() }, [slug])
   useEffect(() => {
-    if (!event) return
-    if (needsVerification) setCurrentStep('verify')
-    else {
-      setPhoneVerified(true)
-      setCurrentStep(isIntentFirstFlow ? 'decision' : 'details')
+    if (!event || registrationBlocked) return
+    if (needsVerification && !phoneVerified) {
+      setCurrentStep('verify')
+      return
     }
-  }, [event, needsVerification, isIntentFirstFlow])
+    setCurrentStep(isIntentFirstFlow ? 'decision' : 'details')
+  }, [event, needsVerification, isIntentFirstFlow, registrationBlocked, phoneVerified])
+  useEffect(() => {
+    if (!event?.slug || !isPerSubeventRsvp) return
+    fetchSubEvents()
+  }, [event?.slug, event?.rsvp_mode, isPerSubeventRsvp, guestToken])
+  useEffect(() => {
+    if (!event?.id || !guestToken) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await api.get(`/api/events/${event.id}/rsvp/guest-by-token/`, {
+          params: { g: guestToken },
+        })
+        if (cancelled) return
+        applyLookupData(res.data)
+        if (Array.isArray(res.data?.sub_event_invites) && res.data.sub_event_invites.length > 0) {
+          setSelectedSubEventIds(res.data.sub_event_invites.map((id: number) => Number(id)))
+        }
+        setPhoneVerified(true)
+      } catch (error: any) {
+        logError('Failed to load guest token', error)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [event?.id, guestToken])
   useEffect(() => {
     if (!isSlotMode) return
     setValue('will_attend', slotResponseChoice === 'book' ? 'yes' : 'no', { shouldValidate: false })
@@ -127,13 +183,42 @@ export default function RSVPPage() {
       if (slotResponseChoice === 'book') list.push('slot')
       list.push('details')
     } else {
-      list.push('details', 'decision')
+      list.push('details')
+      if (showSessionPicker) list.push('sessions')
+      if (!isAutoConfirm) list.push('decision')
       if (isSlotMode && slotResponseChoice === 'book') list.push('slot')
     }
     list.push('optional', 'review')
     return list
-  }, [needsVerification, phoneVerified, isSlotMode, slotResponseChoice, isIntentFirstFlow])
+  }, [needsVerification, phoneVerified, isSlotMode, isAutoConfirm, slotResponseChoice, isIntentFirstFlow, showSessionPicker])
   const stepIndex = currentStep === 'success' ? visibleSteps.length : Math.max(0, visibleSteps.indexOf(currentStep)) + 1
+
+  const applyLookupData = (data: any) => {
+    if (data.name) setValue('name', data.name, { shouldValidate: false })
+    if (data.email) setValue('email', data.email, { shouldValidate: false })
+    if (data.guests_count) setValue('guests_count', Math.max(1, data.guests_count), { shouldValidate: false })
+    if (data.notes) setValue('notes', data.notes, { shouldValidate: false })
+    if (data.will_attend) setValue('will_attend', data.will_attend, { shouldValidate: false })
+  }
+
+  const beginRsvpFlow = () => {
+    setRegistrationBlocked(false)
+    setPhoneVerified(true)
+    if (needsVerification) setCurrentStep('details')
+    else setCurrentStep(isIntentFirstFlow ? 'decision' : 'details')
+  }
+
+  const fetchSubEvents = async () => {
+    if (!slug || !isPerSubeventRsvp) return
+    try {
+      const params: Record<string, string> = {}
+      if (guestToken) params.g = guestToken
+      const res = await api.get(`/api/events/public/${slug}/rsvp-sub-events/`, { params })
+      setAvailableSubEvents(res.data?.results || [])
+    } catch {
+      setAvailableSubEvents([])
+    }
+  }
 
   const fetchEvent = async () => {
     try {
@@ -146,6 +231,12 @@ export default function RSVPPage() {
       }
       setEvent({ ...eventData, slug })
       setValue('country_code', eventData.country_code || '+91', { shouldValidate: false })
+      const full =
+        !!eventData.rsvp_registration_full &&
+        !!eventData.rsvp_block_on_full_capacity &&
+        !!eventData.rsvp_total_capacity &&
+        (eventData.rsvp_experience_mode === 'standard' || eventData.rsvp_experience_mode === 'auto_confirm')
+      setRegistrationBlocked(full && !!eventData.is_public)
       if (eventData.rsvp_experience_mode === 'slot_based') await fetchCalendarByMonth(formatMonthKey(new Date()))
     } catch (error: any) {
       logError('Failed to fetch event', error)
@@ -192,18 +283,43 @@ export default function RSVPPage() {
     setVerifyingPhone(true)
     try {
       const response = await api.post(`/api/events/${event.id}/rsvp/check/phone/`, { phone, country_code: countryCode })
-      const data = response.data
-      if (data.name) setValue('name', data.name, { shouldValidate: false })
-      if (data.email) setValue('email', data.email, { shouldValidate: false })
-      if (data.guests_count) setValue('guests_count', Math.max(1, data.guests_count), { shouldValidate: false })
-      if (data.notes) setValue('notes', data.notes, { shouldValidate: false })
-      setPhoneVerified(true)
-      setCurrentStep('details')
+      applyLookupData(response.data)
+      beginRsvpFlow()
       showToast('Phone verified', 'success')
     } catch (error: any) {
+      if (error.response?.data?.errorCode === 'CAPACITY_FULL') {
+        setRegistrationBlocked(true)
+        return
+      }
       showToast(getErrorMessage(error, 'Could not verify phone number'), 'error')
     } finally {
       setVerifyingPhone(false)
+    }
+  }
+
+  const checkExistingRegistration = async () => {
+    if (!event) return
+    const phone = getValues('phone')
+    const countryCode = getValues('country_code') || event.country_code || '+91'
+    if (!phone || phone.length < 10) return showToast('Please enter a valid phone number', 'error')
+    setCheckingRegistration(true)
+    try {
+      const response = await api.post(`/api/events/${event.id}/rsvp/registration-status/`, {
+        phone,
+        country_code: countryCode,
+      })
+      applyLookupData(response.data)
+      beginRsvpFlow()
+      showToast('Welcome back — you can update your RSVP below.', 'success')
+    } catch (error: any) {
+      if (error.response?.data?.errorCode === 'CAPACITY_FULL') {
+        setRegistrationBlocked(true)
+        showToast(CAPACITY_FULL_MESSAGE, 'info')
+        return
+      }
+      showToast(getErrorMessage(error, 'Could not find an existing RSVP for this number'), 'error')
+    } finally {
+      setCheckingRegistration(false)
     }
   }
 
@@ -226,7 +342,13 @@ export default function RSVPPage() {
       if (!values.name?.trim()) return showToast('Name is required', 'error')
       if (!values.phone?.trim() || values.phone.length < 10) return showToast('Valid phone number is required', 'error')
       if ((values.guests_count || 1) < 1) return showToast('Guest count must be at least 1', 'error')
+      if (isIntentFirstFlow) return setCurrentStep('decision')
+      if (showSessionPicker) return setCurrentStep('sessions')
+      if (!isAutoConfirm) return setCurrentStep('decision')
       return setCurrentStep('optional')
+    }
+    if (currentStep === 'sessions') {
+      return setCurrentStep(!isAutoConfirm ? 'decision' : 'optional')
     }
     if (currentStep === 'decision') {
       if (isIntentFirstFlow) return setCurrentStep(isSlotMode && slotResponseChoice === 'book' ? 'slot' : 'details')
@@ -243,12 +365,17 @@ export default function RSVPPage() {
   }
 
   const goBack = () => {
-    if (currentStep === 'decision') setCurrentStep(isIntentFirstFlow ? 'decision' : 'details')
+    if (currentStep === 'decision') {
+      if (showSessionPicker) setCurrentStep('sessions')
+      else setCurrentStep(isIntentFirstFlow ? 'decision' : 'details')
+    } else if (currentStep === 'sessions') setCurrentStep('details')
     else if (currentStep === 'slot') setCurrentStep('decision')
     else if (currentStep === 'details') setCurrentStep(isIntentFirstFlow ? (slotResponseChoice === 'book' ? 'slot' : 'decision') : 'details')
     else if (currentStep === 'optional') {
       if (isIntentFirstFlow) setCurrentStep('details')
-      else setCurrentStep(isSlotMode && slotResponseChoice === 'book' ? 'slot' : 'decision')
+      else if (!isAutoConfirm) setCurrentStep('decision')
+      else if (showSessionPicker) setCurrentStep('sessions')
+      else setCurrentStep(isSlotMode && slotResponseChoice === 'book' ? 'slot' : 'details')
     }
     else if (currentStep === 'review') setCurrentStep('optional')
   }
@@ -259,7 +386,11 @@ export default function RSVPPage() {
     setSubmitting(true)
     try {
       const formattedPhone = formatPhoneWithCountryCode(data.phone, data.country_code || event.country_code || '+91')
-      const effectiveAttend = isSlotMode ? (slotResponseChoice === 'book' ? 'yes' : 'no') : data.will_attend
+      const effectiveAttend = isSlotMode
+        ? (slotResponseChoice === 'book' ? 'yes' : 'no')
+        : isAutoConfirm
+        ? 'yes'
+        : data.will_attend
       const payload: any = {
         name: data.name,
         phone: formattedPhone,
@@ -271,6 +402,14 @@ export default function RSVPPage() {
       }
       if (isEmailEnabled) payload.email = data.email || ''
       if (effectiveAttend === 'yes' && activeCustomFields.length > 0) payload.custom_fields = customFieldValues
+      if (isPerSubeventRsvp && effectiveAttend === 'yes') {
+        if (requireSessionSelection && selectedSubEventIds.length === 0) {
+          showToast('Please select at least one session', 'error')
+          setSubmitting(false)
+          return
+        }
+        payload.selectedSubEventIds = selectedSubEventIds
+      }
 
       if (isSlotMode && slotResponseChoice === 'book') {
         await api.post(`/api/events/${event.id}/slot-bookings/`, {
@@ -289,7 +428,16 @@ export default function RSVPPage() {
       }
 
       setSummary({
-        decision: slotResponseChoice === 'book' ? 'Book a slot' : "Can't make it",
+        decision: isSlotMode
+          ? (slotResponseChoice === 'book' ? 'Book a slot' : "Can't make it")
+          : isAutoConfirm
+          ? 'Attending'
+          : data.will_attend === 'yes'
+          ? 'Yes'
+          : data.will_attend === 'maybe'
+          ? 'Maybe'
+          : 'No',
+        sessions: availableSubEvents.filter((s) => selectedSubEventIds.includes(s.id)),
         slot: slotOptions.find((s) => s.slotId === selectedSlotId) || null,
         guests_count: data.guests_count || 1,
         notes: payload.notes,
@@ -298,7 +446,12 @@ export default function RSVPPage() {
       showToast('Thank you for your response', 'success')
     } catch (error: any) {
       logError('RSVP submit failed', error)
-      showToast(getErrorMessage(error, 'Failed to submit RSVP'), 'error')
+      if (error.response?.data?.errorCode === 'CAPACITY_FULL') {
+        setRegistrationBlocked(true)
+        showToast(CAPACITY_FULL_MESSAGE, 'error')
+      } else {
+        showToast(getErrorMessage(error, 'Failed to submit RSVP'), 'error')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -306,6 +459,54 @@ export default function RSVPPage() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-eco-beige">Loading...</div>
   if (!event) return <div className="min-h-screen flex items-center justify-center bg-eco-beige">Event not found</div>
+
+  if (registrationBlocked && capacityApplies) {
+    return (
+      <div className="min-h-screen bg-eco-beige py-8 px-4">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-4 text-center">
+            <h1 className="text-3xl font-semibold text-gray-900">{event.title}</h1>
+          </div>
+          <Card className="shadow-sm rounded-2xl border-gray-200">
+            <CardHeader>
+              <CardTitle className="text-2xl text-gray-900">RSVP closed</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {event.host_name ? (
+                <p className="text-sm text-gray-600">
+                  Host: <span className="font-medium text-gray-800">{event.host_name}</span>
+                </p>
+              ) : null}
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                {CAPACITY_FULL_MESSAGE}
+              </div>
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <p className="text-sm text-gray-600">
+                  Already registered? Enter the phone number you used before to update your response.
+                </p>
+                <div className="flex gap-2">
+                  <CountryCodeSelector
+                    name="country_code"
+                    value={watch('country_code') ?? event.country_code ?? '+91'}
+                    defaultValue={event.country_code || '+91'}
+                    onChange={(v) => setValue('country_code', v, { shouldValidate: true })}
+                    className="w-44"
+                  />
+                  <Input type="tel" {...register('phone')} placeholder="10-digit phone number" />
+                </div>
+                <Button onClick={checkExistingRegistration} disabled={checkingRegistration} className="w-full">
+                  {checkingRegistration ? 'Checking...' : 'Look up my RSVP'}
+                </Button>
+              </div>
+              <Link href={`/invite/${slug}`} className="inline-block text-sm text-eco-green hover:underline">
+                Back to invite
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   const stepCard = (title: string, description: string | undefined, body: ReactNode) => (
     <Card className="shadow-sm rounded-2xl border-gray-200">
@@ -362,9 +563,74 @@ export default function RSVPPage() {
         ))}
 
         {currentStep === 'decision' && stepCard('Will you be joining us?', undefined, (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button type="button" className={`rounded-xl p-4 border text-left ${slotResponseChoice === 'book' ? 'border-eco-green bg-eco-green-light/40' : 'border-gray-300 bg-white'}`} onClick={() => { setSlotResponseChoice('book'); setValue('will_attend', 'yes', { shouldValidate: false }) }}><p className="font-medium">Book a slot</p><p className="text-sm text-gray-500 mt-1">Pick a date and time.</p></button>
-            <button type="button" className={`rounded-xl p-4 border text-left ${slotResponseChoice === 'decline' ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'}`} onClick={() => { setSlotResponseChoice('decline'); setValue('will_attend', 'no', { shouldValidate: false }) }}><p className="font-medium">Can&apos;t make it</p><p className="text-sm text-gray-500 mt-1">We&apos;ll update the host accordingly.</p></button>
+          isSlotMode ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button type="button" className={`rounded-xl p-4 border text-left ${slotResponseChoice === 'book' ? 'border-eco-green bg-eco-green-light/40' : 'border-gray-300 bg-white'}`} onClick={() => { setSlotResponseChoice('book'); setValue('will_attend', 'yes', { shouldValidate: false }) }}><p className="font-medium">Book a slot</p><p className="text-sm text-gray-500 mt-1">Pick a date and time.</p></button>
+              <button type="button" className={`rounded-xl p-4 border text-left ${slotResponseChoice === 'decline' ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'}`} onClick={() => { setSlotResponseChoice('decline'); setValue('will_attend', 'no', { shouldValidate: false }) }}><p className="font-medium">Can&apos;t make it</p><p className="text-sm text-gray-500 mt-1">We&apos;ll update the host accordingly.</p></button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {(['yes', 'maybe', 'no'] as const).map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  className={`rounded-xl p-4 border text-left ${willAttend === choice ? (choice === 'no' ? 'border-red-300 bg-red-50' : choice === 'maybe' ? 'border-amber-300 bg-amber-50' : 'border-eco-green bg-eco-green-light/40') : 'border-gray-300 bg-white'}`}
+                  onClick={() => setValue('will_attend', choice, { shouldValidate: false })}
+                >
+                  <p className="font-medium">{choice === 'yes' ? 'Yes' : choice === 'maybe' ? 'Maybe' : 'No'}</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {choice === 'yes' ? 'Count me in.' : choice === 'maybe' ? 'Still deciding.' : 'Unable to attend.'}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )
+        ))}
+
+        {currentStep === 'sessions' && stepCard(
+          'Choose sessions',
+          requireSessionSelection
+            ? 'Select at least one session you plan to attend.'
+            : 'Select the sessions you plan to attend (optional).',
+          (
+          <div className="space-y-3">
+            {availableSubEvents.map((session) => {
+              const checked = selectedSubEventIds.includes(session.id)
+              return (
+                <label
+                  key={session.id}
+                  className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer ${checked ? 'border-eco-green bg-eco-green-light/30' : 'border-gray-200 bg-white'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      setSelectedSubEventIds((prev) =>
+                        checked ? prev.filter((id) => id !== session.id) : [...prev, session.id],
+                      )
+                    }}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900">{session.title}</p>
+                    {session.start_at ? (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {new Date(session.start_at).toLocaleString([], {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </p>
+                    ) : null}
+                    {session.location ? (
+                      <p className="text-sm text-gray-500 mt-1">{session.location}</p>
+                    ) : null}
+                  </div>
+                </label>
+              )
+            })}
+            {!requireSessionSelection && (
+              <p className="text-xs text-gray-500">You can continue without selecting any sessions.</p>
+            )}
           </div>
         ))}
 
@@ -418,16 +684,55 @@ export default function RSVPPage() {
 
         {currentStep === 'review' && stepCard('Review your response', 'Please confirm before submitting.', (
           <div className="space-y-4 text-sm">
-            <div className="rounded-xl border p-3 bg-gray-50"><p className="font-medium">Decision</p><p>{slotResponseChoice === 'book' ? 'Book a slot' : "Can't make it"}</p><button type="button" onClick={() => setCurrentStep('decision')} className="text-xs text-eco-green mt-1">Edit</button></div>
-            {slotResponseChoice === 'book' && <div className="rounded-xl border p-3 bg-gray-50"><p className="font-medium">Selected slot</p><p>{slotOptions.find((s) => s.slotId === selectedSlotId)?.label || 'Not selected'}</p><button type="button" onClick={() => setCurrentStep('slot')} className="text-xs text-eco-green mt-1">Edit</button></div>}
+            {showSessionPicker && (
+              <div className="rounded-xl border p-3 bg-gray-50">
+                <p className="font-medium">Sessions</p>
+                <p>
+                  {selectedSubEventIds.length > 0
+                    ? availableSubEvents
+                        .filter((s) => selectedSubEventIds.includes(s.id))
+                        .map((s) => s.title)
+                        .join(', ')
+                    : 'None selected'}
+                </p>
+                <button type="button" onClick={() => setCurrentStep('sessions')} className="text-xs text-eco-green mt-1">Edit</button>
+              </div>
+            )}
+            {!isAutoConfirm && (
+              <div className="rounded-xl border p-3 bg-gray-50">
+                <p className="font-medium">Decision</p>
+                <p>
+                  {isSlotMode
+                    ? (slotResponseChoice === 'book' ? 'Book a slot' : "Can't make it")
+                    : willAttend === 'yes'
+                    ? 'Yes'
+                    : willAttend === 'maybe'
+                    ? 'Maybe'
+                    : 'No'}
+                </p>
+                <button type="button" onClick={() => setCurrentStep('decision')} className="text-xs text-eco-green mt-1">Edit</button>
+              </div>
+            )}
+            {isSlotMode && slotResponseChoice === 'book' && (
+              <div className="rounded-xl border p-3 bg-gray-50">
+                <p className="font-medium">Selected slot</p>
+                <p>{slotOptions.find((s) => s.slotId === selectedSlotId)?.label || 'Not selected'}</p>
+                <button type="button" onClick={() => setCurrentStep('slot')} className="text-xs text-eco-green mt-1">Edit</button>
+              </div>
+            )}
             <div className="rounded-xl border p-3 bg-gray-50"><p className="font-medium">Guests</p><p>{watch('guests_count') || 1}</p><button type="button" onClick={() => setCurrentStep('details')} className="text-xs text-eco-green mt-1">Edit</button></div>
             {watch('notes') && <div className="rounded-xl border p-3 bg-gray-50"><p className="font-medium">Notes</p><p>{watch('notes')}</p></div>}
           </div>
         ))}
 
-        {currentStep === 'success' && stepCard('Thank you for booking', 'Your RSVP has been recorded.', (
+        {currentStep === 'success' && stepCard(isSlotMode ? 'Thank you for booking' : 'Thank you for your response', isSlotMode ? 'Your booking has been recorded.' : 'Your RSVP has been recorded.', (
           <div className="space-y-3 text-sm">
             <p className="text-gray-700">Decision: {summary?.decision}</p>
+            {summary?.sessions?.length > 0 && (
+              <p className="text-gray-700">
+                Sessions: {summary.sessions.map((s: RsvpSubEvent) => s.title).join(', ')}
+              </p>
+            )}
             {summary?.slot && <p className="text-gray-700">Slot: {summary.slot.label || `${summary.slot.date}`}</p>}
             <p className="text-gray-700">Guests: {summary?.guests_count}</p>
             {summary?.notes && <p className="text-gray-700">Notes: {summary.notes}</p>}

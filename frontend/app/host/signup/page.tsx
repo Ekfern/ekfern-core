@@ -150,7 +150,7 @@ function SignupForm() {
               <Button 
                 type="submit" 
                 disabled={loading}
-                className="w-full bg-eco-green hover:bg-green-600 text-white py-6 text-lg"
+                className="w-full bg-eco-green hover:bg-eco-green-dark text-white py-6 text-lg"
               >
                 {loading ? 'Creating Account...' : 'Create Account →'}
               </Button>
@@ -192,7 +192,7 @@ function SignupForm() {
                 <Button 
                   type="submit" 
                   disabled={loading}
-                  className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                  className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                 >
                   {loading ? 'Verifying...' : 'Verify & Continue'}
                 </Button>

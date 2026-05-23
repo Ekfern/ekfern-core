@@ -98,7 +98,7 @@ export default function FloatingElement({
           <Button
             className="px-6 py-3 rounded-full font-semibold shadow-lg hover:shadow-xl transition-shadow"
             style={{
-              backgroundColor: '#4CAF50',
+              backgroundColor: '#0B3D2E',
               color: 'white',
             }}
             onClick={(e) => {

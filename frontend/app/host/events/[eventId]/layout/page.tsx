@@ -261,7 +261,7 @@ export default function LayoutSelectPage(): React.ReactElement {
                 type="button"
                 disabled={applying}
                 onClick={() => handleLayoutSelect(pendingLayout.id)}
-                className="bg-eco-green hover:bg-green-600 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+                className="bg-eco-green hover:bg-eco-green-dark disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
               >
                 {applying ? 'Applying...' : 'Apply layout →'}
               </button>

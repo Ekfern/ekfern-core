@@ -228,7 +228,7 @@ export default function NewEventPage() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                  className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                 >
                   {loading ? 'Creating...' : 'Next: Create Greeting Card'}
                 </Button>

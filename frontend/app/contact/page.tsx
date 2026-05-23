@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import SiteNav from '@/components/SiteNav'
+import SiteFooter from '@/components/SiteFooter'
 import { BRAND_NAME, SUPPORT_EMAIL } from '@/lib/brand_utility'
 import { Mail, Phone, MapPin } from 'lucide-react'
 import ContactForm from '@/components/ContactForm'
@@ -97,19 +98,7 @@ export default function ContactPage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-forest-green text-white py-8 px-4 text-center mt-12">
-        <p className="text-lg font-bold mb-2">🌿 <strong>{BRAND_NAME}</strong></p>
-        <p className="text-sm opacity-80 mb-4">Making celebrations smarter, more sustainable, and more meaningful.</p>
-        <div className="flex gap-4 justify-center items-center">
-          <Link href="/privacy" className="text-sm opacity-80 hover:opacity-100 underline">
-            Privacy Policy
-          </Link>
-          <span className="text-sm opacity-60">•</span>
-          <Link href="/contact" className="text-sm opacity-80 hover:opacity-100 underline">
-            Contact Us
-          </Link>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

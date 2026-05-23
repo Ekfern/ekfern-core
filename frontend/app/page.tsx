@@ -6,7 +6,7 @@ import { CheckCircle, Users, BellRing, BarChart2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import SiteNav from '@/components/SiteNav'
-import { BRAND_NAME } from '@/lib/brand_utility'
+import SiteFooter from '@/components/SiteFooter'
 import dynamic from 'next/dynamic'
 import type { Tile } from '@/lib/invite/schema'
 
@@ -628,28 +628,7 @@ export default function LandingPage() {
 
       </main>
 
-      {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer className="py-10 px-6" style={{ background: C.dark, borderTop: `1px solid rgba(212,160,23,0.12)` }}>
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-6">
-          <div>
-            <p className="text-sm font-medium" style={{ color: C.gold, fontFamily: SERIF }}>{BRAND_NAME}</p>
-            <p className="text-xs mt-1" style={{ color: C.teal, opacity: 0.7 }}>Simple. Smart. Sustainable.</p>
-          </div>
-          <div className="flex flex-wrap gap-5 items-center justify-center">
-            {[
-              { href: '/', label: 'Home' },
-              { href: '/features', label: 'Features' },
-              { href: '/about', label: 'About' },
-              { href: '/contact', label: 'Contact' },
-              { href: '/privacy', label: 'Privacy Policy' },
-            ].map(link => (
-              <Link key={link.href} href={link.href} className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.45 }}>
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
       <style jsx global>{`
         .step-visible {

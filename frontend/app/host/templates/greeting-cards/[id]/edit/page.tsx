@@ -274,7 +274,7 @@ export default function EditGreetingCardSamplePage(): React.ReactElement {
           <button type="button" onClick={() => router.push('/host/templates/greeting-cards')} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50">
             Cancel
           </button>
-          <button type="button" onClick={() => void handleSave()} disabled={saving} className="px-4 py-2 rounded-lg bg-eco-green text-white text-sm font-medium hover:bg-green-700 disabled:opacity-60">
+          <button type="button" onClick={() => void handleSave()} disabled={saving} className="px-4 py-2 rounded-lg bg-eco-green text-white text-sm font-medium hover:bg-eco-green-dark disabled:opacity-60">
             {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>

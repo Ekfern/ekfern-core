@@ -69,7 +69,7 @@ export default function ForgotPasswordPage() {
               </div>
               <div className="flex gap-2">
                 <Link href="/host/login" className="flex-1">
-                  <Button className="w-full bg-eco-green hover:bg-green-600 text-white">
+                  <Button className="w-full bg-eco-green hover:bg-eco-green-dark text-white">
                     Back to Login
                   </Button>
                 </Link>
@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-eco-green hover:bg-green-600 text-white py-6 text-lg"
+                className="w-full bg-eco-green hover:bg-eco-green-dark text-white py-6 text-lg"
               >
                 {loading ? 'Sending...' : 'Send Reset Link'}
               </Button>

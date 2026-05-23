@@ -380,7 +380,7 @@ export default function CommunicationsPage() {
                 <Button
                   onClick={handleCreateTemplate}
                   size="sm"
-                  className="bg-eco-green hover:bg-green-600 text-white whitespace-nowrap"
+                  className="bg-eco-green hover:bg-eco-green-dark text-white whitespace-nowrap"
                 >
                   + Create Template
                 </Button>
@@ -432,7 +432,7 @@ export default function CommunicationsPage() {
                         onClick={() => setFilterType(value)}
                         className={
                           filterType === value
-                            ? 'bg-eco-green hover:bg-green-600 text-white'
+                            ? 'bg-eco-green hover:bg-eco-green-dark text-white'
                             : 'border-eco-green text-eco-green hover:bg-eco-green-light'
                         }
                         size="sm"
@@ -532,7 +532,7 @@ export default function CommunicationsPage() {
                   {!searchQuery && filterType === 'all' && (
                     <Button
                       onClick={handleCreateTemplate}
-                      className="bg-eco-green hover:bg-green-600 text-white"
+                      className="bg-eco-green hover:bg-eco-green-dark text-white"
                     >
                       Create Your First Template
                     </Button>
@@ -607,7 +607,7 @@ export default function CommunicationsPage() {
                       </p>
                     ) : (
                       <button
-                        className="w-full py-2 rounded-lg bg-eco-green text-white text-sm font-semibold hover:bg-green-600 transition-colors"
+                        className="w-full py-2 rounded-lg bg-eco-green text-white text-sm font-semibold hover:bg-eco-green-dark transition-colors"
                         onClick={async e => {
                           e.stopPropagation()
                           try {

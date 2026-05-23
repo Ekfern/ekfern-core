@@ -164,7 +164,7 @@ export default function ItemsPage() {
             <h1 className="text-4xl font-bold text-eco-green">Manage Items</h1>
             <Button 
               onClick={() => setShowForm(!showForm)}
-              className="bg-eco-green hover:bg-green-600 text-white"
+              className="bg-eco-green hover:bg-eco-green-dark text-white"
             >
               {showForm ? 'Cancel' : '+ Add New Item'}
             </Button>
@@ -274,7 +274,7 @@ export default function ItemsPage() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" className="flex-1 bg-eco-green hover:bg-green-600 text-white">
+                  <Button type="submit" className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white">
                     {editingItem ? 'Update' : 'Create'}
                   </Button>
                 </div>
@@ -334,7 +334,7 @@ export default function ItemsPage() {
               <p className="text-gray-600 mb-4 text-lg">No items yet</p>
               <Button 
                 onClick={() => setShowForm(true)}
-                className="bg-eco-green hover:bg-green-600 text-white"
+                className="bg-eco-green hover:bg-eco-green-dark text-white"
               >
                 Add First Item
               </Button>

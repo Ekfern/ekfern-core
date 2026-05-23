@@ -153,7 +153,7 @@ export default function LLMUsageDashboardPage() {
               Refresh
             </Button>
             <Link href="/host/templates/layouts/generate">
-              <Button className="bg-eco-green hover:bg-green-600 text-white">Generate</Button>
+              <Button className="bg-eco-green hover:bg-eco-green-dark text-white">Generate</Button>
             </Link>
           </div>
         </div>

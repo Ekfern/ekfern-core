@@ -130,7 +130,7 @@ export default function NewPageLayoutPage() {
             <Link href="/host/page-layouts">
               <Button variant="outline">Cancel</Button>
             </Link>
-            <Button onClick={handleSave} disabled={saving} className="bg-eco-green hover:bg-green-600 text-white">
+            <Button onClick={handleSave} disabled={saving} className="bg-eco-green hover:bg-eco-green-dark text-white">
               {saving ? 'Saving…' : 'Save page layout'}
             </Button>
           </div>

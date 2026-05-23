@@ -8,7 +8,7 @@
    value?: RsvpFormConfig
    onChange: (next: RsvpFormConfig) => void
    customFieldsMetadata: Record<string, any>
-  activeMode?: 'standard' | 'sub_event' | 'slot_based'
+  activeMode?: 'standard' | 'sub_event' | 'slot_based' | 'auto_confirm'
  }
  
  function getDisplayLabel(metadata: Record<string, any>, key: string) {
@@ -44,8 +44,12 @@ export default function RsvpFormEditor({ value, onChange, customFieldsMetadata, 
           <li>Phone Number</li>
           <li>
             {activeMode === 'slot_based'
-              ? 'Slot selection or explicit decline'
-              : 'Will you attend? (Yes / Maybe / No)'}
+              ? 'Time slot selection or explicit decline'
+              : activeMode === 'sub_event'
+              ? 'Yes / No / Maybe (applied per ceremony based on your response style)'
+              : activeMode === 'auto_confirm'
+              ? 'Confirm attendance (no Yes / No / Maybe step)'
+              : 'Yes / No / Maybe'}
           </li>
         </ul>
         <p className="text-xs text-gray-500 mt-2">
@@ -53,12 +57,12 @@ export default function RsvpFormEditor({ value, onChange, customFieldsMetadata, 
         </p>
         {activeMode === 'sub_event' && (
           <p className="text-xs text-gray-500 mt-1">
-            Sub-event selection is shown to guests based on your sub-event setup and guest permissions.
+            Which ceremonies guests can respond to is controlled by your ceremony setup and guest assignments.
           </p>
         )}
         {activeMode === 'slot_based' && (
           <p className="text-xs text-gray-500 mt-1">
-            Guests will select a slot during RSVP; keep slot settings updated before sharing.
+            Guests pick a time slot during RSVP — keep slot availability updated before sharing your link.
           </p>
         )}
       </div>

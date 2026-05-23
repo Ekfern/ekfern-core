@@ -258,7 +258,7 @@ function LoginForm() {
               <Button 
                 type="submit" 
                 disabled={loading}
-                className="w-full bg-eco-green hover:bg-green-600 text-white py-6 text-lg"
+                className="w-full bg-eco-green hover:bg-eco-green-dark text-white py-6 text-lg"
               >
                 {loading ? 'Checking...' : 'Continue'}
               </Button>
@@ -308,7 +308,7 @@ function LoginForm() {
                   type="button"
                   onClick={() => loginMethod && onMethodChoice(loginMethod)}
                   disabled={loading || !loginMethod}
-                  className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                  className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                 >
                   {loading ? 'Loading...' : 'Continue'}
                 </Button>
@@ -350,7 +350,7 @@ function LoginForm() {
                 <Button 
                   type="submit" 
                   disabled={loading} 
-                  className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                  className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                 >
                   {loading ? 'Logging in...' : 'Login'}
                 </Button>
@@ -403,7 +403,7 @@ function LoginForm() {
                 <Button 
                   type="submit" 
                   disabled={loading} 
-                  className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                  className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                 >
                   {loading ? 'Verifying...' : 'Verify'}
                 </Button>

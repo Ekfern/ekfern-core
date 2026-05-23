@@ -162,7 +162,7 @@ export default function PageLayoutStudioListPage() {
               </Link>
             )}
             <Link href="/host/page-layouts/new">
-              <Button className="bg-eco-green hover:bg-green-600 text-white">New page layout</Button>
+              <Button className="bg-eco-green hover:bg-eco-green-dark text-white">New page layout</Button>
             </Link>
           </div>
         </div>

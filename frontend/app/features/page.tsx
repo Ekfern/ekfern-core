@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import SiteNav from '@/components/SiteNav'
+import SiteFooter from '@/components/SiteFooter'
 import { BRAND_NAME } from '@/lib/brand_utility'
 import {
   Palette, ListChecks, Users, MessageCircle, BellRing, BarChart2,
@@ -394,30 +395,7 @@ export default function FeaturesPage() {
 
       </main>
 
-      {/* ── Footer ─────────────────────────────────────────── */}
-      <footer className="py-12 px-6" style={{ background: C.dark, borderTop: '1px solid rgba(212,160,23,0.12)' }}>
-        <div className="max-w-6xl mx-auto">
-          <p
-            className="text-center text-sm mb-8 leading-relaxed"
-            style={{ color: 'rgba(232,216,195,0.45)', fontStyle: 'italic', fontFamily: SERIF }}
-          >
-            Beautiful experiences deserve smoother planning.{' '}
-            <span style={{ color: C.gold, opacity: 0.7 }}>Simple. Smart. Sustainable.</span>
-          </p>
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-sm font-medium" style={{ color: C.gold, fontFamily: SERIF, opacity: 0.85 }}>{BRAND_NAME}</p>
-            <div className="flex gap-6 items-center">
-              <Link href="/features" className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>Features</Link>
-              <Link href="/about"    className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>About</Link>
-              <Link href="/privacy"  className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>Privacy</Link>
-              <Link href="/contact"  className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>Contact</Link>
-            </div>
-          </div>
-          <p className="text-center text-xs mt-8" style={{ color: 'rgba(232,216,195,0.2)' }}>
-            © {new Date().getFullYear()} {BRAND_NAME}
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
 
     </div>
   )

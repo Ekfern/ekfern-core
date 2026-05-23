@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import SiteNav from '@/components/SiteNav'
+import SiteFooter from '@/components/SiteFooter'
 import { BRAND_NAME } from '@/lib/brand_utility'
 
 const SERIF = "'Cormorant Garamond', Georgia, serif"
@@ -483,38 +484,7 @@ export default function AboutPage() {
       </main>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer className="py-12 px-6" style={{ background: C.dark, borderTop: `1px solid rgba(212,160,23,0.12)` }}>
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-8 mb-8">
-            <div>
-              <p className="text-base font-medium mb-1" style={{ color: C.gold, fontFamily: SERIF }}>{BRAND_NAME}</p>
-              <p className="text-xs" style={{ color: 'rgba(212,160,23,0.45)' }}>Simple. Smart. Sustainable.</p>
-            </div>
-            <div className="flex flex-wrap gap-6 items-center">
-              <Link href="/" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.5 }}>
-                Home
-              </Link>
-              <Link href="/#features" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.5 }}>
-                Features
-              </Link>
-              <Link href="/about" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.85 }}>
-                About
-              </Link>
-              <Link href="/contact" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.5 }}>
-                Contact
-              </Link>
-              <Link href="/privacy" className="text-xs transition-opacity duration-200 hover:opacity-100" style={{ color: C.gold, opacity: 0.5 }}>
-                Privacy Policy
-              </Link>
-            </div>
-          </div>
-          <div className="pt-6" style={{ borderTop: `1px solid rgba(212,160,23,0.08)` }}>
-            <p className="text-xs" style={{ color: 'rgba(212,160,23,0.3)' }} suppressHydrationWarning>
-              &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
       <style jsx global>{`
         .card-visible {

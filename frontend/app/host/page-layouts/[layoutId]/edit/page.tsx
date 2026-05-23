@@ -296,7 +296,7 @@ export default function EditPageLayoutPage() {
               disabled={autoSaveStatus === 'saving' || saving}
               className={status === 'published'
                 ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
-                : 'bg-eco-green hover:bg-green-600 text-white'}
+                : 'bg-eco-green hover:bg-eco-green-dark text-white'}
             >
               {status === 'published' ? 'Unpublish' : 'Publish'}
             </Button>

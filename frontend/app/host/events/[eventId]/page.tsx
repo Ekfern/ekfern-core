@@ -12,6 +12,10 @@ import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { getInvitePage } from '@/lib/invite/api'
 import QRCode from 'react-qr-code'
 import { ChevronDown } from 'lucide-react'
+import { computeEventStats } from '@/lib/events/computeEventStats'
+import EventOverviewStats from '@/components/events/stats/EventOverviewStats'
+import EventStatusBadge from '@/components/events/EventStatusBadge'
+import NextActionCard from '@/components/events/NextActionCard'
 
 interface Event {
   id: number
@@ -29,7 +33,8 @@ interface Event {
   whatsapp_message_template?: string
   event_structure?: 'SIMPLE' | 'ENVELOPE'
   rsvp_mode?: 'PER_SUBEVENT' | 'ONE_TAP_ALL'
-  rsvp_experience_mode?: 'standard' | 'sub_event' | 'slot_based'
+  rsvp_experience_mode?: 'standard' | 'sub_event' | 'slot_based' | 'auto_confirm'
+  rsvp_total_capacity?: number | null
   mode_switch_locked?: boolean
   host_name?: string
 }
@@ -45,6 +50,17 @@ interface Order {
   item: {
     name: string
   } | null
+}
+
+interface BookingSlot {
+  id: number
+  slot_date: string
+  start_at: string
+  end_at: string
+  label: string
+  capacity_total: number
+  remaining_seats: number
+  status: 'available' | 'unavailable' | 'sold_out' | 'hidden'
 }
 
 type InvitePublishStatus = 'Published' | 'Draft' | 'Not created' | 'Unknown'
@@ -65,6 +81,8 @@ export default function EventDetailPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [guests, setGuests] = useState<any[]>([])
   const [rsvps, setRsvps] = useState<any[]>([])
+  const [bookingSlots, setBookingSlots] = useState<BookingSlot[]>([])
+  const [subEvents, setSubEvents] = useState<Array<{ id: number; title: string }>>([])
   const [loading, setLoading] = useState(true)
   const [copiedLinkKey, setCopiedLinkKey] = useState<string | null>(null)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
@@ -127,6 +145,20 @@ export default function EventDetailPage() {
       fetchImpact()
     }
   }, [event])
+
+  useEffect(() => {
+    if (event?.rsvp_experience_mode === 'slot_based') {
+      fetchBookingSlots()
+    }
+  }, [event?.rsvp_experience_mode])
+
+  useEffect(() => {
+    if (event?.rsvp_experience_mode === 'sub_event') {
+      fetchSubEvents()
+    } else {
+      setSubEvents([])
+    }
+  }, [event?.rsvp_experience_mode, eventId])
 
   useEffect(() => {
     let cancelled = false
@@ -225,6 +257,28 @@ export default function EventDetailPage() {
       // RSVPs might not exist yet, that's okay
       logDebug('No RSVPs found')
       setRsvps([])
+    }
+  }
+
+  const fetchBookingSlots = async () => {
+    if (!eventId || eventId === 'undefined') return
+    try {
+      const response = await api.get(`/api/events/${eventId}/booking-slots/`)
+      const data = response.data
+      setBookingSlots(Array.isArray(data) ? data : normalizeListResponse(data))
+    } catch {
+      setBookingSlots([])
+    }
+  }
+
+  const fetchSubEvents = async () => {
+    if (!eventId || eventId === 'undefined') return
+    try {
+      const response = await api.get(`/api/events/envelopes/${eventId}/sub-events/`)
+      const rows = normalizeListResponse(response.data)
+      setSubEvents(rows.map((s: any) => ({ id: s.id, title: s.title })))
+    } catch {
+      setSubEvents([])
     }
   }
 
@@ -512,124 +566,21 @@ export default function EventDetailPage() {
     .filter((o) => o.status === 'paid')
     .reduce((sum, o) => sum + o.amount_inr, 0);
   
-  // Calculate comprehensive guest list stats
-  // Filter out removed guests and RSVPs for stats
-  const activeGuests = guests.filter(g => !g.is_removed);
-  const activeRSVPs = rsvps.filter(r => !r.is_removed);
-  
-  const totalGuests = activeGuests.length;
+  const activeGuests = guests.filter((g) => !g.is_removed)
+  const totalGuests = activeGuests.length
 
-  // In PER_SUBEVENT, /rsvps/ returns one row per sub-event, so stats must dedupe per guest.
-  const isPerSubeventMode =
-    event?.rsvp_experience_mode === 'sub_event' && event?.rsvp_mode === 'PER_SUBEVENT';
+  const eventStats = computeEventStats({
+    eventId,
+    rsvpExperienceMode: event.rsvp_experience_mode,
+    rsvpMode: event.rsvp_mode,
+    rsvpTotalCapacity: event.rsvp_total_capacity,
+    guests,
+    rsvps,
+    bookingSlots,
+    subEvents,
+  })
+  const responseRate = eventStats.invited.rsvpPercent
 
-  const normalizePhoneKey = (r: any): string => {
-    const ccDigits = String(r?.country_code || '').replace(/\D/g, '') // "+91" -> "91"
-    const localDigits = String(r?.local_number || '').replace(/\D/g, '')
-    if (localDigits.length >= 10) {
-      return `phone:${ccDigits}:${localDigits.slice(-10)}`
-    }
-    const phoneDigits = String(r?.phone || '').replace(/\D/g, '')
-    if (phoneDigits.length >= 10) {
-      return `phone:${ccDigits}:${phoneDigits.slice(-10)}`
-    }
-    if (phoneDigits) return `phone_raw:${ccDigits}:${phoneDigits}`
-    return ''
-  }
-
-  const getAttendeeKey = (r: any) => {
-    // Primary: unique RSVP submission per invited guest (event + guest_id)
-    if (r?.guest_id) return `event:${eventId}:guest:${String(r.guest_id)}`
-    const phoneKey = normalizePhoneKey(r)
-    // Fallback: direct RSVPs may not have guest_id; dedupe by event + normalized phone
-    if (phoneKey) return `event:${eventId}:${phoneKey}`
-    return `event:${eventId}:rsvp:${String(r?.id ?? '')}`
-  }
-
-  // Compute an overall RSVP status per guest (priority: yes > maybe > no)
-  const perGuest = new Map<
-    string,
-    {
-      isCore: boolean
-      hasYes: boolean
-      hasMaybe: boolean
-      hasNo: boolean
-      maxYesCount: number
-      maxMaybeCount: number
-    }
-  >();
-
-  activeRSVPs.forEach((r) => {
-    const key = getAttendeeKey(r);
-    const entry =
-      perGuest.get(key) || {
-        isCore: false,
-        hasYes: false,
-        hasMaybe: false,
-        hasNo: false,
-        maxYesCount: 0,
-        maxMaybeCount: 0,
-      };
-
-    entry.isCore = entry.isCore || !!(r.is_core_guest || r.guest_id);
-
-    const status = r.will_attend;
-    const count = r.guests_count || 1;
-    if (status === 'yes') {
-      entry.hasYes = true;
-      entry.maxYesCount = Math.max(entry.maxYesCount, count);
-    } else if (status === 'maybe') {
-      entry.hasMaybe = true;
-      entry.maxMaybeCount = Math.max(entry.maxMaybeCount, count);
-    } else if (status === 'no') {
-      entry.hasNo = true;
-    }
-
-    perGuest.set(key, entry);
-  });
-
-  // RSVP breakdown: use per-guest classification for PER_SUBEVENT; raw rows otherwise.
-  const rsvpsYesCount = isPerSubeventMode
-    ? Array.from(perGuest.values()).filter(v => v.hasYes).length
-    : activeRSVPs.filter(r => r.will_attend === 'yes').length;
-  const rsvpsNoCount = isPerSubeventMode
-    ? Array.from(perGuest.values()).filter(v => !v.hasYes && !v.hasMaybe && v.hasNo).length
-    : activeRSVPs.filter(r => r.will_attend === 'no').length;
-  const rsvpsMaybeCount = isPerSubeventMode
-    ? Array.from(perGuest.values()).filter(v => !v.hasYes && v.hasMaybe).length
-    : activeRSVPs.filter(r => r.will_attend === 'maybe').length;
-
-  const totalRSVPs = isPerSubeventMode ? perGuest.size : activeRSVPs.length;
-
-  // Attendance estimate: sum max guests_count per guest for yes; then for maybe (only if no yes)
-  const confirmedAttendees = isPerSubeventMode
-    ? Array.from(perGuest.values()).reduce((sum, v) => sum + (v.hasYes ? (v.maxYesCount || 1) : 0), 0)
-    : activeRSVPs
-        .filter(r => r.will_attend === 'yes')
-        .reduce((sum, r) => sum + (r.guests_count || 1), 0);
-
-  const maybeAttendees = isPerSubeventMode
-    ? Array.from(perGuest.values()).reduce((sum, v) => sum + (!v.hasYes && v.hasMaybe ? (v.maxMaybeCount || 1) : 0), 0)
-    : activeRSVPs
-        .filter(r => r.will_attend === 'maybe')
-        .reduce((sum, r) => sum + (r.guests_count || 1), 0);
-
-  const totalExpectedAttendees = confirmedAttendees + maybeAttendees;
-
-  // Guest list coverage + breakdown (core/invited vs direct/other)
-  const coreGuestsWithRSVP = isPerSubeventMode
-    ? Array.from(perGuest.values()).filter(v => v.isCore).length
-    : activeRSVPs.filter(r => r.is_core_guest || r.guest_id).length;
-  const otherGuestsRSVP = isPerSubeventMode
-    ? Array.from(perGuest.values()).filter(v => !v.isCore).length
-    : activeRSVPs.filter(r => !r.is_core_guest && !r.guest_id).length;
-
-  const coreGuestsConfirmed = isPerSubeventMode
-    ? Array.from(perGuest.values()).filter(v => v.isCore && v.hasYes).length
-    : activeRSVPs.filter(r => (r.is_core_guest || r.guest_id) && r.will_attend === 'yes').length;
-
-  // Response rate
-  const responseRate = totalGuests > 0 ? Math.round((coreGuestsWithRSVP / totalGuests) * 100) : 0;
   const inviteStatusLabel =
     invitePublishStatus === 'Published'
       ? 'Live'
@@ -637,88 +588,76 @@ export default function EventDetailPage() {
         ? 'Configured - Waiting to Publish'
         : 'Not Configured'
   const inviteVisibilityLabel = event.is_public ? 'Public' : 'Private'
-  
-  // Gift stats (exclude removed guests)
-  const paidOrders = orders.filter((o) => o.status === 'paid');
+
+  const paidOrders = orders.filter((o) => o.status === 'paid')
   const coreGuestsWithGifts = paidOrders.filter((o) => {
     return activeGuests.some((g) => {
       return (
         (o.buyer_phone && g.phone && o.buyer_phone === g.phone) ||
         (o.buyer_email && g.email && o.buyer_email === g.email)
-      );
-    });
-  }).length;
+      )
+    })
+  }).length
+
+  const eventDateObj = event.date ? new Date(event.date) : null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  let countdownLabel: string | null = null
+  if (eventDateObj) {
+    const eventDay = new Date(eventDateObj)
+    eventDay.setHours(0, 0, 0, 0)
+    const diffDays = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) countdownLabel = 'Today'
+    else if (diffDays === 1) countdownLabel = 'Tomorrow'
+    else if (diffDays > 1) countdownLabel = `In ${diffDays} days`
+    else countdownLabel = `${Math.abs(diffDays)} days ago`
+  }
 
   return (
     <div className="min-h-screen bg-eco-beige">
       <div className="container mx-auto px-4 py-6 md:py-8">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-4xl font-bold mb-2 text-eco-green">{event.title}</h1>
-              <p className="text-lg text-gray-700">
-                <span className="capitalize">{event.event_type}</span> • {event.city || 'No location'}
-              </p>
-            </div>
+          <h1 className="text-3xl font-bold text-eco-green mb-1">{event.title}</h1>
+          <p className="text-sm text-gray-600 mb-3">
+            <span className="capitalize">{event.event_type}</span>
+            {event.city ? ` · ${event.city}` : ''}
+            {eventDateObj ? ` · ${eventDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+          </p>
+          <div className="flex items-center gap-4 flex-wrap">
+            <EventStatusBadge
+              status={invitePublishStatus}
+              isPublic={event.is_public}
+              isExpired={event.is_expired}
+            />
+            {countdownLabel && (
+              <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                event.is_expired
+                  ? 'bg-gray-100 border-gray-200 text-gray-500'
+                  : countdownLabel === 'Today' || countdownLabel === 'Tomorrow'
+                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                    : 'bg-eco-green/5 border-eco-green-light text-eco-green'
+              }`}>
+                {countdownLabel}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Overview at a glance */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <Card className="bg-white border-2 border-eco-green-light">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-eco-green">Invitation Page Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-semibold text-gray-800">{inviteStatusLabel}</p>
-              <p className="text-xs text-gray-500 mt-1">Visibility: {inviteVisibilityLabel}</p>
-            </CardContent>
-          </Card>
+        {event.has_rsvp && <EventOverviewStats stats={eventStats} />}
 
-          <Card className="bg-white border-2 border-eco-green-light">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-eco-green">Guest Stats</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-semibold text-gray-800">{totalGuests} invited</p>
-              <p className="text-xs text-gray-500 mt-1">{coreGuestsWithRSVP} responded ({responseRate}%)</p>
-            </CardContent>
-          </Card>
-
-          {event.has_rsvp && (
-            <Card className="bg-white border-2 border-eco-green-light">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-eco-green">RSVP Stats</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-lg font-semibold text-gray-800">
-                  Yes {rsvpsYesCount} • No {rsvpsNoCount} • Maybe {rsvpsMaybeCount}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">{totalRSVPs} total responses</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {event.has_registry && (
-            <Card className="bg-white border-2 border-eco-green-light">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-eco-green">Registry Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-lg font-semibold text-gray-800">Enabled</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {paidOrders.length} gifts • ₹{(totalAmount / 100).toLocaleString('en-IN')}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-        </div>
+        {/* Contextual next action */}
+        <NextActionCard
+          eventId={eventId}
+          invitePublishStatus={invitePublishStatus}
+          totalGuests={totalGuests}
+          responseRate={responseRate}
+          isExpired={event.is_expired}
+        />
 
         <Card className="bg-white border-2 border-eco-green-light mb-8">
           <CardHeader>
-            <CardTitle className="text-eco-green">Important Links</CardTitle>
+            <CardTitle className="text-eco-green">Share your event</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {[
@@ -843,7 +782,7 @@ export default function EventDetailPage() {
                         <Button
                           type="button"
                           onClick={() => handleDownloadWithFormat(item.key)}
-                          className="h-8 px-3 text-xs bg-eco-green hover:bg-green-600 text-white"
+                          className="h-8 px-3 text-xs bg-eco-green hover:bg-eco-green-dark text-white"
                         >
                           Download
                         </Button>
@@ -914,7 +853,7 @@ export default function EventDetailPage() {
                     type="button"
                     onClick={handleEnableInsights}
                     disabled={enablingInsights}
-                    className="mt-3 bg-eco-green hover:bg-green-600 text-white h-8 px-3 text-xs"
+                    className="mt-3 bg-eco-green hover:bg-eco-green-dark text-white h-8 px-3 text-xs"
                   >
                     {enablingInsights ? 'Enabling...' : (analyticsSummary.insights_cta_label || 'Enable tracking insights')}
                   </Button>
@@ -970,133 +909,52 @@ export default function EventDetailPage() {
           </Card>
         )}
 
-        {/* Stats Section */}
-        <div className={
-          (totalGuests > 0 || totalRSVPs > 0) || (event?.has_registry && !event?.is_expired)
-            ? 'grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8'
-            : 'grid grid-cols-1 gap-6 mb-8'
-        }>
-          {/* Show Impact Stats if expired, otherwise show Total Gifts */}
-          {event.is_expired && impact ? (
-            <Card className="bg-white border-2 border-eco-green-light">
-              <CardHeader>
-                <CardTitle className="text-eco-green">🌱 Sustainability Impact</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">🍽️</div>
-                    <p className="text-2xl font-bold text-eco-green">{impact.food_saved?.plates_saved || 0}</p>
-                    <p className="text-xs text-gray-600">Plates Saved</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">📄</div>
-                    <p className="text-2xl font-bold text-eco-green">{impact.paper_saved?.web_rsvps || 0}</p>
-                    <p className="text-xs text-gray-600">Paper Saved</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">🎁</div>
-                    <p className="text-2xl font-bold text-eco-green">{impact.gifts_received?.total_gifts || 0}</p>
-                    <p className="text-xs text-gray-600">Gifts Received</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">💰</div>
-                    <p className="text-xl font-bold text-eco-green">
-                      ₹{((impact.gifts_received?.total_value_rupees || 0)).toLocaleString('en-IN')}
-                    </p>
-                    <p className="text-xs text-gray-600">Gift Value</p>
-                  </div>
+        {/* Gift KPI / Sustainability Impact */}
+        {event.is_expired && impact ? (
+          <Card className="bg-white border-2 border-eco-green-light mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-eco-green text-base">Sustainability Impact</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-eco-green">{impact.food_saved?.plates_saved || 0}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Plates saved</p>
                 </div>
-              </CardContent>
-            </Card>
-          ) : (
-            event?.has_registry && (
-              <Card className="bg-white border-2 border-eco-green-light">
-                <CardHeader>
-                  <CardTitle className="text-eco-green">Total Gifts</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold text-eco-green">
-                    ₹{(totalAmount / 100).toLocaleString('en-IN')}
-                  </p>
-                  <p className="text-sm text-gray-600 mt-2">
-                    {orders.filter((o) => o.status === 'paid').length} gifts received
-                  </p>
-                </CardContent>
-              </Card>
-            )
-          )}
-
-          {/* Show card if there are guests OR RSVPs */}
-          {(totalGuests > 0 || totalRSVPs > 0) && (
-            <Card className="bg-white border-2 border-eco-green-light">
-              <CardHeader>
-                <CardTitle className="text-eco-green">
-                  {totalGuests > 0 ? 'Guest List Stats' : 'RSVP Stats'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* Primary Stat: Expected Attendance */}
-                <div className="mb-6 pb-4 border-b">
-                  <p className="text-4xl font-bold text-eco-green mb-1">
-                    {totalExpectedAttendees > 0 ? totalExpectedAttendees : '—'}
-                  </p>
-                  <p className="text-sm text-gray-500 font-medium">Expected attendance</p>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-eco-green">{impact.paper_saved?.web_rsvps || 0}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Paper RSVPs saved</p>
                 </div>
-                
-                {/* Secondary Stats Grid */}
-                <div className="space-y-4">
-                  {/* Invited and Direct in a row */}
-                  {(totalGuests > 0 || otherGuestsRSVP > 0) && (
-                    <div className="grid grid-cols-2 gap-4">
-                      {totalGuests > 0 && (
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <p className="text-gray-500 text-xs font-medium mb-1.5 uppercase tracking-wide">From List</p>
-                          <p className="text-lg font-semibold text-gray-700 mb-1">
-                            <span className="text-eco-green">{coreGuestsConfirmed}</span>
-                            <span className="text-gray-400 mx-1">confirmed</span>
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            of {totalGuests} invited
-                          </p>
-                        </div>
-                      )}
-                      
-                      {otherGuestsRSVP > 0 && (
-                        <div className="bg-blue-50 rounded-lg p-3">
-                          <p className="text-blue-600 text-xs font-medium mb-1.5 uppercase tracking-wide">Direct</p>
-                          <p className="text-2xl font-bold text-blue-700">{otherGuestsRSVP}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* RSVP Stats: YES | No | Maybe */}
-                  {totalRSVPs > 0 && (
-                    <div>
-                      <p className="text-gray-500 text-xs font-medium mb-3 uppercase tracking-wide">RSVP Breakdown</p>
-                      <div className="flex gap-3">
-                        <div className="flex-1 bg-green-50 rounded-lg p-3 text-center">
-                          <p className="text-green-700 text-xs font-semibold mb-1 uppercase">Yes</p>
-                          <p className="text-2xl font-bold text-green-700">{rsvpsYesCount}</p>
-                        </div>
-                        <div className="flex-1 bg-red-50 rounded-lg p-3 text-center">
-                          <p className="text-red-700 text-xs font-semibold mb-1 uppercase">No</p>
-                          <p className="text-2xl font-bold text-red-700">{rsvpsNoCount}</p>
-                        </div>
-                        <div className="flex-1 bg-yellow-50 rounded-lg p-3 text-center">
-                          <p className="text-yellow-700 text-xs font-semibold mb-1 uppercase">Maybe</p>
-                          <p className="text-2xl font-bold text-yellow-700">{rsvpsMaybeCount}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-eco-green">{impact.gifts_received?.total_gifts || 0}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Gifts received</p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-        </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-eco-green">
+                    ₹{(impact.gifts_received?.total_value_rupees || 0).toLocaleString('en-IN')}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">Gift value</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : event?.has_registry ? (
+          <Card className="bg-white border-2 border-eco-green-light mb-6">
+            <CardContent className="pt-6 flex items-center gap-6">
+              <div>
+                <p className="text-3xl font-bold text-eco-green leading-none">
+                  ₹{(totalAmount / 100).toLocaleString('en-IN')}
+                </p>
+                <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Total gifts</p>
+              </div>
+              <div className="h-10 w-px bg-gray-200" />
+              <div>
+                <p className="text-2xl font-bold text-gray-700 leading-none">{paidOrders.length}</p>
+                <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Orders received</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Recent Gifts Section */}
         {event?.has_registry && (
@@ -1177,9 +1035,24 @@ export default function EventDetailPage() {
             <CardContent className="pt-6">
               <details>
                 <summary className="cursor-pointer list-none">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-eco-green">Settings & Configuration</h2>
-                    <span className="text-xs rounded-full bg-eco-green-light px-3 py-1 font-medium text-eco-green">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-base font-semibold text-eco-green">Settings & Configuration</h2>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {event.is_public ? 'Public' : 'Private'}
+                        {' · '}
+                        {event.has_rsvp ? 'RSVP on' : 'RSVP off'}
+                        {' · '}
+                        {event.has_registry ? 'Registry on' : 'Registry off'}
+                        {' · '}
+                        {event.rsvp_experience_mode === 'sub_event'
+                          ? 'Sub-event RSVP'
+                          : event.rsvp_experience_mode === 'slot_based'
+                            ? 'Slot-based RSVP'
+                            : 'Standard RSVP'}
+                      </p>
+                    </div>
+                    <span className="text-xs rounded-full bg-eco-green-light px-3 py-1 font-medium text-eco-green whitespace-nowrap">
                       Expand
                     </span>
                   </div>
@@ -1345,7 +1218,7 @@ export default function EventDetailPage() {
                             </div>
                             <Button
                               onClick={() => setShowExpiryEditor(true)}
-                              className="bg-eco-green hover:bg-green-600 text-white"
+                              className="bg-eco-green hover:bg-eco-green-dark text-white"
                             >
                               Extend Expiry Date
                             </Button>
@@ -1368,7 +1241,7 @@ export default function EventDetailPage() {
                               <Button
                                 onClick={handleSaveExpiry}
                                 disabled={savingExpiry}
-                                className="bg-eco-green hover:bg-green-600 text-white"
+                                className="bg-eco-green hover:bg-eco-green-dark text-white"
                               >
                                 {savingExpiry ? 'Saving...' : 'Save Expiry Date'}
                               </Button>
@@ -1444,7 +1317,7 @@ export default function EventDetailPage() {
                                   setSavingSlug(false)
                                 }
                               }}
-                              className="bg-eco-green hover:bg-green-600 text-white"
+                              className="bg-eco-green hover:bg-eco-green-dark text-white"
                             >
                               {savingSlug ? 'Saving…' : 'Save'}
                             </Button>
@@ -1512,7 +1385,7 @@ export default function EventDetailPage() {
                 </Button>
                 <Button
                   onClick={confirmPrivacyChange}
-                  className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                  className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                 >
                   Confirm
                 </Button>

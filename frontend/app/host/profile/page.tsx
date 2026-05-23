@@ -360,7 +360,7 @@ export default function ProfilePage() {
             {!user.has_password && action !== 'set' && (
               <Button
                 onClick={() => setAction('set')}
-                className="w-full bg-eco-green hover:bg-green-600 text-white"
+                className="w-full bg-eco-green hover:bg-eco-green-dark text-white"
               >
                 Set Password
               </Button>
@@ -373,7 +373,7 @@ export default function ProfilePage() {
                     setAction('change')
                     setOtpSent(false)
                   }}
-                  className="w-full bg-eco-green hover:bg-green-600 text-white"
+                  className="w-full bg-eco-green hover:bg-eco-green-dark text-white"
                 >
                   Change Password
                 </Button>
@@ -432,7 +432,7 @@ export default function ProfilePage() {
                   <Button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                    className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                   >
                     {submitting ? 'Setting...' : 'Set Password'}
                   </Button>
@@ -453,7 +453,7 @@ export default function ProfilePage() {
                       type="button"
                       onClick={sendOtpForPasswordChange}
                       disabled={sendingOtp}
-                      className="w-full bg-eco-green hover:bg-green-600 text-white"
+                      className="w-full bg-eco-green hover:bg-eco-green-dark text-white"
                     >
                       {sendingOtp ? 'Sending...' : 'Send Verification Code'}
                     </Button>
@@ -521,7 +521,7 @@ export default function ProfilePage() {
                       <Button
                         type="submit"
                         disabled={submitting}
-                        className="flex-1 bg-eco-green hover:bg-green-600 text-white"
+                        className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
                       >
                         {submitting ? 'Changing...' : 'Change Password'}
                       </Button>

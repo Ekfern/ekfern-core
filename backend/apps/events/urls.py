@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    EventViewSet, create_rsvp, get_rsvp, check_phone_for_rsvp, get_guest_by_token,
+    EventViewSet, create_rsvp, get_rsvp, check_phone_for_rsvp, rsvp_registration_status, get_guest_by_token,
     InvitePageViewSet, PublicInviteViewSet, upload_image,
     SubEventViewSet, GuestInviteViewSet, MessageTemplateViewSet,
     InvitePageLayoutViewSet,
@@ -17,6 +17,7 @@ from .views import (
     ses_webhook, email_click_redirect,
     booking_schedule_detail, booking_slots_collection, booking_slot_detail,
     booking_slots_reorder, public_booking_calendar, public_booking_slots_by_date,
+    public_rsvp_sub_events,
     create_slot_booking, host_slot_bookings, host_update_slot_booking,
     host_move_slot_booking, host_override_slot_booking_capacity,
 )
@@ -56,6 +57,7 @@ urlpatterns = [
     path('<int:event_id>/rsvp/', create_rsvp, name='event-rsvp'),
     path('<int:event_id>/rsvp/check/', get_rsvp, name='event-rsvp-check'),
     path('<int:event_id>/rsvp/check/phone/', check_phone_for_rsvp, name='event-rsvp-check-phone'),
+    path('<int:event_id>/rsvp/registration-status/', rsvp_registration_status, name='event-rsvp-registration-status'),
     path('<int:event_id>/rsvp/guest-by-token/', get_guest_by_token, name='event-rsvp-guest-by-token'),
     # Slot booking endpoints
     path('<int:event_id>/booking-schedule/', booking_schedule_detail, name='booking-schedule-detail'),
@@ -64,6 +66,7 @@ urlpatterns = [
     path('<int:event_id>/booking-slots/<int:slot_id>/', booking_slot_detail, name='booking-slot-detail'),
     path('public/<slug:slug>/booking-calendar/', public_booking_calendar, name='public-booking-calendar'),
     path('public/<slug:slug>/booking-slots/', public_booking_slots_by_date, name='public-booking-slots'),
+    path('public/<slug:slug>/rsvp-sub-events/', public_rsvp_sub_events, name='public-rsvp-sub-events'),
     path('<int:event_id>/slot-bookings/', create_slot_booking, name='slot-booking-create'),
     path('<int:event_id>/host-slot-bookings/', host_slot_bookings, name='host-slot-bookings'),
     path('<int:event_id>/host-slot-bookings/<int:booking_id>/', host_update_slot_booking, name='host-slot-booking-update'),

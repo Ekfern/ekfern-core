@@ -473,7 +473,7 @@ export default function GenerateResultsPage() {
             <Button
               onClick={onBulkPublish}
               disabled={bulkBusy || selectedPublishIds.length === 0}
-              className="bg-eco-green hover:bg-green-600 text-white"
+              className="bg-eco-green hover:bg-eco-green-dark text-white"
             >
               {bulkBusy ? `Publishing${LOADING_TAIL}` : `Publish ${selectedPublishIds.length} selected`}
             </Button>
@@ -720,7 +720,7 @@ export default function GenerateResultsPage() {
               <Button
                 onClick={submitRemix}
                 disabled={remixBusy}
-                className="bg-eco-green hover:bg-green-600 text-white gap-2"
+                className="bg-eco-green hover:bg-eco-green-dark text-white gap-2"
               >
                 <Sparkles className="w-4 h-4" />
                 {remixBusy ? `Remixing${LOADING_TAIL}` : 'Remix'}

@@ -79,7 +79,7 @@ export default function GreetingCardSamplesPage() {
             </p>
           </div>
           <Link href="/host/templates/greeting-cards/new">
-            <Button className="bg-eco-green hover:bg-green-600 text-white">New sample</Button>
+            <Button className="bg-eco-green hover:bg-eco-green-dark text-white">New sample</Button>
           </Link>
         </div>
 

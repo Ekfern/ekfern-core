@@ -135,7 +135,7 @@ function ResetPasswordForm() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-eco-green hover:bg-green-600 text-white py-6 text-lg"
+              className="w-full bg-eco-green hover:bg-eco-green-dark text-white py-6 text-lg"
             >
               {loading ? 'Resetting...' : 'Reset Password'}
             </Button>

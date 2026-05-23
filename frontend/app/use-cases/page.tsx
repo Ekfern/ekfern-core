@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { motion } from 'framer-motion'
 import SiteNav from '@/components/SiteNav'
-import { BRAND_NAME } from '@/lib/brand_utility'
+import SiteFooter from '@/components/SiteFooter'
 
 const SERIF = "'Cormorant Garamond', Georgia, serif"
 
@@ -102,6 +102,7 @@ export default function UseCasesPage() {
         {/* ── Hero ───────────────────────────────────────────────── */}
         <section className="py-24 px-6 text-center" style={{ background: C.dark }}>
           <motion.div
+            suppressHydrationWarning
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
@@ -188,6 +189,7 @@ export default function UseCasesPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-60px' }}
                   transition={{ duration: 0.7 }}
+                  suppressHydrationWarning
                   className={`grid grid-cols-1 gap-12 items-center ${flip ? 'md:grid-cols-[2fr_3fr]' : 'md:grid-cols-[3fr_2fr]'}`}
                 >
                   {flip ? (
@@ -210,6 +212,7 @@ export default function UseCasesPage() {
         {/* ── CTA ────────────────────────────────────────────────── */}
         <section className="py-28 px-6 text-center" style={{ background: C.dark }}>
           <motion.div
+            suppressHydrationWarning
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-60px' }}
@@ -244,31 +247,7 @@ export default function UseCasesPage() {
 
       </main>
 
-      {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer className="py-12 px-6" style={{ background: C.dark, borderTop: '1px solid rgba(212,160,23,0.12)' }}>
-        <div className="max-w-6xl mx-auto">
-          <p
-            className="text-center text-sm mb-8 leading-relaxed"
-            style={{ color: 'rgba(232,216,195,0.45)', fontStyle: 'italic', fontFamily: SERIF }}
-          >
-            Beautiful experiences deserve smoother planning.{' '}
-            <span style={{ color: C.gold, opacity: 0.7 }}>Simple. Smart. Sustainable.</span>
-          </p>
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-sm font-medium" style={{ color: C.gold, fontFamily: SERIF, opacity: 0.85 }}>{BRAND_NAME}</p>
-            <div className="flex gap-6 items-center">
-              <Link href="/"         className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>Home</Link>
-              <Link href="/features" className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>Features</Link>
-              <Link href="/about"    className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>About</Link>
-              <Link href="/privacy"  className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>Privacy</Link>
-              <Link href="/contact"  className="text-xs hover:opacity-100 transition-opacity" style={{ color: C.gold, opacity: 0.5 }}>Contact</Link>
-            </div>
-          </div>
-          <p className="text-center text-xs mt-8" style={{ color: 'rgba(232,216,195,0.2)' }} suppressHydrationWarning>
-            © {new Date().getFullYear()} {BRAND_NAME}
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
 
     </div>
   )

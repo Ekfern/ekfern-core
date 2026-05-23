@@ -345,7 +345,7 @@ export default function SubEventsPage() {
               </p>
                 <button
                   onClick={handleCreate}
-                  className="bg-eco-green hover:bg-green-600 text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2 cursor-pointer"
+                  className="bg-eco-green hover:bg-eco-green-dark text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2 cursor-pointer"
                   type="button"
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -618,7 +618,7 @@ export default function SubEventsPage() {
                       >
                         Cancel
                       </Button>
-                      <Button type="submit" className="bg-eco-green hover:bg-green-600 text-white" disabled={saving}>
+                      <Button type="submit" className="bg-eco-green hover:bg-eco-green-dark text-white" disabled={saving}>
                         {saving ? 'Saving...' : (editingSubEvent ? 'Save Changes' : 'Create Sub-Event')}
                       </Button>
                     </div>
@@ -657,7 +657,7 @@ export default function SubEventsPage() {
           </div>
           <button
             onClick={handleCreate}
-            className="bg-eco-green hover:bg-green-600 text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2"
+            className="bg-eco-green hover:bg-eco-green-dark text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2"
             type="button"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -683,7 +683,7 @@ export default function SubEventsPage() {
               <p className="text-gray-600 mb-4">No sub-events yet. Create your first one!</p>
               <button
                 onClick={handleCreate}
-                className="bg-eco-green hover:bg-green-600 text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2"
+                className="bg-eco-green hover:bg-eco-green-dark text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2"
                 type="button"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -1076,7 +1076,7 @@ export default function SubEventsPage() {
                     <Button
                       type="submit"
                       disabled={saving}
-                      className="bg-eco-green hover:bg-green-600 text-white"
+                      className="bg-eco-green hover:bg-eco-green-dark text-white"
                     >
                       {saving ? 'Saving...' : editingSubEvent ? 'Update' : 'Create'}
                     </Button>
