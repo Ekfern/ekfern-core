@@ -256,6 +256,7 @@ export interface InviteConfig {
   // Custom overrides (optional - if not set, uses theme defaults)
   customColors?: {
     backgroundColor?: string // Overrides theme.palette.bg
+    backgroundGradient?: string // CSS gradient string e.g. 'linear-gradient(160deg, #E8D8C3 0%, #C4A882 100%)' — takes precedence over backgroundColor
     fontColor?: string // Overrides theme.palette.fg
     primaryColor?: string // Overrides theme.palette.primary
     mutedColor?: string // Overrides theme.palette.muted

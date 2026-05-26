@@ -511,8 +511,9 @@ export default function InvitePageClient({
   }, [fetchInvite, slug])
 
   // Compute backgroundColor from theme when customColors not set, so template theme shows correctly
-  const theme = getTheme(config?.themeId || 'classic-noir')
+  const theme = getTheme(config?.themeId || 'warm-parchment')
   const backgroundColor = config?.customColors?.backgroundColor ?? theme.palette.bg
+  const pageBackground = config?.customColors?.backgroundGradient || backgroundColor
 
   // Set body background to match page background
   // This MUST be called before any early returns to follow React hooks rules
@@ -525,15 +526,11 @@ export default function InvitePageClient({
     })
     
     // If border is enabled, use a contrasting color for body background so border is visible
-    // Otherwise use the page background color
-    const bodyBackgroundColor = config?.pageBorder?.enabled 
-      ? '#f5f5f5' // Light gray to make border visible
-      : backgroundColor
-    
-    document.body.style.setProperty('background-color', bodyBackgroundColor, 'important')
-    document.documentElement.style.setProperty('background-color', bodyBackgroundColor, 'important')
-    document.body.style.setProperty('background', bodyBackgroundColor, 'important')
-    document.documentElement.style.setProperty('background', bodyBackgroundColor, 'important')
+    // Otherwise use the page background (solid color or gradient)
+    const bodyBackground = config?.pageBorder?.enabled ? '#f5f5f5' : pageBackground
+
+    document.body.style.setProperty('background', bodyBackground, 'important')
+    document.documentElement.style.setProperty('background', bodyBackground, 'important')
     // Ensure body/html don't force extra height that creates unnecessary scrollbar
     document.body.style.setProperty('min-height', 'auto', 'important')
     document.documentElement.style.setProperty('min-height', 'auto', 'important')
@@ -549,7 +546,7 @@ export default function InvitePageClient({
       document.documentElement.style.removeProperty('background')
       document.documentElement.style.removeProperty('min-height')
     }
-  }, [backgroundColor, slug, config?.pageBorder?.enabled])
+  }, [pageBackground, slug, config?.pageBorder?.enabled])
 
   // Display error
   if (error) {
@@ -769,9 +766,8 @@ export default function InvitePageClient({
         >
           <div 
             className="relative overflow-x-hidden w-full"
-            style={{ 
-              backgroundColor, 
-              background: backgroundColor, 
+            style={{
+              background: pageBackground,
               minHeight: '100vh', 
               height: 'auto',
               border: borderStyle.border,
@@ -814,8 +810,7 @@ export default function InvitePageClient({
         <div
           className="w-full relative overflow-x-hidden"
           style={{
-            backgroundColor,
-            background: backgroundColor,
+            background: pageBackground,
             minHeight: 'auto',
             height: 'auto',
           } as React.CSSProperties}

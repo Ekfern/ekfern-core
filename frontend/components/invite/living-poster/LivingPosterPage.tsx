@@ -41,26 +41,22 @@ function LivingPosterContent({
 }: LivingPosterPageProps) {
   const theme = useTheme()
   const backgroundColor = config.customColors?.backgroundColor ?? theme.backgroundColor
+  const backgroundGradient = config.customColors?.backgroundGradient
+  const pageBackground = backgroundGradient || backgroundColor
+
   // Set body background to match page background (skip if already set at page level)
   useEffect(() => {
     if (skipBackgroundColor) {
       return
     }
-    // Use setProperty with important flag to override CSS rules from globals.css
-    document.body.style.setProperty('background-color', backgroundColor, 'important')
-    document.documentElement.style.setProperty('background-color', backgroundColor, 'important')
-    // Also set background (not just background-color) to override CSS background property
-    document.body.style.setProperty('background', backgroundColor, 'important')
-    document.documentElement.style.setProperty('background', backgroundColor, 'important')
+    document.body.style.setProperty('background', pageBackground, 'important')
+    document.documentElement.style.setProperty('background', pageBackground, 'important')
 
     return () => {
-      // Reset on unmount (optional, but clean)
-      document.body.style.removeProperty('background-color')
       document.body.style.removeProperty('background')
-      document.documentElement.style.removeProperty('background-color')
       document.documentElement.style.removeProperty('background')
     }
-  }, [backgroundColor, skipBackgroundColor])
+  }, [pageBackground, skipBackgroundColor])
 
   // If tiles exist, render tile-based layout
   if (config.tiles && config.tiles.length > 0) {
@@ -97,7 +93,7 @@ function LivingPosterContent({
     }
 
     return (
-      <div className="w-full relative overflow-x-hidden" style={skipBackgroundColor ? {} : { backgroundColor, background: backgroundColor } as React.CSSProperties}>
+      <div className="w-full relative overflow-x-hidden" style={skipBackgroundColor ? {} : { background: pageBackground } as React.CSSProperties}>
         {!skipTextureOverlay && (
           <TextureOverlay
             type={config.texture?.type || 'none'}
@@ -175,7 +171,7 @@ function LivingPosterContent({
 
   // Fallback to legacy hero/description layout
   return (
-    <div className="relative" style={skipBackgroundColor ? {} : { backgroundColor, background: backgroundColor } as React.CSSProperties}>
+    <div className="relative" style={skipBackgroundColor ? {} : { background: pageBackground } as React.CSSProperties}>
       {!skipTextureOverlay && (
         <TextureOverlay
           type={config.texture?.type || 'none'}
