@@ -18,7 +18,7 @@ export function buildDefaultTileSettingsRecord(
   return {
     title: { text: ctx.title || 'Sample Event' },
     image: { src: '', fitMode: 'fit-to-screen' },
-    'greeting-card': {
+    'design': {
       backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)',
       textOverlays: [],
     },
@@ -42,11 +42,11 @@ export function minimalStaffPageLayoutStarterTiles(ctx: PageLayoutStudioSampleCo
   return [
     { id: 'tile-title-0', type: 'title', enabled: true, order: 0, settings: s.title },
     {
-      id: 'tile-greeting-card-1',
-      type: 'greeting-card',
+      id: 'tile-design-1',
+      type: 'design',
       enabled: true,
       order: 1,
-      settings: s['greeting-card'],
+      settings: s['design'],
     },
     {
       id: 'tile-event-details-2',

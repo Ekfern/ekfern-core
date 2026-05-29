@@ -5,7 +5,7 @@ import { ChevronDown, Search, Tag, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { fuzzyFilter } from '@/lib/fuzzyFilter'
-import { getGreetingCardSamples, type GreetingCardSample, type TextOverlay } from '@/lib/invite/api'
+import { getDesignSamples, type DesignSample, type TextOverlay } from '@/lib/invite/api'
 
 interface Props {
   open: boolean
@@ -13,8 +13,8 @@ interface Props {
   onSelect: (src: string, textOverlays: TextOverlay[]) => void
 }
 
-export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Props) {
-  const [cards, setCards] = useState<GreetingCardSample[]>([])
+export default function DesignMediaPicker({ open, onClose, onSelect }: Props) {
+  const [cards, setCards] = useState<DesignSample[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTags, setActiveTags] = useState<string[]>([])
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
@@ -26,7 +26,7 @@ export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Pro
     setSearchQuery('')
     setActiveTags([])
     setLoading(true)
-    getGreetingCardSamples()
+    getDesignSamples()
       .then(setCards)
       .finally(() => setLoading(false))
   }, [open])
@@ -80,7 +80,7 @@ export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Pro
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col mx-4">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
-          <h2 className="text-lg font-semibold">Greeting Card Media Library</h2>
+          <h2 className="text-lg font-semibold">Design Media Library</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-700 text-xl font-bold leading-none"
@@ -102,7 +102,7 @@ export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Pro
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by name, tags… (typos OK)"
                 className="pl-9"
-                aria-label="Search greeting card backgrounds"
+                aria-label="Search design backgrounds"
               />
             </div>
 
@@ -211,7 +211,7 @@ export default function GreetingCardMediaPicker({ open, onClose, onSelect }: Pro
           {!loading && filtered.length === 0 && (
             <div className="flex items-center justify-center h-40 text-gray-500 text-sm text-center px-4">
               {cards.length === 0
-                ? 'No greeting cards found.'
+                ? 'No designs found.'
                 : 'No cards match this search or tag. Try other words or clear filters.'}
             </div>
           )}

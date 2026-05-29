@@ -8,8 +8,8 @@ import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import GreetingCardMediaPicker from '@/components/invite/GreetingCardMediaPicker'
-import { uploadGreetingCardImage } from '@/lib/invite/api'
+import DesignMediaPicker from '@/components/invite/DesignMediaPicker'
+import { uploadDesignImage } from '@/lib/invite/api'
 import {
   generatePageLayouts,
   getLLMUsageSummary,
@@ -143,7 +143,7 @@ export default function GeneratePageLayoutPage() {
     setUploading(true)
     setUploadError(null)
     try {
-      const url = await uploadGreetingCardImage(file)
+      const url = await uploadDesignImage(file)
       setCardUrl(url)
       setCardThumb(url)
       setCardSource('upload')
@@ -439,7 +439,7 @@ export default function GeneratePageLayoutPage() {
         </Card>
       </div>
 
-      <GreetingCardMediaPicker
+      <DesignMediaPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={(src) => {

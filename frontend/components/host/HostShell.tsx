@@ -130,7 +130,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
     const isEnvelope  = eventSettings?.event_structure === 'ENVELOPE'
     const items: { href: string; label: string; icon: LucideIcon }[] = [
       { href: `/host/events/${eventId}`,               label: 'Overview',   icon: LayoutDashboard },
-      { href: `/host/events/${eventId}/design`,        label: 'Design',     icon: Paintbrush },
+      { href: `/host/events/${eventId}/page-editor`,    label: 'Page Editor', icon: Paintbrush },
       { href: `/host/events/${eventId}/guests`,        label: 'Guests',     icon: Users },
     ]
     if (hasRsvp)     items.push({ href: `/host/events/${eventId}/rsvp`,        label: 'RSVP',       icon: CalendarCheck })
@@ -214,7 +214,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
               })}
 
               {isStaff && (() => {
-                const active = isActivePath(pathname, '/host/page-layouts') && !pathname.startsWith('/host/templates/greeting-cards')
+                const active = isActivePath(pathname, '/host/page-layouts') && !pathname.startsWith('/host/templates/designs')
                 const link = (
                   <Link
                     href="/host/page-layouts"
@@ -235,10 +235,10 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
               })()}
 
               {isStaff && (() => {
-                const active = pathname.startsWith('/host/templates/greeting-cards')
+                const active = pathname.startsWith('/host/templates/designs')
                 const link = (
                   <Link
-                    href="/host/templates/greeting-cards"
+                    href="/host/templates/designs"
                     className={cn(
                       'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                       active ? 'bg-eco-green text-white' : 'text-gray-700 hover:bg-eco-green-light',
@@ -247,11 +247,11 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
                     onClick={() => setIsMobileDrawerOpen(false)}
                   >
                     <GalleryHorizontal size={18} />
-                    <span className={cn(isDesktopNavCollapsed && 'md:hidden')}>Greeting Card Studio</span>
+                    <span className={cn(isDesktopNavCollapsed && 'md:hidden')}>Design Studio</span>
                   </Link>
                 )
                 return isDesktopNavCollapsed ? (
-                  <div className="group relative">{link}<TooltipContent side="right">Greeting Card Studio</TooltipContent></div>
+                  <div className="group relative">{link}<TooltipContent side="right">Design Studio</TooltipContent></div>
                 ) : link
               })()}
             </TooltipProvider>

@@ -24,7 +24,7 @@ import SortableTileSettings from './SortableTileSettings'
 const TILE_CATALOG: { type: TileType; label: string; description: string }[] = [
   { type: 'title',           label: 'Title',           description: 'Your event name and subtitle' },
   { type: 'image',           label: 'Image',           description: 'A hero photo or banner image' },
-  { type: 'greeting-card',   label: 'Greeting Card',   description: 'A 9:16 card with photo, gradient, and text overlays' },
+  { type: 'design',          label: 'Design',           description: 'A 9:16 card with photo, gradient, and text overlays' },
   { type: 'event-details',   label: 'Event Details',   description: 'Date, time, and location' },
   { type: 'description',     label: 'Description',     description: 'A message or story about your event' },
   { type: 'timer',           label: 'Timer',           description: 'Countdown clock to your event' },

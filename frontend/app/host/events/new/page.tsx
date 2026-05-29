@@ -63,9 +63,9 @@ export default function NewEventPage() {
         return
       }
       logDebug('Event created successfully, navigating to card step:', eventId)
-      showToast('Event created! Now let\'s create your greeting card.', 'success')
+      showToast('Event created! Now let\'s design your invite card.', 'success')
       setTimeout(() => {
-        router.push(`/host/events/${eventId}/card`)
+        router.push(`/host/events/${eventId}/design`)
       }, 100)
     } catch (error: unknown) {
       logError('Event creation error:', error)

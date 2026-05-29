@@ -10,7 +10,7 @@ import DescriptionTile from './DescriptionTile'
 import FeatureButtonsTile from './FeatureButtonsTile'
 import FooterTile from './FooterTile'
 import EventCarouselTile from './EventCarouselTile'
-import GreetingCardTile from './GreetingCardTile'
+import DesignTile from './DesignTile'
 
 export interface TilePreviewProps {
   tile: Tile
@@ -55,9 +55,9 @@ export default function TilePreview({
             preview
           />
         )
-      case 'greeting-card':
+      case 'design':
         return (
-          <GreetingCardTile
+          <DesignTile
             settings={tile.settings as any}
             preview
           />

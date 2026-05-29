@@ -15,7 +15,7 @@ import {
 } from '@/lib/invite/api'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
-import type { ImageTileSettings, GreetingCardTileSettings, TextOverlay, InviteConfig } from '@/lib/invite/schema'
+import type { ImageTileSettings, DesignTileSettings, TextOverlay, InviteConfig } from '@/lib/invite/schema'
 import { updateEventPageConfig } from '@/lib/event/api'
 import api from '@/lib/api'
 
@@ -44,16 +44,16 @@ function applyCardDesignToConfig(
 ): InviteConfig {
   if (!config.tiles) return config
 
-  const hasGreetingCardTiles = config.tiles.some((t) => t.type === 'greeting-card')
+  const hasDesignTiles = config.tiles.some((t) => t.type === 'design')
   const updatedTiles = config.tiles.map((t) => {
     // Prefer the dedicated greeting-card tile type when present.
-    if (hasGreetingCardTiles) {
-      if (t.type !== 'greeting-card') return t
+    if (hasDesignTiles) {
+      if (t.type !== 'design') return t
       return {
         ...t,
         enabled: true,
         settings: {
-          ...(t.settings as GreetingCardTileSettings),
+          ...(t.settings as DesignTileSettings),
           src: bgUrl ?? undefined,
           backgroundGradient: bgUrl ? undefined : (bgGradient ?? undefined),
           textOverlays: textBoxes ?? undefined,
@@ -153,7 +153,7 @@ export default function LayoutSelectPage(): React.ReactElement {
       }
 
       showToast('Layout applied! Customize it on the next step.', 'success')
-      router.push(`/host/events/${eventId}/design`)
+      router.push(`/host/events/${eventId}/page-editor`)
     } catch (err: unknown) {
       logError('Failed to apply layout:', err)
       showToast(getErrorMessage(err), 'error')
@@ -183,7 +183,7 @@ export default function LayoutSelectPage(): React.ReactElement {
         setApplyingId(null)
       }
     }
-    router.push(`/host/events/${eventId}/design`)
+    router.push(`/host/events/${eventId}/page-editor`)
   }
 
   if (!eventId || isNaN(eventId)) {
@@ -204,10 +204,10 @@ export default function LayoutSelectPage(): React.ReactElement {
         {/* Back link */}
         <button
           type="button"
-          onClick={() => router.push(`/host/events/${eventId}/card`)}
+          onClick={() => router.push(`/host/events/${eventId}/design`)}
           className="flex items-center gap-1 text-sm text-eco-green hover:underline mb-6"
         >
-          <span aria-hidden>&#8592;</span> Back to Greeting Card
+          <span aria-hidden>&#8592;</span> Back to Design
         </button>
 
         <h1 className="text-3xl font-bold text-eco-green mb-1">Choose your invite layout</h1>

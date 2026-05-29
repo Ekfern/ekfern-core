@@ -1,18 +1,18 @@
 import React from 'react'
-import { GreetingCardTileSettings } from '@/lib/invite/schema'
+import { DesignTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 
-interface GreetingCardTileSSRProps {
-  settings: GreetingCardTileSettings
+interface DesignTileSSRProps {
+  settings: DesignTileSettings
   hasTitleOverlay?: boolean
 }
 
 /**
- * Server-safe version of GreetingCardTile.
+ * Server-safe version of DesignTile.
  * No client-side hooks. Renders a 9:16 card with image or gradient background
  * and static text overlays using absolute positioning.
  */
-export default function GreetingCardTileSSR({ settings }: GreetingCardTileSSRProps) {
+export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
   const hasImage = !!settings.src
   const hasGradient = !!settings.backgroundGradient
 

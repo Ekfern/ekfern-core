@@ -1,12 +1,12 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import type { GreetingCardTileSettings } from '@/lib/invite/schema'
+import type { DesignTileSettings } from '@/lib/invite/schema'
 import { Button } from '@/components/ui/button'
 import type { TextOverlay } from '@/lib/invite/api'
-import GreetingCardMediaPicker from '@/components/invite/GreetingCardMediaPicker'
+import DesignMediaPicker from '@/components/invite/DesignMediaPicker'
 import TextOverlayEditorModal from '@/components/invite/TextOverlayEditorModal'
-import GreetingCardTile from '@/components/invite/tiles/GreetingCardTile'
+import DesignTile from '@/components/invite/tiles/DesignTile'
 
 // Parse a linear-gradient string into its component parts so we can
 // pre-populate the color pickers. Falls back to defaults on any parse failure.
@@ -25,9 +25,9 @@ const GRADIENT_DIRECTIONS = [
   { label: '↗ Up-right', value: '45deg'  },
 ]
 
-interface GreetingCardTileSettingsProps {
-  settings: GreetingCardTileSettings
-  onChange: (settings: GreetingCardTileSettings) => void
+interface DesignTileSettingsProps {
+  settings: DesignTileSettings
+  onChange: (settings: DesignTileSettings) => void
   eventId: number
 }
 
@@ -42,7 +42,7 @@ const PRESET_GRADIENTS = [
   { label: 'Forest',        value: 'linear-gradient(135deg, #1b4332, #40916c)' },
 ]
 
-export default function GreetingCardTileSettings({ settings, onChange, eventId: _eventId }: GreetingCardTileSettingsProps) {
+export default function DesignTileSettings({ settings, onChange, eventId: _eventId }: DesignTileSettingsProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [overlayEditorOpen, setOverlayEditorOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -82,13 +82,13 @@ export default function GreetingCardTileSettings({ settings, onChange, eventId: 
           // identically to the mobile preview — just smaller.
           <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200, height: Math.round(200 * 16 / 9) }}>
             <div style={{ width: 384, transformOrigin: 'top left', transform: `scale(${200 / 384})` }}>
-              <GreetingCardTile settings={settings} preview />
+              <DesignTile settings={settings} preview />
             </div>
           </div>
         ) : (
           <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 px-3 py-8 text-center">
             <p className="text-xs text-gray-500 leading-relaxed">
-              No card yet. Open Greeting Card Studio, browse the media library, or set a gradient below - your selection will appear here.
+              No card yet. Open Design Studio, browse the media library, or set a gradient below - your selection will appear here.
             </p>
           </div>
         )}
@@ -115,7 +115,7 @@ export default function GreetingCardTileSettings({ settings, onChange, eventId: 
         </Button>
       </div>
 
-      <GreetingCardMediaPicker
+      <DesignMediaPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={handleMediaSelect}

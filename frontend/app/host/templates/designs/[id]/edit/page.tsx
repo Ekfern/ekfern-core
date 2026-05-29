@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { getGreetingCardSample, updateGreetingCardSample, deleteGreetingCardSample, uploadGreetingCardImage } from '@/lib/invite/api'
+import { getDesignSample, updateDesignSample, deleteDesignSample, uploadDesignImage } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import { logError } from '@/lib/error-handler'
 
@@ -61,7 +61,7 @@ function clamp(v: number, min: number, max: number): number {
 // Page
 // ---------------------------------------------------------------------------
 
-export default function EditGreetingCardSamplePage(): React.ReactElement {
+export default function EditDesignSamplePage(): React.ReactElement {
   const params = useParams()
   const sampleId = Number(params.id)
   const router = useRouter()
@@ -104,13 +104,13 @@ export default function EditGreetingCardSamplePage(): React.ReactElement {
   }, [editingId])
 
   useEffect(() => {
-    if (!sampleId || isNaN(sampleId)) { router.push('/host/templates/greeting-cards'); return }
+    if (!sampleId || isNaN(sampleId)) { router.push('/host/templates/designs'); return }
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     if (!token) { router.push('/host/login'); return }
 
     Promise.all([
       api.get<MeResponse>('/api/auth/me/'),
-      getGreetingCardSample(sampleId),
+      getDesignSample(sampleId),
     ]).then(([meRes, sample]) => {
       if (!meRes.data?.is_staff) { router.push('/host/dashboard'); return }
       setName(sample.name)
@@ -120,10 +120,10 @@ export default function EditGreetingCardSamplePage(): React.ReactElement {
       setBgUrl(sample.background_image_url || null)
       setTextBoxes((sample.text_overlays ?? []) as TextBox[])
     }).catch((e: unknown) => {
-      logError('Load greeting card sample failed', e)
+      logError('Load design sample failed', e)
       const err = e as { response?: { status?: number } }
       if (err?.response?.status === 401) router.push('/host/login')
-      else if (err?.response?.status === 403 || err?.response?.status === 404) router.push('/host/templates/greeting-cards')
+      else if (err?.response?.status === 403 || err?.response?.status === 404) router.push('/host/templates/designs')
     }).finally(() => setLoading(false))
   }, [sampleId, router])
 
@@ -204,7 +204,7 @@ export default function EditGreetingCardSamplePage(): React.ReactElement {
     if (file.size > 20 * 1024 * 1024) { alert('Max file size is 20 MB.'); return }
     setUploading(true)
     try {
-      const url = await uploadGreetingCardImage(file)
+      const url = await uploadDesignImage(file)
       setBgUrl(url)
     } catch (err) {
       logError('Upload failed', err)
@@ -221,14 +221,14 @@ export default function EditGreetingCardSamplePage(): React.ReactElement {
     setSaving(true); setError(null)
     try {
       const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean)
-      await updateGreetingCardSample(sampleId, {
+      await updateDesignSample(sampleId, {
         name: name.trim(), description: description.trim(),
         background_image_url: bgUrl, text_overlays: textBoxes,
         tags, is_active: isActive,
       })
-      router.push('/host/templates/greeting-cards')
+      router.push('/host/templates/designs')
     } catch (err) {
-      logError('Update greeting card sample failed', err)
+      logError('Update design sample failed', err)
       setError('Failed to save. Please try again.')
     } finally {
       setSaving(false)
@@ -236,13 +236,13 @@ export default function EditGreetingCardSamplePage(): React.ReactElement {
   }
 
   async function handleDelete(): Promise<void> {
-    if (!confirm('Delete this greeting card sample? This cannot be undone.')) return
+    if (!confirm('Delete this design sample? This cannot be undone.')) return
     setDeleting(true)
     try {
-      await deleteGreetingCardSample(sampleId)
-      router.push('/host/templates/greeting-cards')
+      await deleteDesignSample(sampleId)
+      router.push('/host/templates/designs')
     } catch (err) {
-      logError('Delete greeting card sample failed', err)
+      logError('Delete design sample failed', err)
       alert('Delete failed. Please try again.')
     } finally {
       setDeleting(false)
@@ -264,14 +264,14 @@ export default function EditGreetingCardSamplePage(): React.ReactElement {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-lg font-semibold text-eco-green">Edit Greeting Card Sample</h1>
+          <h1 className="text-lg font-semibold text-eco-green">Edit Design Sample</h1>
           <p className="text-xs text-gray-500 mt-0.5">Staff only</p>
         </div>
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => void handleDelete()} disabled={deleting} className="px-4 py-2 rounded-lg border border-red-300 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50">
             {deleting ? 'Deleting…' : 'Delete'}
           </button>
-          <button type="button" onClick={() => router.push('/host/templates/greeting-cards')} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50">
+          <button type="button" onClick={() => router.push('/host/templates/designs')} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50">
             Cancel
           </button>
           <button type="button" onClick={() => void handleSave()} disabled={saving} className="px-4 py-2 rounded-lg bg-eco-green text-white text-sm font-medium hover:bg-eco-green-dark disabled:opacity-60">

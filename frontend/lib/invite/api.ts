@@ -150,7 +150,7 @@ export async function deleteInvitePageLayout(id: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Greeting Card Samples
+// Design Samples
 // ---------------------------------------------------------------------------
 
 export interface TextOverlay {
@@ -171,7 +171,7 @@ export interface TextOverlay {
   verticalAlign?: 'top' | 'middle' | 'bottom'
 }
 
-export interface GreetingCardSample {
+export interface DesignSample {
   id: number
   name: string
   description: string
@@ -186,10 +186,10 @@ export interface GreetingCardSample {
   updated_at?: string
 }
 
-/** Fetch active greeting card samples (all authenticated users) */
-export async function getGreetingCardSamples(): Promise<GreetingCardSample[]> {
+/** Fetch active design samples (all authenticated users) */
+export async function getDesignSamples(): Promise<DesignSample[]> {
   try {
-    const response = await api.get<GreetingCardSample[] | { results: GreetingCardSample[] }>('/api/events/greeting-card-samples/')
+    const response = await api.get<DesignSample[] | { results: DesignSample[] }>('/api/events/greeting-card-samples/')
     const raw = response.data
     return Array.isArray(raw) ? raw : ((raw as any).results ?? [])
   } catch {
@@ -197,38 +197,38 @@ export async function getGreetingCardSamples(): Promise<GreetingCardSample[]> {
   }
 }
 
-/** Fetch all greeting card samples for staff (includes inactive) */
-export async function getGreetingCardSamplesForStudio(): Promise<GreetingCardSample[]> {
-  const response = await api.get<GreetingCardSample[] | { results: GreetingCardSample[] }>('/api/events/greeting-card-samples/')
+/** Fetch all design samples for staff (includes inactive) */
+export async function getDesignSamplesForStudio(): Promise<DesignSample[]> {
+  const response = await api.get<DesignSample[] | { results: DesignSample[] }>('/api/events/greeting-card-samples/')
   const raw = response.data
   return Array.isArray(raw) ? raw : ((raw as any).results ?? [])
 }
 
-/** Fetch one greeting card sample by id */
-export async function getGreetingCardSample(id: number): Promise<GreetingCardSample> {
-  const response = await api.get<GreetingCardSample>(`/api/events/greeting-card-samples/${id}/`)
+/** Fetch one design sample by id */
+export async function getDesignSample(id: number): Promise<DesignSample> {
+  const response = await api.get<DesignSample>(`/api/events/greeting-card-samples/${id}/`)
   return response.data
 }
 
-/** Create greeting card sample (staff only) */
-export async function createGreetingCardSample(data: Partial<GreetingCardSample>): Promise<GreetingCardSample> {
-  const response = await api.post<GreetingCardSample>('/api/events/greeting-card-samples/', data)
+/** Create design sample (staff only) */
+export async function createDesignSample(data: Partial<DesignSample>): Promise<DesignSample> {
+  const response = await api.post<DesignSample>('/api/events/greeting-card-samples/', data)
   return response.data
 }
 
-/** Update greeting card sample (staff only) */
-export async function updateGreetingCardSample(id: number, data: Partial<GreetingCardSample>): Promise<GreetingCardSample> {
-  const response = await api.put<GreetingCardSample>(`/api/events/greeting-card-samples/${id}/`, data)
+/** Update design sample (staff only) */
+export async function updateDesignSample(id: number, data: Partial<DesignSample>): Promise<DesignSample> {
+  const response = await api.put<DesignSample>(`/api/events/greeting-card-samples/${id}/`, data)
   return response.data
 }
 
-/** Delete greeting card sample (staff only) */
-export async function deleteGreetingCardSample(id: number): Promise<void> {
+/** Delete design sample (staff only) */
+export async function deleteDesignSample(id: number): Promise<void> {
   await api.delete(`/api/events/greeting-card-samples/${id}/`)
 }
 
-/** Upload a background image for a greeting card sample (staff only) */
-export async function uploadGreetingCardImage(file: File): Promise<string> {
+/** Upload a background image for a design sample (staff only) */
+export async function uploadDesignImage(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('image', file)
   const response = await api.post<{ url: string }>('/api/events/greeting-card-samples/upload-image/', formData, {

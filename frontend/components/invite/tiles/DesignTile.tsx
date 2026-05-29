@@ -1,15 +1,15 @@
 'use client'
 
 import React from 'react'
-import { GreetingCardTileSettings } from '@/lib/invite/schema'
+import { DesignTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 
-export interface GreetingCardTileProps {
-  settings: GreetingCardTileSettings
+export interface DesignTileProps {
+  settings: DesignTileSettings
   preview?: boolean
 }
 
-export default function GreetingCardTile({ settings, preview: _preview = false }: GreetingCardTileProps) {
+export default function DesignTile({ settings, preview: _preview = false }: DesignTileProps) {
   const hasImage = !!settings.src
   const hasGradient = !!settings.backgroundGradient
   const hasTextOverlays = settings.textOverlays && settings.textOverlays.length > 0

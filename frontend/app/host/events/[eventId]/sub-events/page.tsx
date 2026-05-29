@@ -327,7 +327,7 @@ export default function SubEventsPage() {
                   Back to Event
                 </Button>
               </Link>
-              <Link href={`/host/events/${eventId}/design`}>
+              <Link href={`/host/events/${eventId}/page-editor`}>
                 <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
                   Design
                 </Button>
@@ -644,7 +644,7 @@ export default function SubEventsPage() {
                   Back to Event
                 </Button>
             </Link>
-              <Link href={`/host/events/${eventId}/design`}>
+              <Link href={`/host/events/${eventId}/page-editor`}>
                 <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
                   Design
                 </Button>

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { createGreetingCardSample, uploadGreetingCardImage } from '@/lib/invite/api'
+import { createDesignSample, uploadDesignImage } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import { logError } from '@/lib/error-handler'
 
@@ -66,7 +66,7 @@ function clamp(value: number, min: number, max: number): number {
 // Page
 // ---------------------------------------------------------------------------
 
-export default function NewGreetingCardSamplePage(): React.ReactElement {
+export default function NewDesignSamplePage(): React.ReactElement {
   const router = useRouter()
 
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -197,7 +197,7 @@ export default function NewGreetingCardSamplePage(): React.ReactElement {
     if (file.size > 20 * 1024 * 1024) { alert('Max file size is 20 MB.'); return }
     setUploading(true)
     try {
-      const url = await uploadGreetingCardImage(file)
+      const url = await uploadDesignImage(file)
       setBgUrl(url)
     } catch (err) {
       logError('Greeting card image upload failed', err)
@@ -215,7 +215,7 @@ export default function NewGreetingCardSamplePage(): React.ReactElement {
     setError(null)
     try {
       const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean)
-      await createGreetingCardSample({
+      await createDesignSample({
         name: name.trim(),
         description: description.trim(),
         background_image_url: bgUrl,
@@ -224,9 +224,9 @@ export default function NewGreetingCardSamplePage(): React.ReactElement {
         is_active: true,
         sort_order: 0,
       })
-      router.push('/host/templates/greeting-cards')
+      router.push('/host/templates/designs')
     } catch (err) {
-      logError('Create greeting card sample failed', err)
+      logError('Create design sample failed', err)
       setError('Failed to save. Please try again.')
     } finally {
       setSaving(false)
@@ -240,13 +240,13 @@ export default function NewGreetingCardSamplePage(): React.ReactElement {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-lg font-semibold text-eco-green">New Greeting Card Sample</h1>
+          <h1 className="text-lg font-semibold text-eco-green">New Design Sample</h1>
           <p className="text-xs text-gray-500 mt-0.5">Staff only — visible to hosts in the card designer</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.push('/host/templates/greeting-cards')}
+            onClick={() => router.push('/host/templates/designs')}
             className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50"
           >
             Cancel

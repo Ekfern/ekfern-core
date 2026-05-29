@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { fuzzyFilter } from '@/lib/fuzzyFilter'
-import { getGreetingCardSamplesForStudio, type GreetingCardSample } from '@/lib/invite/api'
+import { getDesignSamplesForStudio, type DesignSample } from '@/lib/invite/api'
 import { logError } from '@/lib/error-handler'
 
 interface MeResponse {
@@ -20,9 +20,9 @@ interface MeResponse {
   is_staff?: boolean
 }
 
-export default function GreetingCardSamplesPage() {
+export default function DesignSamplesPage() {
   const router = useRouter()
-  const [samples, setSamples] = useState<GreetingCardSample[]>([])
+  const [samples, setSamples] = useState<DesignSample[]>([])
   const [loading, setLoading] = useState(true)
   const [isStaff, setIsStaff] = useState<boolean | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -43,12 +43,12 @@ export default function GreetingCardSamplesPage() {
         if (cancelled) return
         if (!meRes.data?.is_staff) { router.push('/host/dashboard'); return }
         setIsStaff(true)
-        const list = await getGreetingCardSamplesForStudio()
+        const list = await getDesignSamplesForStudio()
         if (cancelled) return
         setSamples(list)
       } catch (e: any) {
         if (cancelled) return
-        logError('Greeting card samples list failed', e)
+        logError('Design samples list failed', e)
         if (e?.response?.status === 401) router.push('/host/login')
         else if (e?.response?.status === 403) router.push('/host/dashboard')
         setSamples([])
@@ -73,12 +73,12 @@ export default function GreetingCardSamplesPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-eco-green">Greeting Card Studio</h1>
+            <h1 className="text-2xl font-bold text-eco-green">Design Studio</h1>
             <p className="text-gray-600 mt-1 text-sm">
               Curate card backgrounds with placeholder text for hosts to use in the card designer.
             </p>
           </div>
-          <Link href="/host/templates/greeting-cards/new">
+          <Link href="/host/templates/designs/new">
             <Button className="bg-eco-green hover:bg-eco-green-dark text-white">New sample</Button>
           </Link>
         </div>
@@ -86,7 +86,7 @@ export default function GreetingCardSamplesPage() {
         <Card>
           <CardHeader>
             <CardTitle>Samples</CardTitle>
-            <CardDescription>All greeting card samples. Hosts see only active ones.</CardDescription>
+            <CardDescription>All design samples. Hosts see only active ones.</CardDescription>
           </CardHeader>
           <CardContent>
             {samples.length > 0 && (
@@ -98,7 +98,7 @@ export default function GreetingCardSamplesPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search samples (typos OK)"
                   className="pl-9"
-                  aria-label="Search greeting card samples"
+                  aria-label="Search design samples"
                 />
               </div>
             )}
@@ -152,7 +152,7 @@ export default function GreetingCardSamplesPage() {
                         </td>
                         <td className="py-3 pr-4 text-gray-600">{s.created_by_name ?? '—'}</td>
                         <td className="py-3">
-                          <Link href={`/host/templates/greeting-cards/${s.id}/edit`}>
+                          <Link href={`/host/templates/designs/${s.id}/edit`}>
                             <Button variant="outline" size="sm">Edit</Button>
                           </Link>
                         </td>

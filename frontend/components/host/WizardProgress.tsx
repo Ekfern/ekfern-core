@@ -3,9 +3,9 @@
  *
  * Steps:
  *   1. Event Details  (/host/events/new)
- *   2. Greeting Card  (/host/events/[eventId]/card)
+ *   2. Design         (/host/events/[eventId]/design)
  *   3. Layout         (/host/events/[eventId]/layout)
- *   4. Design         (/host/events/[eventId]/design)
+ *   4. Page Editor    (/host/events/[eventId]/page-editor)
  *
  * Completed steps are clickable (navigate) when eventId is provided.
  */
@@ -28,9 +28,9 @@ interface StepDefinition {
 
 const STEPS: StepDefinition[] = [
   { number: 1, label: 'Event Details', href: () => '/host/events/new' },
-  { number: 2, label: 'Greeting Card', href: (id) => `/host/events/${id}/card` },
+  { number: 2, label: 'Design', href: (id) => `/host/events/${id}/design` },
   { number: 3, label: 'Layout', href: (id) => `/host/events/${id}/layout` },
-  { number: 4, label: 'Design', href: (id) => `/host/events/${id}/design` },
+  { number: 4, label: 'Page Editor', href: (id) => `/host/events/${id}/page-editor` },
 ]
 
 type StepState = 'completed' | 'active' | 'future'
