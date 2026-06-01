@@ -10,6 +10,7 @@ import api from '@/lib/api'
 import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 import EnvelopeAnimation from '@/components/invite/EnvelopeAnimation'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
+import ComingSoon from '@/components/invite/ComingSoon'
 
 // Helper for development-only logging
 const isDev = process.env.NODE_ENV === 'development'
@@ -75,6 +76,9 @@ export default function InvitePageClient({
   const [loading, setLoading] = useState(!initialConfig)
   const [subEvents, setSubEvents] = useState<any[]>(allowedSubEvents)
   const [error, setError] = useState<any>(null)
+  // Set when the invite has been pulled back (unpublished). Polling keeps running so
+  // the page automatically flips back to live once the host re-publishes.
+  const [comingSoon, setComingSoon] = useState<{ title?: string; showBranding: boolean } | null>(null)
   
   // DEBUG: Log initial config order when invite page loads
   useEffect(() => {
@@ -149,6 +153,11 @@ export default function InvitePageClient({
       if (isPreview) {
         queryParams.append('preview', 'true')
       }
+      // Cache-busting: this client refetch exists to show the latest published
+      // config. A unique param forces a CloudFront cache MISS so we always read
+      // fresh data from origin (where Django cache is invalidated on save/publish),
+      // instead of up-to-5-min-stale CDN data.
+      queryParams.append('_ts', Date.now().toString())
       const queryString = queryParams.toString()
       
       // ALWAYS use the public invite endpoint with slug (never event ID)
@@ -172,16 +181,9 @@ export default function InvitePageClient({
       })
       
       const apiCallStart = Date.now()
-      // Add cache-busting headers for preview mode to bypass browser/CDN cache
-      // Preview mode should always show latest changes without cache
-      const requestConfig: any = {}
-      if (isPreview) {
-        requestConfig.headers = {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-        }
-      }
-      const response = await api.get(inviteUrl, requestConfig)
+      // Use _ts cache-busting only (no Cache-Control request headers): custom headers
+      // trigger a CORS preflight that fails unless the API allows them explicitly.
+      const response = await api.get(inviteUrl)
       const apiCallEnd = Date.now()
       const inviteData = response.data
       
@@ -191,6 +193,17 @@ export default function InvitePageClient({
         dataSize: JSON.stringify(inviteData).length,
         status: response.status,
       })
+
+      // Invite was pulled back: render the Coming Soon placeholder. Polling keeps
+      // running, so the page recovers automatically once the host re-publishes.
+      if (inviteData && inviteData.status === 'coming_soon') {
+        setComingSoon({ title: inviteData.title, showBranding: inviteData.show_branding !== false })
+        setError(null)
+        setLoading(false)
+        return
+      }
+      // Live again (or normal live page) — clear any prior coming-soon state.
+      setComingSoon(null)
       
       // Extract event data and allowed_sub_events
       const dataProcessingStart = Date.now()
@@ -389,23 +402,16 @@ export default function InvitePageClient({
       elapsedSinceMount: effectStartTime - clientStartTime,
     })
     
-    // If we have initial data from server (either config or event), skip fetching
-    if (initialConfig || initialEvent) {
-      devLog('[InvitePageClient] ✅ CLIENT EFFECT: Skipping fetch (has initial data from SSR)', {
-        slug,
-        hasConfig: !!initialConfig,
-        hasEvent: !!initialEvent,
-        elapsedSinceMount: Date.now() - clientStartTime,
-      })
-      return
-    }
-    
-    devLog('[InvitePageClient] 📡 CLIENT EFFECT: No initial data, triggering client-side fetch', {
+    // Always fetch latest config from API. SSR/ISR may serve stale page_config (revalidate=300)
+    // even after save/publish; background refresh ensures new tiles (e.g. description) appear.
+    devLog('[InvitePageClient] 📡 CLIENT EFFECT: Refreshing invite config from API', {
       slug,
+      hasInitialConfig: !!initialConfig,
+      hasInitialEvent: !!initialEvent,
       elapsedSinceMount: Date.now() - clientStartTime,
     })
     fetchInvite()
-  }, [slug, initialConfig, initialEvent, fetchInvite])
+  }, [slug, fetchInvite])
 
   // Listen for refresh messages using BroadcastChannel (industry standard)
   // This must be after fetchInvite is declared
@@ -547,6 +553,12 @@ export default function InvitePageClient({
       document.documentElement.style.removeProperty('min-height')
     }
   }, [pageBackground, slug, config?.pageBorder?.enabled])
+
+  // Pulled-back invite: show the branded Coming Soon page (polling continues so it
+  // auto-recovers when the host re-publishes).
+  if (comingSoon) {
+    return <ComingSoon title={comingSoon.title} showBranding={comingSoon.showBranding} />
+  }
 
   // Display error
   if (error) {

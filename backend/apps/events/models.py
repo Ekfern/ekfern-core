@@ -396,8 +396,19 @@ class InvitePage(models.Model):
     event = models.OneToOneField(Event, on_delete=models.CASCADE, related_name='invite_page')
     slug = models.SlugField(unique=True, max_length=100, blank=True, help_text="Auto-generated if not provided")
     background_url = models.TextField(blank=True, help_text="Background image URL or data URL")
-    config = models.JSONField(default=dict, help_text="Invite configuration (elements, theme, parallax)")
+    config = models.JSONField(default=dict, help_text="Draft invite configuration (edited in the page editor, auto-saved)")
+    published_config = models.JSONField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Live snapshot served to guests. Copied from config on publish; null until first publish.",
+    )
     is_published = models.BooleanField(default=False, help_text="Whether the invite page is publicly accessible")
+    published_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of the last publish. Retained when pulled back so guests see a Coming Soon page.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -419,6 +430,9 @@ class InvitePage(models.Model):
             return "not_created"
         if self.is_published:
             return "published"
+        # Previously published but pulled back -> guests see a Coming Soon page
+        if self.published_at is not None:
+            return "paused"
         return "draft"
     
     def get_state_display(self) -> str:
@@ -427,6 +441,7 @@ class InvitePage(models.Model):
             "not_created": "Not Created",
             "draft": "Draft",
             "published": "Published",
+            "paused": "Coming Soon",
         }
         return state_map.get(self.state, "Unknown")
     
@@ -1547,6 +1562,14 @@ class InvitePageLayout(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     thumbnail = models.URLField(max_length=2000, blank=True)
+    card_sample = models.ForeignKey(
+        'GreetingCardSample',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='layouts',
+        help_text='Design this layout was created for. Drives design-based layout filtering.',
+    )
     preview_alt = models.CharField(max_length=255, blank=True)
     config = models.JSONField(default=dict, help_text='Full InviteConfig: themeId, tiles, customColors, texture, etc.')
     visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public')
@@ -1596,8 +1619,19 @@ class GreetingCardSample(models.Model):
     at save time — this record is NOT referenced by guest-facing invite rendering.
     """
     name = models.CharField(max_length=200)
+    code = models.CharField(
+        max_length=32,
+        unique=True,
+        blank=True,
+        help_text='Stable human-friendly identifier (e.g. DSGN-0042) used to link layouts to this design.',
+    )
     description = models.TextField(blank=True)
     background_image_url = models.URLField(max_length=500)
+    thumbnail_url = models.URLField(
+        max_length=500,
+        blank=True,
+        help_text='Small derivative (e.g. ~360px wide) used in the catalog grid. Falls back to background_image_url when empty.',
+    )
     text_overlays = models.JSONField(
         default=list,
         help_text='Same shape as ImageTile.settings.textOverlays — placeholder text positioned on the card.',
@@ -1618,6 +1652,12 @@ class GreetingCardSample(models.Model):
     class Meta:
         db_table = 'greeting_card_samples'
         ordering = ['sort_order', '-created_at']
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if not self.code:
+            self.code = f'DSGN-{self.pk:04d}'
+            super().save(update_fields=['code'])
 
     def __str__(self):
         return self.name
@@ -1996,18 +2036,25 @@ def update_counts_on_subevent_save(sender, instance, created, **kwargs):
     - Any field changes (title, location, description, etc.) - invalidates cache
     """
     if instance.event_id:  # Ensure event exists
-        # Always invalidate cache when sub-event is saved (any field change)
-        # This ensures invite page shows updated sub-event details immediately
+        # Touch the InvitePage version (updated_at) so the version-scoped invite
+        # cache key rotates on any sub-event change. This is globally consistent
+        # across all containers (unlike per-container cache.delete with LocMemCache).
+        # We also delete the local key as a best-effort cleanup for this container.
         try:
-            invite_page_slug = InvitePage.objects.filter(event_id=instance.event_id).values_list('slug', flat=True).first()
-            if invite_page_slug:
+            import logging
+            logger = logging.getLogger(__name__)
+            updated = InvitePage.objects.filter(event_id=instance.event_id).update(
+                updated_at=timezone.now()
+            )
+            if updated:
                 from django.core.cache import cache
-                import logging
-                logger = logging.getLogger(__name__)
-                cache_key = f'invite_page:{invite_page_slug}'
-                cache.delete(cache_key)
+                invite_page_slug = InvitePage.objects.filter(
+                    event_id=instance.event_id
+                ).values_list('slug', flat=True).first()
+                if invite_page_slug:
+                    cache.delete(f'invite_page:{invite_page_slug}')
                 logger.info(
-                    f"[Cache] INVALIDATE - slug: {invite_page_slug}, key: {cache_key}, "
+                    f"[Cache] VERSION BUMP - event_id: {instance.event_id}, "
                     f"reason: sub_event_updated (id: {instance.id})"
                 )
         except Exception:
@@ -2027,17 +2074,23 @@ def update_counts_on_subevent_delete(sender, instance, **kwargs):
     # Store event_id before instance is deleted
     event_id = instance.event_id if hasattr(instance, 'event_id') else None
     if event_id:
-        # Invalidate cache when sub-event is deleted
+        # Touch the InvitePage version (updated_at) so the version-scoped invite
+        # cache key rotates on sub-event deletion (globally consistent).
         try:
-            invite_page_slug = InvitePage.objects.filter(event_id=event_id).values_list('slug', flat=True).first()
-            if invite_page_slug:
+            import logging
+            logger = logging.getLogger(__name__)
+            updated = InvitePage.objects.filter(event_id=event_id).update(
+                updated_at=timezone.now()
+            )
+            if updated:
                 from django.core.cache import cache
-                import logging
-                logger = logging.getLogger(__name__)
-                cache_key = f'invite_page:{invite_page_slug}'
-                cache.delete(cache_key)
+                invite_page_slug = InvitePage.objects.filter(
+                    event_id=event_id
+                ).values_list('slug', flat=True).first()
+                if invite_page_slug:
+                    cache.delete(f'invite_page:{invite_page_slug}')
                 logger.info(
-                    f"[Cache] INVALIDATE - slug: {invite_page_slug}, key: {cache_key}, "
+                    f"[Cache] VERSION BUMP - event_id: {event_id}, "
                     f"reason: sub_event_deleted"
                 )
         except Exception:

@@ -454,8 +454,8 @@ def _tile_greeting_card(*, order: int, src: str, overlays: list[dict]) -> dict:
     # titles getting cropped at the sides.
     fit = "cover" if overlays else "contain"
     return {
-        "id": _new_id("tile-greeting-card"),
-        "type": "greeting-card",
+        "id": _new_id("tile-design"),
+        "type": "design",
         "enabled": True,
         "order": order,
         "settings": {

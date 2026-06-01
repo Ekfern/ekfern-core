@@ -17,6 +17,8 @@ interface SortableTileSettingsProps {
   hasRegistry?: boolean
   forceExpanded?: boolean
   isFooter?: boolean
+  /** Highlight that this tile differs from the published version (unpublished change). */
+  isChanged?: boolean
 }
 
 export default function SortableTileSettings({
@@ -29,6 +31,7 @@ export default function SortableTileSettings({
   hasRegistry = false,
   forceExpanded = false,
   isFooter = false,
+  isChanged = false,
 }: SortableTileSettingsProps) {
   const {
     attributes,
@@ -63,6 +66,15 @@ export default function SortableTileSettings({
           >
             <GripVertical className="w-4 h-4 text-gray-400" />
           </div>
+        )}
+        {isChanged && (
+          <span
+            className="absolute right-2 -top-2 z-20 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-semibold text-amber-700 shadow-sm"
+            title="This tile has changes that are not published yet"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            Edited
+          </span>
         )}
         <TileSettings
           tile={tile}

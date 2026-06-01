@@ -53,6 +53,8 @@ export interface InvitePageLayoutResponse {
   name: string
   description?: string
   thumbnail: string
+  card_sample?: number | null
+  card_code?: string | null
   preview_alt?: string
   config: InviteConfig
   visibility?: string
@@ -69,9 +71,15 @@ export interface InvitePageLayoutResponse {
  * Fetch invite page layouts from API (published + public for host library).
  * Returns empty array on failure so static layouts can be used as fallback.
  */
-export async function getInvitePageLayouts(): Promise<InvitePageLayout[]> {
+export async function getInvitePageLayouts(options?: { designCode?: string }): Promise<InvitePageLayout[]> {
   try {
-    const response = await api.get<InvitePageLayoutResponse[] | { results: InvitePageLayoutResponse[] }>('/api/events/invite-page-layouts/')
+    const params: Record<string, string> = {}
+    const designCode = options?.designCode?.trim()
+    if (designCode) params.design_code = designCode
+    const response = await api.get<InvitePageLayoutResponse[] | { results: InvitePageLayoutResponse[] }>(
+      '/api/events/invite-page-layouts/',
+      Object.keys(params).length ? { params } : undefined,
+    )
     const raw = response.data
     const list = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' && Array.isArray((raw as any).results) ? (raw as any).results : [])
     return list.map((item: InvitePageLayoutResponse) => ({
@@ -81,6 +89,7 @@ export async function getInvitePageLayouts(): Promise<InvitePageLayout[]> {
       thumbnail: item.thumbnail || '/invite-templates/minimal.svg',
       previewAlt: item.preview_alt ?? undefined,
       config: item.config,
+      cardCode: item.card_code ?? undefined,
       createdByName: item.created_by_name ?? undefined,
     }))
   } catch {
@@ -91,13 +100,13 @@ export async function getInvitePageLayouts(): Promise<InvitePageLayout[]> {
 /** Fetch all page layouts for Page Layout Studio (staff). */
 export async function getInvitePageLayoutsForStudio(options?: {
   mine?: boolean
-  /** Exact match against saved thumbnail (AI save-for-review uses source card URL here). */
-  cardUrl?: string
+  /** Filter to layouts linked to this design (GreetingCardSample.code). */
+  designCode?: string
 }): Promise<InvitePageLayoutResponse[]> {
   const params: Record<string, string> = {}
   if (options?.mine) params.mine = '1'
-  const c = options?.cardUrl?.trim()
-  if (c) params.card_url = c
+  const c = options?.designCode?.trim()
+  if (c) params.design_code = c
   const response = await api.get<InvitePageLayoutResponse[] | { results: InvitePageLayoutResponse[] }>(
     '/api/events/invite-page-layouts/',
     Object.keys(params).length ? { params } : undefined,
@@ -173,9 +182,13 @@ export interface TextOverlay {
 
 export interface DesignSample {
   id: number
+  /** Stable design code (e.g. DSGN-0042) used to link layouts. */
+  code?: string
   name: string
   description: string
   background_image_url: string
+  /** Small derivative for catalog grids; falls back to background_image_url when empty. */
+  thumbnail_url?: string
   text_overlays: TextOverlay[]
   tags: string[]
   sort_order: number
@@ -186,28 +199,109 @@ export interface DesignSample {
   updated_at?: string
 }
 
-/** Fetch active design samples (all authenticated users) */
+export interface DesignSamplesPage {
+  results: DesignSample[]
+  count: number
+  hasNext: boolean
+}
+
+interface PaginatedDesignSampleResponse {
+  count: number
+  next: string | null
+  previous: string | null
+  results: DesignSample[]
+}
+
+/**
+ * Fetch a single page of design samples with optional server-side search.
+ * The catalog API is paginated (`{count,next,previous,results}`); this is the
+ * preferred fetch for catalog grids that lazy-load.
+ */
+export async function getDesignSamplesPage(options?: {
+  page?: number
+  pageSize?: number
+  q?: string
+  tags?: string
+}): Promise<DesignSamplesPage> {
+  const params: Record<string, string | number> = {}
+  if (options?.page) params.page = options.page
+  if (options?.pageSize) params.page_size = options.pageSize
+  const q = options?.q?.trim()
+  if (q) params.q = q
+  const tags = options?.tags?.trim()
+  if (tags) params.tags = tags
+  try {
+    const response = await api.get<PaginatedDesignSampleResponse | DesignSample[]>(
+      '/api/events/greeting-card-samples/',
+      Object.keys(params).length ? { params } : undefined,
+    )
+    const raw = response.data
+    if (Array.isArray(raw)) {
+      return { results: raw, count: raw.length, hasNext: false }
+    }
+    return {
+      results: raw.results ?? [],
+      count: raw.count ?? (raw.results ?? []).length,
+      hasNext: Boolean(raw.next),
+    }
+  } catch {
+    return { results: [], count: 0, hasNext: false }
+  }
+}
+
+/** Follow pagination to load every page (used where the full list is required). */
+async function getAllDesignSamples(): Promise<DesignSample[]> {
+  const all: DesignSample[] = []
+  let page = 1
+  // Cap iterations defensively so a misbehaving API can't loop forever.
+  for (let i = 0; i < 200; i++) {
+    const { results, hasNext } = await getDesignSamplesPage({ page, pageSize: 60 })
+    all.push(...results)
+    if (!hasNext || results.length === 0) break
+    page += 1
+  }
+  return all
+}
+
+/** Fetch active design samples (all authenticated users). Loads the full list. */
 export async function getDesignSamples(): Promise<DesignSample[]> {
   try {
-    const response = await api.get<DesignSample[] | { results: DesignSample[] }>('/api/events/greeting-card-samples/')
-    const raw = response.data
-    return Array.isArray(raw) ? raw : ((raw as any).results ?? [])
+    return await getAllDesignSamples()
   } catch {
     return []
   }
 }
 
-/** Fetch all design samples for staff (includes inactive) */
+/** Fetch all design samples for staff (includes inactive). Loads the full list. */
 export async function getDesignSamplesForStudio(): Promise<DesignSample[]> {
-  const response = await api.get<DesignSample[] | { results: DesignSample[] }>('/api/events/greeting-card-samples/')
-  const raw = response.data
-  return Array.isArray(raw) ? raw : ((raw as any).results ?? [])
+  return getAllDesignSamples()
 }
 
 /** Fetch one design sample by id */
 export async function getDesignSample(id: number): Promise<DesignSample> {
   const response = await api.get<DesignSample>(`/api/events/greeting-card-samples/${id}/`)
   return response.data
+}
+
+/**
+ * Resolve a design sample by its exact background image URL. Used only to
+ * hydrate the stable design code for selections saved before codes existed
+ * (back-compat); returns null when no catalog design matches the URL.
+ */
+export async function getDesignSampleByBackgroundUrl(bgUrl: string): Promise<DesignSample | null> {
+  const url = bgUrl?.trim()
+  if (!url) return null
+  try {
+    const response = await api.get<PaginatedDesignSampleResponse | DesignSample[]>(
+      '/api/events/greeting-card-samples/',
+      { params: { background_url: url, page_size: 1 } },
+    )
+    const raw = response.data
+    const results = Array.isArray(raw) ? raw : (raw.results ?? [])
+    return results[0] ?? null
+  } catch {
+    return null
+  }
 }
 
 /** Create design sample (staff only) */
@@ -227,14 +321,27 @@ export async function deleteDesignSample(id: number): Promise<void> {
   await api.delete(`/api/events/greeting-card-samples/${id}/`)
 }
 
-/** Upload a background image for a design sample (staff only) */
-export async function uploadDesignImage(file: File): Promise<string> {
+export interface DesignImageUploadResult {
+  url: string
+  thumbnail_url: string
+}
+
+/**
+ * Upload a background image for a design sample (staff only).
+ * Returns both the full image URL and the generated thumbnail URL
+ * (`thumbnail_url` may be empty when a thumbnail couldn't be generated).
+ */
+export async function uploadDesignImage(file: File): Promise<DesignImageUploadResult> {
   const formData = new FormData()
   formData.append('image', file)
-  const response = await api.post<{ url: string }>('/api/events/greeting-card-samples/upload-image/', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  if (response.data.url) return response.data.url
+  const response = await api.post<{ url: string; thumbnail_url?: string }>(
+    '/api/events/greeting-card-samples/upload-image/',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+  if (response.data.url) {
+    return { url: response.data.url, thumbnail_url: response.data.thumbnail_url ?? '' }
+  }
   throw new Error('Upload failed')
 }
 

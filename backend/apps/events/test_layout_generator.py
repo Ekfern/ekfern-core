@@ -29,7 +29,7 @@ from apps.events.services import layout_generator, recipes, style_presets, textu
 VALID_TILE_TYPES = {
     "title",
     "image",
-    "greeting-card",
+    "design",
     "timer",
     "event-details",
     "description",
@@ -383,8 +383,8 @@ class ComposeConfigTests(TestCase):
             preset=self.preset,
             copy=self.copy,
         )
-        # find the greeting-card tile and verify overlays were attached
-        gc_tiles = [t for t in config["tiles"] if t["type"] == "greeting-card"]
+        # find the design (card) tile and verify overlays were attached
+        gc_tiles = [t for t in config["tiles"] if t["type"] == "design"]
         self.assertEqual(len(gc_tiles), 1)
         overlays = gc_tiles[0]["settings"].get("textOverlays") or []
         self.assertTrue(overlays, "full_overlay recipe should produce overlays")
@@ -404,7 +404,7 @@ class ComposeConfigTests(TestCase):
             preset=self.preset,
             copy=self.copy,
         )
-        gc_tiles = [t for t in config["tiles"] if t["type"] == "greeting-card"]
+        gc_tiles = [t for t in config["tiles"] if t["type"] == "design"]
         self.assertEqual(len(gc_tiles), 1)
         self.assertEqual(gc_tiles[0]["settings"].get("textOverlays") or [], [])
 

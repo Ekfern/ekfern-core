@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { unstable_noStore } from 'next/cache'
 import React from 'react'
 import InvitePageClient from './InvitePageClient'
+import ComingSoon from '@/components/invite/ComingSoon'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { getTheme } from '@/lib/invite/themes'
@@ -15,10 +16,11 @@ import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import http from 'http'
 import https from 'https'
 
-// ISR: Revalidate every 5 minutes (300 seconds) for public pages
-// Combined with on-demand invalidation, this provides good balance
-// Preview mode will bypass cache via fetch options in fetchInviteData
-export const revalidate = 300
+// ISR: Revalidate every 60 seconds for public pages so freshly published
+// changes appear quickly on first paint. The client-side refresh in
+// InvitePageClient then pulls the very latest config (cache-busted) within ~1s.
+// Preview mode bypasses cache entirely via fetch options in fetchInviteData.
+export const revalidate = 60
 
 // Helper for development-only logging
 const isDev = process.env.NODE_ENV === 'development'
@@ -671,6 +673,16 @@ export async function generateMetadata({
       inviteDataFound: !!inviteData,
     })
 
+  // Pulled-back (unpublished) invite pages render a Coming Soon placeholder and
+  // must never be indexed.
+  if (inviteData && inviteData.status === 'coming_soon') {
+    return {
+      title: 'Coming soon',
+      description: 'This invitation will be available soon.',
+      robots: { index: false, follow: false },
+    }
+  }
+
   // Get frontend URL for absolute URL conversion
   const frontendUrl = getFrontendUrl()
   const baseUrl = frontendUrl.replace('/api', '')
@@ -963,6 +975,19 @@ export default async function InvitePage({
     }
     
     
+    // Pulled-back (unpublished) page: the backend returns 200 with a coming_soon
+    // status instead of a 404. Render the branded placeholder. The client keeps
+    // polling so the page flips back to live automatically on re-publish.
+    if (inviteData && inviteData.status === 'coming_soon') {
+      tracker?.step('COMING_SOON', 'Rendering Coming Soon placeholder')
+      return (
+        <ComingSoon
+          title={inviteData.title}
+          showBranding={inviteData.show_branding !== false}
+        />
+      )
+    }
+
     // STEP 4: Data Processing - Transform invite data to event format
     tracker?.step('DATA_PROCESSING_START', 'Processing and transforming data')
     let event: Event | null = null

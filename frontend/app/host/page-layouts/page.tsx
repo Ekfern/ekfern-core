@@ -30,22 +30,22 @@ export default function PageLayoutStudioListPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const cardUrlRaw = searchParams.get('card_url')
-  /** Canonical filter from URL (Save-for-review navigates here with ?card_url=…) */
-  const cardUrlFilter = useMemo(() => (cardUrlRaw ?? '').trim(), [cardUrlRaw])
+  const designCodeRaw = searchParams.get('design_code')
+  /** Canonical filter from URL (Save-for-review navigates here with ?design_code=…) */
+  const designCodeFilter = useMemo(() => (designCodeRaw ?? '').trim(), [designCodeRaw])
   const [layouts, setLayouts] = useState<InvitePageLayoutResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [isStaff, setIsStaff] = useState<boolean | null>(null)
   const [canUseLlm, setCanUseLlm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [cardUrlInput, setCardUrlInput] = useState('')
+  const [designCodeInput, setDesignCodeInput] = useState('')
 
-  const syncUrlCardParam = useCallback(
+  const syncUrlDesignParam = useCallback(
     (value: string) => {
       const sp = new URLSearchParams(searchParams.toString())
       const v = value.trim()
-      if (v) sp.set('card_url', v)
-      else sp.delete('card_url')
+      if (v) sp.set('design_code', v)
+      else sp.delete('design_code')
       const qs = sp.toString()
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
@@ -53,8 +53,8 @@ export default function PageLayoutStudioListPage() {
   )
 
   useEffect(() => {
-    setCardUrlInput(cardUrlFilter)
-  }, [cardUrlFilter])
+    setDesignCodeInput(designCodeFilter)
+  }, [designCodeFilter])
 
   const filteredLayouts = useMemo(
     () =>
@@ -90,7 +90,7 @@ export default function PageLayoutStudioListPage() {
           return
         }
         const list = await getInvitePageLayoutsForStudio({
-          cardUrl: cardUrlFilter || undefined,
+          designCode: designCodeFilter || undefined,
         })
         if (cancelled) return
         setLayouts(list)
@@ -114,16 +114,16 @@ export default function PageLayoutStudioListPage() {
     return () => {
       cancelled = true
     }
-  }, [router, cardUrlFilter])
+  }, [router, designCodeFilter])
 
-  const applyCardUrlFilter = () => {
-    const v = cardUrlInput.trim()
-    syncUrlCardParam(v)
+  const applyDesignCodeFilter = () => {
+    const v = designCodeInput.trim()
+    syncUrlDesignParam(v)
   }
 
-  const clearCardUrlFilter = () => {
-    setCardUrlInput('')
-    syncUrlCardParam('')
+  const clearDesignCodeFilter = () => {
+    setDesignCodeInput('')
+    syncUrlDesignParam('')
   }
 
   if (loading || isStaff === null) {
@@ -171,12 +171,12 @@ export default function PageLayoutStudioListPage() {
           <CardHeader>
             <CardTitle>Page Layouts</CardTitle>
             <CardDescription>
-              All invite page layouts. Filter by pasted greeting-card image URL to match layouts whose
-              stored thumbnail equals that URL (same value used when saving AI previews for review).
-              {cardUrlFilter ? (
+              All invite page layouts. Filter by design code to see only the layouts linked to that
+              design (same code used when saving AI previews for review).
+              {designCodeFilter ? (
                 <span className="block mt-2 text-eco-green font-medium">
-                  You opened this list with a greeting-card filter — only matching layouts are loaded
-                  from the server (plus your text search below).
+                  You opened this list with a design filter — only layouts linked to design{' '}
+                  <strong>{designCodeFilter}</strong> are loaded from the server (plus your text search below).
                 </span>
               ) : null}
             </CardDescription>
@@ -192,49 +192,48 @@ export default function PageLayoutStudioListPage() {
                   placeholder="Search page layouts (typos OK)"
                   className="pl-9"
                   aria-label="Search page layouts"
-                  disabled={layouts.length === 0 && !cardUrlFilter}
+                  disabled={layouts.length === 0 && !designCodeFilter}
                 />
               </div>
               <div className="flex flex-wrap items-end gap-2">
                 <div className="flex flex-col gap-1 min-w-[min(100%,280px)] flex-1 max-w-xl">
-                  <label htmlFor="studio-card-url-filter" className="text-xs text-gray-600 flex items-center gap-1">
+                  <label htmlFor="studio-design-code-filter" className="text-xs text-gray-600 flex items-center gap-1">
                     <Filter className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                    Greeting card image URL
+                    Design code
                   </label>
                   <Input
-                    id="studio-card-url-filter"
-                    type="url"
-                    value={cardUrlInput}
-                    onChange={(e) => setCardUrlInput(e.target.value)}
-                    placeholder="https://… (exact match vs. layout thumbnail)"
+                    id="studio-design-code-filter"
+                    type="text"
+                    value={designCodeInput}
+                    onChange={(e) => setDesignCodeInput(e.target.value)}
+                    placeholder="e.g. DSGN-0042"
                     className="font-mono text-xs"
                   />
                 </div>
-                <Button type="button" onClick={applyCardUrlFilter}>
+                <Button type="button" onClick={applyDesignCodeFilter}>
                   Apply filter
                 </Button>
-                {cardUrlFilter ? (
-                  <Button type="button" variant="outline" onClick={clearCardUrlFilter}>
+                {designCodeFilter ? (
+                  <Button type="button" variant="outline" onClick={clearDesignCodeFilter}>
                     Clear
                   </Button>
                 ) : null}
               </div>
-              {cardUrlFilter ? (
+              {designCodeFilter ? (
                 <p className="text-xs text-gray-600 max-w-xl">
-                  Showing layouts where <strong>thumbnail</strong> matches this URL (with minor http/https /
-                  slash variants). Rows edited to use a different thumbnail will not appear unless the
-                  URL still matches.
+                  Showing layouts linked to design <strong>{designCodeFilter}</strong>. Layouts created
+                  for a different design will not appear unless re-linked.
                 </p>
               ) : null}
             </div>
-            {!loading && layouts.length === 0 && !cardUrlFilter ? (
+            {!loading && layouts.length === 0 && !designCodeFilter ? (
               <p className="text-gray-500 py-8 text-center">
                 No layouts yet. Create one with &quot;New page layout&quot;.
               </p>
-            ) : !loading && layouts.length === 0 && cardUrlFilter ? (
+            ) : !loading && layouts.length === 0 && designCodeFilter ? (
               <p className="text-gray-500 py-8 text-center">
-                No layouts with this thumbnail URL. Copy the exact image URL from AI generation /
-                save-for-review, or clear the filter to see everything.
+                No layouts linked to design {designCodeFilter}. Generate layouts for this design, or
+                clear the filter to see everything.
               </p>
             ) : filteredLayouts.length === 0 ? (
               <p className="text-gray-500 py-8 text-center">No page layouts match your search.</p>

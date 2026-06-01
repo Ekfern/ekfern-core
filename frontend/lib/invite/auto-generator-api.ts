@@ -175,6 +175,8 @@ export interface SaveReviewDraftsResponse {
   saved: GenerateLayoutDraft[]
   count: number
   request_id: string
+  /** Stable design code the saved layouts were linked to (GreetingCardSample.code). */
+  design_code?: string | null
 }
 
 /** Persist selected ephemeral AI previews as internal drafts in the Studio list */

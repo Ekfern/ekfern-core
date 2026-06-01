@@ -1,17 +1,18 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import api, { uploadImage } from '@/lib/api'
-import { getInvitePage, updateInvitePage, createInvitePage, getDesignSamples, type DesignSample } from '@/lib/invite/api'
+import { updateInvitePage, createInvitePage, getInvitePage, type DesignSample } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import type { ImageTileSettings, DesignTileSettings } from '@/lib/invite/schema'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import WizardProgress from '@/components/host/WizardProgress'
 import { logError } from '@/lib/error-handler'
 import { Input } from '@/components/ui/input'
-import { fuzzyFilter } from '@/lib/fuzzyFilter'
+import DesignCatalogGrid, { useDesignCatalog } from '@/components/invite/DesignCatalogGrid'
+import { loadSelectedDesignContext, saveSelectedDesignContext } from '@/lib/invite/designContext'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -156,9 +157,9 @@ interface BgModalProps {
 
 function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, onUploadClick }: BgModalProps): React.ReactElement {
   const [activeTab, setActiveTab] = useState<'samples' | 'gradients' | 'gifs'>('samples')
-  const [samples, setSamples] = useState<DesignSample[]>([])
-  const [loadingSamples, setLoadingSamples] = useState(false)
   const [sampleSearch, setSampleSearch] = useState('')
+
+  const catalog = useDesignCatalog({ enabled: activeTab === 'samples', q: sampleSearch })
 
   const parsedGrad = React.useMemo(() => parseLinearGradient(currentGradient), [currentGradient])
   const [gradAngle, setGradAngle] = useState(parsedGrad.angle)
@@ -168,20 +169,6 @@ function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, o
   function applyCustomGradient(angle: string, c1: string, c2: string) {
     onSelectGradient(`linear-gradient(${angle}, ${c1}, ${c2})`)
   }
-
-  // Fetch samples when tab is shown
-  React.useEffect(() => {
-    if (activeTab !== 'samples') return
-    setLoadingSamples(true)
-    getDesignSamples()
-      .then(setSamples)
-      .finally(() => setLoadingSamples(false))
-  }, [activeTab])
-
-  const filteredSamples = useMemo(
-    () => fuzzyFilter(samples, sampleSearch, ['name', 'description', 'tags']),
-    [samples, sampleSearch]
-  )
 
   const TABS = [
     { id: 'samples' as const, label: 'Samples' },
@@ -231,60 +218,35 @@ function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, o
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'samples' && (
-            loadingSamples ? (
-              <div className="flex items-center justify-center h-40">
-                <p className="text-gray-400 text-sm">Loading samples…</p>
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
+                <Input
+                  type="search"
+                  value={sampleSearch}
+                  onChange={(e) => setSampleSearch(e.target.value)}
+                  placeholder="Search samples"
+                  className="pl-9 h-9 text-sm"
+                  aria-label="Search background samples"
+                />
               </div>
-            ) : samples.length === 0 ? (
-              <div className="flex items-center justify-center h-40 text-center">
-                <p className="text-gray-500 text-sm leading-relaxed">
-                  No samples available yet. Upload your own background using &quot;Upload Background&quot;.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
-                  <Input
-                    type="search"
-                    value={sampleSearch}
-                    onChange={(e) => setSampleSearch(e.target.value)}
-                    placeholder="Search samples (typos OK)"
-                    className="pl-9 h-9 text-sm"
-                    aria-label="Search background samples"
-                  />
-                </div>
-                {filteredSamples.length === 0 ? (
-                  <p className="text-center text-gray-500 text-sm py-6">No samples match your search.</p>
-                ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {filteredSamples.map((sample) => (
-                  <button
-                    key={sample.id}
-                    onClick={() => onSelectSample(sample)}
-                    className="group flex flex-col rounded-xl overflow-hidden border-2 border-transparent hover:border-blue-400 transition-all shadow-sm hover:shadow-md"
-                    aria-label={`Select ${sample.name}`}
-                  >
-                    <div className="w-full bg-gray-100 overflow-hidden" style={{ aspectRatio: '9 / 16' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={sample.background_image_url}
-                        alt={sample.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                      />
-                    </div>
-                    <div className="px-2 py-2 bg-white text-left">
-                      <p className="text-xs font-medium text-gray-800 truncate">{sample.name}</p>
-                      {sample.description && (
-                        <p className="text-xs text-gray-400 truncate mt-0.5">{sample.description}</p>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-                )}
-              </div>
-            )
+              <DesignCatalogGrid
+                items={catalog.items}
+                loading={catalog.loading}
+                loadingMore={catalog.loadingMore}
+                error={catalog.error}
+                hasNext={catalog.hasNext}
+                onSelect={onSelectSample}
+                onLoadMore={catalog.loadMore}
+                onRetry={catalog.reload}
+                gridClassName="grid grid-cols-2 gap-4"
+                skeletonCount={6}
+                emptyMessage={sampleSearch.trim() ? 'No samples match your search.' : 'No samples available yet. Upload your own background using “Upload Background”.'}
+                renderMeta={(sample) => sample.description ? (
+                  <p className="text-xs text-gray-400 truncate mt-0.5">{sample.description}</p>
+                ) : null}
+              />
+            </div>
           )}
 
           {activeTab === 'gradients' && (
@@ -401,10 +363,15 @@ export default function DesignPage(): React.ReactElement {
   const [showBgModal, setShowBgModal] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [hasSelectedBackground, setHasSelectedBackground] = useState(false)
   const [fontSizeInput, setFontSizeInput] = useState<string>('')
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [userHasEditedText, setUserHasEditedText] = useState(false)
   const [pendingSample, setPendingSample] = useState<DesignSample | null>(null)
+  const [sampleSearch, setSampleSearch] = useState('')
+
+  // Phase-1 background catalog (paginated + server-searched, only while choosing).
+  const catalog = useDesignCatalog({ enabled: !hasSelectedBackground, q: sampleSearch })
 
   // Refs for auto-save concurrency control
   const isSavingRef = useRef(false)
@@ -431,24 +398,39 @@ export default function DesignPage(): React.ReactElement {
         setBgGradient(gcSettings!.backgroundGradient ?? GRADIENT_PRESETS[0]!.value)
         setTextBoxes((gcSettings!.textOverlays ?? []) as TextBox[])
         setUserHasEditedText(true)
+        setHasSelectedBackground(true)
+        saveSelectedDesignContext({
+          eventId,
+          sourceType: gcSettings?.src ? 'sample' : 'gradient',
+          bgUrl: gcSettings?.src,
+          bgGradient: gcSettings?.backgroundGradient,
+          textOverlays: (gcSettings?.textOverlays ?? []) as TextBox[],
+          selectedAt: new Date().toISOString(),
+        })
         return
       }
 
       // Fall back to localStorage (same-device fast restore)
+      const savedContext = loadSelectedDesignContext(eventId)
       const savedBg = localStorage.getItem(`card-bg-${eventId}`)
       const savedGradient = localStorage.getItem(`card-gradient-${eventId}`)
       const savedBoxes = localStorage.getItem(`card-textboxes-${eventId}`)
 
-      if (savedBg) {
-        setBgUrl(savedBg)
+      if (savedContext?.bgUrl || savedBg) {
+        setBgUrl(savedContext?.bgUrl ?? savedBg)
         setBgGradient(GRADIENT_PRESETS[0]!.value)
-      } else if (savedGradient) {
-        setBgGradient(savedGradient)
+        setHasSelectedBackground(true)
+      } else if (savedContext?.bgGradient || savedGradient) {
+        setBgGradient(savedContext?.bgGradient ?? savedGradient ?? GRADIENT_PRESETS[0]!.value)
+        setHasSelectedBackground(true)
+      } else {
+        setHasSelectedBackground(false)
       }
 
-      if (savedBoxes) {
+      const savedBoxesRaw = savedContext?.textOverlays ? JSON.stringify(savedContext.textOverlays) : savedBoxes
+      if (savedBoxesRaw) {
         try {
-          setTextBoxes(JSON.parse(savedBoxes) as TextBox[])
+          setTextBoxes(JSON.parse(savedBoxesRaw) as TextBox[])
           setUserHasEditedText(true)
         } catch {
           setTextBoxes(buildInitialBoxes(data.title, data.event_type))
@@ -466,6 +448,14 @@ export default function DesignPage(): React.ReactElement {
     if (!eventId || isNaN(eventId) || textBoxes.length === 0) return
     const timer = setTimeout(() => {
       localStorage.setItem(`card-textboxes-${eventId}`, JSON.stringify(textBoxes))
+      const previous = loadSelectedDesignContext(eventId)
+      if (previous) {
+        saveSelectedDesignContext({
+          ...previous,
+          textOverlays: textBoxes,
+          selectedAt: new Date().toISOString(),
+        })
+      }
     }, 500)
     return () => clearTimeout(timer)
   }, [textBoxes, eventId])
@@ -578,6 +568,46 @@ export default function DesignPage(): React.ReactElement {
     setSelectedId(newBox.id)
   }
 
+  function applySampleBackground(sample: DesignSample): void {
+    hasUserEditedRef.current = true
+    setHasSelectedBackground(true)
+    setBgUrl(sample.background_image_url)
+    setBgGradient(GRADIENT_PRESETS[0]!.value)
+    localStorage.setItem(`card-bg-${eventId}`, sample.background_image_url)
+    localStorage.removeItem(`card-gradient-${eventId}`)
+    saveSelectedDesignContext({
+      eventId,
+      sourceType: 'sample',
+      sampleId: sample.id,
+      sampleCode: sample.code,
+      sampleName: sample.name,
+      sampleTags: sample.tags,
+      bgUrl: sample.background_image_url,
+      // Keep current overlays unless user explicitly chooses sample overlays.
+      textOverlays: textBoxesRef.current,
+      selectedAt: new Date().toISOString(),
+    })
+    if (sample.text_overlays && sample.text_overlays.length > 0) {
+      if (userHasEditedText) {
+        setPendingSample(sample)
+      } else {
+        setTextBoxes(sample.text_overlays as TextBox[])
+        setUserHasEditedText(false)
+        saveSelectedDesignContext({
+          eventId,
+          sourceType: 'sample',
+          sampleId: sample.id,
+          sampleCode: sample.code,
+          sampleName: sample.name,
+          sampleTags: sample.tags,
+          bgUrl: sample.background_image_url,
+          textOverlays: sample.text_overlays as TextBox[],
+          selectedAt: new Date().toISOString(),
+        })
+      }
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Drag handlers (pointer events on canvas container)
   // -------------------------------------------------------------------------
@@ -647,11 +677,20 @@ export default function DesignPage(): React.ReactElement {
     setUploading(true)
     try {
       const url = await uploadImage(file, eventId)
+      const sourceType = file.type === 'image/gif' ? 'gif' : 'upload'
       hasUserEditedRef.current = true
+      setHasSelectedBackground(true)
       setBgUrl(url)
       setBgGradient(GRADIENT_PRESETS[0]!.value)
       localStorage.setItem(`card-bg-${eventId}`, url)
       localStorage.removeItem(`card-gradient-${eventId}`)
+      saveSelectedDesignContext({
+        eventId,
+        sourceType,
+        bgUrl: url,
+        textOverlays: textBoxesRef.current,
+        selectedAt: new Date().toISOString(),
+      })
     } catch (err: unknown) {
       logError('DesignPage: upload failed', err)
       alert('Upload failed. Please try again.')
@@ -803,6 +842,153 @@ export default function DesignPage(): React.ReactElement {
     )
   }
 
+  if (!hasSelectedBackground) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&display=swap');` }} />
+        <WizardProgress currentStep={2} eventId={eventId} />
+
+        <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-5">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Choose your background</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Pick one background source first. Once selected, the text editing canvas will open.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  hasUserEditedRef.current = true
+                  setBgUrl(null)
+                  setBgGradient(GRADIENT_PRESETS[0]!.value)
+                  setHasSelectedBackground(true)
+                  localStorage.setItem(`card-gradient-${eventId}`, GRADIENT_PRESETS[0]!.value)
+                  localStorage.removeItem(`card-bg-${eventId}`)
+                  saveSelectedDesignContext({
+                    eventId,
+                    sourceType: 'gradient',
+                    bgGradient: GRADIENT_PRESETS[0]!.value,
+                    textOverlays: textBoxesRef.current,
+                    selectedAt: new Date().toISOString(),
+                  })
+                }}
+                className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Use Gradient
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {uploading ? 'Uploading…' : 'Upload Background / GIF'}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/host/events/${eventId}/layout`)}
+                className="ml-auto px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Skip Design
+              </button>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void handleUpload(file)
+              }}
+            />
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-sm font-semibold text-gray-800">Ekfern Background Catalog</h2>
+              <span className="text-xs text-gray-500">Select one to continue to text editing</span>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
+              <Input
+                type="search"
+                value={sampleSearch}
+                onChange={(e) => setSampleSearch(e.target.value)}
+                placeholder="Search design backgrounds (typos OK)"
+                className="pl-9 h-9 text-sm"
+                aria-label="Search design backgrounds"
+              />
+            </div>
+            <DesignCatalogGrid
+              items={catalog.items}
+              loading={catalog.loading}
+              loadingMore={catalog.loadingMore}
+              error={catalog.error}
+              hasNext={catalog.hasNext}
+              onSelect={applySampleBackground}
+              onLoadMore={catalog.loadMore}
+              onRetry={catalog.reload}
+            />
+          </div>
+        </div>
+
+        {pendingSample && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
+              <h3 className="text-base font-semibold text-gray-800">Replace your text?</h3>
+              <p className="text-sm text-gray-500">
+                This sample comes with its own text layout. Do you want to keep the text you've written or use the sample's text?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleCode: pendingSample.code,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: textBoxesRef.current,
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Keep my text
+                </button>
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+                  onClick={() => {
+                    setTextBoxes(pendingSample.text_overlays as TextBox[])
+                    setUserHasEditedText(false)
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleCode: pendingSample.code,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: pendingSample.text_overlays as TextBox[],
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Use sample text
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -821,18 +1007,17 @@ export default function DesignPage(): React.ReactElement {
         {/* Row 1: background controls */}
         <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setShowBgModal(true)}
+            onClick={() => setHasSelectedBackground(false)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
           >
-            Select Background
+            Change Background
           </button>
 
           <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            onClick={() => setShowBgModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
           >
-            {uploading ? 'Uploading…' : 'Upload Background'}
+            Advanced Background Tools
           </button>
 
           <input
@@ -1231,16 +1416,16 @@ export default function DesignPage(): React.ReactElement {
         <button
           type="button"
           onClick={() => router.push(`/host/events/${eventId}/layout`)}
-          className="ml-auto text-sm text-gray-500 hover:text-blue-600 underline underline-offset-2 transition-colors"
+          className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
-          Skip for now
+          Skip Design
         </button>
 
         <button
           type="button"
           onClick={() => void handleNext()}
           disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
+          className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
         >
           {saving ? 'Saving…' : 'Next: Choose Layout'}
         </button>
@@ -1259,7 +1444,19 @@ export default function DesignPage(): React.ReactElement {
             <div className="flex gap-3">
               <button
                 className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                onClick={() => setPendingSample(null)}
+                onClick={() => {
+                  saveSelectedDesignContext({
+                    eventId,
+                    sourceType: 'sample',
+                    sampleId: pendingSample.id,
+                    sampleName: pendingSample.name,
+                    sampleTags: pendingSample.tags,
+                    bgUrl: pendingSample.background_image_url,
+                    textOverlays: textBoxesRef.current,
+                    selectedAt: new Date().toISOString(),
+                  })
+                  setPendingSample(null)
+                }}
               >
                 Keep my text
               </button>
@@ -1268,6 +1465,16 @@ export default function DesignPage(): React.ReactElement {
                 onClick={() => {
                   setTextBoxes(pendingSample.text_overlays as TextBox[])
                   setUserHasEditedText(false)
+                  saveSelectedDesignContext({
+                    eventId,
+                    sourceType: 'sample',
+                    sampleId: pendingSample.id,
+                    sampleName: pendingSample.name,
+                    sampleTags: pendingSample.tags,
+                    bgUrl: pendingSample.background_image_url,
+                    textOverlays: pendingSample.text_overlays as TextBox[],
+                    selectedAt: new Date().toISOString(),
+                  })
                   setPendingSample(null)
                 }}
               >
@@ -1288,27 +1495,23 @@ export default function DesignPage(): React.ReactElement {
           onUploadClick={() => fileInputRef.current?.click()}
           onSelectGradient={(gradient) => {
             hasUserEditedRef.current = true
+            setHasSelectedBackground(true)
             setBgGradient(gradient)
             setBgUrl(null)
             localStorage.setItem(`card-gradient-${eventId}`, gradient)
             localStorage.removeItem(`card-bg-${eventId}`)
+            saveSelectedDesignContext({
+              eventId,
+              sourceType: 'gradient',
+              bgGradient: gradient,
+              textOverlays: textBoxesRef.current,
+              selectedAt: new Date().toISOString(),
+            })
             setShowBgModal(false)
           }}
           onSelectSample={(sample) => {
-            hasUserEditedRef.current = true
-            setBgUrl(sample.background_image_url)
-            setBgGradient(GRADIENT_PRESETS[0]!.value)
-            localStorage.setItem(`card-bg-${eventId}`, sample.background_image_url)
-            localStorage.removeItem(`card-gradient-${eventId}`)
+            applySampleBackground(sample)
             setShowBgModal(false)
-            if (sample.text_overlays && sample.text_overlays.length > 0) {
-              if (userHasEditedText) {
-                setPendingSample(sample)
-              } else {
-                setTextBoxes(sample.text_overlays as TextBox[])
-                setUserHasEditedText(false)
-              }
-            }
           }}
         />
       )}

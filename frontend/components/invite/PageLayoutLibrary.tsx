@@ -35,6 +35,16 @@ export interface PageLayoutLibraryProps {
   onCancel?: () => void
   onBlankCanvas?: () => void
   selectedId?: string
+  /**
+   * True when the parent has narrowed the layouts to a selected design (via
+   * the design_code server filter). Drives the "no layouts for this design"
+   * empty state and its "Show all layouts" action.
+   */
+  designFilterActive?: boolean
+  onShowAllLayouts?: () => void
+  /** Mechanical starters when no staff layouts match the selected design. */
+  starterLayouts?: InvitePageLayout[]
+  showStarters?: boolean
 }
 
 function ThumbnailFallback({
@@ -147,6 +157,10 @@ export default function PageLayoutLibrary({
   onCancel,
   onBlankCanvas,
   selectedId,
+  designFilterActive = false,
+  onShowAllLayouts,
+  starterLayouts = [],
+  showStarters = false,
 }: PageLayoutLibraryProps): React.ReactElement {
   const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({})
   const [failedPreviewIds, setFailedPreviewIds] = useState<Record<string, boolean>>({})
@@ -157,6 +171,7 @@ export default function PageLayoutLibrary({
     []
   )
 
+  // Free-text fuzzy search over the (already design-filtered) set of layouts.
   const filteredLayouts = useMemo(
     () =>
       fuzzyFilter(layouts, searchQuery, [
@@ -168,8 +183,90 @@ export default function PageLayoutLibrary({
     [layouts, searchQuery]
   )
 
+  const filteredStarters = useMemo(
+    () =>
+      fuzzyFilter(starterLayouts, searchQuery, ['name', 'description', 'previewAlt']),
+    [starterLayouts, searchQuery]
+  )
+
+  function renderLayoutCard(layout: InvitePageLayout): React.ReactElement {
+    return (
+      <Card
+        key={layout.id}
+        role="button"
+        tabIndex={0}
+        aria-label={`Select ${layout.name} page layout`}
+        className={`cursor-pointer transition-all duration-200 hover:shadow-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-eco-green focus:ring-offset-2 rounded-xl bg-white ${selectedId === layout.id ? 'border-2 border-eco-green shadow-xl ring-2 ring-eco-green ring-offset-2' : 'border border-gray-200 hover:border-eco-green'}`}
+        onClick={() => onSelect(layout.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect(layout.id)
+          }
+        }}
+      >
+        <div
+          className="relative w-full aspect-[9/16] overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4"
+          aria-label={layout.previewAlt || `${layout.name} invitation preview`}
+        >
+          <div className="w-full max-w-[200px] mx-auto aspect-[9/16] rounded-xl shadow-xl overflow-hidden border border-gray-200/90 bg-white ring-1 ring-black/5">
+            <CardPreviewContent
+              layout={layout}
+              failedImageIds={failedImageIds}
+              setFailedImageIds={setFailedImageIds}
+              failedPreviewIds={failedPreviewIds}
+              setFailedPreviewIds={setFailedPreviewIds}
+              imageFallbackLabel={imageFallbackLabel}
+            />
+          </div>
+        </div>
+        <CardHeader className="pb-2 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle className="text-xl font-semibold text-gray-900">{layout.name}</CardTitle>
+            {layout.isStarter && (
+              <span className="inline-flex items-center rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
+                Starter
+              </span>
+            )}
+          </div>
+          {layout.description && (
+            <CardDescription className="text-sm text-gray-600 mt-0.5 leading-snug">
+              {layout.description}
+            </CardDescription>
+          )}
+          {layout.createdByName && (
+            <p className="text-xs text-gray-500 mt-1.5">By {layout.createdByName}</p>
+          )}
+        </CardHeader>
+        <CardContent className="pt-0 pb-5">
+          <Button
+            type="button"
+            size="sm"
+            className={`w-full font-medium rounded-lg py-2 transition-colors ${
+              selectedId === layout.id
+                ? 'bg-eco-green text-white border-2 border-eco-green'
+                : 'border-2 border-eco-green text-eco-green bg-white hover:bg-eco-green hover:text-white'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect(layout.id)
+            }}
+          >
+            {selectedId === layout.id ? '✓ Selected' : 'Select'}
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-6">
+      {showStarters && (
+        <p className="text-sm text-gray-600">
+          No custom layouts for this design yet. Start with one of these — colors match your
+          background.
+        </p>
+      )}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
         <Input
@@ -222,71 +319,30 @@ export default function PageLayoutLibrary({
             </div>
           </div>
         )}
+        {showStarters && filteredStarters.map(renderLayoutCard)}
+        {layouts.length === 0 && designFilterActive && !showStarters && (
+          <div className="col-span-full flex flex-col items-center gap-3 py-6 text-center">
+            <p className="text-sm text-gray-500">
+              No layouts have been created for this design yet.
+            </p>
+            {onShowAllLayouts && (
+              <Button type="button" variant="outline" size="sm" onClick={onShowAllLayouts}>
+                Show all layouts
+              </Button>
+            )}
+          </div>
+        )}
         {filteredLayouts.length === 0 && layouts.length > 0 && (
           <p className="col-span-full text-center text-sm text-gray-500 py-6">
             No page layouts match your search. Try different words or check spelling.
           </p>
         )}
-        {filteredLayouts.map((layout) => (
-          <Card
-            key={layout.id}
-            role="button"
-            tabIndex={0}
-            aria-label={`Select ${layout.name} page layout`}
-            className={`cursor-pointer transition-all duration-200 hover:shadow-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-eco-green focus:ring-offset-2 rounded-xl bg-white ${selectedId === layout.id ? 'border-2 border-eco-green shadow-xl ring-2 ring-eco-green ring-offset-2' : 'border border-gray-200 hover:border-eco-green'}`}
-            onClick={() => onSelect(layout.id)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onSelect(layout.id)
-              }
-            }}
-          >
-            <div
-              className="relative w-full aspect-[9/16] overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-4"
-              aria-label={layout.previewAlt || `${layout.name} invitation preview`}
-            >
-              <div className="w-full max-w-[200px] mx-auto aspect-[9/16] rounded-xl shadow-xl overflow-hidden border border-gray-200/90 bg-white ring-1 ring-black/5">
-                <CardPreviewContent
-                  layout={layout}
-                  failedImageIds={failedImageIds}
-                  setFailedImageIds={setFailedImageIds}
-                  failedPreviewIds={failedPreviewIds}
-                  setFailedPreviewIds={setFailedPreviewIds}
-                  imageFallbackLabel={imageFallbackLabel}
-                />
-              </div>
-            </div>
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="text-xl font-semibold text-gray-900">{layout.name}</CardTitle>
-              {layout.description && (
-                <CardDescription className="text-sm text-gray-600 mt-0.5 leading-snug">
-                  {layout.description}
-                </CardDescription>
-              )}
-              {layout.createdByName && (
-                <p className="text-xs text-gray-500 mt-1.5">By {layout.createdByName}</p>
-              )}
-            </CardHeader>
-            <CardContent className="pt-0 pb-5">
-              <Button
-                type="button"
-                size="sm"
-                className={`w-full font-medium rounded-lg py-2 transition-colors ${
-                  selectedId === layout.id
-                    ? 'bg-eco-green text-white border-2 border-eco-green'
-                    : 'border-2 border-eco-green text-eco-green bg-white hover:bg-eco-green hover:text-white'
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSelect(layout.id)
-                }}
-              >
-                {selectedId === layout.id ? '✓ Selected' : 'Select'}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+        {filteredStarters.length === 0 && showStarters && starterLayouts.length > 0 && searchQuery.trim() && (
+          <p className="col-span-full text-center text-sm text-gray-500 py-6">
+            No starters match your search.
+          </p>
+        )}
+        {filteredLayouts.map(renderLayoutCard)}
       </div>
       {onCancel && (
         <div className="flex justify-end pt-2">

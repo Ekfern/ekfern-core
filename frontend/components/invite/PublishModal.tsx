@@ -13,6 +13,8 @@ interface PublishModalProps {
   onClose: () => void
   slug: string
   isPublished?: boolean  // Add this prop to track current publish status
+  /** Force which flow to show. Falls back to deriving from isPublished when omitted. */
+  mode?: 'publish' | 'pullback'
   onPublishChange: (isPublished: boolean) => void
   onExportImage?: () => void
 }
@@ -22,6 +24,7 @@ export default function PublishModal({
   onClose,
   slug,
   isPublished = false,  // Default to false
+  mode,
   onPublishChange,
   onExportImage,
 }: PublishModalProps) {
@@ -30,6 +33,9 @@ export default function PublishModal({
   const [copied, setCopied] = useState(false)
 
   if (!isOpen) return null
+
+  // Which flow to render: explicit mode wins, otherwise derive from current state.
+  const showPullBackFlow = mode ? mode === 'pullback' : isPublished
 
   const publicUrl = `${getSiteUrl()}/invite/${slug}?source=link`
 
@@ -44,6 +50,7 @@ export default function PublishModal({
       const updated = await publishInvitePage(slug, true)
       onPublishChange(true)
       showToast('Invite page published successfully!', 'success')
+      onClose()
     } catch (error: any) {
       logError('Failed to publish invite page:', error)
       // Provide more specific error messages
@@ -74,7 +81,8 @@ export default function PublishModal({
     try {
       const updated = await publishInvitePage(slug, false)
       onPublishChange(false)
-      showToast('Invite page unpublished and moved to draft', 'success')
+      showToast('Invite pulled back — guests now see a Coming Soon page', 'success')
+      onClose()
     } catch (error: any) {
       logError('Failed to unpublish invite page:', error)
       // Provide more specific error messages
@@ -126,21 +134,22 @@ export default function PublishModal({
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-eco-green mb-2">
-              {isPublished ? 'Unpublish Invite Page' : 'Publish Invite Page'}
+              {showPullBackFlow ? 'Pull Back Invite' : 'Publish Invite Page'}
             </h2>
             <p className="text-gray-600">
-              {isPublished 
-                ? 'Move your invite page back to draft mode'
+              {showPullBackFlow 
+                ? 'Temporarily take your invite offline'
                 : 'Make your invitation page public and shareable'}
             </p>
           </div>
 
-          {isPublished ? (
+          {showPullBackFlow ? (
             <div className="space-y-4">
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-800 font-medium">⚠️ Unpublishing Notice</p>
+                <p className="text-yellow-800 font-medium">⚠️ Pull-back Notice</p>
                 <p className="text-sm text-yellow-600 mt-1">
-                  Unpublishing will make your invite page inaccessible to guests. You can republish it anytime.
+                  Guests will see a branded “Coming Soon” page instead of your invite. Your design is kept,
+                  so you can publish again anytime and it goes live instantly.
                 </p>
               </div>
 
@@ -162,7 +171,7 @@ export default function PublishModal({
                 disabled={isPublishing}
                 className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
               >
-                {isPublishing ? 'Unpublishing...' : '📝 Move to Draft'}
+                {isPublishing ? 'Pulling back…' : '↩️ Pull back invite'}
               </Button>
             </div>
           ) : (

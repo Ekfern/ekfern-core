@@ -15,14 +15,24 @@ export interface EventDataForLayout {
   city?: string
 }
 
+export interface ApplyLayoutOptions {
+  /** When false, keeps generic title copy (e.g. mechanical starters). Default true. */
+  mergeEventIntoTitle?: boolean
+  /** When false, leaves event-details date/location empty. Default true. */
+  mergeEventIntoDetails?: boolean
+}
+
 /**
  * Clone layout config with unique tile IDs, optional event merge, and tileSetComplete flag.
  * Use when applying a layout from the library or when switching layouts in the editor.
  */
 export function applyLayout(
   layoutConfig: InviteConfig,
-  event?: EventDataForLayout
+  event?: EventDataForLayout,
+  options?: ApplyLayoutOptions,
 ): InviteConfig {
+  const mergeTitle = options?.mergeEventIntoTitle !== false
+  const mergeDetails = options?.mergeEventIntoDetails !== false
   const tiles = layoutConfig.tiles
   if (!tiles || tiles.length === 0) {
     return {
@@ -50,13 +60,19 @@ export function applyLayout(
   let mergedTiles = resolvedTiles
   if (event) {
     mergedTiles = resolvedTiles.map((t) => {
-      if (t.type === 'title' && t.settings && typeof t.settings === 'object' && 'text' in t.settings) {
+      if (
+        mergeTitle &&
+        t.type === 'title' &&
+        t.settings &&
+        typeof t.settings === 'object' &&
+        'text' in t.settings
+      ) {
         return {
           ...t,
           settings: { ...t.settings, text: event.title ?? (t.settings as { text?: string }).text ?? 'Event Title' },
         }
       }
-      if (t.type === 'event-details' && t.settings && typeof t.settings === 'object') {
+      if (mergeDetails && t.type === 'event-details' && t.settings && typeof t.settings === 'object') {
         const s = t.settings as { date?: string; location?: string }
         return {
           ...t,

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -16,7 +16,7 @@ import { InviteConfig, Tile, TileType, InvitePage } from '@/lib/invite/schema'
 import { InvitePageState, getInvitePageState } from '@/lib/invite/types'
 import { updateEventPageConfig, getEventPageConfig } from '@/lib/event/api'
 import { getInvitePageLayouts } from '@/lib/invite/api'
-import { getInvitePage, createInvitePage, publishInvitePage, getPublicInvite } from '@/lib/invite/api'
+import { getInvitePage, createInvitePage, publishInvitePage } from '@/lib/invite/api'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
@@ -113,6 +113,101 @@ const DEFAULT_TILES: Tile[] = [
   },
 ]
 
+// The tile types the editor knows how to render. Anything else is legacy/orphan
+// junk in a saved config (renders no label and no settings) and is filtered out.
+const KNOWN_TILE_TYPES = new Set<TileType>([
+  'title', 'image', 'design', 'timer', 'event-details',
+  'description', 'feature-buttons', 'footer', 'event-carousel',
+])
+const isKnownTile = (t: any): t is Tile =>
+  !!t && typeof t.type === 'string' && KNOWN_TILE_TYPES.has(t.type as TileType)
+
+// Order-independent deep equality for plain JSON values (configs are plain JSON).
+function deepEqual(a: any, b: any): boolean {
+  if (a === b) return true
+  if (a === null || b === null || a === undefined || b === undefined) return a === b
+  if (typeof a !== typeof b) return false
+  if (typeof a !== 'object') return a === b
+  const aIsArr = Array.isArray(a)
+  const bIsArr = Array.isArray(b)
+  if (aIsArr !== bIsArr) return false
+  if (aIsArr) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false
+    }
+    return true
+  }
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  if (aKeys.length !== bKeys.length) return false
+  for (const k of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, k)) return false
+    if (!deepEqual(a[k], b[k])) return false
+  }
+  return true
+}
+
+// Project a config down to what guests actually see (enabled tiles + page-level
+// styling), so load-time transforms that only touch disabled tiles do not register
+// as "unpublished changes".
+function normalizeConfigForCompare(cfg: InviteConfig | null | undefined): any {
+  if (!cfg) return null
+  const enabledTiles = (cfg.tiles || [])
+    .filter((t) => t.enabled !== false)
+    .map((t) => ({
+      id: t.id,
+      type: t.type,
+      order: t.order ?? 0,
+      overlayTargetId: t.overlayTargetId ?? null,
+      settings: t.settings ?? {},
+    }))
+    .sort((a, b) => a.order - b.order)
+  return {
+    themeId: cfg.themeId,
+    customColors: cfg.customColors ?? null,
+    customFonts: cfg.customFonts ?? null,
+    texture: cfg.texture ?? null,
+    pageBorder: cfg.pageBorder ?? null,
+    pageFrame: cfg.pageFrame ?? null,
+    cornerDecorations: cfg.cornerDecorations ?? null,
+    spacing: cfg.spacing ?? null,
+    animations: cfg.animations ?? null,
+    linkMetadata: cfg.linkMetadata ?? null,
+    rsvpForm: (cfg as any).rsvpForm ?? null,
+    tiles: enabledTiles,
+  }
+}
+
+// Determine which enabled tiles differ in CONTENT (settings/type/overlay, ignoring
+// pure order shifts) from the published baseline, for the per-tile "Edited" badge.
+function computeChangedTileIds(
+  current: InviteConfig | null | undefined,
+  baseline: InviteConfig | null | undefined,
+): Set<string> {
+  const ids = new Set<string>()
+  if (!current || !baseline) return ids
+  const tileContent = (t: Tile) => ({
+    type: t.type,
+    overlayTargetId: t.overlayTargetId ?? null,
+    settings: t.settings ?? {},
+  })
+  const baseEnabled = new Map(
+    (baseline.tiles || []).filter((t) => t.enabled !== false).map((t) => [t.id, t]),
+  )
+  for (const tile of (current.tiles || []).filter((t) => t.enabled !== false)) {
+    const baseTile = baseEnabled.get(tile.id)
+    if (!baseTile) {
+      ids.add(tile.id)
+      continue
+    }
+    if (!deepEqual(tileContent(tile), tileContent(baseTile))) {
+      ids.add(tile.id)
+    }
+  }
+  return ids
+}
+
 export default function DesignInvitationPage(): JSX.Element {
   const params = useParams()
   const router = useRouter()
@@ -122,8 +217,16 @@ export default function DesignInvitationPage(): JSX.Element {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [allowedSubEvents, setAllowedSubEvents] = useState<any[]>([])
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  // Auto-save status shown in the toolbar chip
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  // Snapshot of the published config, used to gate Publish and badge changed tiles
+  const [publishedBaseline, setPublishedBaseline] = useState<InviteConfig | null>(null)
+  // Which publish flow the modal should show
+  const [publishModalMode, setPublishModalMode] = useState<'publish' | 'pullback'>('publish')
+  const initialLoadDoneRef = useRef(false)
+  const lastSavedSerializedRef = useRef<string>('')
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const persistDraftRef = useRef<(() => Promise<boolean>) | null>(null)
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
   const [headerHeight, setHeaderHeight] = useState(160)
   const headerRef = useRef<HTMLDivElement>(null)
@@ -154,7 +257,6 @@ export default function DesignInvitationPage(): JSX.Element {
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   // Fix 2: Add state for InvitePage and publish modal
   const [invitePage, setInvitePage] = useState<InvitePage | null>(null)
-  const [isPublishing, setIsPublishing] = useState(false)
   const [showPublishModal, setShowPublishModal] = useState(false)
   const [showDesignStartView, setShowDesignStartView] = useState(false)
   const [showLayoutLibraryOnStart, setShowLayoutLibraryOnStart] = useState(false)
@@ -457,6 +559,20 @@ export default function DesignInvitationPage(): JSX.Element {
       } else {
         logError('Final config is null - this should not happen')
       }
+
+      // Load the InvitePage to know the publish state and the published snapshot.
+      // The baseline drives Publish gating + per-tile "Edited" badges. If the page
+      // was never published, baseline stays null (Publish stays available).
+      try {
+        const invite = await getInvitePage(eventId)
+        if (invite) {
+          setInvitePage(invite)
+          setPublishedBaseline(invite.published_config ?? null)
+        }
+      } catch (inviteError) {
+        // No invite page yet (never saved) — leave baseline null so Publish is available.
+        logDebug('No invite page loaded for change tracking', inviteError)
+      }
     } catch (error: any) {
       if (error.response?.status === 401) {
         router.push('/host/login')
@@ -518,39 +634,35 @@ export default function DesignInvitationPage(): JSX.Element {
   }, [event])
 
 
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      // Validate that at least one tile is enabled
-      const enabledTilesCount = config.tiles?.filter(t => t.enabled !== false).length || 0
-      if (enabledTilesCount === 0) {
-        showToast('At least one tile must be enabled to save the invite page design.', 'error')
-        setSaving(false)
-        return
+  // Validations that must pass before PUBLISHING. Auto-save intentionally does NOT
+  // run these so the host can leave a tile half-finished while editing; the checks
+  // only gate going live. Returns an error message, or null when ready to publish.
+  const validateForPublish = useCallback((): string | null => {
+    const enabledTilesCount = config.tiles?.filter(t => t.enabled !== false).length || 0
+    if (enabledTilesCount === 0) {
+      return 'At least one tile must be enabled to publish the invite page.'
+    }
+    const enabledImageTiles = config.tiles?.filter(t => t.type === 'image' && t.enabled) || []
+    for (const imageTile of enabledImageTiles) {
+      const imageSettings = imageTile.settings as any
+      if (!imageSettings?.src || imageSettings.src.trim() === '') {
+        return 'Image tile is enabled but no image is uploaded. Please upload an image or disable the image tile.'
       }
-      
-      // Validate enabled image tiles have images
-      const enabledImageTiles = config.tiles?.filter(t => t.type === 'image' && t.enabled) || []
-      for (const imageTile of enabledImageTiles) {
-        const imageSettings = imageTile.settings as any
-        if (!imageSettings?.src || imageSettings.src.trim() === '') {
-          showToast('Image tile is enabled but no image is uploaded. Please upload an image or disable the image tile.', 'error')
-          setSaving(false)
-          return
-        }
+    }
+    const enabledTitleTiles = config.tiles?.filter(t => t.type === 'title' && t.enabled) || []
+    for (const titleTile of enabledTitleTiles) {
+      const titleText = (titleTile.settings as any)?.text?.trim()
+      if (!titleText || titleText === '') {
+        return 'Title tile is enabled but has no text. Please enter a title or disable the title tile.'
       }
-      
-      // Validate enabled title tiles have text
-      const enabledTitleTiles = config.tiles?.filter(t => t.type === 'title' && t.enabled) || []
-      for (const titleTile of enabledTitleTiles) {
-        const titleText = (titleTile.settings as any)?.text?.trim()
-        if (!titleText || titleText === '') {
-          showToast('Title tile is enabled but has no text. Please enter a title or disable the title tile.', 'error')
-          setSaving(false)
-          return
-        }
-      }
-      
+    }
+    return null
+  }, [config])
+
+  // Build the normalized config payload that gets persisted (snapshots tile order,
+  // cleans customColors/linkMetadata, strips previewOrder). Shared by auto-save and
+  // the change-tracking diff so both compare apples to apples.
+  const buildConfigToSave = useCallback((): InviteConfig => {
       // Build config to save - ensure customColors.backgroundColor is always included if set
       // Build tiles first - sort by previewOrder (real-time order) and snapshot to order field
       // IMPORTANT: This respects user's manual ordering (from drag-and-drop) because:
@@ -559,7 +671,7 @@ export default function DesignInvitationPage(): JSX.Element {
       // 3. Then we snapshot previewOrder values into order field sequentially (0, 1, 2...)
       // CRITICAL: Only assign order to enabled tiles to match what invite page shows
       // This ensures the saved order matches what the user sees and expects
-      const sortedTilesForSave = [...(config.tiles || [])].sort((a, b) => {
+      const sortedTilesForSave = [...(config.tiles || [])].filter(isKnownTile).sort((a, b) => {
         // Use previewOrder from state map, fallback to tile's previewOrder, then saved order
         const orderA = previewOrder.get(a.id) ?? a.previewOrder ?? a.order ?? 0
         const orderB = previewOrder.get(b.id) ?? b.previewOrder ?? b.order ?? 0
@@ -698,87 +810,106 @@ export default function DesignInvitationPage(): JSX.Element {
         ...(config.animations !== undefined && { animations: config.animations }),
       }
       
-      const imageTile = configToSave.tiles?.find(t => t.type === 'image')
-      if (imageTile) {
-      }
-      
+      return configToSave
+  }, [config, previewOrder])
+
+  // Persist the current draft to the backend. Used by the debounced auto-save and as
+  // a flush right before publishing so the published snapshot reflects the latest edits.
+  const persistDraft = useCallback(async (): Promise<boolean> => {
+    const configToSave = buildConfigToSave()
+    setSaveStatus('saving')
+    try {
       const response = await api.put(`/api/events/${eventId}/design/`, {
         page_config: configToSave,
       })
-      
-      // Fix 1: Check if InvitePage was auto-created
+
+      // InvitePage may be auto-created on first save
       if (response.data.invite_page_created) {
-        // Reload InvitePage to get the created one
         try {
           const invite = await getInvitePage(eventId)
-          setInvitePage(invite)
-          showToast('Invitation saved and invite page created!', 'success')
-        } catch (error) {
-          // If reload fails, still update state with basic info from event
-          // This ensures publish button works even if getInvitePage fails
+          if (invite) setInvitePage(invite)
+        } catch {
           if (event?.slug) {
-            setInvitePage({
-              id: 0, // Will be set when we successfully load it
+            setInvitePage(prev => prev ?? ({
+              id: 0,
               slug: event.slug,
               is_published: false,
               config: configToSave,
               background_url: event.banner_image || '',
               event: eventId,
-            } as any)
-            showToast('Invitation saved! (Reloading invite page...)', 'success')
-            // Try to reload in background
-            setTimeout(async () => {
-              try {
-                const invite = await getInvitePage(eventId)
-                setInvitePage(invite)
-              } catch (e) {
-                // Silent fail - state is already set
-              }
-            }, 1000)
-          } else {
-            showToast('Invitation saved successfully!', 'success')
+            } as any))
           }
         }
-      } else {
-        // Update invitePage state if it exists
-        if (invitePage && response.data.is_published !== undefined) {
-          setInvitePage({ ...invitePage, is_published: response.data.is_published })
-        }
-        showToast('Invitation saved successfully!', 'success')
-        
-        // Broadcast update to all tabs viewing this invite page (preview + live)
-        // This works even if preview window is closed or in different tabs (industry standard)
-        if (typeof window !== 'undefined' && 'BroadcastChannel' in window && event?.slug) {
-          const channelName = `invite-${event.slug}-updates`
-          const channel = new BroadcastChannel(channelName)
-          channel.postMessage({ 
-            type: 'REFRESH_INVITE_PAGE', 
-            slug: event.slug,
-            timestamp: Date.now()
-          })
-          channel.close()
-        }
-        
-        // Also refresh preview window if it's open (direct method for immediate feedback)
-        if (previewWindowRef.current && !previewWindowRef.current.closed) {
-          // Send refresh message to preview window
-          previewWindowRef.current.postMessage(
-            { type: 'REFRESH_INVITE_PAGE', slug: event?.slug },
-            window.location.origin
-          )
-          // Also trigger a reload (cache-busting handled by headers and backend)
-          previewWindowRef.current.location.href = `/invite/${event?.slug}?preview=true`
-        }
+      } else if (response.data.is_published !== undefined) {
+        setInvitePage(prev => (prev ? { ...prev, is_published: response.data.is_published } : prev))
       }
+
+      // Refresh any open preview windows/tabs. Preview always shows the DRAFT, so this
+      // keeps the host's preview in sync without touching the live published page.
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window && event?.slug) {
+        const channel = new BroadcastChannel(`invite-${event.slug}-updates`)
+        channel.postMessage({ type: 'REFRESH_INVITE_PAGE', slug: event.slug, timestamp: Date.now() })
+        channel.close()
+      }
+      if (previewWindowRef.current && !previewWindowRef.current.closed) {
+        previewWindowRef.current.postMessage(
+          { type: 'REFRESH_INVITE_PAGE', slug: event?.slug },
+          window.location.origin
+        )
+        previewWindowRef.current.location.href = `/invite/${event?.slug}?preview=true`
+      }
+
+      lastSavedSerializedRef.current = JSON.stringify(configToSave)
+      setSaveStatus('saved')
+      return true
     } catch (error: any) {
-      logError('Failed to save:', error)
-      showToast(getErrorMessage(error), 'error')
-    } finally {
-      setSaving(false)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      logError('Failed to auto-save:', error)
+      setSaveStatus('error')
+      return false
     }
-  }
+  }, [buildConfigToSave, eventId, event?.slug, event?.banner_image])
+
+  // Keep a stable ref to the latest persistDraft for the debounced auto-save timer.
+  persistDraftRef.current = persistDraft
+
+  // Derived change-tracking: what would be saved now vs. the published snapshot.
+  const currentConfigToSave = useMemo(() => buildConfigToSave(), [buildConfigToSave])
+  const serializedConfig = useMemo(() => JSON.stringify(currentConfigToSave), [currentConfigToSave])
+  const hasUnpublishedChanges = useMemo(() => {
+    if (!publishedBaseline) return true
+    return !deepEqual(
+      normalizeConfigForCompare(currentConfigToSave),
+      normalizeConfigForCompare(publishedBaseline),
+    )
+  }, [currentConfigToSave, publishedBaseline])
+  const changedTileIds = useMemo(
+    () => computeChangedTileIds(currentConfigToSave, publishedBaseline),
+    [currentConfigToSave, publishedBaseline],
+  )
+  // Publish is available when the page is not currently live, or when the draft has
+  // changes that differ from what is published.
+  const canPublish = !invitePage?.is_published || hasUnpublishedChanges
+
+  // Mark the freshly-loaded config as the auto-save baseline so loading does not
+  // trigger a spurious save. Runs once after the initial load settles.
+  useEffect(() => {
+    if (loading || initialLoadDoneRef.current) return
+    lastSavedSerializedRef.current = serializedConfig
+    initialLoadDoneRef.current = true
+  }, [loading, serializedConfig])
+
+  // Debounced auto-save: persist the draft ~1.5s after edits settle.
+  useEffect(() => {
+    if (!initialLoadDoneRef.current || loading) return
+    if (serializedConfig === lastSavedSerializedRef.current) return
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = setTimeout(() => {
+      persistDraftRef.current?.()
+    }, 1500)
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    }
+  }, [serializedConfig, loading])
 
   // Resize and optimize image for link previews (1200x630px)
   const resizeImageForPreview = (file: File): Promise<File> => {
@@ -1008,94 +1139,6 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
   // Fix 2: Add publish handler
-  const handlePublish = async () => {
-    let currentInvitePage = invitePage
-    
-    // If invitePage state is missing, try to fetch it first
-    if (!currentInvitePage && event?.slug) {
-      try {
-        // Try to get it using slug (more reliable than ID)
-        const fetched = await getPublicInvite(event.slug)
-        setInvitePage(fetched)
-        currentInvitePage = fetched
-      } catch (error) {
-        // If that fails, try ID-based endpoint
-        try {
-          const fetched = await getInvitePage(eventId)
-          setInvitePage(fetched)
-          currentInvitePage = fetched
-        } catch (error2) {
-          // If both fail, create it
-          try {
-            const newInvite = await createInvitePage(eventId, {
-              config: config,
-              background_url: event?.banner_image || '',
-            })
-            setInvitePage(newInvite)
-            currentInvitePage = newInvite
-          } catch (error3) {
-            logError('Failed to create invite page:', error3)
-            showToast('Failed to create invite page. Please save your design first.', 'error')
-            return
-          }
-        }
-      }
-    } else if (!currentInvitePage) {
-      // No slug available, try ID-based endpoint
-      try {
-        const fetched = await getInvitePage(eventId)
-        setInvitePage(fetched)
-        currentInvitePage = fetched
-      } catch (error) {
-        // If that fails, create it
-        try {
-          const newInvite = await createInvitePage(eventId, {
-            config: config,
-            background_url: event?.banner_image || '',
-          })
-          setInvitePage(newInvite)
-          currentInvitePage = newInvite
-        } catch (error2) {
-          logError('Failed to create invite page:', error2)
-          showToast('Failed to create invite page. Please save your design first.', 'error')
-          return
-        }
-      }
-    }
-    
-    setIsPublishing(true)
-    try {
-      // Use currentInvitePage.slug (from state or newly created) or fallback to event.slug
-      const slugToUse = currentInvitePage?.slug || event?.slug || ''
-      if (!slugToUse) {
-        showToast('Event slug not found', 'error')
-        return
-      }
-      
-      const updated = await publishInvitePage(slugToUse, true)
-      setInvitePage(updated)
-      showToast('Invite page published!', 'success')
-      setShowPublishModal(false)
-    } catch (error: any) {
-      logError('Failed to publish:', error)
-      // Provide more specific error messages
-      if (error.response?.status === 404) {
-        showToast('Invite page not found. Please save your design first.', 'error')
-      } else if (error.response?.status === 403 || error.response?.status === 401) {
-        showToast('You do not have permission to publish this invite page.', 'error')
-      } else if (error.response?.data?.error) {
-        // Show backend error message if available
-        showToast(error.response.data.error, 'error')
-      } else if (error.message) {
-        showToast(`Failed to publish: ${error.message}`, 'error')
-      } else {
-        showToast('Failed to publish invite page. Please try again.', 'error')
-      }
-    } finally {
-      setIsPublishing(false)
-    }
-  }
-
   // Fix 3: Validate preview before opening
   const handlePreview = async () => {
     if (!event?.slug) {
@@ -1220,6 +1263,14 @@ export default function DesignInvitationPage(): JSX.Element {
       ...prev,
       tiles: [...(prev.tiles ?? []), newTile],
     }))
+    setPreviewOrder((prev) => {
+      const next = new Map(prev)
+      const position =
+        next.size > 0 ? Math.max(...Array.from(next.values())) + 1 : (newTile.order ?? 0)
+      next.set(newTile.id, position)
+      return next
+    })
+    setSelectedTileId(newTile.id)
   }
 
   const handleRemoveTile = (tileId: string) => {
@@ -1421,8 +1472,9 @@ export default function DesignInvitationPage(): JSX.Element {
   const selectedTile = config.tiles?.find(t => t.id === selectedTileId)
   let sortedTiles: Tile[] = []
   if (config.tiles && config.tiles.length > 0) {
-    // Sort by previewOrder (real-time order) with fallback to saved order
-    sortedTiles = [...config.tiles].sort((a, b) => {
+    // Drop any orphan/legacy tiles with an unrecognized type, then sort by
+    // previewOrder (real-time order) with fallback to saved order.
+    sortedTiles = [...config.tiles].filter(isKnownTile).sort((a, b) => {
       const orderA = previewOrder.get(a.id) ?? a.previewOrder ?? a.order ?? 0
       const orderB = previewOrder.get(b.id) ?? b.previewOrder ?? b.order ?? 0
       return orderA - orderB
@@ -1503,41 +1555,67 @@ export default function DesignInvitationPage(): JSX.Element {
             <h1 className="text-xl font-bold text-eco-green">Invitation Design</h1>
           </div>
           <div className="flex gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto items-center">
-            {/* Save status indicator */}
+            {/* Auto-save status chip */}
             <AnimatePresence mode="wait">
-              {saving && (
+              {saveStatus === 'saving' && (
                 <motion.span
                   key="saving"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="hidden sm:flex items-center gap-1 text-xs text-gray-400"
+                  className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-pulse" />
-                  Saving...
+                  Saving…
                 </motion.span>
               )}
-              {saved && !saving && (
+              {saveStatus === 'saved' && (
                 <motion.span
                   key="saved"
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="hidden sm:flex items-center gap-1 text-xs text-green-600"
+                  className="hidden sm:flex items-center gap-1.5 text-xs text-green-600"
                 >
                   <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
                   </svg>
-                  Saved
+                  All changes saved
                 </motion.span>
+              )}
+              {saveStatus === 'error' && (
+                <motion.button
+                  key="error"
+                  type="button"
+                  onClick={() => persistDraftRef.current?.()}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex items-center gap-1.5 text-xs text-red-600 hover:underline"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  Save failed — Retry
+                </motion.button>
               )}
             </AnimatePresence>
 
-            {/* Fix 2: Publish Status Badge */}
+            {/* Publish status badge */}
             {invitePage?.is_published ? (
               <Badge variant="success" className="text-xs">Published</Badge>
+            ) : invitePage && (invitePage.published_at || publishedBaseline) ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="warning" className="text-xs">Coming Soon</Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Your invite is pulled back — guests see a Coming Soon page. Publish again to make it live.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : invitePage ? (
               <TooltipProvider>
                 <Tooltip>
@@ -1592,50 +1670,77 @@ export default function DesignInvitationPage(): JSX.Element {
               Templates
             </Button>
             
-            {/* Save button */}
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-eco-green hover:bg-eco-green-dark text-white text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
-            >
-              {saving ? 'Saving...' : <><span className="hidden sm:inline">💾 </span>Save</>}
-            </Button>
-            
-            {/* Fix 2: Publish button */}
+            {/* Pull back (only when live) — temporarily unpublish to a Coming Soon page */}
+            {invitePage?.is_published && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setPublishModalMode('pullback')
+                        setShowPublishModal(true)
+                      }}
+                      className="border-amber-500 text-amber-600 hover:bg-amber-50 text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
+                    >
+                      Pull back
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Temporarily unpublish your invite. Guests will see a Coming Soon page until you publish again.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
+            {/* Publish button — enabled only when the page is not live or has unpublished changes */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
                     onClick={async () => {
-                      // Ensure InvitePage exists before opening modal
+                      const validationError = validateForPublish()
+                      if (validationError) {
+                        showToast(validationError, 'error')
+                        return
+                      }
+                      // Ensure an InvitePage exists before publishing
                       if (!invitePage) {
                         try {
-                          // Create InvitePage if it doesn't exist
                           const newInvite = await createInvitePage(eventId, {
                             config: config,
                             background_url: event?.banner_image || '',
                           })
                           setInvitePage(newInvite)
-                          setShowPublishModal(true)
                         } catch (error) {
                           logError('Failed to create invite page:', error)
-                          showToast('Please save your design first, then publish', 'error')
+                          showToast('Could not prepare the invite page. Please try again.', 'error')
+                          return
                         }
-                      } else {
-                        setShowPublishModal(true)
                       }
+                      // Flush the latest draft so the published snapshot is current
+                      const ok = await persistDraft()
+                      if (!ok) {
+                        showToast('Could not save your latest changes. Please retry before publishing.', 'error')
+                        return
+                      }
+                      setPublishModalMode('publish')
+                      setShowPublishModal(true)
                     }}
-                    disabled={isPublishing}
-                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
+                    disabled={!canPublish}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
                   >
-                    {invitePage?.is_published ? 'Unpublish' : 'Publish'}
+                    {invitePage?.is_published ? (hasUnpublishedChanges ? 'Publish changes' : 'Published') : 'Publish'}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>
-                    {invitePage?.is_published 
-                      ? 'Unpublish your invite page and move it back to draft'
-                      : 'Publish your invite page to make it publicly accessible'}
+                    {!canPublish
+                      ? 'No changes to publish — your live page is up to date.'
+                      : invitePage?.is_published
+                        ? 'Publish your latest changes to the live invite page.'
+                        : 'Publish your invite page to make it publicly accessible.'}
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -2507,6 +2612,7 @@ export default function DesignInvitationPage(): JSX.Element {
                   hasRegistry={event?.has_registry}
                   forceExpanded={allTilesExpanded}
                   eventStructure={event?.event_structure}
+                  changedTileIds={changedTileIds}
                 />
               ) : (
                 <p className="text-gray-500 text-sm">No tiles available</p>
@@ -2668,9 +2774,24 @@ export default function DesignInvitationPage(): JSX.Element {
           onClose={() => setShowPublishModal(false)}
           slug={event?.slug || ''}
           isPublished={invitePage?.is_published || false}  // Pass current publish status
+          mode={publishModalMode}
           onPublishChange={(published) => {
-            if (invitePage) {
-              setInvitePage({ ...invitePage, is_published: published })
+            setInvitePage(prev =>
+              prev
+                ? {
+                    ...prev,
+                    is_published: published,
+                    ...(published ? { published_at: new Date().toISOString() } : {}),
+                  }
+                : prev,
+            )
+            if (published) {
+              // The published snapshot now matches the current draft — reset the
+              // baseline so the Publish button grays out, and open the live invite.
+              setPublishedBaseline(buildConfigToSave())
+              if (event?.slug && typeof window !== 'undefined') {
+                window.open(`/invite/${event.slug}`, '_blank')
+              }
             }
           }}
         />

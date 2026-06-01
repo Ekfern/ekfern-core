@@ -78,6 +78,7 @@ export default function NewDesignSamplePage(): React.ReactElement {
   const [description, setDescription] = useState('')
   const [tagsInput, setTagsInput] = useState('')
   const [bgUrl, setBgUrl] = useState<string | null>(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>('')
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -198,8 +199,9 @@ export default function NewDesignSamplePage(): React.ReactElement {
     if (file.size > 20 * 1024 * 1024) { alert('Max file size is 20 MB.'); return }
     setUploading(true)
     try {
-      const url = await uploadDesignImage(file)
+      const { url, thumbnail_url } = await uploadDesignImage(file)
       setBgUrl(url)
+      setThumbnailUrl(thumbnail_url)
     } catch (err) {
       logError('Greeting card image upload failed', err)
       alert('Upload failed. Please try again.')
@@ -220,6 +222,7 @@ export default function NewDesignSamplePage(): React.ReactElement {
         name: name.trim(),
         description: description.trim(),
         background_image_url: bgUrl,
+        thumbnail_url: thumbnailUrl,
         text_overlays: textBoxes,
         tags,
         is_active: true,

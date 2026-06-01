@@ -61,7 +61,7 @@ function LivingPosterContent({
   // If tiles exist, render tile-based layout
   if (config.tiles && config.tiles.length > 0) {
     const sortedTiles = [...config.tiles]
-      .filter(tile => tile.enabled)
+      .filter(tile => tile.enabled !== false)
       .sort((a, b) => a.order - b.order)
 
     // DEBUG: Log order on invite page

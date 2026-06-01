@@ -186,8 +186,8 @@ class InvitePageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = InvitePage
-        fields = ('id', 'event', 'event_slug', 'event_country', 'event_timezone', 'slug', 'background_url', 'config', 'is_published', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'event_slug', 'event_country', 'event_timezone', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+        fields = ('id', 'event', 'event_slug', 'event_country', 'event_timezone', 'slug', 'background_url', 'config', 'published_config', 'is_published', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'event_slug', 'event_country', 'event_timezone', 'published_config', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
     
     def get_allowed_sub_events(self, obj):
         """Get allowed sub-events - set by view based on guest token or public visibility"""
@@ -1097,16 +1097,18 @@ class InvitePageLayoutSerializer(serializers.ModelSerializer):
     # Override URLField with CharField so relative paths (e.g. /invite-templates/minimal.svg)
     # are accepted alongside absolute https:// URLs.
     thumbnail = serializers.CharField(max_length=2000, allow_blank=True, required=False)
+    # Stable design code of the linked card_sample; drives design-based filtering.
+    card_code = serializers.CharField(source='card_sample.code', read_only=True, allow_null=True)
 
     class Meta:
         model = InvitePageLayout
         fields = (
-            'id', 'name', 'description', 'thumbnail', 'preview_alt', 'config',
+            'id', 'name', 'description', 'thumbnail', 'card_sample', 'card_code', 'preview_alt', 'config',
             'visibility', 'status', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name',
             'created_at', 'updated_at',
             'is_premium', 'price_cents', 'creator', 'creator_share_percent',
         )
-        read_only_fields = ('id', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'card_code', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at')
 
     def validate_config(self, value):
         if not isinstance(value, dict):
@@ -1119,15 +1121,16 @@ class GreetingCardSampleSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.name', read_only=True, allow_null=True)
     # Use CharField so relative /media/ paths from local dev are accepted alongside absolute https:// URLs.
     background_image_url = serializers.CharField(max_length=500)
+    thumbnail_url = serializers.CharField(max_length=500, required=False, allow_blank=True)
 
     class Meta:
         model = GreetingCardSample
         fields = (
-            'id', 'name', 'description', 'background_image_url', 'text_overlays',
+            'id', 'code', 'name', 'description', 'background_image_url', 'thumbnail_url', 'text_overlays',
             'tags', 'sort_order', 'is_active', 'created_by', 'created_by_name',
             'created_at', 'updated_at',
         )
-        read_only_fields = ('id', 'created_by', 'created_by_name', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'code', 'created_by', 'created_by_name', 'created_at', 'updated_at')
 
 
 # ---------------------------------------------------------------------------

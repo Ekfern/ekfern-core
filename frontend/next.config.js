@@ -53,8 +53,10 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            // Cache for 1 hour, serve stale for 24 hours while revalidating
-            value: 'public, s-maxage=3600, stale-while-revalidate=86400, max-age=60',
+            // Keep the CDN HTML fresh: 60s edge cache so a just-published change
+            // is reflected within a minute even before client-side refresh.
+            // stale-while-revalidate keeps responses fast during regeneration.
+            value: 'public, s-maxage=60, stale-while-revalidate=300, max-age=0',
           },
         ],
       },

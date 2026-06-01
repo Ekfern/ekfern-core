@@ -13,8 +13,21 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
     }
   }
 
-  // If tiles already exist, return as-is
+  // If tiles already exist, return as-is (after normalizing legacy tile types).
   if (config.tiles && config.tiles.length > 0) {
+    // Legacy rename: the 'greeting-card' tile type was renamed to 'design'
+    // (commit 043ed3b). Older saved configs and AI-generated layouts may still
+    // carry the old type, which has no renderer or label on the frontend, so it
+    // would show up as a blank tile. Normalize it on load as a safety net (a
+    // data migration handles guest SSR, which does not run this).
+    if (config.tiles.some((t) => (t as any).type === 'greeting-card')) {
+      return {
+        ...config,
+        tiles: config.tiles.map((t) =>
+          (t as any).type === 'greeting-card' ? { ...t, type: 'design' as const } : t,
+        ),
+      }
+    }
     return config
   }
 

@@ -12,12 +12,17 @@ import {
   getInvitePage,
   createInvitePage,
   updateInvitePage,
+  getDesignSample,
+  getDesignSampleByBackgroundUrl,
 } from '@/lib/invite/api'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import type { ImageTileSettings, DesignTileSettings, TextOverlay, InviteConfig } from '@/lib/invite/schema'
 import { updateEventPageConfig } from '@/lib/event/api'
 import api from '@/lib/api'
+import { extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
+import { loadSelectedDesignContext, saveSelectedDesignContext, type SelectedDesignContext } from '@/lib/invite/designContext'
+import { buildStarterLayouts, isStarterLayoutId } from '@/lib/invite/starterLayouts'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,33 +99,162 @@ export default function LayoutSelectPage(): React.ReactElement {
   const [applyingId, setApplyingId] = useState<string | null>(null)
   const [event, setEvent] = useState<EventData | null>(null)
   const [pendingLayoutId, setPendingLayoutId] = useState<string | null>(null)
+  const [designContext, setDesignContext] = useState<SelectedDesignContext | null>(null)
+  const [starterLayouts, setStarterLayouts] = useState<InvitePageLayout[]>([])
+  const [startersLoading, setStartersLoading] = useState(false)
 
-  // Load layouts and event data in parallel
+  // Layouts are narrowed to the selected design via its stable code
+  // (designContext.sampleCode -> ?design_code=). The "Show all layouts" toggle
+  // clears the narrowing. Free-text search of the visible set is handled
+  // client-side by PageLayoutLibrary's fuzzy filter.
+  const [showAllLayouts, setShowAllLayouts] = useState(false)
+  const [filterInitialized, setFilterInitialized] = useState(false)
+
+  // Initialize from the selected design (and load event data).
   useEffect(() => {
     if (!eventId || isNaN(eventId)) return
+    let cancelled = false
+    const context = loadSelectedDesignContext(eventId)
+    setDesignContext(context)
 
-    Promise.all([
-      getInvitePageLayouts().catch(() => [] as InvitePageLayout[]),
-      api.get<EventData>(`/api/events/${eventId}/`).catch(() => null),
-    ]).then(([layoutList, eventRes]) => {
-      setLayouts(layoutList)
-      if (eventRes) setEvent(eventRes.data)
-    }).finally(() => setLayoutsLoading(false))
+    // Back-compat: selections saved before design codes existed have a bgUrl
+    // (and maybe a sampleId) but no sampleCode. Resolve the code once from the
+    // catalog and upgrade the stored context so filtering + the chip work.
+    const needsHydration =
+      !!context &&
+      context.sourceType === 'sample' &&
+      !context.sampleCode?.trim() &&
+      (!!context.sampleId || !!context.bgUrl?.trim())
+
+    if (needsHydration && context) {
+      const resolver = context.sampleId
+        ? getDesignSample(context.sampleId).catch(() => null)
+        : getDesignSampleByBackgroundUrl(context.bgUrl ?? '')
+      resolver.then((sample) => {
+        if (cancelled) return
+        if (sample?.code) {
+          const upgraded: SelectedDesignContext = {
+            ...context,
+            sampleId: sample.id,
+            sampleCode: sample.code,
+            sampleName: sample.name || context.sampleName,
+            sampleTags: sample.tags ?? context.sampleTags,
+          }
+          saveSelectedDesignContext(upgraded)
+          setDesignContext(upgraded)
+          setShowAllLayouts(false)
+        } else {
+          // No matching catalog design -> nothing to narrow by.
+          setShowAllLayouts(true)
+        }
+        setFilterInitialized(true)
+      })
+    } else {
+      // No design code (uploads/gradients) -> nothing to narrow by, show all.
+      setShowAllLayouts(!context?.sampleCode?.trim())
+      setFilterInitialized(true)
+    }
+
+    api
+      .get<EventData>(`/api/events/${eventId}/`)
+      .then((res) => setEvent(res.data))
+      .catch(() => { /* non-fatal — apply flow falls back to no event title */ })
+
+    return () => {
+      cancelled = true
+    }
   }, [eventId])
 
+  const designCode = designContext?.sampleCode?.trim() ?? ''
+  const designFilterActive = !showAllLayouts && !!designCode
+
+  // Fetch layouts: narrowed to the design (server design_code filter) or all.
+  useEffect(() => {
+    if (!eventId || isNaN(eventId) || !filterInitialized) return
+    setLayoutsLoading(true)
+    getInvitePageLayouts(designFilterActive ? { designCode } : undefined)
+      .then(setLayouts)
+      .catch(() => setLayouts([]))
+      .finally(() => setLayoutsLoading(false))
+  }, [eventId, filterInitialized, designFilterActive, designCode])
+
+  const showStarters =
+    designFilterActive && !layoutsLoading && layouts.length === 0 && starterLayouts.length > 0
+
+  // Build mechanical starters when the design filter returns no staff layouts.
+  useEffect(() => {
+    if (!designFilterActive || layoutsLoading || layouts.length > 0) {
+      setStarterLayouts([])
+      setStartersLoading(false)
+      return
+    }
+    let cancelled = false
+    setStartersLoading(true)
+    buildStarterLayouts(designContext)
+      .then((list) => {
+        if (!cancelled) setStarterLayouts(list)
+      })
+      .catch(() => {
+        if (!cancelled) setStarterLayouts([])
+      })
+      .finally(() => {
+        if (!cancelled) setStartersLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [designFilterActive, layoutsLoading, layouts.length, designContext])
+
   function readCardDesignFromStorage(): { bgUrl: string | null; bgGradient: string | null; textBoxes: TextOverlay[] | null } {
-    const bgUrl = localStorage.getItem(`card-bg-${eventId}`)
-    const bgGradient = localStorage.getItem(`card-gradient-${eventId}`)
+    const context = loadSelectedDesignContext(eventId)
+    const bgUrl = context?.bgUrl ?? localStorage.getItem(`card-bg-${eventId}`)
+    const bgGradient = context?.bgGradient ?? localStorage.getItem(`card-gradient-${eventId}`)
     let textBoxes: TextOverlay[] | null = null
     try {
-      const raw = localStorage.getItem(`card-textboxes-${eventId}`)
+      const raw = context?.textOverlays ? JSON.stringify(context.textOverlays) : localStorage.getItem(`card-textboxes-${eventId}`)
       if (raw) textBoxes = JSON.parse(raw) as TextOverlay[]
     } catch { /* ignore parse errors */ }
     return { bgUrl, bgGradient, textBoxes }
   }
 
+  async function applyDesignDrivenBackground(
+    config: InviteConfig,
+    bgUrl: string | null,
+    bgGradient: string | null,
+  ): Promise<InviteConfig> {
+    if (bgGradient) {
+      return {
+        ...config,
+        customColors: {
+          ...config.customColors,
+          backgroundGradient: bgGradient,
+        },
+      }
+    }
+    if (bgUrl) {
+      try {
+        const colors = await extractDominantColors(bgUrl, 1)
+        const primary = rgbToHex(colors[0] ?? 'rgb(232,216,195)')
+        return {
+          ...config,
+          customColors: {
+            ...config.customColors,
+            backgroundGradient: undefined,
+            backgroundColor: primary,
+          },
+        }
+      } catch {
+        return config
+      }
+    }
+    return config
+  }
+
   async function handleLayoutSelect(layoutId: string): Promise<void> {
-    const layout = layouts.find((t) => t.id === layoutId)
+    const isStarter = isStarterLayoutId(layoutId)
+    const layout = isStarter
+      ? starterLayouts.find((t) => t.id === layoutId)
+      : layouts.find((t) => t.id === layoutId)
     if (!layout) {
       showToast('Layout not found.', 'error')
       return
@@ -129,16 +263,22 @@ export default function LayoutSelectPage(): React.ReactElement {
     setApplying(true)
     setApplyingId(layoutId)
     try {
-      let appliedConfig = applyLayout(layout.config, {
-        title: event?.title,
-        date: event?.date,
-        city: event?.city,
-      })
+      let appliedConfig = isStarter
+        ? applyLayout(layout.config, undefined, {
+            mergeEventIntoTitle: false,
+            mergeEventIntoDetails: false,
+          })
+        : applyLayout(layout.config, {
+            title: event?.title,
+            date: event?.date,
+            city: event?.city,
+          })
 
       // Apply card designer background + text overlays from step 2
       const { bgUrl, bgGradient, textBoxes } = readCardDesignFromStorage()
       if (bgUrl || bgGradient) {
         appliedConfig = applyCardDesignToConfig(appliedConfig, bgUrl, bgGradient, textBoxes)
+        appliedConfig = await applyDesignDrivenBackground(appliedConfig, bgUrl, bgGradient)
       }
 
       // Save to Event.page_config so the design page reads the layout + card bg
@@ -172,7 +312,8 @@ export default function LayoutSelectPage(): React.ReactElement {
         const existing = await getInvitePage(eventId)
         const baseConfig = existing?.config
         if (baseConfig) {
-          const updated = applyCardDesignToConfig(baseConfig, bgUrl, bgGradient, textBoxes)
+          let updated = applyCardDesignToConfig(baseConfig, bgUrl, bgGradient, textBoxes)
+          updated = await applyDesignDrivenBackground(updated, bgUrl, bgGradient)
           await updateEventPageConfig(eventId, updated)
           await updateInvitePage(eventId, { config: updated })
         }
@@ -194,7 +335,10 @@ export default function LayoutSelectPage(): React.ReactElement {
     )
   }
 
-  const pendingLayout = layouts.find((t) => t.id === pendingLayoutId)
+  const pendingLayout =
+    layouts.find((t) => t.id === pendingLayoutId) ??
+    starterLayouts.find((t) => t.id === pendingLayoutId)
+  const designLabel = designContext?.sampleName || designContext?.sourceType
 
   return (
     <div className="min-h-screen bg-eco-beige pb-24">
@@ -211,11 +355,32 @@ export default function LayoutSelectPage(): React.ReactElement {
         </button>
 
         <h1 className="text-3xl font-bold text-eco-green mb-1">Choose your invite layout</h1>
-        <p className="text-gray-600 mb-8 text-sm">
-          Pick a starting point. You can customize everything on the next step.
+        <p className="text-gray-600 mb-4 text-sm">
+          {designFilterActive
+            ? 'Showing layouts created for your selected design. Switch to all layouts to browse everything.'
+            : 'Pick a starting point. You can customize everything on the next step.'}
         </p>
 
-        {layoutsLoading ? (
+        {/* Selected design indicator + filter toggle */}
+        {designLabel && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Selected design</span>
+            <span className="inline-flex items-center rounded-full bg-eco-green/10 border border-eco-green/30 px-3 py-1 text-xs text-eco-green font-medium">
+              {designContext?.sampleCode || designLabel}
+            </span>
+            {designCode && (
+              <button
+                type="button"
+                onClick={() => setShowAllLayouts((v) => !v)}
+                className="text-xs text-eco-green underline hover:no-underline"
+              >
+                {designFilterActive ? 'Show all layouts' : 'Filter to this design'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {layoutsLoading || (designFilterActive && layouts.length === 0 && startersLoading) ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-4 border-eco-green border-t-transparent rounded-full animate-spin" />
           </div>
@@ -231,12 +396,15 @@ export default function LayoutSelectPage(): React.ReactElement {
               </div>
             )}
 
-            {/* Layouts grid with blank canvas as first item */}
             <PageLayoutLibrary
               layouts={layouts}
+              starterLayouts={starterLayouts}
+              showStarters={showStarters}
               onSelect={setPendingLayoutId}
               selectedId={pendingLayoutId ?? undefined}
               onBlankCanvas={handleBlankCanvas}
+              designFilterActive={designFilterActive}
+              onShowAllLayouts={() => setShowAllLayouts(true)}
             />
           </div>
         )}

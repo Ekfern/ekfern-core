@@ -61,11 +61,21 @@ import boto3
 from botocore.exceptions import ClientError
 
 
-def get_invite_page_cache_key(slug, guest_token=None):
-    """Generate cache key for invite page response"""
+def get_invite_page_cache_key(slug, version=None, guest_token=None):
+    """Generate cache key for invite page response.
+
+    When `version` (the InvitePage.updated_at timestamp) is provided, it is
+    embedded in the key. This makes the cache key rotate automatically whenever
+    the page content changes, so every container reads the latest version
+    without relying on per-container cache.delete (which is not shared across
+    ECS tasks with LocMemCache). Old-version entries expire via TTL / MAX_ENTRIES.
+    """
+    base = f'invite_page:{slug}'
+    if version is not None:
+        base = f'{base}:v{version}'
     if guest_token:
-        return f'invite_page:{slug}:guest:{guest_token}'
-    return f'invite_page:{slug}'
+        return f'{base}:guest:{guest_token}'
+    return base
 
 
 def invalidate_invite_page_cache(slug):
@@ -149,15 +159,22 @@ def invalidate_cloudfront_cache_immediate(slug):
         # Create CloudFront client
         cloudfront = boto3.client('cloudfront', region_name='us-east-1')
         
-        # Use wildcard to minimize paths (counts as 1 path - industry standard)
-        paths = [f'/invite/{slug}/*']
-        
+        # Invalidate both the exact page path and any sub-paths.
+        # NOTE: the wildcard '/invite/{slug}/*' does NOT match the exact
+        # '/invite/{slug}' page, so we must list it explicitly or stale HTML
+        # keeps being served. Also invalidate the public API response.
+        paths = [
+            f'/invite/{slug}',
+            f'/invite/{slug}/*',
+            f'/api/events/invite/{slug}/*',
+        ]
+
         # Create invalidation
         response = cloudfront.create_invalidation(
             DistributionId=distribution_id,
             InvalidationBatch={
                 'Paths': {
-                    'Quantity': 1,
+                    'Quantity': len(paths),
                     'Items': paths
                 },
                 'CallerReference': f'invite-{slug}-{int(time.time())}'
@@ -1135,23 +1152,13 @@ class EventViewSet(viewsets.ModelViewSet):
             invite_page = None
             try:
                 invite_page = InvitePage.objects.get(event=event)
-                # Update invite page config
+                # Update DRAFT config only. The live page is served from
+                # published_config and is unaffected until the host publishes,
+                # so there is no need to bust the guest/CDN cache here. Editor
+                # preview always bypasses cache (no-store), so it stays fresh.
                 invite_page.config = page_config
                 invite_page.save(update_fields=['config', 'updated_at'])
-                # Invalidate cache after updating config
-                if invite_page.slug:
-                    # Invalidate backend cache immediately (no delay)
-                    invalidate_invite_page_cache(invite_page.slug)
-                    # Immediate CloudFront invalidation for design updates
-                    # This ensures preview windows see changes instantly (<1s latency)
-                    # Cost: ~$0.005 per invalidation, acceptable for design tool usage
-                    # Note: Public page saves can still use debounced invalidation if needed
-                    invalidate_cloudfront_cache_immediate(invite_page.slug)
-                    logger.info(
-                        f"[Cache] INVALIDATE - slug: {invite_page.slug}, "
-                        f"reason: invite_page_config_updated (immediate)"
-                    )
-                logger.info(f"Updated InvitePage config for event {event.id}")
+                logger.info(f"Updated InvitePage draft config for event {event.id}")
             except InvitePage.DoesNotExist:
                 # Auto-create InvitePage if it doesn't exist
                 if event.slug:
@@ -1618,12 +1625,22 @@ class InvitePageViewSet(viewsets.ModelViewSet):
                 f"Publishing invite page: slug={invite_page.slug}, is_published={is_published}, user={request.user.id}"
             )
 
+            # Snapshot the current DRAFT config into the live published_config when
+            # going live. On pull-back (is_published=False) we keep published_config
+            # and published_at so guests can be shown a Coming Soon page and a later
+            # republish is instant.
+            update_fields = ['is_published', 'updated_at']
+            if is_published:
+                invite_page.published_config = invite_page.config
+                invite_page.published_at = timezone.now()
+                update_fields += ['published_config', 'published_at']
+
             # Ensure slug exists before publishing
             if not invite_page.slug and invite_page.event:
                 if invite_page.event.slug:
                     invite_page.slug = invite_page.event.slug.lower()
                     invite_page.is_published = is_published
-                    invite_page.save(update_fields=['slug', 'is_published', 'updated_at'])
+                    invite_page.save(update_fields=['slug'] + update_fields)
                 else:
                     logger.error(f"Cannot publish invite page: event {invite_page.event.id} has no slug")
                     return Response(
@@ -1632,11 +1649,12 @@ class InvitePageViewSet(viewsets.ModelViewSet):
                     )
             else:
                 invite_page.is_published = is_published
-                invite_page.save(update_fields=['is_published', 'updated_at'])
+                invite_page.save(update_fields=update_fields)
 
             # Invalidate cache after publishing/unpublishing
             if invite_page.slug:
                 invalidate_invite_page_cache(invite_page.slug)
+                invalidate_cloudfront_cache_immediate(invite_page.slug)
                 logger.info(
                     f"[Cache] INVALIDATE - slug: {invite_page.slug}, "
                     f"reason: invite_page_published_changed, is_published: {is_published}"
@@ -1667,6 +1685,25 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         """Only return published invite pages"""
         return InvitePage.objects.filter(is_published=True)
+
+    def _coming_soon_response(self, event, slug):
+        """
+        Response for an existing-but-unpublished (draft or pulled-back) invite page.
+
+        Returns HTTP 200 with a `coming_soon` status (rather than a 404) so the
+        frontend can render a branded placeholder. `no-store` keeps it from being
+        cached so the page flips to live quickly when the host republishes.
+        """
+        payload = {
+            'status': 'coming_soon',
+            'slug': slug,
+            'title': getattr(event, 'title', '') or '',
+            'show_branding': getattr(event, 'show_branding', True),
+        }
+        response = Response(payload, status=status.HTTP_200_OK)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        response['Pragma'] = 'no-cache'
+        return response
 
     def retrieve(self, request, *args, **kwargs):
         """Retrieve invite page with guest-scoped sub-events if token provided"""
@@ -1709,9 +1746,26 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         # Check cache for published pages without guest tokens AND not editor preview
         guest_token = request.query_params.get('g', '').strip()
         if not guest_token and not is_preview:  # Only cache if not editor preview
-            cache_key = get_invite_page_cache_key(slug)
+            # Read the current PUBLISHED version (published_at) with a single cheap
+            # indexed query, then build a version-scoped cache key. The live content
+            # only changes on publish, so keying by published_at means active
+            # auto-saving (which bumps updated_at) does not churn the guest cache.
+            # Fall back to updated_at for any legacy published row lacking published_at.
+            version_row = (
+                InvitePage.objects
+                .filter(slug=slug, is_published=True)
+                .values_list('published_at', 'updated_at')
+                .first()
+            )
+            cache_version = None
+            if version_row:
+                cache_version = version_row[0] or version_row[1]
+            cache_key = get_invite_page_cache_key(
+                slug,
+                version=cache_version.timestamp() if cache_version else None,
+            )
             cache_check_start = time.time()
-            cached_response = cache.get(cache_key)
+            cached_response = cache.get(cache_key) if cache_version else None
             cache_check_time = (time.time() - cache_check_start) * 1000  # Convert to ms
             
             if cached_response:
@@ -1755,7 +1809,8 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             invite_page = InvitePage.objects.select_related('event', 'event__host').prefetch_related(
                 'event__sub_events'
             ).only(
-                'id', 'slug', 'background_url', 'config', 'is_published',
+                'id', 'slug', 'background_url', 'config', 'published_config',
+                'is_published', 'published_at',
                 'event_id', 'created_at', 'updated_at',
                 'event__id', 'event__slug', 'event__event_structure',
                 'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__public_sub_events_count',
@@ -1778,9 +1833,11 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 invite_page = InvitePage.objects.select_related('event').prefetch_related(
                     'event__sub_events'
                 ).only(
-                    'id', 'slug', 'background_url', 'config', 'is_published',
+                    'id', 'slug', 'background_url', 'config', 'published_config',
+                    'is_published', 'published_at',
                     'event_id', 'created_at', 'updated_at',
-                    'event__id', 'event__slug', 'event__event_structure',
+                    'event__id', 'event__slug', 'event__title', 'event__show_branding',
+                    'event__event_structure',
                     'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__host_id'  # host_id needed for auth check
                 ).get(slug=slug)
                 event = invite_page.event
@@ -1790,29 +1847,29 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                     f"(ID: {invite_page.id}, Published: {invite_page.is_published}, Query time: {query_time:.3f}s)"
                 )
 
-                # ENHANCEMENT: Allow authenticated hosts to preview their own draft pages
+                # Decide what an unpublished (draft or pulled-back) page returns:
+                # - The authenticated host previewing their own page: allow (serves the draft below).
+                # - Everyone else: a branded "Coming Soon" page instead of a hard 404.
                 if not invite_page.is_published:
-                    # Check if user is authenticated and is the event host
-                    if request.user.is_authenticated and event.host == request.user:
-                        # Host is previewing their own draft - allow access
+                    is_owner = request.user.is_authenticated and event.host_id == request.user.id
+                    if is_owner:
                         logger.info(
                             f"[PublicInviteViewSet.retrieve] Host preview of draft page - "
                             f"User: {request.user.id}, Event: {event.id}, Slug: {slug}"
                         )
-                        # Continue to return the invite page (bypass the 404 below)
+                        # Continue to return the invite page (host sees the draft)
                     else:
-                        # Not the host or not authenticated - block access (security)
-                        logger.error(
-                        "INVITE_404: Unpublished invite page accessed",
-                        extra={
-                            'event_type': 'invite_404_unpublished',
-                            'slug': slug,
-                            'invite_page_id': invite_page.id,
-                            'path': request.path,
+                        logger.info(
+                            "INVITE_COMING_SOON: Unpublished invite page accessed by non-host",
+                            extra={
+                                'event_type': 'invite_coming_soon',
+                                'slug': slug,
+                                'invite_page_id': invite_page.id,
+                                'path': request.path,
                                 'user_id': request.user.id if request.user.is_authenticated else None,
-                        }
-                    )
-                    raise NotFound(f"Invite page not found for slug: {slug}")
+                            },
+                        )
+                        return self._coming_soon_response(event, slug)
 
                 logger.info("[PublicInviteViewSet.retrieve] Step 2 SUCCESS - Using invite page")
 
@@ -1933,6 +1990,30 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 'name': guest.name,
             }
         
+        # Resolve which config to serve. The host previewing their own page sees the
+        # live DRAFT (config); everyone else sees the published snapshot
+        # (published_config), falling back to config only for legacy rows that were
+        # never snapshotted. This guarantees guests never receive unpublished edits.
+        is_host_preview = (
+            is_preview
+            and request.user.is_authenticated
+            and event is not None
+            and getattr(event, 'host_id', None) == request.user.id
+        )
+        if is_host_preview:
+            effective_config = invite_page.config
+        else:
+            effective_config = (
+                invite_page.published_config
+                if invite_page.published_config is not None
+                else invite_page.config
+            )
+        invite_page.config = effective_config
+        # The public endpoint serves only the effective config; drop the separate
+        # published snapshot from the payload (the host editor reads it from the
+        # authenticated event-scoped endpoint instead) to avoid doubling guest payloads.
+        invite_page.published_config = None
+
         # Process description tiles with guest variables (always process to replace [name] with empty string when no guest)
         if invite_page.config and 'tiles' in invite_page.config:
             from .utils import render_description_with_guest
@@ -2006,7 +2087,12 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Cache response for published pages without guest tokens AND not editor preview
         if invite_page.is_published and not guest_token and not bypass_cache:
-            cache_key = get_invite_page_cache_key(slug)
+            # Use the version-scoped key (matches the read path, keyed by published_at
+            # so auto-saving does not churn the guest cache). The TTL also acts as
+            # garbage collection for orphaned old-version entries.
+            version_dt = invite_page.published_at or invite_page.updated_at
+            cache_version = version_dt.timestamp() if version_dt else None
+            cache_key = get_invite_page_cache_key(slug, version=cache_version)
             cache.set(cache_key, serializer.data, 60)  # 1 minute TTL
             logger.info(
                 f"[Cache] SET - slug: {slug}, key: {cache_key}, ttl: 300s, "
@@ -3939,8 +4025,9 @@ class InvitePageLayoutViewSet(viewsets.ModelViewSet):
     """
     ViewSet for invite page layouts (Page Layout Studio).
     List: hosts see published+public; staff see all (optional ?mine=1).
-    Optional filtering (list only): ``?card_url=``, ``?thumbnail=``, ``?source_image_url=``
-    narrowed to thumbnail field (AI save-for-review uses source card URL as thumbnail).
+    Optional filtering (list only): ``?design_code=`` narrows to layouts linked to
+    that GreetingCardSample (via the card_sample FK), driving design-based filtering
+    without resolving image URLs.
 
     Create/Update/Delete: staff only. created_by/updated_by set from request.user.
     """
@@ -3954,25 +4041,20 @@ class InvitePageLayoutViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if getattr(user, 'is_staff', False):
-            qs = InvitePageLayout.objects.all().select_related('created_by', 'updated_by')
+            qs = InvitePageLayout.objects.all().select_related('created_by', 'updated_by', 'card_sample')
             if self.request.query_params.get('mine') == '1':
                 qs = qs.filter(created_by=user)
         else:
             qs = InvitePageLayout.objects.filter(
                 status='published',
                 visibility='public',
-            ).select_related('created_by')
+            ).select_related('created_by', 'card_sample')
 
-        card_src = (
-            self.request.query_params.get('card_url')
-            or self.request.query_params.get('thumbnail')
-            or self.request.query_params.get('source_image_url')
-            or ''
-        ).strip()
-        if card_src:
-            thumb_variants = _invite_layout_thumbnail_url_variants(card_src)
-            if thumb_variants:
-                qs = qs.filter(thumbnail__in=thumb_variants)
+        # Design-based filtering uses the stable card_sample code, not the image
+        # URL. Hosts/staff pass ?design_code= (the GreetingCardSample.code).
+        design_code = (self.request.query_params.get('design_code') or '').strip()
+        if design_code:
+            qs = qs.filter(card_sample__code=design_code)
         return qs
 
     def list(self, request, *args, **kwargs):
@@ -4010,19 +4092,19 @@ class InvitePageLayoutViewSet(viewsets.ModelViewSet):
 # Greeting Card Samples
 # ---------------------------------------------------------------------------
 
-def _upload_greeting_card_to_s3(file):
-    """Upload a greeting card background image to S3 under greeting-cards/ prefix."""
-    import hashlib
+# Max width (px) for the small catalog-grid thumbnail derivative.
+GREETING_CARD_THUMBNAIL_MAX_WIDTH = 360
+GREETING_CARD_THUMBNAIL_QUALITY = 70
+
+
+def _store_greeting_card_bytes(content: bytes, key: str, content_type: str) -> str:
+    """Store raw bytes under ``key`` in S3 (or local media in dev) and return the URL.
+
+    Mirrors the original ``_upload_greeting_card_to_s3`` storage logic so both the
+    full image and its thumbnail share the exact same backend/CDN resolution rules.
+    """
     import os as _os
     from django.conf import settings as django_settings
-
-    file.seek(0)
-    content = file.read()
-    ext = _os.path.splitext(file.name)[1].lower() if hasattr(file, 'name') and file.name else '.jpg'
-    if not ext:
-        ext = '.jpg'
-    content_hash = hashlib.sha256(content).hexdigest()[:20]
-    key = f"greeting-cards/{content_hash}{ext}"
 
     debug_mode = getattr(django_settings, 'DEBUG', False)
     bucket_name = getattr(django_settings, 'AWS_STORAGE_BUCKET_NAME', '') or _os.environ.get('AWS_S3_BUCKET', '')
@@ -4034,22 +4116,21 @@ def _upload_greeting_card_to_s3(file):
     use_local = debug_mode and (not bucket_name or not access_key or not secret_key)
 
     if use_local:
-        from django.conf import settings as _s
         import pathlib
-        media_root = getattr(_s, 'MEDIA_ROOT', '/tmp/media')
-        pathlib.Path(f"{media_root}/greeting-cards").mkdir(parents=True, exist_ok=True)
-        local_path = f"{media_root}/greeting-cards/{content_hash}{ext}"
-        with open(local_path, 'wb') as f:
+        media_root = getattr(django_settings, 'MEDIA_ROOT', '/tmp/media')
+        # key looks like "greeting-cards/<hash>.jpg" or "greeting-cards/thumbs/<hash>.webp"
+        dest = pathlib.Path(media_root) / key
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with open(dest, 'wb') as f:
             f.write(content)
-        media_url = getattr(_s, 'MEDIA_URL', '/media/')
-        return f"{media_url}greeting-cards/{content_hash}{ext}"
+        media_url = getattr(django_settings, 'MEDIA_URL', '/media/')
+        return f"{media_url}{key}"
 
     s3_kwargs = {'service_name': 's3', 'region_name': region}
     if access_key and secret_key:
         s3_kwargs['aws_access_key_id'] = access_key
         s3_kwargs['aws_secret_access_key'] = secret_key
     s3_client = boto3.client(**s3_kwargs)
-    content_type = getattr(file, 'content_type', 'image/jpeg') or 'image/jpeg'
     s3_client.put_object(
         Bucket=bucket_name,
         Key=key,
@@ -4059,6 +4140,78 @@ def _upload_greeting_card_to_s3(file):
     if cloudfront_domain:
         return f"https://{cloudfront_domain}/{key}"
     return f"https://{bucket_name}.s3.{region}.amazonaws.com/{key}"
+
+
+def _generate_card_thumbnail_bytes(content: bytes):
+    """Return (thumb_bytes, ext, content_type) for a small catalog thumbnail.
+
+    Downscales to ``GREETING_CARD_THUMBNAIL_MAX_WIDTH`` (keeps aspect ratio) and
+    encodes as WebP. Returns ``None`` if Pillow can't decode the bytes (e.g. an
+    animated GIF or unsupported format) so callers can fall back to the original.
+    """
+    import io
+    try:
+        from PIL import Image
+    except Exception:
+        return None
+    try:
+        with Image.open(io.BytesIO(content)) as img:
+            # Animated images (GIF) shouldn't be flattened to a static thumb here;
+            # let callers fall back to the original so motion is preserved.
+            if getattr(img, 'is_animated', False):
+                return None
+            img = img.convert('RGB')
+            width, height = img.size
+            if width > GREETING_CARD_THUMBNAIL_MAX_WIDTH:
+                new_height = int(height * (GREETING_CARD_THUMBNAIL_MAX_WIDTH / float(width)))
+                img = img.resize((GREETING_CARD_THUMBNAIL_MAX_WIDTH, max(1, new_height)), Image.LANCZOS)
+            buffer = io.BytesIO()
+            img.save(buffer, format='WEBP', quality=GREETING_CARD_THUMBNAIL_QUALITY, method=4)
+            return buffer.getvalue(), '.webp', 'image/webp'
+    except Exception:
+        return None
+
+
+def _upload_greeting_card_with_thumbnail(file):
+    """Upload a greeting card image plus a small thumbnail derivative.
+
+    Returns ``(url, thumbnail_url)``. ``thumbnail_url`` is empty when a thumbnail
+    couldn't be generated (e.g. animated GIF / unsupported format) so callers can
+    fall back to the full image.
+    """
+    import hashlib
+    import os as _os
+
+    file.seek(0)
+    content = file.read()
+    ext = _os.path.splitext(file.name)[1].lower() if hasattr(file, 'name') and file.name else '.jpg'
+    if not ext:
+        ext = '.jpg'
+    content_hash = hashlib.sha256(content).hexdigest()[:20]
+    content_type = getattr(file, 'content_type', 'image/jpeg') or 'image/jpeg'
+
+    full_key = f"greeting-cards/{content_hash}{ext}"
+    url = _store_greeting_card_bytes(content, full_key, content_type)
+
+    thumbnail_url = ''
+    thumb = _generate_card_thumbnail_bytes(content)
+    if thumb is not None:
+        thumb_bytes, thumb_ext, thumb_content_type = thumb
+        thumb_key = f"greeting-cards/thumbs/{content_hash}{thumb_ext}"
+        try:
+            thumbnail_url = _store_greeting_card_bytes(thumb_bytes, thumb_key, thumb_content_type)
+        except Exception as e:
+            # Non-fatal: a missing thumbnail just falls back to the full image.
+            logger.warning(f'Greeting card thumbnail upload failed (non-fatal): {e}')
+            thumbnail_url = ''
+
+    return url, thumbnail_url
+
+
+def _upload_greeting_card_to_s3(file):
+    """Backwards-compatible single-URL upload (full image only)."""
+    url, _ = _upload_greeting_card_with_thumbnail(file)
+    return url
 
 
 @api_view(['POST'])
@@ -4073,18 +4226,32 @@ def upload_greeting_card_image(request):
     if image_file.size > 20 * 1024 * 1024:
         return Response({'error': 'Max file size is 20 MB.'}, status=status.HTTP_400_BAD_REQUEST)
     try:
-        url = _upload_greeting_card_to_s3(image_file)
-        # In dev (no S3 creds), `_upload_greeting_card_to_s3` returns a relative
-        # `/media/...` path. Downstream consumers — page-layout auto-generator,
-        # the palette extractor, the vision LLM — fetch this URL over HTTP from
-        # the backend, so it MUST be absolute. `build_absolute_uri` is a no-op
-        # on already-absolute S3/CloudFront URLs in production.
+        url, thumbnail_url = _upload_greeting_card_with_thumbnail(image_file)
+        # In dev (no S3 creds), the storage helper returns a relative `/media/...`
+        # path. Downstream consumers — page-layout auto-generator, the palette
+        # extractor, the vision LLM — fetch this URL over HTTP from the backend,
+        # so it MUST be absolute. `build_absolute_uri` is a no-op on already
+        # absolute S3/CloudFront URLs in production.
         if url and not url.startswith(('http://', 'https://')):
             url = request.build_absolute_uri(url)
-        return Response({'url': url})
+        if thumbnail_url and not thumbnail_url.startswith(('http://', 'https://')):
+            thumbnail_url = request.build_absolute_uri(thumbnail_url)
+        return Response({'url': url, 'thumbnail_url': thumbnail_url})
     except Exception as e:
         logger.error(f'Greeting card image upload failed: {e}', exc_info=True)
         return Response({'error': f'Upload failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GreetingCardSamplePagination(PageNumberPagination):
+    """Pagination for the greeting-card catalog grid.
+
+    The catalog can hold hundreds of items, so we page it (24 per page) and let
+    the client request larger pages up to a cap. Responses use the standard DRF
+    ``{count, next, previous, results}`` envelope.
+    """
+    page_size = 24
+    page_size_query_param = 'page_size'
+    max_page_size = 60
 
 
 class GreetingCardSampleViewSet(viewsets.ModelViewSet):
@@ -4093,15 +4260,44 @@ class GreetingCardSampleViewSet(viewsets.ModelViewSet):
     List/retrieve: all authenticated users (active only for non-staff).
     Create/update/delete: staff only.
     """
-    # Curated list is small; disable global PageNumberPagination (PAGE_SIZE=20) so hosts see all active samples.
-    pagination_class = None
+    pagination_class = GreetingCardSamplePagination
     serializer_class = GreetingCardSampleSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         if getattr(self.request.user, 'is_staff', False):
-            return GreetingCardSample.objects.all()
-        return GreetingCardSample.objects.filter(is_active=True)
+            qs = GreetingCardSample.objects.all()
+        else:
+            qs = GreetingCardSample.objects.filter(is_active=True)
+
+        # Exact background-URL lookup: used only to hydrate the stable design
+        # code for legacy selections saved before codes existed (back-compat).
+        background_url = (self.request.query_params.get('background_url') or '').strip()
+        if background_url:
+            qs = qs.filter(background_image_url=background_url)
+
+        q = (self.request.query_params.get('q') or '').strip()
+        tag = (self.request.query_params.get('tags') or '').strip()
+
+        # `tags` is a JSONField (list of strings). Cast it to text so a plain
+        # icontains works portably for substring tag matching.
+        if q or tag:
+            from django.db.models import TextField
+            from django.db.models.functions import Cast
+            qs = qs.annotate(tags_text=Cast('tags', TextField()))
+
+        # Server-side search: `q` matches code/name/description/tags.
+        if q:
+            qs = qs.filter(
+                Q(code__icontains=q)
+                | Q(name__icontains=q)
+                | Q(description__icontains=q)
+                | Q(tags_text__icontains=q)
+            )
+        # `tags` filters by a single tag token (icontains so partial tokens match).
+        if tag:
+            qs = qs.filter(tags_text__icontains=tag)
+        return qs
 
     def create(self, request, *args, **kwargs):
         if not getattr(request.user, 'is_staff', False):

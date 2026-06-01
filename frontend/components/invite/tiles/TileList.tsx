@@ -223,9 +223,12 @@ export default function TileList({
 
   // Invite-style preview: no cards, no drag handles — matches live invite page so template preview matches final result
   if (variant === 'invite') {
+    const sortedForInvite = [...tilesToRender].sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0)
+    )
     return (
       <div className="space-y-0 w-full overflow-x-hidden">
-        {tilesToRender.map((tile) => {
+        {sortedForInvite.map((tile) => {
           const titleOverlay = tiles.find(t => t.type === 'title' && t.overlayTargetId === tile.id)
           if ((tile.type === 'image' || tile.type === 'design') && titleOverlay) {
             return (

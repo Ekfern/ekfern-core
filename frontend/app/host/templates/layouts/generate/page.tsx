@@ -143,9 +143,9 @@ export default function GeneratePageLayoutPage() {
     setUploading(true)
     setUploadError(null)
     try {
-      const url = await uploadDesignImage(file)
+      const { url, thumbnail_url } = await uploadDesignImage(file)
       setCardUrl(url)
-      setCardThumb(url)
+      setCardThumb(thumbnail_url || url)
       setCardSource('upload')
     } catch (err) {
       logError('Greeting card upload (auto-generator) failed', err)

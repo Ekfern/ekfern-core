@@ -48,6 +48,8 @@ interface TileSettingsListProps {
   eventStructure?: 'SIMPLE' | 'ENVELOPE'
   /** Staff page layout studio: allow Event carousel in Add tile without ENVELOPE context */
   templateStudio?: boolean
+  /** Tile ids that differ from the published version (renders an "Edited" badge). */
+  changedTileIds?: Set<string>
 }
 
 export default function TileSettingsList({
@@ -63,6 +65,7 @@ export default function TileSettingsList({
   forceExpanded = false,
   eventStructure,
   templateStudio = false,
+  changedTileIds,
 }: TileSettingsListProps) {
   const [showPicker, setShowPicker] = useState(false)
 
@@ -119,6 +122,7 @@ export default function TileSettingsList({
               hasRsvp={hasRsvp}
               hasRegistry={hasRegistry}
               forceExpanded={forceExpanded}
+              isChanged={changedTileIds?.has(tile.id) ?? false}
             />
           ))}
           {footerTile && (
@@ -133,6 +137,7 @@ export default function TileSettingsList({
               hasRegistry={hasRegistry}
               forceExpanded={forceExpanded}
               isFooter={true}
+              isChanged={changedTileIds?.has(footerTile.id) ?? false}
             />
           )}
 

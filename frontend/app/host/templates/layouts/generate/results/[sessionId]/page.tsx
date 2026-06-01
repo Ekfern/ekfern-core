@@ -73,6 +73,8 @@ export default function GenerateResultsPage() {
   const [remixError, setRemixError] = useState<string | null>(null)
   const [saveReviewBusy, setSaveReviewBusy] = useState(false)
   const [saveReviewError, setSaveReviewError] = useState<string | null>(null)
+  // Design code the saved layouts were linked to (returned by save-for-review).
+  const [savedDesignCode, setSavedDesignCode] = useState<string | null>(null)
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
@@ -135,12 +137,15 @@ export default function GenerateResultsPage() {
     [drafts],
   )
 
-  /** Studio list supports ?card_url=… so we only see layouts tied to this generation’s card */
+  /**
+   * Studio list filters by ?design_code=… so we only see layouts tied to this
+   * generation's design. The code is only known after save-for-review links the
+   * layouts to a GreetingCardSample, so pre-save this just opens the full list.
+   */
   const studioListHref = useMemo(() => {
-    const cu = response?.card_url?.trim()
-    if (!cu) return '/host/page-layouts'
-    return `/host/page-layouts?card_url=${encodeURIComponent(cu)}`
-  }, [response?.card_url])
+    const code = savedDesignCode?.trim()
+    return code ? `/host/page-layouts?design_code=${encodeURIComponent(code)}` : '/host/page-layouts'
+  }, [savedDesignCode])
 
   const rowBusyKey = (d: DraftRow) => draftRowKey(d, sessionId || '')
 
@@ -222,6 +227,8 @@ export default function GenerateResultsPage() {
         meta: d.meta,
       }))
       const res = await saveReviewDrafts({ card_url: card_url.trim(), event_type: event_type.trim(), drafts: payloadDrafts })
+      const designCode = res.design_code?.trim() || ''
+      setSavedDesignCode(designCode || null)
       flushSync(() => {
         const byIndex = new Map(res.saved.map((s) => [s.index, s]))
         setDrafts((rows) =>
@@ -264,8 +271,11 @@ export default function GenerateResultsPage() {
           logError('Failed to update sessionStorage after save-for-review', e)
         }
       }
-      const q = encodeURIComponent(card_url.trim())
-      router.push(`/host/page-layouts?card_url=${q}`)
+      router.push(
+        designCode
+          ? `/host/page-layouts?design_code=${encodeURIComponent(designCode)}`
+          : '/host/page-layouts',
+      )
     } catch (err: any) {
       logError('Save for review failed', err)
       setSaveReviewError(err?.response?.data?.error || err?.message || 'Failed to save for review.')

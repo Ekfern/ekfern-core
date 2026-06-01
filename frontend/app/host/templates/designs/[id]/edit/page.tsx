@@ -76,6 +76,7 @@ export default function EditDesignSamplePage(): React.ReactElement {
   const [tagsInput, setTagsInput] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [bgUrl, setBgUrl] = useState<string | null>(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>('')
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -119,6 +120,7 @@ export default function EditDesignSamplePage(): React.ReactElement {
       setTagsInput((sample.tags ?? []).join(', '))
       setIsActive(sample.is_active)
       setBgUrl(sample.background_image_url || null)
+      setThumbnailUrl(sample.thumbnail_url ?? '')
       setTextBoxes((sample.text_overlays ?? []) as TextBox[])
     }).catch((e: unknown) => {
       logError('Load design sample failed', e)
@@ -205,8 +207,9 @@ export default function EditDesignSamplePage(): React.ReactElement {
     if (file.size > 20 * 1024 * 1024) { alert('Max file size is 20 MB.'); return }
     setUploading(true)
     try {
-      const url = await uploadDesignImage(file)
+      const { url, thumbnail_url } = await uploadDesignImage(file)
       setBgUrl(url)
+      setThumbnailUrl(thumbnail_url)
     } catch (err) {
       logError('Upload failed', err)
       alert('Upload failed. Please try again.')
@@ -224,7 +227,7 @@ export default function EditDesignSamplePage(): React.ReactElement {
       const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean)
       await updateDesignSample(sampleId, {
         name: name.trim(), description: description.trim(),
-        background_image_url: bgUrl, text_overlays: textBoxes,
+        background_image_url: bgUrl, thumbnail_url: thumbnailUrl, text_overlays: textBoxes,
         tags, is_active: isActive,
       })
       router.push('/host/templates/designs')

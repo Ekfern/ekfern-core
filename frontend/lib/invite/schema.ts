@@ -337,7 +337,11 @@ export interface InvitePage {
   slug: string
   background_url: string
   config: InviteConfig
+  /** Live snapshot served to guests. Null until first publish. */
+  published_config?: InviteConfig | null
   is_published: boolean
+  /** Timestamp of last publish; retained when pulled back. */
+  published_at?: string | null
   show_branding?: boolean
   rsvp_count?: number
   created_at: string

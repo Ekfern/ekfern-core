@@ -12,6 +12,10 @@ export interface InvitePageLayout {
   thumbnail: string
   previewAlt?: string
   config: InviteConfig
+  /** Stable design code of the linked card_sample (e.g. DSGN-0042), if any. */
+  cardCode?: string
   /** Creator attribution (from API layouts) */
   createdByName?: string
+  /** Client-only mechanical starter (not from API) */
+  isStarter?: boolean
 }

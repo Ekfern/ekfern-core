@@ -110,8 +110,65 @@ def _safety_error_response(exc: SafetyStackError) -> Response:
     return Response(body, status=exc.status_code, headers=headers)
 
 
+def _resolve_or_create_card_sample(
+    card_url: str, user, layout_name: str = ""
+) -> tuple[GreetingCardSample | None, bool]:
+    """Find the library design for ``card_url`` or auto-register a new one.
+
+    This is a *find-or-create* keyed on ``background_image_url``: if the URL
+    already exists we return the curated sample untouched (keeping its
+    staff-edited name, tags, overlays). Otherwise we register the URL with safe
+    defaults derived from the originating layout name. Failures are logged but
+    never raise — auto-saving a card must never block a publish or save flow.
+
+    Returns ``(sample, created)``; ``sample`` is ``None`` only when ``card_url``
+    is empty or creation failed.
+    """
+    card_url = (card_url or "").strip()
+    if not card_url:
+        return None, False
+
+    try:
+        existing = GreetingCardSample.objects.filter(background_image_url=card_url).first()
+        if existing:
+            return existing, False
+
+        # Best-effort tag derivation from legacy "event | …" auto names.
+        derived_tag = ""
+        if layout_name and " | " in layout_name:
+            head = layout_name.split(" | ", 1)[0].strip().lower()
+            if 0 < len(head) <= 64:
+                derived_tag = head
+
+        sample_name = (
+            f"{layout_name[:140]} (auto-saved)"[:200] if layout_name else "Auto-saved design"
+        )
+        sample = GreetingCardSample.objects.create(
+            name=sample_name,
+            description="Auto-saved when a page layout that referenced this card was created/published.",
+            background_image_url=card_url,
+            text_overlays=[],
+            tags=[derived_tag] if derived_tag else [],
+            sort_order=0,
+            is_active=True,
+            created_by=user,
+        )
+        logger.info(
+            "[resolve_or_create_card_sample] auto-saved GreetingCardSample id=%s code=%s (url=%s)",
+            sample.id, sample.code, card_url,
+        )
+        return sample, True
+    except Exception:
+        logger.exception(
+            "[resolve_or_create_card_sample] failed to auto-save card for url=%s",
+            card_url,
+        )
+        return None, False
+
+
 def _ensure_card_in_library(layout: InvitePageLayout, user) -> tuple[GreetingCardSample | None, bool]:
-    """Guarantee the card referenced by a *published* layout exists in the library.
+    """Guarantee the card referenced by a *published* layout exists in the library
+    and that the layout's ``card_sample`` FK points at it.
 
     Auto-generated drafts can reference S3 URLs that were uploaded ad-hoc and never
     registered in `GreetingCardSample`. If we let those layouts go live without a
@@ -123,55 +180,20 @@ def _ensure_card_in_library(layout: InvitePageLayout, user) -> tuple[GreetingCar
          a published layout is using it.
       3. There is no audit trail of every card we ship.
 
-    This function is a *find-or-create*: if the URL already exists in the library
-    we leave it alone (curated cards keep their staff-edited names, tags, overlays).
-    Otherwise we register the URL with safe defaults derived from the layout itself.
-    Failures here are logged but never block the publish — preserving the asset is
-    best-effort, not a hard guarantee for callers.
-
     Returns ``(sample, created)``; ``sample`` is ``None`` only when the layout has
     no thumbnail to register.
     """
-    card_url = (layout.thumbnail or "").strip()
-    if not card_url:
-        return None, False
-
-    try:
-        existing = GreetingCardSample.objects.filter(background_image_url=card_url).first()
-        if existing:
-            return existing, False
-
-        # Best-effort tag derivation from legacy "event | …" auto names.
-        derived_tag = ""
-        if layout.name and " | " in layout.name:
-            head = layout.name.split(" | ", 1)[0].strip().lower()
-            if 0 < len(head) <= 64:
-                derived_tag = head
-
-        sample_name = f"{layout.name[:140]} (auto-saved)"[:200]
-        sample = GreetingCardSample.objects.create(
-            name=sample_name,
-            description="Auto-saved when a page layout that referenced this card was published.",
-            background_image_url=card_url,
-            text_overlays=[],
-            tags=[derived_tag] if derived_tag else [],
-            sort_order=0,
-            is_active=True,
-            created_by=user,
-        )
-        logger.info(
-            "[ensure_card_in_library] auto-saved GreetingCardSample id=%s for "
-            "InvitePageLayout id=%s (url=%s)",
-            sample.id, layout.id, card_url,
-        )
-        return sample, True
-    except Exception:
-        # Never block a publish on this. Log loudly and move on.
-        logger.exception(
-            "[ensure_card_in_library] failed to auto-save card for layout id=%s url=%s",
-            layout.id, card_url,
-        )
-        return None, False
+    sample, created = _resolve_or_create_card_sample(layout.thumbnail, user, layout.name)
+    if sample and layout.card_sample_id != sample.id:
+        try:
+            layout.card_sample = sample
+            layout.save(update_fields=["card_sample"])
+        except Exception:
+            logger.exception(
+                "[ensure_card_in_library] failed to link layout id=%s to sample id=%s",
+                layout.id, sample.id,
+            )
+    return sample, created
 
 
 def _validate_payload(data: dict) -> dict:
@@ -568,11 +590,16 @@ def save_review_drafts(request):
 
     created: list[dict] = []
     with transaction.atomic():
+        # All drafts in one save-for-review share the same source card; resolve
+        # (or auto-register) the design once and link every layout to it so the
+        # design-code filter works without URL matching.
+        card_sample, _ = _resolve_or_create_card_sample(payload["card_url"], request.user)
         for payload_index, row in enumerate(payload["drafts"], start=1):
             layout = InvitePageLayout.objects.create(
                 name=row["name"],
                 description=row["description"],
                 thumbnail=row["thumbnail"],
+                card_sample=card_sample,
                 preview_alt=row["preview_alt"],
                 config=row["config"],
                 visibility="internal",
@@ -597,7 +624,12 @@ def save_review_drafts(request):
             )
 
     return Response(
-        {"saved": created, "count": len(created), "request_id": uuid.uuid4().hex},
+        {
+            "saved": created,
+            "count": len(created),
+            "request_id": uuid.uuid4().hex,
+            "design_code": card_sample.code if card_sample else None,
+        },
         status=201,
     )
 
@@ -629,6 +661,7 @@ def publish_page_layout(request, layout_id: int):
     response_body["card_sample"] = (
         {
             "id": card_sample.id,
+            "code": card_sample.code,
             "name": card_sample.name,
             "auto_saved": card_created,
         }

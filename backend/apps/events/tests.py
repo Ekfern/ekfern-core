@@ -9,7 +9,7 @@ from django.utils import timezone
 from datetime import timedelta
 from rest_framework.test import APIClient
 from rest_framework import status
-from apps.events.models import Event, Guest, RSVP, InvitePage, MessageTemplate, SubEvent, GuestSubEventInvite, BookingSchedule, BookingSlot, SlotBooking
+from apps.events.models import Event, Guest, RSVP, InvitePage, MessageTemplate, SubEvent, GuestSubEventInvite, BookingSchedule, BookingSlot, SlotBooking, GreetingCardSample, InvitePageLayout
 from django.core.cache import cache
 from apps.events.serializers import GuestSerializer
 
@@ -338,8 +338,8 @@ class PublicInviteViewSetTestCase(TestCase):
             is_public=True
         )
     
-    def test_unpublished_invite_page_returns_404(self):
-        """Test that accessing unpublished invite page returns 404, not auto-publish"""
+    def test_unpublished_invite_page_returns_coming_soon(self):
+        """Unpublished (existing) invite page returns a 200 coming_soon payload, not 404, and is never auto-published."""
         # Create unpublished invite page
         invite_page = InvitePage.objects.create(
             event=self.event,
@@ -350,12 +350,18 @@ class PublicInviteViewSetTestCase(TestCase):
         # Try to access it (public invite endpoint)
         response = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         
-        # Should return 404, not auto-publish
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        # Should return a branded Coming Soon placeholder (HTTP 200), not a 404
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data.get('status'), 'coming_soon')
         
-        # Verify it's still unpublished
+        # Verify it's still unpublished (never auto-published)
         invite_page.refresh_from_db()
         self.assertFalse(invite_page.is_published)
+
+    def test_missing_invite_page_returns_404(self):
+        """A truly missing slug (no invite page, no event) still returns 404."""
+        response = self.client.get('/api/events/invite/does-not-exist-slug/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
     
     def test_published_invite_page_works(self):
         """Test that published invite page still works"""
@@ -371,6 +377,84 @@ class PublicInviteViewSetTestCase(TestCase):
         
         # Should succeed
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_publish_snapshots_draft_and_draft_edits_stay_private(self):
+        """Publish copies config -> published_config; later draft edits do not reach guests until re-publish, while host preview sees the draft."""
+        invite_page = InvitePage.objects.create(
+            event=self.event,
+            slug=self.event.slug.lower(),
+            is_published=False,
+            config={'themeId': 'classic-noir', 'tiles': []},
+        )
+
+        # Host publishes via the API -> snapshot taken
+        self.client.force_authenticate(user=self.host)
+        publish_resp = self.client.post(
+            f'/api/events/invite/{invite_page.slug}/publish/',
+            {'is_published': True},
+            format='json',
+        )
+        self.assertEqual(publish_resp.status_code, status.HTTP_200_OK)
+        invite_page.refresh_from_db()
+        self.assertTrue(invite_page.is_published)
+        self.assertIsNotNone(invite_page.published_at)
+        self.assertEqual(invite_page.published_config, invite_page.config)
+
+        # Host edits the draft via the design endpoint
+        design_resp = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'modern-minimal', 'tiles': []}},
+            format='json',
+        )
+        self.assertEqual(design_resp.status_code, status.HTTP_200_OK)
+        invite_page.refresh_from_db()
+        self.assertEqual(invite_page.config['themeId'], 'modern-minimal')
+        # Published snapshot is unchanged by a draft save
+        self.assertEqual(invite_page.published_config['themeId'], 'classic-noir')
+
+        # A guest still sees the PUBLISHED config (no guest token, no preview)
+        guest_client = APIClient()
+        guest_resp = guest_client.get(f'/api/events/invite/{invite_page.slug}/')
+        self.assertEqual(guest_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(guest_resp.data['config']['themeId'], 'classic-noir')
+
+        # The host preview sees the latest DRAFT
+        preview_resp = self.client.get(f'/api/events/invite/{invite_page.slug}/?preview=true')
+        self.assertEqual(preview_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(preview_resp.data['config']['themeId'], 'modern-minimal')
+
+    def test_pull_back_retains_snapshot_and_shows_coming_soon(self):
+        """Pulling back keeps published_config/published_at and serves guests a Coming Soon page."""
+        invite_page = InvitePage.objects.create(
+            event=self.event,
+            slug=self.event.slug.lower(),
+            is_published=False,
+            config={'themeId': 'classic-noir', 'tiles': []},
+        )
+        self.client.force_authenticate(user=self.host)
+        self.client.post(
+            f'/api/events/invite/{invite_page.slug}/publish/',
+            {'is_published': True},
+            format='json',
+        )
+        # Pull back
+        pull_back = self.client.post(
+            f'/api/events/invite/{invite_page.slug}/publish/',
+            {'is_published': False},
+            format='json',
+        )
+        self.assertEqual(pull_back.status_code, status.HTTP_200_OK)
+        invite_page.refresh_from_db()
+        self.assertFalse(invite_page.is_published)
+        # Snapshot retained so re-publish is instant
+        self.assertIsNotNone(invite_page.published_config)
+        self.assertIsNotNone(invite_page.published_at)
+
+        # Guests now see a Coming Soon placeholder
+        guest_client = APIClient()
+        guest_resp = guest_client.get(f'/api/events/invite/{invite_page.slug}/')
+        self.assertEqual(guest_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(guest_resp.data.get('status'), 'coming_soon')
 
 
 class CreateRSVPEnvelopeTestCase(TestCase):
@@ -722,9 +806,18 @@ class InvitePageCacheTestCase(TestCase):
             event_structure='SIMPLE'
         )
     
-    def get_cache_key(self, slug):
-        """Helper to get cache key"""
-        return f'invite_page:{slug}'
+    def get_cache_key(self, slug, invite_page=None):
+        """Helper to build the version-scoped cache key (matches the view).
+
+        Pass `invite_page` for published pages so the key includes the current
+        updated_at version segment; omit it to get the unversioned base key.
+        """
+        from apps.events.views import get_invite_page_cache_key
+        version = None
+        if invite_page is not None:
+            invite_page.refresh_from_db(fields=['updated_at'])
+            version = invite_page.updated_at.timestamp()
+        return get_invite_page_cache_key(slug, version=version)
     
     def test_cache_hit_for_published_page(self):
         """Test that published invite page is cached and subsequent requests hit cache"""
@@ -736,19 +829,20 @@ class InvitePageCacheTestCase(TestCase):
             config={'themeId': 'classic-noir'}
         )
         
-        cache_key = self.get_cache_key(invite_page.slug)
+        cache_key = self.get_cache_key(invite_page.slug, invite_page)
         
         # First request - should be cache MISS
         self.assertIsNone(cache.get(cache_key))
         response1 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
         
-        # Verify cache was set
+        # Verify cache was set under the version-scoped key
         cached_data = cache.get(cache_key)
         self.assertIsNotNone(cached_data, "Cache should be set after first request")
         
-        # Second request - should be cache HIT (no database queries)
-        with self.assertNumQueries(0):
+        # Second request - cache HIT. Exactly one query: the lightweight
+        # updated_at version lookup that precedes the cache check.
+        with self.assertNumQueries(1):
             response2 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
@@ -756,7 +850,7 @@ class InvitePageCacheTestCase(TestCase):
         self.assertEqual(response1.json(), response2.json())
     
     def test_cache_miss_for_unpublished_page(self):
-        """Test that unpublished invite pages are never cached"""
+        """Unpublished invite pages return coming_soon and are never cached."""
         # Create unpublished invite page
         invite_page = InvitePage.objects.create(
             event=self.event,
@@ -769,9 +863,10 @@ class InvitePageCacheTestCase(TestCase):
         # Make multiple requests
         for _ in range(3):
             response = self.client.get(f'/api/events/invite/{invite_page.slug}/')
-            # Should return 404 (unpublished)
-            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-            # Cache should never be set
+            # Should return a Coming Soon placeholder (200), not a 404
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.data.get('status'), 'coming_soon')
+            # Cache should never be set for unpublished pages
             self.assertIsNone(cache.get(cache_key))
     
     def test_cache_bypass_for_guest_token(self):
@@ -809,7 +904,9 @@ class InvitePageCacheTestCase(TestCase):
         self.assertIn('guest_context', response2.json())
     
     def test_cache_invalidation_on_update(self):
-        """Test that cache is invalidated when invite page is updated"""
+        """Updating the page bumps updated_at, rotating the version-scoped cache
+        key so the next request always serves fresh content (globally, without
+        relying on per-container cache.delete)."""
         # Create published invite page
         invite_page = InvitePage.objects.create(
             event=self.event,
@@ -818,28 +915,24 @@ class InvitePageCacheTestCase(TestCase):
             config={'themeId': 'classic-noir'}
         )
         
-        cache_key = self.get_cache_key(invite_page.slug)
-        
-        # First request - cache MISS, then cached
+        # First request - cache MISS, then cached under the v1 key
         response1 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
-        self.assertIsNotNone(cache.get(cache_key))
+        self.assertEqual(response1.json()['config']['themeId'], 'classic-noir')
+        self.assertIsNotNone(cache.get(self.get_cache_key(invite_page.slug, invite_page)))
         
-        # Update invite page config
+        # Update invite page config (bumps updated_at -> new version key)
         invite_page.config = {'themeId': 'modern-minimal'}
         invite_page.save(update_fields=['config', 'updated_at'])
         
-        # Cache should be invalidated
-        self.assertIsNone(cache.get(cache_key), "Cache should be invalidated after update")
-        
-        # Next request should be cache MISS (not HIT)
+        # Next request must reflect the new config (fresh, not the stale cache)
         response2 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        # Verify new config is in response
+        self.assertEqual(response2.json()['config']['themeId'], 'modern-minimal')
         self.assertNotEqual(response1.json(), response2.json())
     
     def test_cache_invalidation_on_publish(self):
-        """Test that cache is invalidated when invite page is published/unpublished"""
+        """Publishing/unpublishing is reflected immediately via the version-scoped key."""
         # Create unpublished invite page
         invite_page = InvitePage.objects.create(
             event=self.event,
@@ -847,30 +940,31 @@ class InvitePageCacheTestCase(TestCase):
             is_published=False
         )
         
-        cache_key = self.get_cache_key(invite_page.slug)
+        # Unpublished -> guests get a Coming Soon placeholder (not the live page)
+        before = self.client.get(f'/api/events/invite/{invite_page.slug}/')
+        self.assertEqual(before.status_code, status.HTTP_200_OK)
+        self.assertEqual(before.data.get('status'), 'coming_soon')
         
         # Publish it
         invite_page.is_published = True
         invite_page.save(update_fields=['is_published', 'updated_at'])
         
-        # Cache should be invalidated (cleared)
-        self.assertIsNone(cache.get(cache_key))
-        
-        # First request after publish - cache MISS
+        # First request after publish - cache MISS, served fresh (full invite, not coming_soon)
         response1 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
+        self.assertNotEqual(response1.data.get('status'), 'coming_soon')
         
-        # Second request - cache HIT
+        # Second request - cache HIT (same version)
         response2 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
         self.assertEqual(response1.json(), response2.json())
         
-        # Unpublish it
+        # Unpublish it -> guests get the Coming Soon placeholder again
         invite_page.is_published = False
         invite_page.save(update_fields=['is_published', 'updated_at'])
-        
-        # Cache should be invalidated
-        self.assertIsNone(cache.get(cache_key))
+        after = self.client.get(f'/api/events/invite/{invite_page.slug}/')
+        self.assertEqual(after.status_code, status.HTTP_200_OK)
+        self.assertEqual(after.data.get('status'), 'coming_soon')
     
     def test_cache_invalidation_on_subevent_change(self):
         """Test that cache is invalidated when sub-events change"""
@@ -884,25 +978,31 @@ class InvitePageCacheTestCase(TestCase):
             is_published=True
         )
         
-        cache_key = self.get_cache_key(invite_page.slug)
-        
-        # First request - cache MISS, then cached
+        # First request - cache MISS, then cached under the current version key
         response1 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
-        self.assertIsNotNone(cache.get(cache_key))
+        self.assertIsNotNone(cache.get(self.get_cache_key(invite_page.slug, invite_page)))
         
-        # Add sub-event
-        sub_event = SubEvent.objects.create(
+        # Capture the version before the sub-event change
+        invite_page.refresh_from_db(fields=['updated_at'])
+        version_before = invite_page.updated_at
+        
+        # Add sub-event - signal should touch InvitePage.updated_at (version bump)
+        SubEvent.objects.create(
             event=self.event,
             title='Test Sub Event',
             start_at=timezone.now() + timedelta(days=1),
             is_public_visible=True
         )
         
-        # Cache should be invalidated (via signal)
-        self.assertIsNone(cache.get(cache_key), "Cache should be invalidated after sub-event change")
+        # Version must have advanced so the next request rotates to a fresh key
+        invite_page.refresh_from_db(fields=['updated_at'])
+        self.assertGreater(
+            invite_page.updated_at, version_before,
+            "Sub-event change should bump InvitePage.updated_at (cache version)",
+        )
         
-        # Next request should be cache MISS
+        # Next request should be served fresh (200)
         response2 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
     
@@ -915,7 +1015,7 @@ class InvitePageCacheTestCase(TestCase):
             is_published=True
         )
         
-        cache_key = self.get_cache_key(invite_page.slug)
+        cache_key = self.get_cache_key(invite_page.slug, invite_page)
         
         # First request - cache MISS, then cached with TTL
         response1 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
@@ -945,11 +1045,12 @@ class InvitePageCacheTestCase(TestCase):
         # Make request and bound query count.
         # Current serializer computes several event-derived fields and RSVP count,
         # so this endpoint executes multiple queries even for SIMPLE events.
+        # +1 for the lightweight updated_at version lookup that precedes caching.
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(f'/api/events/invite/{invite_page.slug}/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertLessEqual(len(queries), 8, f"Expected <=8 queries, got {len(queries)}")
+        self.assertLessEqual(len(queries), 9, f"Expected <=9 queries, got {len(queries)}")
         data = response.json()
         
         # Verify response has expected fields (from serializer)
@@ -1445,4 +1546,183 @@ class SlotBookingTestCase(TestCase):
         response = self.client.post(f'/api/events/{self.event.id}/rsvp/', payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('choose a slot', response.json().get('error', '').lower())
+
+
+class GreetingCardSampleCatalogTestCase(TestCase):
+    """Pagination + server-side search for the greeting-card catalog API."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='catalog-host@test.com', name='Catalog Host')
+        self.client.force_authenticate(user=self.host)
+        # 30 active samples → spans two pages at page_size=24.
+        for i in range(30):
+            GreetingCardSample.objects.create(
+                name=f'Sample {i:02d}',
+                description='floral wedding card' if i < 5 else 'plain',
+                background_image_url=f'https://cdn.test/greeting-cards/{i}.jpg',
+                tags=['floral', 'wedding'] if i < 5 else ['minimal'],
+                sort_order=i,
+            )
+
+    def test_list_returns_paginated_envelope(self):
+        response = self.client.get('/api/events/greeting-card-samples/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body['count'], 30)
+        self.assertEqual(len(body['results']), 24)
+        self.assertIsNotNone(body['next'])
+        # thumbnail_url is part of the serialized shape.
+        self.assertIn('thumbnail_url', body['results'][0])
+
+    def test_page_size_query_param_capped(self):
+        response = self.client.get('/api/events/greeting-card-samples/?page_size=100')
+        body = response.json()
+        # max_page_size caps at 60, so all 30 fit on one page.
+        self.assertEqual(len(body['results']), 30)
+        self.assertIsNone(body['next'])
+
+    def test_second_page(self):
+        response = self.client.get('/api/events/greeting-card-samples/?page=2')
+        body = response.json()
+        self.assertEqual(len(body['results']), 6)
+        self.assertIsNone(body['next'])
+
+    def test_server_search_matches_tags_and_description(self):
+        response = self.client.get('/api/events/greeting-card-samples/?q=floral')
+        body = response.json()
+        self.assertEqual(body['count'], 5)
+        for result in body['results']:
+            self.assertIn('floral', result['tags'])
+
+    def test_tags_filter(self):
+        response = self.client.get('/api/events/greeting-card-samples/?tags=minimal')
+        body = response.json()
+        self.assertEqual(body['count'], 25)
+
+    def test_non_staff_excludes_inactive(self):
+        GreetingCardSample.objects.create(
+            name='Hidden', background_image_url='https://cdn.test/h.jpg', is_active=False,
+        )
+        response = self.client.get('/api/events/greeting-card-samples/?page_size=60')
+        body = response.json()
+        self.assertEqual(body['count'], 30)
+
+
+class GreetingCardUploadThumbnailTestCase(TestCase):
+    """Upload endpoint generates and returns a thumbnail_url."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(email='staff@test.com', name='Staff')
+        self.staff.is_staff = True
+        self.staff.save(update_fields=['is_staff'])
+        self.client.force_authenticate(user=self.staff)
+
+    def _png_bytes(self):
+        import io
+        from PIL import Image
+        img = Image.new('RGB', (1200, 1600), color=(120, 80, 200))
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        return buf.getvalue()
+
+    def test_upload_returns_url_and_thumbnail_url(self):
+        from unittest import mock
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        upload = SimpleUploadedFile('card.png', self._png_bytes(), content_type='image/png')
+
+        # Avoid real S3/disk: return a deterministic URL per stored key.
+        def fake_store(content, key, content_type):
+            return f'https://cdn.test/{key}'
+
+        with mock.patch('apps.events.views._store_greeting_card_bytes', side_effect=fake_store):
+            response = self.client.post(
+                '/api/events/greeting-card-samples/upload-image/',
+                {'image': upload},
+                format='multipart',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertIn('url', body)
+        self.assertTrue(body['url'].startswith('https://cdn.test/greeting-cards/'))
+        # A thumbnail was generated for this static PNG.
+        self.assertTrue(body['thumbnail_url'].startswith('https://cdn.test/greeting-cards/thumbs/'))
+        self.assertTrue(body['thumbnail_url'].endswith('.webp'))
+
+    def test_non_staff_cannot_upload(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        non_staff = User.objects.create_user(email='nonstaff@test.com', name='No')
+        self.client.force_authenticate(user=non_staff)
+        upload = SimpleUploadedFile('card.png', self._png_bytes(), content_type='image/png')
+        response = self.client.post(
+            '/api/events/greeting-card-samples/upload-image/',
+            {'image': upload},
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class DesignCodeLayoutFilterTestCase(TestCase):
+    """Design code (GreetingCardSample.code) drives layout filtering via the FK."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(email='dc-staff@test.com', name='DC Staff')
+        self.staff.is_staff = True
+        self.staff.save(update_fields=['is_staff'])
+
+        self.design_a = GreetingCardSample.objects.create(
+            name='Design A', background_image_url='https://cdn.test/a.jpg',
+        )
+        self.design_b = GreetingCardSample.objects.create(
+            name='Design B', background_image_url='https://cdn.test/b.jpg',
+        )
+        # Two published+public layouts for A, one for B, one unlinked.
+        self.layout_a1 = InvitePageLayout.objects.create(
+            name='A1', card_sample=self.design_a, visibility='public', status='published',
+            created_by=self.staff,
+        )
+        self.layout_a2 = InvitePageLayout.objects.create(
+            name='A2', card_sample=self.design_a, visibility='public', status='published',
+            created_by=self.staff,
+        )
+        self.layout_b1 = InvitePageLayout.objects.create(
+            name='B1', card_sample=self.design_b, visibility='public', status='published',
+            created_by=self.staff,
+        )
+        self.layout_unlinked = InvitePageLayout.objects.create(
+            name='Unlinked', visibility='public', status='published', created_by=self.staff,
+        )
+
+    def test_code_is_auto_generated(self):
+        self.assertTrue(self.design_a.code.startswith('DSGN-'))
+        self.assertNotEqual(self.design_a.code, self.design_b.code)
+
+    def test_design_code_filter_returns_only_linked_layouts(self):
+        host = User.objects.create_user(email='dc-host@test.com', name='DC Host')
+        self.client.force_authenticate(user=host)
+        response = self.client.get(
+            f'/api/events/invite-page-layouts/?design_code={self.design_a.code}'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = sorted(item['name'] for item in response.json())
+        self.assertEqual(names, ['A1', 'A2'])
+
+    def test_card_code_in_serialized_layout(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(
+            f'/api/events/invite-page-layouts/?design_code={self.design_b.code}'
+        )
+        body = response.json()
+        self.assertEqual(len(body), 1)
+        self.assertEqual(body[0]['card_code'], self.design_b.code)
+
+    def test_no_filter_returns_all_published_public(self):
+        host = User.objects.create_user(email='dc-host2@test.com', name='DC Host2')
+        self.client.force_authenticate(user=host)
+        response = self.client.get('/api/events/invite-page-layouts/')
+        self.assertEqual(len(response.json()), 4)
 
