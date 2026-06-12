@@ -1,5 +1,9 @@
-# Ekfern Core
+# Efern Team
+Aakash Sheth
+Alisha Butala
+Parth Butala
 
+# Ekfern Core0
 Full-stack [Ekfern](https://github.com/Ekfern/ekfern-core) application built with Django REST Framework and Next.js 14. Supports invitations, RSVP, host catalogs, and guest management for any type of event.
 
 ## 🚀 Quick Start
