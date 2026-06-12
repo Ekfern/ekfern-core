@@ -758,30 +758,6 @@ class RSVPPageView(models.Model):
         return f"{self.guest.name} viewed RSVP at {self.viewed_at}"
 
 
-class RegistryPageView(models.Model):
-    """Track when guests open the registry page"""
-    guest = models.ForeignKey(Guest, on_delete=models.CASCADE, related_name='registry_views')
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='registry_views')
-    viewed_at = models.DateTimeField(
-        help_text='When the guest viewed the registry page'
-    )
-
-    class Meta:
-        ordering = ['-viewed_at']
-        indexes = [
-            models.Index(fields=['event', 'guest'], name='registry_views_event_guest_idx'),
-        ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['guest', 'event', 'viewed_at'],
-                name='registry_views_unique_guest_event_time',
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.guest.name} viewed registry at {self.viewed_at}"
-
-
 class AnalyticsBatchRun(models.Model):
     """Track batch processing runs for analytics collection"""
     STATUS_CHOICES = [

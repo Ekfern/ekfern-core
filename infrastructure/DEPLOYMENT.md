@@ -1,13 +1,13 @@
 # AWS Staging Deployment Guide
 
-This guide walks through deploying the event registry application to AWS staging environment.
+This guide walks through deploying the Ekfern application to AWS staging environment.
 
 ## Prerequisites
 
 1. AWS Account with appropriate permissions
 2. AWS CLI installed and configured
 3. Docker installed locally (for testing)
-4. GitHub repository with secrets configured
+4. GitHub repository [`Ekfern/ekfern-core`](https://github.com/Ekfern/ekfern-core) with Actions secrets configured
 
 ## Phase 0: Code Preparation ✅
 

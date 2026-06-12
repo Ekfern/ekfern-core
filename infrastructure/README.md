@@ -1,6 +1,8 @@
 # AWS Infrastructure Setup
 
-This directory contains scripts and documentation for setting up the AWS staging environment.
+This directory contains scripts and documentation for setting up the AWS staging environment for [Ekfern/ekfern-core](https://github.com/Ekfern/ekfern-core).
+
+> **Note:** AWS resource names use the `event-registry-*` prefix (historical). Do not rename them unless you are migrating the full AWS stack.
 
 ## Prerequisites
 

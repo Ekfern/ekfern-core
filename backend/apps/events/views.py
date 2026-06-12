@@ -26,7 +26,7 @@ from apps.common.whatsapp_backend import verify_webhook_signature
 from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
-from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, RegistryPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota
+from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota
 from .serializers import (
     EventSerializer, EventCreateSerializer,
     RSVPSerializer, RSVPCreateSerializer,
@@ -51,8 +51,6 @@ from .guest_import import (
     parse_vcf_bytes,
     process_guest_import_rows,
 )
-from apps.items.models import RegistryItem
-from apps.items.serializers import RegistryItemSerializer
 from django.core.cache import cache
 import threading
 from collections import defaultdict
@@ -94,7 +92,7 @@ def build_attribution_destination_path(link):
     base_path = {
         'invite': f"/invite/{link.event.slug}",
         'rsvp': f"/event/{link.event.slug}/rsvp",
-        'registry': f"/registry/{link.event.slug}",
+        'registry': f"/catalog/{link.event.slug}",
     }.get(link.target_type, f"/invite/{link.event.slug}")
 
     params = {'source': link.channel or 'link', 'al': link.token}
@@ -248,10 +246,10 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         try:
-            return Event.objects.filter(host=self.request.user).select_related('invite_page')
+            return Event.objects.filter(host=self.request.user).select_related('invite_page', 'host_catalog')
         except Exception:
             try:
-                return Event.objects.filter(host=self.request.user).select_related('invite_page').only(
+                return Event.objects.filter(host=self.request.user).select_related('invite_page', 'host_catalog').only(
                     'id', 'host_id', 'slug', 'title', 'event_type', 'date',
                     'city', 'country', 'is_public', 'has_rsvp',
                     'has_registry', 'banner_image', 'description',
@@ -433,19 +431,6 @@ class EventViewSet(viewsets.ModelViewSet):
 
     # -------------------------
     # ORDERS
-    # -------------------------
-    @action(detail=True, methods=['get'])
-    def orders(self, request, id=None):
-        event = self.get_object()
-        self._verify_event_ownership(event)
-
-        from apps.orders.models import Order
-        from apps.orders.serializers import OrderSerializer
-
-        orders = Order.objects.filter(event=event).order_by('-created_at')
-        serializer = OrderSerializer(orders, many=True)
-        return Response(serializer.data)
-
     # -------------------------
     # RSVPS
     # -------------------------
@@ -710,7 +695,6 @@ class EventViewSet(viewsets.ModelViewSet):
             from .analytics_serializers import EventAnalyticsSummarySerializer
             from django.db.models import Count
             from .models import InvitePageView, RSVPPageView, AttributionClick
-            from apps.orders.models import Order
             
             # Get guest counts
             total_guests = Guest.objects.filter(event=event, is_removed=False).count()
@@ -761,7 +745,7 @@ class EventViewSet(viewsets.ModelViewSet):
                 'funnel': {
                     'invite': {'clicks': 0, 'views': total_invite_views, 'rsvp_submissions': 0},
                     'rsvp': {'clicks': 0, 'views': total_rsvp_views, 'rsvp_submissions': 0},
-                    'registry': {'clicks': 0, 'paid_orders': 0},
+                    'catalog': {'clicks': 0, 'total_responses': 0},
                 },
                 'insights_locked': not self._attribution_insights_unlocked(event),
                 'insights_cta_label': 'Enable Tracking Insights',
@@ -798,7 +782,8 @@ class EventViewSet(viewsets.ModelViewSet):
                     is_removed=False,
                     source_channel__in=['qr', 'link'],
                 ).count()
-                paid_orders = Order.objects.filter(event=event, status='paid').count()
+                from apps.catalog.models import CatalogResponse
+                catalog_responses = CatalogResponse.objects.filter(event=event).count()
 
                 data['funnel'] = {
                     'invite': {
@@ -811,9 +796,9 @@ class EventViewSet(viewsets.ModelViewSet):
                         'views': rsvp_tracked_views,
                         'rsvp_submissions': invite_rsvp_submissions,
                     },
-                    'registry': {
+                    'catalog': {
                         'clicks': data['target_type_clicks'].get('registry', 0),
-                        'paid_orders': paid_orders,
+                        'total_responses': catalog_responses,
                     },
                 }
             
@@ -2177,178 +2162,6 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         return response
 
 
-class PublicEventViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Public registry view - no authentication required
-
-    PRIVACY NOTE: This viewset only exposes:
-    - Public event details (title, date, city, slug)
-    - Active registry items (no guest list, no RSVPs, no orders)
-    - No host information beyond what's in EventSerializer
-
-    All private data (guest lists, RSVPs, orders) is ONLY accessible to the event host
-    through EventViewSet with authentication.
-    """
-    serializer_class = EventSerializer
-    permission_classes = [AllowAny]
-    lookup_field = 'slug'
-
-    def get_queryset(self):
-        """Return all events - privacy is enforced per-endpoint"""
-        # Use select_related to avoid N+1 queries when accessing host.name
-        return Event.objects.select_related('host').all()
-
-    def retrieve(self, request, *args, **kwargs):
-        """Override retrieve to normalize slug to lowercase before lookup"""
-        import logging
-        logger = logging.getLogger(__name__)
-
-        original_slug = kwargs.get('slug', '')
-        logger.info(
-            f"[PublicEventViewSet.retrieve] Request received - Original slug: '{original_slug}'"
-        )
-
-        normalized_slug = original_slug.lower() if original_slug else ''
-        if 'slug' in kwargs:
-            kwargs['slug'] = normalized_slug
-            if original_slug != normalized_slug:
-                logger.info(
-                    f"[PublicEventViewSet.retrieve] Slug normalized: '{original_slug}' -> '{normalized_slug}'"
-                )
-
-        try:
-            result = super().retrieve(request, *args, **kwargs)
-            logger.info(
-                f"[PublicEventViewSet.retrieve] Success - Slug: '{normalized_slug}', "
-                f"Status: {result.status_code}"
-            )
-            return result
-        except Exception as e:
-            logger.error(
-                f"[PublicEventViewSet.retrieve] Error - Slug: '{normalized_slug}', Error: {str(e)}",
-                exc_info=True
-            )
-            raise
-
-    @action(detail=True, methods=['get'])
-    def items(self, request, slug=None):
-        """Get active items for public registry - no private data exposed"""
-        import logging
-        logger = logging.getLogger(__name__)
-
-        original_slug = slug
-        logger.info(
-            f"[PublicEventViewSet.items] Request received - Original slug: '{original_slug}'"
-        )
-
-        if slug:
-            normalized_slug = slug.lower()
-            if original_slug != normalized_slug:
-                logger.info(
-                    f"[PublicEventViewSet.items] Slug normalized: '{original_slug}' -> '{normalized_slug}'"
-                )
-            slug = normalized_slug
-        else:
-            logger.warning("[PublicEventViewSet.items] No slug provided in request")
-            normalized_slug = None
-
-        try:
-            logger.info(
-                f"[PublicEventViewSet.items] Querying database for slug: '{normalized_slug}'"
-            )
-            event = get_object_or_404(Event, slug=slug)
-            logger.info(
-                f"[PublicEventViewSet.items] Event found - ID: {event.id}, "
-                f"Title: '{event.title}', Slug: '{event.slug}', "
-                f"HasRegistry: {event.has_registry}, IsPublic: {event.is_public}"
-            )
-        except Exception as e:
-            logger.error(
-                f"[PublicEventViewSet.items] Database query failed - Slug: '{normalized_slug}', "
-                f"Error: {str(e)}",
-                exc_info=True
-            )
-            raise
-
-        # For private events, verify user is in guest list
-        if not event.is_public:
-            phone = request.query_params.get('phone', '').strip()
-            if not phone:
-                return Response(
-                    {'error': 'This is a private event. Phone number required to verify access.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-            event_country_code = get_country_code(event.country)
-            if not phone.startswith('+'):
-                country_code = request.query_params.get('country_code', event_country_code)
-                phone = format_phone_with_country_code(phone, country_code)
-
-            guest = None
-            phone_digits_only = re.sub(r'\D', '', phone)
-            provided_country_code = request.query_params.get('country_code', event_country_code)
-
-            guest = Guest.objects.filter(event=event, phone=phone).first()
-
-            if not guest:
-                all_guests = Guest.objects.filter(event=event)
-                for g in all_guests:
-                    guest_phone_digits = re.sub(r'\D', '', g.phone)
-
-                    if guest_phone_digits == phone_digits_only:
-                        guest = g
-                        break
-
-                    if len(phone_digits_only) >= 10 and len(guest_phone_digits) >= 10:
-                        local_number = phone_digits_only[-10:]
-                        if guest_phone_digits.endswith(local_number):
-                            stored_country_code, _ = parse_phone_number(g.phone)
-                            if stored_country_code == provided_country_code:
-                                guest = g
-                                break
-
-            if not guest:
-                return Response(
-                    {'error': 'This is a private event. Only invited guests can view the registry.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-        if not event.has_registry:
-            logger.warning(
-                f"[PublicEventViewSet.items] Registry disabled for event ID: {event.id}, "
-                f"Slug: '{event.slug}'"
-            )
-            return Response(
-                {'error': 'Gift registry is not available for this event'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        logger.info(
-            f"[PublicEventViewSet.items] Fetching active items for event ID: {event.id}"
-        )
-        items = RegistryItem.objects.filter(
-            event=event,
-            status='active'
-        ).order_by('priority_rank', 'name')
-
-        items_data = []
-        for item in items:
-            remaining = item.qty_total - item.qty_purchased
-            item_dict = RegistryItemSerializer(item).data
-            item_dict['remaining'] = remaining
-            items_data.append(item_dict)
-
-        response_data = {
-            'event': EventSerializer(event).data,
-            'items': items_data,
-        }
-
-        logger.info(
-            f"[PublicEventViewSet.items] Success - Event ID: {event.id}, "
-            f"Items returned: {len(items_data)}"
-        )
-        return Response(response_data)
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_rsvp(request, event_id):
@@ -2698,43 +2511,6 @@ def get_guest_by_token(request, event_id):
         return Response(guest_data, status=status.HTTP_200_OK)
     except Guest.DoesNotExist:
         return Response({'error': 'Invalid guest token'}, status=status.HTTP_404_NOT_FOUND)
-
-
-class RecordRegistryView(APIView):
-    """
-    POST /api/events/registry/<slug>/view/?gt=<guest_token>
-
-    Fire-and-forget endpoint: records a RegistryPageView when a guest opens the
-    registry page. Always returns 204; never surfaces errors to the caller.
-    """
-    permission_classes = [AllowAny]
-
-    def post(self, request, slug):
-        try:
-            event = get_object_or_404(Event, slug=slug)
-            gt = (request.query_params.get('gt') or '').strip()
-            if gt:
-                guest = Guest.objects.filter(
-                    guest_token=gt,
-                    event=event,
-                    is_removed=False,
-                ).first()
-                if guest:
-                    RegistryPageView.objects.create(
-                        guest=guest,
-                        event=event,
-                        viewed_at=timezone.now(),
-                    )
-                    logger.info(
-                        f"[Analytics] Recorded registry view: guest_id={guest.id}, event_id={event.id}"
-                    )
-        except Exception as e:
-            # Fire-and-forget — never let tracking break the caller
-            logger.error(
-                f"[Analytics] Failed to record registry view: {str(e)}",
-                exc_info=True,
-            )
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])

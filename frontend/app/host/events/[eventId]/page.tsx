@@ -16,6 +16,7 @@ import { computeEventStats } from '@/lib/events/computeEventStats'
 import EventOverviewStats from '@/components/events/stats/EventOverviewStats'
 import EventStatusBadge from '@/components/events/EventStatusBadge'
 import NextActionCard from '@/components/events/NextActionCard'
+import { updateCatalog } from '@/lib/catalog/api'
 
 interface Event {
   id: number
@@ -39,18 +40,6 @@ interface Event {
   host_name?: string
 }
 
-interface Order {
-  id: number
-  buyer_name: string
-  buyer_email: string
-  buyer_phone: string
-  amount_inr: number
-  status: string
-  created_at: string
-  item: {
-    name: string
-  } | null
-}
 
 interface BookingSlot {
   id: number
@@ -69,7 +58,7 @@ type LinkKey = 'invite' | 'rsvp' | 'registry'
 const qrDestinationLabel: Record<LinkKey, string> = {
   invite: 'Invite Page',
   rsvp: 'RSVP Page',
-  registry: 'Registry Page',
+  registry: 'Catalog Page',
 }
 
 export default function EventDetailPage() {
@@ -78,7 +67,7 @@ export default function EventDetailPage() {
   const eventId = params.eventId as string
   const { showToast } = useToast()
   const [event, setEvent] = useState<Event | null>(null)
-  const [orders, setOrders] = useState<Order[]>([])
+  const [catalogResponseCount, setCatalogResponseCount] = useState<number>(0)
   const [guests, setGuests] = useState<any[]>([])
   const [rsvps, setRsvps] = useState<any[]>([])
   const [bookingSlots, setBookingSlots] = useState<BookingSlot[]>([])
@@ -119,7 +108,7 @@ export default function EventDetailPage() {
       return
     }
     fetchEvent()
-    fetchOrders()
+    fetchCatalogResponseCount()
     fetchGuests()
     fetchRsvps()
   }, [eventId, router])
@@ -214,16 +203,14 @@ export default function EventDetailPage() {
     }
   }
 
-  const fetchOrders = async () => {
-    if (!eventId || eventId === 'undefined') {
-      return
-    }
+  const fetchCatalogResponseCount = async () => {
+    if (!eventId || eventId === 'undefined') return
     try {
-      const response = await api.get(`/api/events/${eventId}/orders/`)
-      setOrders(normalizeListResponse(response.data))
-    } catch (error) {
-      logError('Failed to fetch orders:', error)
-      setOrders([])
+      const response = await api.get(`/api/events/${eventId}/catalog/responses/`)
+      const data = normalizeListResponse(response.data)
+      setCatalogResponseCount(Array.isArray(data) ? data.length : 0)
+    } catch {
+      setCatalogResponseCount(0)
     }
   }
 
@@ -327,9 +314,9 @@ export default function EventDetailPage() {
         is_public: pendingPrivacyChange,
       })
       showToast(
-        pendingPrivacyChange 
-          ? 'Event is now public. Anyone with the link can RSVP and purchase gifts.' 
-          : 'Event is now private. Only invited guests can RSVP and purchase gifts.',
+        pendingPrivacyChange
+          ? 'Event is now public. Anyone with the link can RSVP and use the host catalog.'
+          : 'Event is now private. Only invited guests can RSVP and use the host catalog.',
         'success'
       )
       fetchEvent()
@@ -347,7 +334,7 @@ export default function EventDetailPage() {
     if (!event) return ''
     const path = key === 'invite' ? `/invite/${event.slug}`
       : key === 'rsvp' ? `/event/${event.slug}/rsvp`
-      : `/registry/${event.slug}`
+      : `/catalog/${event.slug}`
     return `${base}${path}?source=${source}`
   }
 
@@ -562,10 +549,6 @@ export default function EventDetailPage() {
     )
   }
 
-  const totalAmount = orders
-    .filter((o) => o.status === 'paid')
-    .reduce((sum, o) => sum + o.amount_inr, 0);
-  
   const activeGuests = guests.filter((g) => !g.is_removed)
   const totalGuests = activeGuests.length
 
@@ -588,16 +571,6 @@ export default function EventDetailPage() {
         ? 'Configured - Waiting to Publish'
         : 'Not Configured'
   const inviteVisibilityLabel = event.is_public ? 'Public' : 'Private'
-
-  const paidOrders = orders.filter((o) => o.status === 'paid')
-  const coreGuestsWithGifts = paidOrders.filter((o) => {
-    return activeGuests.some((g) => {
-      return (
-        (o.buyer_phone && g.phone && o.buyer_phone === g.phone) ||
-        (o.buyer_email && g.email && o.buyer_email === g.email)
-      )
-    })
-  }).length
 
   const eventDateObj = event.date ? new Date(event.date) : null
   const today = new Date()
@@ -663,7 +636,7 @@ export default function EventDetailPage() {
             {[
               { key: 'invite' as LinkKey, label: 'Invite Page', show: true },
               { key: 'rsvp' as LinkKey, label: 'RSVP Page', show: event.has_rsvp },
-              { key: 'registry' as LinkKey, label: 'Registry Page', show: event.has_registry },
+              { key: 'registry' as LinkKey, label: 'Catalog Page', show: event.has_registry },
             ]
               .filter((item) => item.show)
               .map((item) => {
@@ -827,7 +800,7 @@ export default function EventDetailPage() {
               )})}
             {!event.has_rsvp && !event.has_registry && (
               <div className="text-sm text-gray-600">
-                RSVP and Registry links will appear here when those features are enabled.
+                RSVP and Host Catalog links will appear here when those features are enabled.
               </div>
             )}
           </CardContent>
@@ -872,7 +845,7 @@ export default function EventDetailPage() {
                         {[
                           `Invite: ${analyticsSummary.target_type_clicks?.invite ?? 0}`,
                           event.has_rsvp && `RSVP: ${analyticsSummary.target_type_clicks?.rsvp ?? 0}`,
-                          event.has_registry && `Registry: ${analyticsSummary.target_type_clicks?.registry ?? 0}`,
+                          event.has_registry && `Catalog: ${analyticsSummary.target_type_clicks?.registry ?? 0}`,
                         ].filter(Boolean).join(' • ')}
                       </p>
                     </div>
@@ -897,7 +870,7 @@ export default function EventDetailPage() {
                         )}
                         {event.has_registry && (
                           <p>
-                            Registry: {analyticsSummary.funnel.registry?.clicks ?? 0} clicks → {analyticsSummary.funnel.registry?.paid_orders ?? 0} paid orders
+                            Catalog: {(analyticsSummary.funnel as any).catalog?.clicks ?? analyticsSummary.funnel.registry?.clicks ?? 0} clicks → {(analyticsSummary.funnel as any).catalog?.total_responses ?? 0} responses
                           </p>
                         )}
                       </div>
@@ -909,7 +882,7 @@ export default function EventDetailPage() {
           </Card>
         )}
 
-        {/* Gift KPI / Sustainability Impact */}
+        {/* Sustainability impact (expired events) or live catalog responses */}
         {event.is_expired && impact ? (
           <Card className="bg-white border-2 border-eco-green-light mb-6">
             <CardHeader className="pb-3">
@@ -927,107 +900,33 @@ export default function EventDetailPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-eco-green">{impact.gifts_received?.total_gifts || 0}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Gifts received</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Catalog pledges</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-eco-green">
                     ₹{(impact.gifts_received?.total_value_rupees || 0).toLocaleString('en-IN')}
                   </p>
-                  <p className="text-xs text-gray-500 mt-0.5">Gift value</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Pledge value</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         ) : event?.has_registry ? (
           <Card className="bg-white border-2 border-eco-green-light mb-6">
-            <CardContent className="pt-6 flex items-center gap-6">
+            <CardContent className="pt-6 flex items-center justify-between gap-4">
               <div>
-                <p className="text-3xl font-bold text-eco-green leading-none">
-                  ₹{(totalAmount / 100).toLocaleString('en-IN')}
-                </p>
-                <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Total gifts</p>
+                <p className="text-2xl font-bold text-eco-green leading-none">{catalogResponseCount}</p>
+                <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Catalog responses</p>
               </div>
-              <div className="h-10 w-px bg-gray-200" />
-              <div>
-                <p className="text-2xl font-bold text-gray-700 leading-none">{paidOrders.length}</p>
-                <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide font-medium">Orders received</p>
-              </div>
+              <a
+                href={`/host/events/${eventId}/catalog/responses`}
+                className="text-sm text-eco-green underline hover:no-underline"
+              >
+                View responses →
+              </a>
             </CardContent>
           </Card>
         ) : null}
-
-        {/* Recent Gifts Section */}
-        {event?.has_registry && (
-          <div className="mb-8">
-            <Card className="bg-white border-2 border-eco-green-light">
-              <CardContent className="pt-6">
-                <details>
-                  <summary className="cursor-pointer list-none">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-eco-green">Recent Gifts</h3>
-                      <span className="rounded-full bg-eco-green-light px-3 py-1 text-xs font-medium text-eco-green">
-                        {orders.length}
-                      </span>
-                    </div>
-                  </summary>
-                  <div className="mt-4">
-                    {orders.length === 0 ? (
-                      <p className="text-gray-500 text-center py-8">No gifts received yet</p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left p-2">Gift Giver</th>
-                              <th className="text-left p-2">Gift Item</th>
-                              <th className="text-left p-2">Amount</th>
-                              <th className="text-left p-2">Status</th>
-                              <th className="text-left p-2">Date</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {orders.map((order) => (
-                              <tr key={order.id} className="border-b">
-                                <td className="p-2">
-                                  <div>
-                                    <div className="font-medium">{order.buyer_name}</div>
-                                    <div className="text-sm text-gray-600">
-                                      {order.buyer_email}
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="p-2">
-                                  {order.item?.name || 'Cash Gift'}
-                                </td>
-                                <td className="p-2">
-                                  ₹{(order.amount_inr / 100).toLocaleString('en-IN')}
-                                </td>
-                                <td className="p-2">
-                                  <span
-                                    className={`px-2 py-1 rounded text-xs ${
-                                      order.status === 'paid'
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-yellow-100 text-yellow-800'
-                                    }`}
-                                  >
-                                    {order.status === 'paid' ? 'Received' : order.status}
-                                  </span>
-                                </td>
-                                <td className="p-2 text-sm text-gray-600">
-                                  {new Date(order.created_at).toLocaleDateString()}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </details>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* Settings & Configuration Section */}
         <div className="mb-8">
@@ -1043,7 +942,7 @@ export default function EventDetailPage() {
                         {' · '}
                         {event.has_rsvp ? 'RSVP on' : 'RSVP off'}
                         {' · '}
-                        {event.has_registry ? 'Registry on' : 'Registry off'}
+                        {event.has_registry ? 'Host catalog on' : 'Host catalog off'}
                         {' · '}
                         {event.rsvp_experience_mode === 'sub_event'
                           ? 'Sub-event RSVP'
@@ -1090,26 +989,34 @@ export default function EventDetailPage() {
                       </div>
 
                       <div>
-                        <label className="flex items-center justify-between">
-                          <div>
-                            <span className="font-medium">Gift Registry</span>
-                            <p className="text-xs text-gray-500">Allow guests to purchase gifts</p>
+                        <label className="flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium">Host Catalog</span>
+                            <p className="text-xs text-gray-500">
+                              Let guests browse catalog items and send pledges or interest
+                            </p>
+                            {event.has_registry && (
+                              <a
+                                href={`/host/events/${eventId}/catalog`}
+                                className="text-sm text-eco-green underline hover:no-underline mt-1 inline-block"
+                              >
+                                Manage catalog →
+                              </a>
+                            )}
                           </div>
                           <input
                             type="checkbox"
                             checked={event.has_registry}
                             onChange={async (e) => {
                               try {
-                                await api.patch(`/api/events/${eventId}/`, {
-                                  has_registry: e.target.checked,
-                                })
-                                showToast('Registry setting updated', 'success')
+                                await updateCatalog(parseInt(eventId, 10), { is_enabled: e.target.checked })
+                                showToast('Host Catalog setting updated', 'success')
                                 fetchEvent()
                               } catch (error: any) {
-                                showToast('Failed to update registry setting', 'error')
+                                showToast('Failed to update Host Catalog setting', 'error')
                               }
                             }}
-                            className="form-checkbox text-eco-green"
+                            className="form-checkbox text-eco-green flex-shrink-0"
                           />
                         </label>
                       </div>
@@ -1123,8 +1030,8 @@ export default function EventDetailPage() {
                             </span>
                             <p className="text-xs text-gray-500">
                               {event.is_public
-                                ? 'Anyone with the link can RSVP and purchase gifts'
-                                : 'Only invited guests can RSVP and purchase gifts'}
+                                ? 'Anyone with the link can RSVP and respond on the host catalog'
+                                : 'Only invited guests can RSVP and use the host catalog'}
                             </p>
                           </div>
                           <button
@@ -1355,7 +1262,7 @@ export default function EventDetailPage() {
               {pendingPrivacyChange ? (
                 <div className="space-y-2">
                   <p className="text-sm text-gray-700">
-                    <strong className="text-green-600">Public Event:</strong> Anyone with the event URL or QR code can RSVP and purchase items from the registry, even if they're not on your guest list.
+                    <strong className="text-green-600">Public Event:</strong> Anyone with the event URL or QR code can RSVP and respond on the host catalog, even if they are not on your guest list.
                   </p>
                   <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
                     ⚠️ This means people you haven't invited can still participate in your event.
@@ -1364,10 +1271,10 @@ export default function EventDetailPage() {
               ) : (
                 <div className="space-y-2">
                   <p className="text-sm text-gray-700">
-                    <strong className="text-blue-600">Private Event:</strong> Only people in your guest list can RSVP and purchase items from the registry.
+                    <strong className="text-blue-600">Private Event:</strong> Only people on your guest list can RSVP and use the host catalog.
                   </p>
                   <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                    ℹ️ People not on your guest list will be unable to RSVP or purchase gifts, even if they have the event link.
+                    ℹ️ People not on your guest list will be unable to RSVP or use the host catalog, even if they have the event link.
                   </p>
                 </div>
               )}

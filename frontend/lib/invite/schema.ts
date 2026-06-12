@@ -118,7 +118,7 @@ export interface DescriptionTileSettings {
 export interface FeatureButtonsTileSettings {
   buttonColor?: string // Hex color for buttons
   rsvpLabel?: string // Custom label for RSVP button (default: "RSVP")
-  registryLabel?: string // Custom label for Registry button (default: "Registry")
+  registryLabel?: string // Custom label for catalog button on invite (optional override)
   buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'link'
   buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill'
 }
@@ -316,7 +316,7 @@ export interface InviteConfig {
     showTimer: boolean
     eventDate?: string // ISO string
     buttons: Array<{
-      label: 'Save the Date' | 'RSVP' | 'Registry'
+      label: 'Save the Date' | 'RSVP' | 'Registry' | 'Gift Catalog'
       action: 'calendar' | 'rsvp' | 'registry'
       href?: string
     }>

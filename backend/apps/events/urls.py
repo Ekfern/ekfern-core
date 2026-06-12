@@ -10,8 +10,7 @@ from .views import (
     whatsapp_template_archive, whatsapp_template_activate,
     whatsapp_template_increment_usage, whatsapp_template_set_default,
     get_event_impact, get_overall_impact,
-    invite_page_by_event, attribution_redirect,
-    RecordRegistryView,
+    invite_page_by_event,     attribution_redirect,
     MessageCampaignViewSet, whatsapp_webhook, whatsapp_status, whatsapp_test_send, join_waitlist,
     MetaApprovedTemplateViewSet, GuestSegmentViewSet, HostSendQuotaViewSet,
     ses_webhook, email_click_redirect,
@@ -51,7 +50,8 @@ urlpatterns = [
     path('<int:id>/guests/import/', EventViewSet.as_view({'post': 'import_guests'}), name='event-guests-import'),
     path('<int:id>/guests/import-json/', EventViewSet.as_view({'post': 'import_guests_json'}), name='event-guests-import-json'),
     path('<int:id>/guests/<int:guest_id>/', EventViewSet.as_view({'put': 'update_guest', 'patch': 'update_guest', 'delete': 'delete_guest'}), name='event-guest-update'),
-    path('<int:id>/orders/', EventViewSet.as_view({'get': 'orders'}), name='event-orders'),
+    # Host Catalog endpoints
+    path('<int:event_id>/catalog/', include('apps.catalog.urls')),
     path('<int:id>/design/', EventViewSet.as_view({'put': 'update_design', 'patch': 'update_design'}), name='event-design'),
     path('<int:id>/impact/', get_event_impact, name='event-impact'),
     path('<int:event_id>/rsvp/', create_rsvp, name='event-rsvp'),
@@ -72,8 +72,6 @@ urlpatterns = [
     path('<int:event_id>/host-slot-bookings/<int:booking_id>/', host_update_slot_booking, name='host-slot-booking-update'),
     path('<int:event_id>/host-slot-bookings/<int:booking_id>/move/', host_move_slot_booking, name='host-slot-booking-move'),
     path('<int:event_id>/host-slot-bookings/<int:booking_id>/override-capacity/', host_override_slot_booking_capacity, name='host-slot-booking-override'),
-    # Registry view tracking (fire-and-forget, always 204)
-    path('registry/<slug:slug>/view/', RecordRegistryView.as_view(), name='registry-page-view'),
     # Public invite routes
     path('invite/<str:slug>/', PublicInviteViewSet.as_view({'get': 'retrieve'}), name='public-invite'),
     path('invite/<str:slug>/publish/', InvitePageViewSet.as_view({'post': 'publish'}), name='invite-publish'),

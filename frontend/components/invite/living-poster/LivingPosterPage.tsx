@@ -1,10 +1,9 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { InviteConfig } from '@/lib/invite/schema'
+import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { ThemeProvider, useTheme } from './ThemeProvider'
-import Hero from './Hero'
-import Description from './Description'
 import TilePreview from '@/components/invite/tiles/TilePreview'
 import ScrollIndicator from '@/components/invite/ScrollIndicator'
 import TextureOverlay from './TextureOverlay'
@@ -15,9 +14,11 @@ interface LivingPosterPageProps {
   eventSlug: string
   eventDate?: string
   eventTimezone?: string
-  showBadge?: boolean
   hasRsvp?: boolean
   hasRegistry?: boolean
+  catalogShowOnEventPage?: boolean
+  catalogTitle?: string
+  catalogPurpose?: import('@/lib/catalog/types').CatalogPurpose
   skipTextureOverlay?: boolean
   skipBackgroundColor?: boolean
   allowedSubEvents?: any[]
@@ -30,9 +31,11 @@ function LivingPosterContent({
   eventSlug,
   eventDate,
   eventTimezone,
-  showBadge = true,
   hasRsvp = false,
   hasRegistry = false,
+  catalogShowOnEventPage,
+  catalogTitle,
+  catalogPurpose,
   skipTextureOverlay = false,
   skipBackgroundColor = false,
   allowedSubEvents = [],
@@ -58,81 +61,88 @@ function LivingPosterContent({
     }
   }, [pageBackground, skipBackgroundColor])
 
-  // If tiles exist, render tile-based layout
-  if (config.tiles && config.tiles.length > 0) {
-    const sortedTiles = [...config.tiles]
-      .filter(tile => tile.enabled !== false)
-      .sort((a, b) => a.order - b.order)
+  const effectiveConfig = useMemo(
+    () =>
+      config.tiles && config.tiles.length > 0
+        ? config
+        : migrateToTileConfig(config, config.hero?.title, eventDate),
+    [config, eventDate],
+  )
 
-    // DEBUG: Log order on invite page
-    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-      console.log('[TILE ORDER DEBUG] Invite page order:', {
-        allTiles: config.tiles.map(t => ({
-          id: t.id,
-          type: t.type,
-          enabled: t.enabled,
-          order: t.order,
-        })),
-        enabledTiles: sortedTiles.map(t => ({
-          id: t.id,
-          type: t.type,
-          order: t.order,
-        })),
-      })
-    }
+  const sortedTiles = [...(effectiveConfig.tiles || [])]
+    .filter(tile => tile.enabled !== false)
+    .sort((a, b) => a.order - b.order)
 
-    const sharedProps = {
-      eventDate,
-      eventTimezone,
-      eventSlug,
-      hasRsvp,
-      hasRegistry,
-      allTiles: config.tiles || [],
-      allowedSubEvents,
-      guestToken,
-    }
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log('[TILE ORDER DEBUG] Invite page order:', {
+      allTiles: (effectiveConfig.tiles || []).map(t => ({
+        id: t.id,
+        type: t.type,
+        enabled: t.enabled,
+        order: t.order,
+      })),
+      enabledTiles: sortedTiles.map(t => ({
+        id: t.id,
+        type: t.type,
+        order: t.order,
+      })),
+    })
+  }
 
-    return (
-      <div className="w-full relative overflow-x-hidden" style={skipBackgroundColor ? {} : { background: pageBackground } as React.CSSProperties}>
-        {!skipTextureOverlay && (
-          <TextureOverlay
-            type={config.texture?.type || 'none'}
-            intensity={config.texture?.intensity || 40}
-            imageUrl={config.texture?.imageUrl}
-            textureBlend={config.texture?.textureBlend}
-          />
-        )}
-        {config.cornerDecorations && (config.cornerDecorations.topLeft || config.cornerDecorations.topRight || config.cornerDecorations.bottomLeft || config.cornerDecorations.bottomRight) && (
-          <div className="absolute inset-0 pointer-events-none w-full h-full" style={{ zIndex: 2 }} aria-hidden>
-            {config.cornerDecorations.topLeft && (
-              <img src={config.cornerDecorations.topLeft} alt="" className="absolute left-0 top-0 w-24 h-24 md:w-32 md:h-32 object-contain object-left-top" />
-            )}
-            {config.cornerDecorations.topRight && (
-              <img src={config.cornerDecorations.topRight} alt="" className="absolute right-0 top-0 w-24 h-24 md:w-32 md:h-32 object-contain object-right-top" />
-            )}
-            {config.cornerDecorations.bottomLeft && (
-              <img src={config.cornerDecorations.bottomLeft} alt="" className="absolute left-0 bottom-0 w-24 h-24 md:w-32 md:h-32 object-contain object-left-bottom" />
-            )}
-            {config.cornerDecorations.bottomRight && (
-              <img src={config.cornerDecorations.bottomRight} alt="" className="absolute right-0 bottom-0 w-24 h-24 md:w-32 md:h-32 object-contain object-right-bottom" />
-            )}
-          </div>
-        )}
-        <div
-          className={
-            config.spacing === 'tight'
-              ? 'flex flex-col gap-4'
-              : config.spacing === 'spacious'
-                ? 'flex flex-col gap-12'
-                : 'flex flex-col gap-8'
-          }
-        >
+  const sharedProps = {
+    eventDate,
+    eventTimezone,
+    eventSlug,
+    hasRsvp,
+    hasRegistry,
+    catalogShowOnEventPage,
+    catalogTitle,
+    catalogPurpose,
+    allTiles: effectiveConfig.tiles || [],
+    allowedSubEvents,
+    guestToken,
+  }
+
+  return (
+    <div className="w-full relative overflow-x-hidden" style={skipBackgroundColor ? {} : { background: pageBackground } as React.CSSProperties}>
+      {!skipTextureOverlay && (
+        <TextureOverlay
+          type={effectiveConfig.texture?.type || 'none'}
+          intensity={effectiveConfig.texture?.intensity || 40}
+          imageUrl={effectiveConfig.texture?.imageUrl}
+          textureBlend={effectiveConfig.texture?.textureBlend}
+        />
+      )}
+      {effectiveConfig.cornerDecorations && (effectiveConfig.cornerDecorations.topLeft || effectiveConfig.cornerDecorations.topRight || effectiveConfig.cornerDecorations.bottomLeft || effectiveConfig.cornerDecorations.bottomRight) && (
+        <div className="absolute inset-0 pointer-events-none w-full h-full" style={{ zIndex: 2 }} aria-hidden>
+          {effectiveConfig.cornerDecorations.topLeft && (
+            <img src={effectiveConfig.cornerDecorations.topLeft} alt="" className="absolute left-0 top-0 w-24 h-24 md:w-32 md:h-32 object-contain object-left-top" />
+          )}
+          {effectiveConfig.cornerDecorations.topRight && (
+            <img src={effectiveConfig.cornerDecorations.topRight} alt="" className="absolute right-0 top-0 w-24 h-24 md:w-32 md:h-32 object-contain object-right-top" />
+          )}
+          {effectiveConfig.cornerDecorations.bottomLeft && (
+            <img src={effectiveConfig.cornerDecorations.bottomLeft} alt="" className="absolute left-0 bottom-0 w-24 h-24 md:w-32 md:h-32 object-contain object-left-bottom" />
+          )}
+          {effectiveConfig.cornerDecorations.bottomRight && (
+            <img src={effectiveConfig.cornerDecorations.bottomRight} alt="" className="absolute right-0 bottom-0 w-24 h-24 md:w-32 md:h-32 object-contain object-right-bottom" />
+          )}
+        </div>
+      )}
+      <div
+        className={
+          effectiveConfig.spacing === 'tight'
+            ? 'flex flex-col gap-4'
+            : effectiveConfig.spacing === 'spacious'
+              ? 'flex flex-col gap-12'
+              : 'flex flex-col gap-8'
+        }
+      >
         {sortedTiles.map((tile) => {
           const tileEl = <TilePreview tile={tile} {...sharedProps} />
 
-          // Inject attendee count above the RSVP/feature-buttons tile (min 5 to avoid "2 attending")
           if (tile.type === 'feature-buttons' && hasRsvp && rsvpCount !== undefined && rsvpCount >= 5) {
-            const countColor = config.customColors?.fontColor ?? theme.fontColor
+            const countColor = effectiveConfig.customColors?.fontColor ?? theme.fontColor
             return (
               <div key={tile.id} className="flex flex-col gap-2 w-full">
                 <p className="text-center text-sm px-6" style={{ color: countColor, opacity: 0.6 }}>
@@ -149,47 +159,20 @@ function LivingPosterContent({
             </React.Fragment>
           )
         })}
-        </div>
-        {config.pageFrame?.imageUrl && (
-          <div
-            className="absolute inset-0 pointer-events-none w-full h-full"
-            style={{ zIndex: 5 }}
-            aria-hidden
-          >
-            <img
-              src={config.pageFrame.imageUrl}
-              alt=""
-              className="w-full h-full object-contain"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
-          </div>
-        )}
-        <ScrollIndicator />
       </div>
-    )
-  }
-
-  // Fallback to legacy hero/description layout
-  return (
-    <div className="relative" style={skipBackgroundColor ? {} : { background: pageBackground } as React.CSSProperties}>
-      {!skipTextureOverlay && (
-        <TextureOverlay
-          type={config.texture?.type || 'none'}
-          intensity={config.texture?.intensity || 40}
-          imageUrl={config.texture?.imageUrl}
-          textureBlend={config.texture?.textureBlend}
-        />
-      )}
-      <Hero
-        config={config}
-        eventSlug={eventSlug}
-        eventDate={eventDate}
-        showBadge={showBadge}
-        theme={theme}
-        guestToken={guestToken}
-      />
-      {config.descriptionMarkdown && (
-        <Description markdown={config.descriptionMarkdown} config={config} />
+      {effectiveConfig.pageFrame?.imageUrl && (
+        <div
+          className="absolute inset-0 pointer-events-none w-full h-full"
+          style={{ zIndex: 5 }}
+          aria-hidden
+        >
+          <img
+            src={effectiveConfig.pageFrame.imageUrl}
+            alt=""
+            className="w-full h-full object-contain"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        </div>
       )}
       <ScrollIndicator />
     </div>

@@ -1,6 +1,6 @@
-# Event Registry Backend
+# Ekfern Backend
 
-Django + Django REST Framework backend for the event registry MVP.
+Django + Django REST Framework backend for [Ekfern](https://github.com/Ekfern/ekfern-core).
 
 ## Setup
 
@@ -54,9 +54,9 @@ Django + Django REST Framework backend for the event registry MVP.
 - `PUT /api/items/{id}` - Update item
 - `DELETE /api/items/{id}` - Delete item
 
-### Public Registry
-- `GET /api/registry/{slug}` - Get public event details
-- `GET /api/registry/{slug}/items` - Get active items for event
+### Public Catalog
+- `GET /api/catalog/{slug}/` - Get public catalog (event + published items)
+- `POST /api/catalog/{slug}/respond/` - Submit a catalog response
 
 ### Orders
 - `POST /api/orders` - Create order (public)

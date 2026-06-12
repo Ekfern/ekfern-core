@@ -20,6 +20,9 @@ export interface TilePreviewProps {
   eventTitle?: string
   hasRsvp?: boolean
   hasRegistry?: boolean
+  catalogShowOnEventPage?: boolean
+  catalogTitle?: string
+  catalogPurpose?: import('@/lib/catalog/types').CatalogPurpose
   allTiles?: Tile[]
   allowedSubEvents?: any[]
   guestToken?: string | null
@@ -33,6 +36,9 @@ export default function TilePreview({
   eventTitle,
   hasRsvp,
   hasRegistry,
+  catalogShowOnEventPage,
+  catalogTitle,
+  catalogPurpose,
   allTiles = [],
   allowedSubEvents = [],
   guestToken,
@@ -85,6 +91,9 @@ export default function TilePreview({
             preview
             hasRsvp={hasRsvp}
             hasRegistry={hasRegistry}
+            catalogShowOnEventPage={catalogShowOnEventPage}
+            catalogTitle={catalogTitle}
+            catalogPurpose={catalogPurpose}
             eventSlug={eventSlug}
             guestToken={guestToken}
           />

@@ -3,12 +3,21 @@
 import React from 'react'
 import { FeatureButtonsTileSettings } from '@/lib/invite/schema'
 import Link from 'next/link'
+import {
+  getCatalogButtonLabel,
+  shouldShowCatalogOnEventPage,
+} from '@/lib/catalog/placement'
+import { catalogUrl } from '@/lib/catalog/source'
+import type { CatalogPurpose } from '@/lib/catalog/types'
 
 export interface FeatureButtonsTileProps {
   settings: FeatureButtonsTileSettings
   preview?: boolean
   hasRsvp?: boolean
   hasRegistry?: boolean
+  catalogShowOnEventPage?: boolean
+  catalogTitle?: string
+  catalogPurpose?: CatalogPurpose
   eventSlug?: string
   guestToken?: string | null
 }
@@ -240,6 +249,9 @@ export default function FeatureButtonsTile({
   preview = false,
   hasRsvp = false,
   hasRegistry = false,
+  catalogShowOnEventPage,
+  catalogTitle,
+  catalogPurpose = 'general',
   eventSlug,
   guestToken,
 }: FeatureButtonsTileProps) {
@@ -256,10 +268,14 @@ export default function FeatureButtonsTile({
       href: guestToken ? `/event/${eventSlug}/rsvp?g=${guestToken}` : `/event/${eventSlug}/rsvp`
     })
   }
-  if (hasRegistry) {
+  if (shouldShowCatalogOnEventPage(hasRegistry, catalogShowOnEventPage) && eventSlug) {
     buttons.push({
-      label: settings.registryLabel || 'Registry',
-      href: guestToken ? `/registry/${eventSlug}?gt=${guestToken}` : `/registry/${eventSlug}`
+      label: getCatalogButtonLabel(
+        catalogTitle,
+        catalogPurpose,
+        settings.registryLabel,
+      ),
+      href: catalogUrl(eventSlug, { guestToken: guestToken || undefined, source: 'invite' }),
     })
   }
 

@@ -80,7 +80,7 @@ export default function FeatureButtonsTileSettings({
           />
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          Buttons are automatically generated based on enabled features (RSVP/Registry)
+          Buttons are automatically generated based on enabled features (RSVP / host catalog)
         </p>
       </div>
 
@@ -121,16 +121,16 @@ export default function FeatureButtonsTileSettings({
       {/* Registry Button Label */}
       {hasRegistry && (
         <div>
-          <label className="block text-sm font-medium mb-2">Registry Button Label</label>
+          <label className="block text-sm font-medium mb-2">Catalog button label</label>
           <Input
             type="text"
             value={settings.registryLabel ?? ''}
             onChange={(e) => onChange({ ...settings, registryLabel: e.target.value })}
-            placeholder="Registry"
+            placeholder="View catalog"
             className="w-full"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Custom display name for the Registry button
+            Custom display name for the catalog button on your invite
           </p>
         </div>
       )}

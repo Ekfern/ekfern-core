@@ -28,7 +28,7 @@ const TILE_CATALOG: { type: TileType; label: string; description: string }[] = [
   { type: 'event-details',   label: 'Event Details',   description: 'Date, time, and location' },
   { type: 'description',     label: 'Description',     description: 'A message or story about your event' },
   { type: 'timer',           label: 'Timer',           description: 'Countdown clock to your event' },
-  { type: 'feature-buttons', label: 'Feature Buttons', description: 'RSVP and registry links' },
+  { type: 'feature-buttons', label: 'Feature Buttons', description: 'RSVP and catalog links' },
   { type: 'event-carousel',  label: 'Event Carousel',  description: 'Showcase multiple sub-events' },
   { type: 'footer',          label: 'Footer',          description: 'Closing note and contact info' },
 ]

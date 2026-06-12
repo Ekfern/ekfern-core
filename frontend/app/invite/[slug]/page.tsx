@@ -494,7 +494,7 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
 // Fetch event data on the server (fallback when invite endpoint fails)
 async function fetchEventData(slug: string): Promise<Event | null> {
     const apiBase = getApiBase()
-  const url = `${apiBase}/api/registry/${slug}/`
+  const url = `${apiBase}/api/catalog/${slug}/`
   const requestStartTime = Date.now()
   
   try {

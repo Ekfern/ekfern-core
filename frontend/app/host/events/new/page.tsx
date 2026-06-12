@@ -80,7 +80,7 @@ export default function NewEventPage() {
       <WizardProgress currentStep={1} />
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <h1 className="text-4xl font-bold mb-2 text-eco-green">Create Your Event</h1>
-        <p className="text-lg text-gray-700 mb-8">Start with your basic details — you can add RSVP or a Gift Registry anytime.</p>
+        <p className="text-lg text-gray-700 mb-8">Start with your basic details — you can add RSVP or a host catalog anytime.</p>
         <Card className="bg-white border-2 border-eco-green-light">
           <CardHeader>
             <CardTitle className="text-eco-green">Event Details</CardTitle>
@@ -178,7 +178,7 @@ export default function NewEventPage() {
                   <span className="relative group cursor-default">
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-xs font-bold leading-none">?</span>
                     <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-6 w-64 rounded-md bg-gray-800 text-white text-xs px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
-                      When public, anyone with the link can view your invite, RSVP, and purchase gifts — even if they&apos;re not on your guest list. When private, only people you&apos;ve invited can participate.
+                      When public, anyone with the link can view your invite, RSVP, and use the host catalog — even if they&apos;re not on your guest list. When private, only people you&apos;ve invited can participate.
                     </span>
                   </span>
                 </label>
@@ -206,11 +206,11 @@ export default function NewEventPage() {
                     {...register('has_registry')}
                     className="form-checkbox text-eco-green"
                   />
-                  <span className="text-sm">Enable Gift Registry</span>
+                  <span className="text-sm">Enable Host Catalog</span>
                   <span className="relative group cursor-default">
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-xs font-bold leading-none">?</span>
                     <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-6 w-64 rounded-md bg-gray-800 text-white text-xs px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
-                      A gift registry lets guests contribute money or buy gifts for your event. You add items to the registry and guests can browse and purchase them. You can enable or disable this later.
+                      A host catalog lets guests browse your items and send pledges, interest, or messages. You add catalog items and review responses in your dashboard. You can enable or disable this later.
                     </span>
                   </span>
                 </label>

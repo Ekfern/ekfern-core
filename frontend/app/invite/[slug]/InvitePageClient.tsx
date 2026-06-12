@@ -11,6 +11,12 @@ import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 import EnvelopeAnimation from '@/components/invite/EnvelopeAnimation'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
 import ComingSoon from '@/components/invite/ComingSoon'
+import {
+  getCatalogButtonLabel,
+  shouldShowCatalogOnEventPage,
+} from '@/lib/catalog/placement'
+import { catalogUrl } from '@/lib/catalog/source'
+import type { CatalogPurpose } from '@/lib/catalog/types'
 
 // Helper for development-only logging
 const isDev = process.env.NODE_ENV === 'development'
@@ -25,6 +31,10 @@ interface Event {
   page_config?: InviteConfig
   has_rsvp?: boolean
   has_registry?: boolean
+  catalog_show_on_event_page?: boolean
+  catalog_show_on_rsvp_confirmation?: boolean
+  catalog_title?: string
+  catalog_purpose?: CatalogPurpose
   show_branding?: boolean
   country?: string
   timezone?: string
@@ -284,8 +294,20 @@ export default function InvitePageClient({
               ...(eventData.has_rsvp
                 ? [{ label: 'RSVP' as const, action: 'rsvp' as const, href: `/event/${slug}/rsvp` }]
                 : []),
-              ...(eventData.has_registry
-                ? [{ label: 'Registry' as const, action: 'registry' as const, href: `/registry/${slug}` }]
+              ...(shouldShowCatalogOnEventPage(
+                eventData.has_registry,
+                eventData.catalog_show_on_event_page,
+              )
+                ? [
+                    {
+                      label: getCatalogButtonLabel(
+                        eventData.catalog_title,
+                        eventData.catalog_purpose || 'general',
+                      ) as 'Gift Catalog',
+                      action: 'registry' as const,
+                      href: catalogUrl(slug, { source: 'invite' }),
+                    },
+                  ]
                 : []),
             ],
           },
@@ -336,57 +358,6 @@ export default function InvitePageClient({
       // Set error state with full details
       setError(fullErrorDetails)
       setLoading(false)
-      
-      // TEMPORARILY COMMENTED OUT: Fallback to registry endpoint
-      // We want to see the main error, not try fallbacks
-      /*
-      // If connection error, try fallback to registry endpoint
-      if (error.code === 'ERR_CONNECTION_RESET' || error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') {
-        try {
-          const fallbackResponse = await api.get(`/api/registry/${slug}/`)
-          const eventData = {
-            ...fallbackResponse.data,
-            page_config: fallbackResponse.data.page_config,
-          }
-          
-          const fallbackConfig: InviteConfig = {
-            themeId: 'classic-noir',
-            hero: {
-              title: eventData.title || 'Event',
-              subtitle: eventData.description ? eventData.description.substring(0, 100) : undefined,
-              showTimer: !!eventData.date,
-              eventDate: eventData.date,
-              buttons: [
-                { label: 'Save the Date', action: 'calendar' },
-                ...(eventData.has_rsvp
-                  ? [{ label: 'RSVP' as const, action: 'rsvp' as const, href: `/event/${slug}/rsvp` }]
-                  : []),
-                ...(eventData.has_registry
-                  ? [{ label: 'Registry' as const, action: 'registry' as const, href: `/registry/${slug}` }]
-                  : []),
-              ],
-            },
-            descriptionMarkdown: eventData.description || undefined,
-          }
-          setEvent(eventData)
-          setConfig(fallbackConfig)
-          setError(null) // Clear error on successful fallback
-          setLoading(false)
-          return
-        } catch (fallbackError: any) {
-          console.error('[InvitePageClient] Fallback also failed:', fallbackError)
-          // Update error with fallback failure
-          setError({
-            ...fullErrorDetails,
-            fallbackError: {
-              message: fallbackError.message,
-              code: fallbackError.code,
-              status: fallbackError.response?.status,
-            },
-          })
-        }
-      }
-      */
     } finally {
       setLoading(false)
     }
@@ -807,6 +778,9 @@ export default function InvitePageClient({
               eventTimezone={event?.timezone}
               hasRsvp={event?.has_rsvp}
               hasRegistry={event?.has_registry}
+              catalogShowOnEventPage={event?.catalog_show_on_event_page}
+              catalogTitle={event?.catalog_title}
+              catalogPurpose={event?.catalog_purpose}
               skipTextureOverlay={true}
               skipBackgroundColor={true}
               allowedSubEvents={subEvents}
@@ -846,6 +820,9 @@ export default function InvitePageClient({
             eventTimezone={event?.timezone}
             hasRsvp={event?.has_rsvp}
             hasRegistry={event?.has_registry}
+            catalogShowOnEventPage={event?.catalog_show_on_event_page}
+            catalogTitle={event?.catalog_title}
+            catalogPurpose={event?.catalog_purpose}
             skipTextureOverlay={true}
             skipBackgroundColor={true}
             allowedSubEvents={subEvents}

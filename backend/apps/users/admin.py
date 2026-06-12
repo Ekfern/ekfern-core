@@ -199,8 +199,7 @@ class CustomAdminSite(AdminSite):
         # Import models and analytics logic
         from apps.users.models import User
         from apps.events.models import Event, RSVP, Guest
-        from apps.orders.models import Order
-        from apps.items.models import RegistryItem
+        from apps.catalog.models import CatalogItem, CatalogResponse, HostCatalog
         from django.db.models import Count, Sum, Avg, Q, F
         from datetime import timedelta
         from django.utils import timezone
@@ -245,7 +244,7 @@ class CustomAdminSite(AdminSite):
                 'public': Event.objects.filter(is_public=True).count(),
                 'private': Event.objects.filter(is_public=False).count(),
                 'with_rsvp': Event.objects.filter(has_rsvp=True).count(),
-                'with_registry': Event.objects.filter(has_registry=True).count(),
+                'with_catalog': HostCatalog.objects.filter(is_enabled=True).count(),
                 'extended': extended_events.count(),
             }
             
@@ -260,35 +259,23 @@ class CustomAdminSite(AdminSite):
                 'rsvps_maybe': RSVP.objects.filter(will_attend='maybe', is_removed=False).count(),
                 'total_guests_invited': Guest.objects.filter(is_removed=False).count(),
                 'total_guests_attending': total_guests_attending,
-                'active_registries': Event.objects.filter(items__isnull=False).distinct().count(),
-                'total_items': RegistryItem.objects.count(),
-                'items_purchased': RegistryItem.objects.aggregate(
-                    total_purchased=Sum('qty_purchased')
-                )['total_purchased'] or 0,
-                'items_available': RegistryItem.objects.aggregate(
-                    total_available=Sum(F('qty_total') - F('qty_purchased'))
-                )['total_available'] or 0,
+                'active_catalogs': HostCatalog.objects.filter(is_enabled=True).count(),
+                'total_catalog_items': CatalogItem.objects.filter(status='published').count(),
+                'total_catalog_responses': CatalogResponse.objects.count(),
             }
-            
-            # Business Metrics
-            paid_orders = Order.objects.filter(status='paid')
-            total_revenue_paise = paid_orders.aggregate(Sum('amount_inr'))['amount_inr__sum'] or 0
-            
+
+            # Business Metrics (catalog-based)
+            pledges = CatalogResponse.objects.filter(response_type='pledge', amount__isnull=False)
+            total_pledged_paise = pledges.aggregate(Sum('amount'))['amount__sum'] or 0
+
             business = {
-                'total_orders': Order.objects.count(),
-                'paid_orders': paid_orders.count(),
-                'total_revenue_paise': total_revenue_paise,
-                'total_revenue_rupees': total_revenue_paise / 100,
-                'avg_order_value_paise': paid_orders.aggregate(Avg('amount_inr'))['amount_inr__avg'] or 0,
-                'avg_order_value_rupees': (paid_orders.aggregate(Avg('amount_inr'))['amount_inr__avg'] or 0) / 100,
-                'orders_last_7_days': Order.objects.filter(created_at__date__gte=last_7_days).count(),
-                'orders_last_30_days': Order.objects.filter(created_at__date__gte=last_30_days).count(),
-                'events_with_orders': Event.objects.filter(orders__isnull=False).distinct().count(),
-                'revenue_by_event_type': list(
-                    Order.objects.filter(status='paid')
-                    .values('event__event_type')
-                    .annotate(revenue=Sum('amount_inr'))
-                ),
+                'total_responses': CatalogResponse.objects.count(),
+                'total_pledges': pledges.count(),
+                'total_pledged_paise': total_pledged_paise,
+                'total_pledged_rupees': total_pledged_paise / 100,
+                'responses_last_7_days': CatalogResponse.objects.filter(created_at__date__gte=last_7_days).count(),
+                'responses_last_30_days': CatalogResponse.objects.filter(created_at__date__gte=last_30_days).count(),
+                'events_with_responses': Event.objects.filter(catalog_responses__isnull=False).distinct().count(),
             }
             
             # Geographic Metrics
@@ -326,10 +313,10 @@ class CustomAdminSite(AdminSite):
                     }
                     for i in range(30, -1, -1)
                 ],
-                'orders_daily': [
+                'responses_daily': [
                     {
                         'date': (today - timedelta(days=i)).isoformat(),
-                        'count': Order.objects.filter(
+                        'count': CatalogResponse.objects.filter(
                             created_at__date=(today - timedelta(days=i))
                         ).count()
                     }
