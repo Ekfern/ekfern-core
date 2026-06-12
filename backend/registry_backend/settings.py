@@ -40,8 +40,7 @@ INSTALLED_APPS = [
     'background_task',  # For async background task processing
     'apps.users',
     'apps.events',
-    'apps.items',
-    'apps.orders',
+    'apps.catalog',
     'apps.notifications',
     'apps.common',
 ]
@@ -177,6 +176,15 @@ REST_FRAMEWORK = {
     ),
     # Custom exception handler to ensure JSON error responses
     'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+        'catalog_submission': '10/hour',
+    },
 }
 
 # JWT Settings
@@ -249,6 +257,11 @@ LLM_TEXT_MODEL = os.environ.get('LLM_TEXT_MODEL', 'claude-sonnet-4-5')
 # Master kill-switch. Defaults to OFF so a misconfigured deploy can never
 # spend money. Flipping to True takes effect immediately (no code deploy).
 LLM_GENERATION_ENABLED = os.environ.get('LLM_GENERATION_ENABLED', 'False') == 'True'
+
+# Onboarding invite generator — defaults OFF; flip to True to enable LLM-powered
+# invite generation during the new-event wizard. Falls back to deterministic
+# template matching when False or when the LLM call fails.
+LLM_ONBOARDING_ENABLED = os.environ.get('LLM_ONBOARDING_ENABLED', 'False') == 'True'
 
 # Per-user quotas (counted from LLMUsageLedger, not cache).
 LLM_GENERATION_RATE_LIMIT_PER_MIN = int(

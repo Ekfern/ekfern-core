@@ -1,6 +1,6 @@
-# Event Registry MVP
+# Ekfern Core
 
-Full-stack event registry application built with Django REST Framework and Next.js 14. Supports invitations, RSVP, and gift registries for any type of event.
+Full-stack [Ekfern](https://github.com/Ekfern/ekfern-core) application built with Django REST Framework and Next.js 14. Supports invitations, RSVP, host catalogs, and guest management for any type of event.
 
 ## 🚀 Quick Start
 
@@ -15,7 +15,8 @@ Full-stack event registry application built with Django REST Framework and Next.
 1. **Clone and setup:**
 
    ```bash
-   cd "event-registry"
+   git clone https://github.com/Ekfern/ekfern-core.git
+   cd ekfern-core
    ```
 
 2. **Backend Setup:**
@@ -79,7 +80,7 @@ Full-stack event registry application built with Django REST Framework and Next.
 ## 📁 Project Structure
 
 ```
-registry-mvp/
+ekfern-core/
 ├── backend/              # Django REST API
 │   ├── apps/
 │   │   ├── users/       # User authentication (OTP)
@@ -164,7 +165,7 @@ python manage.py test
 
 ### Frontend (Vercel)
 
-1. **Connect repository** to Vercel
+1. **Connect repository** [`Ekfern/ekfern-core`](https://github.com/Ekfern/ekfern-core) to Vercel
 2. **Set environment variables**
 3. **Deploy** - Vercel auto-detects Next.js
 

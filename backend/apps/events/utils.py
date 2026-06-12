@@ -419,66 +419,40 @@ def calculate_event_impact(event):
     # 2. Paper Saved: Web RSVPs (source_channel='link', not 'qr', exclude removed)
     web_rsvps = event.rsvps.filter(source_channel='link', is_removed=False).count()
     
-    # 3. Gifts Received: Paid orders with physical items
-    # Check if item_type field exists (migration might not be run yet)
-    try:
-        # Try to filter by item_type - if field doesn't exist, this will fail
-        paid_orders_with_items = event.orders.filter(
-            status='paid',
-            item__isnull=False,
-            item__item_type='physical'  # Only physical gifts
-        )
-        total_gifts = paid_orders_with_items.count()
-        total_gift_value = paid_orders_with_items.aggregate(
-            total=Sum('amount_inr')
-        )['total'] or 0
-        
-        # 4. Paper Saved on Gifts: Cash gifts and donations (no physical gift cards)
-        cash_and_donation_orders = event.orders.filter(
-            status='paid'
-        ).filter(
-            Q(item__isnull=True) |  # Cash gifts (no item)
-            Q(item__item_type__in=['cash', 'donation'])  # Cash/donation items
-        )
-        paper_saved_on_gifts = cash_and_donation_orders.count()
-    except Exception:
-        # item_type field doesn't exist yet - fallback to all paid orders with items
-        paid_orders_with_items = event.orders.filter(
-            status='paid',
-            item__isnull=False
-        )
-        total_gifts = paid_orders_with_items.count()
-        total_gift_value = paid_orders_with_items.aggregate(
-            total=Sum('amount_inr')
-        )['total'] or 0
-        
-        # For paper saved, only count orders without items (cash gifts)
-        cash_and_donation_orders = event.orders.filter(
-            status='paid',
-            item__isnull=True
-        )
-        paper_saved_on_gifts = cash_and_donation_orders.count()
-    
+    # 3. Contributions: catalog pledge responses
+    from apps.catalog.models import CatalogResponse
+    pledge_responses = CatalogResponse.objects.filter(
+        event=event, response_type='pledge', amount__isnull=False
+    )
+    total_gifts = pledge_responses.count()
+    total_gift_value = pledge_responses.aggregate(total=Sum('amount'))['total'] or 0
+
+    # 4. Interest / messages (no physical gift cards)
+    other_responses = CatalogResponse.objects.filter(
+        event=event
+    ).exclude(response_type='external_click').count()
+    paper_saved_on_gifts = other_responses
+
     return {
         'food_saved': {
             'guests_without_rsvp': guests_without_rsvp,
             'plates_saved': total_plates_saved,
-            'description': 'Plates saved from guests who didn\'t RSVP or declined'
+            'description': "Plates saved from guests who didn't RSVP or declined",
         },
         'paper_saved': {
             'web_rsvps': web_rsvps,
-            'description': 'Paper invitations saved (RSVPs via web link, not QR code)'
+            'description': 'Paper invitations saved (RSVPs via web link, not QR code)',
         },
         'gifts_received': {
             'total_gifts': total_gifts,
             'total_value_paise': total_gift_value,
             'total_value_rupees': total_gift_value / 100,
-            'description': 'Physical gifts received from registry'
+            'description': 'Pledges received via catalog',
         },
         'paper_saved_on_gifts': {
             'cash_gifts': paper_saved_on_gifts,
-            'description': 'Paper saved on cash gifts and donations (no physical gift cards)'
-        }
+            'description': 'Digital catalog responses (no physical gift cards)',
+        },
     }
 
 

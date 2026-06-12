@@ -36,10 +36,7 @@ urlpatterns = [
     path('api/logs/cloudwatch/', log_to_cloudwatch_endpoint, name='cloudwatch-log'),
     path('api/auth/', include('apps.users.urls')),
     path('api/events/', include('apps.events.urls')),
-    path('api/items/', include('apps.items.urls')),
-    path('api/orders/', include('apps.orders.urls')),
-    path('api/registry/', include('apps.events.public_urls')),
-    path('api/payments/', include('apps.orders.payment_urls')),
+    path('api/catalog/', include('apps.catalog.public_urls')),
     path('api/notifications/', include('apps.notifications.urls')),
 ]
 

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fetch event data from API
-    const response = await fetch(`${API_BASE}/api/registry/${slug}/`, {
+    const response = await fetch(`${API_BASE}/api/events/invite/${slug}/`, {
       headers: {
         'Content-Type': 'application/json',
       },

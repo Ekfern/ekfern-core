@@ -1,6 +1,6 @@
-# Event Registry Frontend
+# Ekfern Frontend
 
-Next.js 14 frontend for the event registry MVP.
+Next.js 14 frontend for [Ekfern](https://github.com/Ekfern/ekfern-core).
 
 ## Setup
 
@@ -26,7 +26,8 @@ Next.js 14 frontend for the event registry MVP.
 ## Pages
 
 ### Public
-- `/registry/[slug]` - Public registry page
+- `/catalog/[slug]` - Public host catalog (guest responses)
+- `/registry/[slug]` - Legacy redirect to `/catalog/[slug]`
 - `/success` - Payment success page
 
 ### Host (Protected)
@@ -34,7 +35,8 @@ Next.js 14 frontend for the event registry MVP.
 - `/host/dashboard` - Events dashboard
 - `/host/events/new` - Create event
 - `/host/events/[eventId]` - Event management
-- `/host/items/[eventId]` - Items management
+- `/host/events/[eventId]/catalog` - Host catalog management
+- `/host/items/[eventId]` - Legacy redirect to catalog settings
 
 ## Deployment
 

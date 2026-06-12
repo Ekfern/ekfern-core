@@ -1,5 +1,9 @@
 # GitHub Actions Workflow Setup Guide
 
+GitHub repository: [`Ekfern/ekfern-core`](https://github.com/Ekfern/ekfern-core)
+
+> **Note:** AWS staging resources still use the `event-registry-*` naming prefix (ECS cluster, ECR repos, SSM paths). That is intentional and unrelated to the GitHub repo name.
+
 ## Quick Setup Steps
 
 ### Step 1: Get AWS Resource IDs
@@ -15,7 +19,7 @@ This will show you all the values you need.
 
 ### Step 2: Add GitHub Secrets
 
-Go to: **GitHub → Settings → Secrets and variables → Actions → New repository secret**
+Go to: **GitHub → Ekfern/ekfern-core → Settings → Secrets and variables → Actions → New repository secret**
 
 Add these **required** secrets:
 

@@ -336,7 +336,7 @@ export default function HostRsvpSettingsPage() {
                   <span className="font-medium text-sm">Invited guests only</span>
                 </div>
                 <p className="mt-1 text-xs text-gray-600">
-                  Guests must verify their phone number. Only people on your guest list can RSVP or access the registry.
+                  Guests must verify their phone number. Only people on your guest list can RSVP or access the host catalog.
                 </p>
               </label>
               <label

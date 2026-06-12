@@ -55,7 +55,7 @@ jobs:
           
           echo "Running makemigrations --check --dry-run (checking only our apps, excluding third-party packages)..."
           # Only check our apps, exclude third-party packages like background_task
-          MIGRATION_OUTPUT=$(python manage.py makemigrations --check --dry-run events users items orders notifications 2>&1)
+          MIGRATION_OUTPUT=$(python manage.py makemigrations --check --dry-run events users catalog notifications 2>&1)
           MIGRATION_EXIT=$?
           
           # makemigrations --check returns:

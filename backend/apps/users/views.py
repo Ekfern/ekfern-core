@@ -714,36 +714,35 @@ def staff_extend_event_expiry(request):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def staff_order_lookup(request):
-    """Staff: find all orders for a buyer email address."""
+    """Staff: find all catalog responses for a guest email address."""
     buyer_email = request.query_params.get('buyer_email', '').strip()
     if not buyer_email:
         return Response({'error': 'buyer_email query param is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    from apps.orders.models import Order
+    from apps.catalog.models import CatalogResponse
 
-    orders = (
-        Order.objects.filter(buyer_email__iexact=buyer_email)
-        .select_related('event', 'item')
+    responses = (
+        CatalogResponse.objects.filter(email__iexact=buyer_email)
+        .select_related('event', 'catalog_item')
         .order_by('-created_at')[:50]
     )
 
     results = [
         {
-            'id': o.id,
-            'status': o.status,
-            'amount_inr': o.amount_inr,
-            'amount_rupees': round(o.amount_inr / 100, 2),
-            'buyer_name': o.buyer_name,
-            'buyer_email': o.buyer_email,
-            'buyer_phone': o.buyer_phone,
-            'event_slug': o.event.slug,
-            'event_title': o.event.title,
-            'item_name': o.item.name if o.item else None,
-            'rzp_order_id': o.rzp_order_id,
-            'rzp_payment_id': o.rzp_payment_id,
-            'created_at': o.created_at.isoformat(),
+            'id': r.id,
+            'status': r.status,
+            'response_type': r.response_type,
+            'amount': r.amount,
+            'amount_rupees': round(r.amount / 100, 2) if r.amount else None,
+            'name': r.name,
+            'email': r.email,
+            'phone': r.phone,
+            'event_slug': r.event.slug,
+            'event_title': r.event.title,
+            'item_title': r.catalog_item.title,
+            'created_at': r.created_at.isoformat(),
         }
-        for o in orders
+        for r in responses
     ]
     return Response({'results': results, 'count': len(results)})
 

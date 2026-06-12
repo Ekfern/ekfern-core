@@ -15,6 +15,12 @@ import { formatPhoneWithCountryCode } from '@/lib/countryCodesFull'
 import CountryCodeSelector from '@/components/CountryCodeSelector'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import type { RsvpCustomFieldConfig, RsvpFormConfig } from '@/lib/invite/schema'
+import {
+  getCatalogButtonLabel,
+  shouldShowCatalogOnRsvpConfirmation,
+} from '@/lib/catalog/placement'
+import { catalogUrl } from '@/lib/catalog/source'
+import type { CatalogPurpose } from '@/lib/catalog/types'
 
 const rsvpSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -37,6 +43,9 @@ interface Event {
   country_code: string
   has_rsvp?: boolean
   has_registry?: boolean
+  catalog_show_on_rsvp_confirmation?: boolean
+  catalog_title?: string
+  catalog_purpose?: CatalogPurpose
   is_public?: boolean
   slug?: string
   host_name?: string | null
@@ -222,7 +231,7 @@ export default function RSVPPage() {
 
   const fetchEvent = async () => {
     try {
-      const response = await api.get(`/api/registry/${slug}/`)
+      const response = await api.get(`/api/events/invite/${slug}/`)
       const eventData = response.data
       if (!eventData.has_rsvp) {
         showToast('RSVP is not available for this event', 'info')
@@ -739,7 +748,24 @@ export default function RSVPPage() {
             <p className="text-gray-700">🌿 Thanks for helping us plan responsibly.</p>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" onClick={() => setCurrentStep('review')}>Edit response</Button>
-              {event.has_registry ? <Link href={`/registry/${slug}`}><Button>View registry</Button></Link> : null}
+              {shouldShowCatalogOnRsvpConfirmation(
+                event.has_registry,
+                event.catalog_show_on_rsvp_confirmation,
+              ) ? (
+                <Link
+                  href={catalogUrl(slug, {
+                    guestToken: searchParams.get('g') || undefined,
+                    source: 'rsvp_confirmation',
+                  })}
+                >
+                  <Button>
+                    {getCatalogButtonLabel(
+                      event.catalog_title,
+                      event.catalog_purpose || 'general',
+                    )}
+                  </Button>
+                </Link>
+              ) : null}
             </div>
           </div>
         ))}

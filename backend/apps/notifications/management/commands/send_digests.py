@@ -144,7 +144,7 @@ class Command(BaseCommand):
         # Late imports to avoid circular dependencies
         from django.contrib.auth import get_user_model
         from apps.events.models import Event, RSVP
-        from apps.orders.models import Order
+        from apps.catalog.models import CatalogResponse
 
         User = get_user_model()
         today = timezone.localdate()
@@ -153,15 +153,18 @@ class Command(BaseCommand):
         new_signups = User.objects.filter(date_joined__date=today).count()
         new_events = Event.objects.filter(created_at__date=today).count()
         new_rsvps = RSVP.objects.filter(created_at__date=today, is_removed=False).count()
-        gifts_today_qs = Order.objects.filter(created_at__date=today, status='fulfilled')
-        gifts_today_count = gifts_today_qs.count()
-        gifts_today_inr = (gifts_today_qs.aggregate(total=Sum('amount_inr'))['total'] or 0) / 100
+        pledges_today_qs = CatalogResponse.objects.filter(
+            created_at__date=today, response_type='pledge', amount__isnull=False
+        )
+        gifts_today_count = pledges_today_qs.count()
+        gifts_today_inr = (pledges_today_qs.aggregate(total=Sum('amount'))['total'] or 0) / 100
 
         # All-time metrics
         total_users = User.objects.count()
         total_events = Event.objects.count()
         total_revenue_inr = (
-            Order.objects.filter(status='fulfilled').aggregate(total=Sum('amount_inr'))['total'] or 0
+            CatalogResponse.objects.filter(response_type='pledge', amount__isnull=False)
+            .aggregate(total=Sum('amount'))['total'] or 0
         ) / 100
 
         date_str = today.strftime('%B %d')

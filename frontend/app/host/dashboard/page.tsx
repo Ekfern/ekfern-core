@@ -496,7 +496,7 @@ export default function DashboardPage() {
                       )}
                       <p className="text-sm flex items-center gap-2 text-gray-700">
                         <span>{event.is_public ? '🌐' : '🔒'}</span>
-                        {event.is_public ? 'Public Registry' : 'Private Registry'}
+                        {event.is_public ? 'Public event' : 'Private event'}
                       </p>
                     </div>
                     <div className="flex gap-2">

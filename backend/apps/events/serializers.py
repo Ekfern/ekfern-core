@@ -15,6 +15,41 @@ from urllib.parse import urlencode
 EVENT_RSVP_MUTATION_KEYS = frozenset({'rsvp_experience_mode', 'event_structure', 'rsvp_mode'})
 
 
+def _host_catalog_for_event(event):
+    try:
+        return event.host_catalog
+    except Exception:
+        return None
+
+
+def _catalog_show_on_event_page(event):
+    catalog = _host_catalog_for_event(event)
+    if catalog is not None:
+        return catalog.show_on_event_page
+    return bool(event.has_registry)
+
+
+def _catalog_show_on_rsvp_confirmation(event):
+    catalog = _host_catalog_for_event(event)
+    if catalog is not None:
+        return catalog.show_on_rsvp_confirmation
+    return False
+
+
+def _catalog_title(event):
+    catalog = _host_catalog_for_event(event)
+    if catalog is not None and catalog.catalog_title:
+        return catalog.catalog_title
+    return ''
+
+
+def _catalog_purpose(event):
+    catalog = _host_catalog_for_event(event)
+    if catalog is not None:
+        return catalog.purpose
+    return 'general'
+
+
 def _display_label_for_booking_slot(slot, event) -> str:
     """Host list: use slot label, or a compact local time range if the label is empty."""
     text = (slot.label or '').strip()
@@ -51,11 +86,27 @@ class EventSerializer(serializers.ModelSerializer):
     mode_switch_lock_reasons = serializers.SerializerMethodField()
     rsvp_registration_full = serializers.SerializerMethodField()
     invite_page_summary = InvitePageSummarySerializer(source='invite_page', read_only=True)
+    catalog_show_on_event_page = serializers.SerializerMethodField()
+    catalog_show_on_rsvp_confirmation = serializers.SerializerMethodField()
+    catalog_title = serializers.SerializerMethodField()
+    catalog_purpose = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
-        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary')
-        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'created_at', 'updated_at', 'invite_page_summary')
+        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary')
+        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'created_at', 'updated_at', 'invite_page_summary')
+
+    def get_catalog_show_on_event_page(self, obj):
+        return _catalog_show_on_event_page(obj)
+
+    def get_catalog_show_on_rsvp_confirmation(self, obj):
+        return _catalog_show_on_rsvp_confirmation(obj)
+
+    def get_catalog_title(self, obj):
+        return _catalog_title(obj)
+
+    def get_catalog_purpose(self, obj):
+        return _catalog_purpose(obj)
     
     def validate_slug(self, value):
         """Ensure slug is unique (excluding current instance on update)"""
@@ -183,11 +234,27 @@ class InvitePageSerializer(serializers.ModelSerializer):
     show_branding = serializers.BooleanField(source='event.show_branding', read_only=True)
     state = serializers.SerializerMethodField()  # Expose state property using method field
     rsvp_count = serializers.SerializerMethodField()
+    catalog_show_on_event_page = serializers.SerializerMethodField()
+    catalog_show_on_rsvp_confirmation = serializers.SerializerMethodField()
+    catalog_title = serializers.SerializerMethodField()
+    catalog_purpose = serializers.SerializerMethodField()
 
     class Meta:
         model = InvitePage
-        fields = ('id', 'event', 'event_slug', 'event_country', 'event_timezone', 'slug', 'background_url', 'config', 'published_config', 'is_published', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'event_slug', 'event_country', 'event_timezone', 'published_config', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+        fields = ('id', 'event', 'event_slug', 'event_country', 'event_timezone', 'slug', 'background_url', 'config', 'published_config', 'is_published', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'event_slug', 'event_country', 'event_timezone', 'published_config', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+
+    def get_catalog_show_on_event_page(self, obj):
+        return _catalog_show_on_event_page(obj.event)
+
+    def get_catalog_show_on_rsvp_confirmation(self, obj):
+        return _catalog_show_on_rsvp_confirmation(obj.event)
+
+    def get_catalog_title(self, obj):
+        return _catalog_title(obj.event)
+
+    def get_catalog_purpose(self, obj):
+        return _catalog_purpose(obj.event)
     
     def get_allowed_sub_events(self, obj):
         """Get allowed sub-events - set by view based on guest token or public visibility"""
@@ -401,7 +468,7 @@ class AttributionLinkSerializer(serializers.ModelSerializer):
         base_path = {
             'invite': f"/invite/{obj.event.slug}",
             'rsvp': f"/event/{obj.event.slug}/rsvp",
-            'registry': f"/registry/{obj.event.slug}",
+            'registry': f"/catalog/{obj.event.slug}",
         }.get(obj.target_type, f"/invite/{obj.event.slug}")
 
         params = {'source': obj.channel or 'link', 'al': obj.token}

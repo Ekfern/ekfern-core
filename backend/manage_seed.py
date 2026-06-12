@@ -11,7 +11,7 @@ django.setup()
 
 from apps.users.models import User
 from apps.events.models import Event
-from apps.items.models import RegistryItem
+from apps.catalog.models import CatalogItem, HostCatalog
 from django.utils import timezone
 from datetime import timedelta
 
@@ -39,54 +39,58 @@ event, created = Event.objects.get_or_create(
 )
 print(f"Event: {event.title} ({'created' if created else 'exists'})")
 
-# Create demo items
+# Create demo catalog
+catalog, _ = HostCatalog.objects.get_or_create(
+    event=event,
+    defaults={
+        'is_enabled': True,
+        'purpose': 'gifts',
+        'catalog_title': 'Our Gift Registry',
+        'intro_text': 'Celebrate with us by contributing to something meaningful.',
+    },
+)
+print(f"Catalog: {'created' if _ else 'exists'}")
+
+# Create demo catalog items
 items_data = [
     {
-        'name': 'Dining Table Set',
-        'description': 'Beautiful 6-seater dining table with chairs',
-        'price_inr': 50000,  # ₹500 in paise
-        'qty_total': 1,
-        'priority_rank': 1,
+        'title': 'Honeymoon Fund',
+        'description': 'Help us create memories on our first trip together.',
+        'item_type': 'contribution',
+        'action_type': 'pledge_amount',
+        'amount_type': 'suggested',
+        'suggested_amounts': [50000, 100000, 200000, 500000],  # ₹500, ₹1k, ₹2k, ₹5k
+        'sort_order': 0,
     },
     {
-        'name': 'Coffee Maker',
-        'description': 'Premium espresso machine',
-        'price_inr': 25000,  # ₹250 in paise
-        'qty_total': 2,
-        'priority_rank': 2,
+        'title': 'Kitchen Appliances',
+        'description': 'A complete set of kitchen appliances for our new home.',
+        'item_type': 'contribution',
+        'action_type': 'pledge_amount',
+        'amount_type': 'fixed',
+        'fixed_amount': 750000,  # ₹7,500
+        'sort_order': 1,
     },
     {
-        'name': 'Bedroom Set',
-        'description': 'King-size bed with mattress and wardrobe',
-        'price_inr': 100000,  # ₹1000 in paise
-        'qty_total': 1,
-        'priority_rank': 0,
-    },
-    {
-        'name': 'Kitchen Appliances',
-        'description': 'Complete set of kitchen appliances',
-        'price_inr': 75000,  # ₹750 in paise
-        'qty_total': 1,
-        'priority_rank': 3,
+        'title': 'Sponsor a Table',
+        'description': 'Sponsor a table and support a local charity we love.',
+        'item_type': 'offer_addon',
+        'action_type': 'submit_interest',
+        'amount_type': 'none',
+        'sort_order': 2,
     },
 ]
 
 for item_data in items_data:
-    item, created = RegistryItem.objects.get_or_create(
-        event=event,
-        name=item_data['name'],
-        defaults={
-            'description': item_data['description'],
-            'price_inr': item_data['price_inr'],
-            'qty_total': item_data['qty_total'],
-            'priority_rank': item_data['priority_rank'],
-            'status': 'active',
-        }
+    item, created = CatalogItem.objects.get_or_create(
+        catalog=catalog,
+        title=item_data['title'],
+        defaults={k: v for k, v in item_data.items() if k != 'title'},
     )
-    print(f"Item: {item.name} ({'created' if created else 'exists'})")
+    print(f"Item: {item.title} ({'created' if created else 'exists'})")
 
 print("\n✅ Seed data created successfully!")
-print(f"\nPublic registry URL: http://localhost:3000/registry/{event.slug}")
+print(f"\nPublic catalog URL: http://localhost:3000/catalog/{event.slug}")
 print(f"Host login: http://localhost:3000/host/login")
 print(f"Demo email: {host.email}")
 print(f"Demo password: {DEMO_PASSWORD}")
