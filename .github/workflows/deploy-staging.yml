@@ -210,13 +210,15 @@ jobs:
           if ! aws ecs describe-task-definition --task-definition $TASK_DEF >/dev/null 2>&1; then
             TASK_DEF="backend-task"
           fi
-          
-          SUBNET_1="${{ secrets.ECS_PRIVATE_SUBNET_1 }}"
-          SUBNET_2="${{ secrets.ECS_PRIVATE_SUBNET_2 }}"
+
+          # Public subnets — NAT Gateway was removed; tasks need public IPs for
+          # outbound access to CloudWatch, ECR, and RDS.
+          SUBNET_1="subnet-00903760b47ea9f39"
+          SUBNET_2="subnet-0781ee8d36f10d08e"
           SG_ID="${{ secrets.ECS_BACKEND_SECURITY_GROUP }}"
-          
-          if [ -z "$SUBNET_1" ] || [ -z "$SUBNET_2" ] || [ -z "$SG_ID" ]; then
-            echo "❌ ERROR: Missing secrets: ECS_PRIVATE_SUBNET_1, ECS_PRIVATE_SUBNET_2, ECS_BACKEND_SECURITY_GROUP"
+
+          if [ -z "$SG_ID" ]; then
+            echo "❌ ERROR: Missing secret: ECS_BACKEND_SECURITY_GROUP"
             exit 1
           fi
           
@@ -225,7 +227,7 @@ jobs:
             --cluster ${{ env.ECS_CLUSTER_NAME }} \
             --task-definition $TASK_DEF \
             --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_1,$SUBNET_2],securityGroups=[$SG_ID],assignPublicIp=DISABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_1,$SUBNET_2],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
             --overrides '{"containerOverrides":[{"name":"backend","command":["python","manage.py","migrate"]}]}' \
             --query 'tasks[0].taskArn' \
             --output text)
