@@ -310,18 +310,6 @@ export default function DashboardPage() {
         {/* Welcome Section */}
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <h1 className="text-3xl font-bold text-eco-green md:text-4xl">Host Workspace</h1>
-          <div className="flex gap-2">
-            <Link href="/host/events/new">
-              <Button className="bg-eco-green hover:bg-eco-green-dark text-white">
-                + Create Event
-              </Button>
-            </Link>
-            <Link href="/host/profile">
-              <Button variant="outline" className="border-eco-green text-eco-green hover:bg-eco-green-light">
-                Profile
-              </Button>
-            </Link>
-          </div>
         </div>
 
         {/* Impact Section */}

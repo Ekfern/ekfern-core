@@ -266,19 +266,7 @@ export default function HostRsvpSettingsPage() {
     <div className="min-h-screen bg-eco-beige">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-6">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/host/events/${eventId}`}>
-                <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
-                  Back to Event
-                </Button>
-              </Link>
-              <Link href={`/host/events/${eventId}/guests`}>
-                <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
-                  Guests
-                </Button>
-              </Link>
-            </div>
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
               <Link href={`/event/${event.slug}/rsvp`} target="_blank">
                 <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
