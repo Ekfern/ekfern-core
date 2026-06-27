@@ -30,7 +30,6 @@ function SignupForm() {
   const { showToast } = useToast()
   const [step, setStep] = useState<'signup' | 'verify'>('signup')
   const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
 
   const {
@@ -52,20 +51,19 @@ function SignupForm() {
   const onSignupSubmit = async (data: SignupForm) => {
     setLoading(true)
     try {
-      // First, register the user with name
       const response = await api.post('/api/auth/signup/', {
         name: data.name,
         email: data.email,
       })
-      
+
       setEmail(data.email)
-      setName(data.name)
       setStep('verify')
-      
-      // In development, show OTP if returned (for testing without email)
+
       if (response.data.otp_code) {
         logDebug('🔑 OTP Code (dev mode):', response.data.otp_code)
         showToast(`OTP Code: ${response.data.otp_code} (check console for details)`, 'info')
+      } else if (response.data.needs_verification) {
+        showToast('This email is registered but not yet verified. A fresh code has been sent.', 'info')
       } else {
         showToast('Verification code sent to your email', 'success')
       }
