@@ -143,13 +143,27 @@ export default function TextOverlayEditorModal({
     const newBox: TextBox = {
       id: makeId(),
       text: 'Placeholder text',
-      x: 10, y: 20, width: 80, height: null,
-      fontFamily: "'Playfair Display', serif",
+      x: 10,
+      y: 20,
+      width: 80,
+      height: null,
+
+      fontFamily: '"Playfair Display", serif',
       fontSize: 32,
       color: '#ffffff',
-      bold: false, italic: false, underline: false, strikethrough: false,
+
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+
       textAlign: 'center',
       verticalAlign: 'middle',
+
+      shadowX: 0,
+      shadowY: 1,
+      shadowBlur: 4,
+      shadowOpacity: 0.99,
     }
     setTextBoxes((prev) => [...prev, newBox])
     setSelectedId(newBox.id)
@@ -391,9 +405,22 @@ export default function TextOverlayEditorModal({
               >
                 Delete
               </button>
+              {/* Text Effects */}
+              <div className="bg-white border-t border-gray-200 px-4 py-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                  Text Effects
+                </h3>
+
+                <div className="text-sm text-gray-500">
+                  Shadow controls coming next...
+                </div>
+              </div>
             </div>
           </div>
 
+          <div className="bg-yellow-300 p-3 text-black font-bold">
+            TEST PANEL
+          </div>
           {/* Canvas area */}
           <div className="flex-1 flex flex-col items-center justify-start px-4 py-6 bg-gray-100 overflow-auto min-h-0">
             {!bgSrc && !bgGradient ? (
@@ -429,8 +456,8 @@ export default function TextOverlayEditorModal({
                     const isEditing = editingId === box.id
                     const justifyContent =
                       box.verticalAlign === 'top' ? 'flex-start' :
-                      box.verticalAlign === 'bottom' ? 'flex-end' :
-                      'center'
+                        box.verticalAlign === 'bottom' ? 'flex-end' :
+                          'center'
                     const textDecoration =
                       [box.underline ? 'underline' : '', box.strikethrough ? 'line-through' : '']
                         .filter(Boolean)
@@ -505,7 +532,7 @@ export default function TextOverlayEditorModal({
                             wordBreak: 'break-word',
                             outline: 'none',
                             padding: '2px 4px',
-                            textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                            textShadow: '0 1px 4px rgb(4, 255, 42)',
                             minWidth: '1em',
                           }}
                           onKeyDown={(e) => { if (e.key === 'Escape') setEditingId(null) }}

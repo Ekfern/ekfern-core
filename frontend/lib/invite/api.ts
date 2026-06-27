@@ -178,6 +178,11 @@ export interface TextOverlay {
   strikethrough: boolean
   textAlign: 'left' | 'center' | 'right'
   verticalAlign?: 'top' | 'middle' | 'bottom'
+  shadowColor?: string
+  shadowX?: number
+  shadowY?: number
+  shadowBlur?: number
+  shadowOpacity?: number
 }
 
 export type AspectRatio = '9:16' | '1:1' | '4:5' | '3:4' | '16:9'

@@ -213,7 +213,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const router = useRouter()
   const eventId = params.eventId ? parseInt(params.eventId as string) : 0
   const { showToast } = useToast()
-  
+
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [allowedSubEvents, setAllowedSubEvents] = useState<any[]>([])
@@ -282,23 +282,23 @@ export default function DesignInvitationPage(): JSX.Element {
         const eventResponse = await api.get(`/api/events/${eventId}/`)
         const eventData = eventResponse.data
         setEvent(eventData)
-      
-      // Always fetch sub-events (regardless of event_structure) for Event Carousel tile
-      try {
-        const subEventsResponse = await api.get(`/api/events/envelopes/${eventId}/sub-events/`)
-        const subEvents = subEventsResponse.data.results || subEventsResponse.data || []
-        setAllowedSubEvents(subEvents)
-      } catch (error: any) {
-        // Event might not be ENVELOPE or might not have sub-events yet
-        if (error.response?.status !== 404) {
-          logError('Failed to fetch sub-events:', error)
+
+        // Always fetch sub-events (regardless of event_structure) for Event Carousel tile
+        try {
+          const subEventsResponse = await api.get(`/api/events/envelopes/${eventId}/sub-events/`)
+          const subEvents = subEventsResponse.data.results || subEventsResponse.data || []
+          setAllowedSubEvents(subEvents)
+        } catch (error: any) {
+          // Event might not be ENVELOPE or might not have sub-events yet
+          if (error.response?.status !== 404) {
+            logError('Failed to fetch sub-events:', error)
+          }
+          setAllowedSubEvents([])
         }
-        setAllowedSubEvents([])
-      }
-      
-      // Debug: Log API response to help diagnose staging issues
-      // Helper function to create default tiles
-      const createDefaultTiles = (data: typeof eventData): Tile[] => [
+
+        // Debug: Log API response to help diagnose staging issues
+        // Helper function to create default tiles
+        const createDefaultTiles = (data: typeof eventData): Tile[] => [
           {
             id: 'tile-title-0',
             type: 'title',
@@ -367,232 +367,232 @@ export default function DesignInvitationPage(): JSX.Element {
             settings: { text: '' },
           },
         ]
-      
-      // Then fetch page config (which may need event data for migration)
-      const pageConfig = await getEventPageConfig(eventId)
-      let finalConfig: InviteConfig | null = null
-      
-      if (pageConfig?.page_config) {
-        try {
-          const loadedConfig = pageConfig.page_config as InviteConfig
-          
-          // Migrate old config to tile-based if needed
-          const migratedConfig = migrateToTileConfig(
-            loadedConfig,
-            eventData?.title,
-            eventData?.date,
-            eventData?.city
-          )
 
-          // Preserve customColors, customFonts, texture, linkMetadata, and rsvpForm from loaded config
-          // IMPORTANT: Explicitly preserve customColors even if it's an empty object
-          const preservedConfig = {
-            ...migratedConfig,
-            // Preserve customColors if it exists in loadedConfig, otherwise keep migratedConfig's customColors
-            customColors: loadedConfig.customColors !== undefined 
-              ? loadedConfig.customColors 
-              : (migratedConfig.customColors || {}),
-            customFonts: loadedConfig.customFonts !== undefined
-              ? loadedConfig.customFonts
-              : migratedConfig.customFonts,
-            texture: loadedConfig.texture !== undefined
-              ? loadedConfig.texture
-              : migratedConfig.texture,
-            linkMetadata: loadedConfig.linkMetadata !== undefined
-              ? loadedConfig.linkMetadata
-              : migratedConfig.linkMetadata,
-            rsvpForm: loadedConfig.rsvpForm !== undefined
-              ? loadedConfig.rsvpForm
-              : (migratedConfig as any).rsvpForm,
-          }
+        // Then fetch page config (which may need event data for migration)
+        const pageConfig = await getEventPageConfig(eventId)
+        let finalConfig: InviteConfig | null = null
 
-          // Ensure we have tiles and preserve all settings (especially coverPosition for image tiles)
-          if (!preservedConfig.tiles || preservedConfig.tiles.length === 0) {
-            finalConfig = {
-              ...preservedConfig,
-              tiles: createDefaultTiles(eventData),
+        if (pageConfig?.page_config) {
+          try {
+            const loadedConfig = pageConfig.page_config as InviteConfig
+
+            // Migrate old config to tile-based if needed
+            const migratedConfig = migrateToTileConfig(
+              loadedConfig,
+              eventData?.title,
+              eventData?.date,
+              eventData?.city
+            )
+
+            // Preserve customColors, customFonts, texture, linkMetadata, and rsvpForm from loaded config
+            // IMPORTANT: Explicitly preserve customColors even if it's an empty object
+            const preservedConfig = {
+              ...migratedConfig,
+              // Preserve customColors if it exists in loadedConfig, otherwise keep migratedConfig's customColors
+              customColors: loadedConfig.customColors !== undefined
+                ? loadedConfig.customColors
+                : (migratedConfig.customColors || {}),
+              customFonts: loadedConfig.customFonts !== undefined
+                ? loadedConfig.customFonts
+                : migratedConfig.customFonts,
+              texture: loadedConfig.texture !== undefined
+                ? loadedConfig.texture
+                : migratedConfig.texture,
+              linkMetadata: loadedConfig.linkMetadata !== undefined
+                ? loadedConfig.linkMetadata
+                : migratedConfig.linkMetadata,
+              rsvpForm: loadedConfig.rsvpForm !== undefined
+                ? loadedConfig.rsvpForm
+                : (migratedConfig as any).rsvpForm,
             }
-          } else {
-            // Explicitly preserve all tile settings from loaded config
-            // This ensures coverPosition and other settings are not lost
-            const existingTiles = preservedConfig.tiles.map(tile => {
-              // Find the corresponding tile in loadedConfig to preserve all settings
-              const loadedTile = loadedConfig.tiles?.find(lt => lt.id === tile.id)
-              if (loadedTile && loadedTile.settings) {
-                // Merge settings: loadedTile.settings takes precedence to preserve saved values like coverPosition
-                // Then apply any defaults from migrated tile
-                return {
-                  ...tile,
-                  settings: { ...tile.settings, ...loadedTile.settings }
-                }
-              }
-              return tile
-            })
 
-            // When tileSetComplete is true (e.g. from a template), do not merge in missing tile types
-            if (loadedConfig.tileSetComplete === true) {
-              finalConfig = { ...preservedConfig, tiles: existingTiles }
-            } else {
-              // Ensure all tile types are present - add missing ones from defaults
-              const defaultTiles = createDefaultTiles(eventData)
-              const existingTileTypes = new Set(existingTiles.map(t => t.type))
-              const missingTiles = defaultTiles.filter(t => !existingTileTypes.has(t.type))
-              
-              // Merge existing tiles with missing default tiles, preserving saved order
-              const allTiles = [...existingTiles, ...missingTiles]
-                .sort((a, b) => {
-                  // Keep existing tiles in their current order, new tiles go after
-                  const aExists = existingTiles.some(t => t.id === a.id)
-                  const bExists = existingTiles.some(t => t.id === b.id)
-                  if (aExists && !bExists) return -1
-                  if (!aExists && bExists) return 1
-                  // Sort by saved order value - preserve what was saved
-                  const orderA = a.order !== undefined ? a.order : (aExists ? 999 : 1000)
-                  const orderB = b.order !== undefined ? b.order : (bExists ? 999 : 1000)
-                  return orderA - orderB
-                })
-                .map((tile) => {
-                  // CRITICAL: Preserve existing order values from saved config
-                  // Only assign order to new tiles that don't have one
-                  const existingTile = existingTiles.find(t => t.id === tile.id)
-                  if (existingTile && existingTile.order !== undefined) {
-                    // Preserve the saved order value - this is what the user set!
-                    return { ...tile, order: existingTile.order }
-                  }
-                  // For new tiles, assign order after existing tiles
-                  const maxExistingOrder = existingTiles.length > 0 
-                    ? Math.max(...existingTiles.map(t => t.order !== undefined ? t.order : 0), 0)
-                    : -1
-                  return { ...tile, order: maxExistingOrder + 1 }
-                })
-              
+            // Ensure we have tiles and preserve all settings (especially coverPosition for image tiles)
+            if (!preservedConfig.tiles || preservedConfig.tiles.length === 0) {
               finalConfig = {
                 ...preservedConfig,
-                tiles: allTiles
+                tiles: createDefaultTiles(eventData),
               }
+            } else {
+              // Explicitly preserve all tile settings from loaded config
+              // This ensures coverPosition and other settings are not lost
+              const existingTiles = preservedConfig.tiles.map(tile => {
+                // Find the corresponding tile in loadedConfig to preserve all settings
+                const loadedTile = loadedConfig.tiles?.find(lt => lt.id === tile.id)
+                if (loadedTile && loadedTile.settings) {
+                  // Merge settings: loadedTile.settings takes precedence to preserve saved values like coverPosition
+                  // Then apply any defaults from migrated tile
+                  return {
+                    ...tile,
+                    settings: { ...tile.settings, ...loadedTile.settings }
+                  }
+                }
+                return tile
+              })
+
+              // When tileSetComplete is true (e.g. from a template), do not merge in missing tile types
+              if (loadedConfig.tileSetComplete === true) {
+                finalConfig = { ...preservedConfig, tiles: existingTiles }
+              } else {
+                // Ensure all tile types are present - add missing ones from defaults
+                const defaultTiles = createDefaultTiles(eventData)
+                const existingTileTypes = new Set(existingTiles.map(t => t.type))
+                const missingTiles = defaultTiles.filter(t => !existingTileTypes.has(t.type))
+
+                // Merge existing tiles with missing default tiles, preserving saved order
+                const allTiles = [...existingTiles, ...missingTiles]
+                  .sort((a, b) => {
+                    // Keep existing tiles in their current order, new tiles go after
+                    const aExists = existingTiles.some(t => t.id === a.id)
+                    const bExists = existingTiles.some(t => t.id === b.id)
+                    if (aExists && !bExists) return -1
+                    if (!aExists && bExists) return 1
+                    // Sort by saved order value - preserve what was saved
+                    const orderA = a.order !== undefined ? a.order : (aExists ? 999 : 1000)
+                    const orderB = b.order !== undefined ? b.order : (bExists ? 999 : 1000)
+                    return orderA - orderB
+                  })
+                  .map((tile) => {
+                    // CRITICAL: Preserve existing order values from saved config
+                    // Only assign order to new tiles that don't have one
+                    const existingTile = existingTiles.find(t => t.id === tile.id)
+                    if (existingTile && existingTile.order !== undefined) {
+                      // Preserve the saved order value - this is what the user set!
+                      return { ...tile, order: existingTile.order }
+                    }
+                    // For new tiles, assign order after existing tiles
+                    const maxExistingOrder = existingTiles.length > 0
+                      ? Math.max(...existingTiles.map(t => t.order !== undefined ? t.order : 0), 0)
+                      : -1
+                    return { ...tile, order: maxExistingOrder + 1 }
+                  })
+
+                finalConfig = {
+                  ...preservedConfig,
+                  tiles: allTiles
+                }
+              }
+
             }
-            
-          }
 
-          // Select first enabled tile by default
-          const firstEnabled = finalConfig.tiles?.find(t => t.enabled)
-          if (firstEnabled) {
-            setSelectedTileId(firstEnabled.id)
+            // Select first enabled tile by default
+            const firstEnabled = finalConfig.tiles?.find(t => t.enabled)
+            if (firstEnabled) {
+              setSelectedTileId(firstEnabled.id)
+            }
+          } catch (migrationError) {
+            logError('Error during migration:', migrationError)
+            // Fall through to initialize with default tiles
+            finalConfig = null
           }
-        } catch (migrationError) {
-          logError('Error during migration:', migrationError)
-          // Fall through to initialize with default tiles
-          finalConfig = null
         }
-      }
-      
-      // If no config exists or migration failed, show design start (template vs scratch)
-      if (!finalConfig) {
-        const defaultTiles = createDefaultTiles(eventData)
-        finalConfig = {
-          themeId: 'warm-parchment',
-          tiles: defaultTiles,
-          texture: { type: 'parchment', intensity: 20 },
-          customColors: { backgroundGradient: 'linear-gradient(160deg, #E8D8C3 0%, #C4A882 100%)' },
-        }
-        setSelectedTileId('tile-title-0')
-        setShowDesignStartView(true)
-      } else {
-        // Ensure customColors exists in loaded config (initialize as empty object if missing)
-        // But don't overwrite if it already exists (even if empty)
-        if (!finalConfig.customColors) {
-          finalConfig.customColors = {}
-        }
-      }
-      
-      // Hydrate design tiles with saved card-studio work from localStorage.
-      // This covers the case where a template (or a freshly-added tile) initialises
-      // the tile with empty textOverlays — the user's card-studio edits should win.
-      if (finalConfig?.tiles) {
-        const bgUrl = localStorage.getItem(`card-bg-${eventId}`)
-        const bgGradient = localStorage.getItem(`card-gradient-${eventId}`)
-        const rawBoxes = localStorage.getItem(`card-textboxes-${eventId}`)
-        const savedOverlays = rawBoxes ? (() => { try { return JSON.parse(rawBoxes) } catch { return null } })() : null
 
-        if (bgUrl || bgGradient || (savedOverlays && savedOverlays.length > 0)) {
+        // If no config exists or migration failed, show design start (template vs scratch)
+        if (!finalConfig) {
+          const defaultTiles = createDefaultTiles(eventData)
           finalConfig = {
-            ...finalConfig,
-            tiles: finalConfig.tiles.map((tile) => {
-              if (tile.type !== 'design') return tile
-              const s = tile.settings as import('@/lib/invite/schema').DesignTileSettings
-              // Only restore from localStorage if the tile has no meaningful content yet
-              const tileHasContent = !!s.src || (s.textOverlays && s.textOverlays.length > 0)
-              if (tileHasContent) return tile
-              return {
-                ...tile,
-                enabled: true,
-                settings: {
-                  ...s,
-                  src: bgUrl ?? undefined,
-                  backgroundGradient: bgUrl ? undefined : (bgGradient ?? s.backgroundGradient),
-                  textOverlays: savedOverlays ?? s.textOverlays ?? [],
-                },
+            themeId: 'warm-parchment',
+            tiles: defaultTiles,
+            texture: { type: 'parchment', intensity: 20 },
+            customColors: { backgroundGradient: 'linear-gradient(160deg, #E8D8C3 0%, #C4A882 100%)' },
+          }
+          setSelectedTileId('tile-title-0')
+          setShowDesignStartView(true)
+        } else {
+          // Ensure customColors exists in loaded config (initialize as empty object if missing)
+          // But don't overwrite if it already exists (even if empty)
+          if (!finalConfig.customColors) {
+            finalConfig.customColors = {}
+          }
+        }
+
+        // Hydrate design tiles with saved card-studio work from localStorage.
+        // This covers the case where a template (or a freshly-added tile) initialises
+        // the tile with empty textOverlays — the user's card-studio edits should win.
+        if (finalConfig?.tiles) {
+          const bgUrl = localStorage.getItem(`card-bg-${eventId}`)
+          const bgGradient = localStorage.getItem(`card-gradient-${eventId}`)
+          const rawBoxes = localStorage.getItem(`card-textboxes-${eventId}`)
+          const savedOverlays = rawBoxes ? (() => { try { return JSON.parse(rawBoxes) } catch { return null } })() : null
+
+          if (bgUrl || bgGradient || (savedOverlays && savedOverlays.length > 0)) {
+            finalConfig = {
+              ...finalConfig,
+              tiles: finalConfig.tiles.map((tile) => {
+                if (tile.type !== 'design') return tile
+                const s = tile.settings as import('@/lib/invite/schema').DesignTileSettings
+                // Only restore from localStorage if the tile has no meaningful content yet
+                const tileHasContent = !!s.src || (s.textOverlays && s.textOverlays.length > 0)
+                if (tileHasContent) return tile
+                return {
+                  ...tile,
+                  enabled: true,
+                  settings: {
+                    ...s,
+                    src: bgUrl ?? undefined,
+                    backgroundGradient: bgUrl ? undefined : (bgGradient ?? s.backgroundGradient),
+                    textOverlays: savedOverlays ?? s.textOverlays ?? [],
+                  },
+                }
+              }),
+            }
+          }
+        }
+
+        // If user clicked Next in card studio, the layout page already wrote the GC tile
+        // as enabled:true into event.page_config. If for any reason it's still disabled
+        // or missing (e.g. user navigated directly to design page with ?gc=committed),
+        // enable/inject it now synchronously — no network call, no race condition.
+        // Set the final config
+        if (finalConfig) {
+          setConfig(finalConfig)
+
+          // Initialize previewOrder from saved order values (fallback when previewOrder is empty)
+          if (finalConfig.tiles && finalConfig.tiles.length > 0) {
+            const initialPreviewOrder = new Map<string, number>()
+            finalConfig.tiles.forEach(tile => {
+              if (tile.order !== undefined) {
+                initialPreviewOrder.set(tile.id, tile.order)
               }
-            }),
+            })
+            setPreviewOrder(initialPreviewOrder)
           }
+        } else {
+          logError('Final config is null - this should not happen')
         }
-      }
 
-      // If user clicked Next in card studio, the layout page already wrote the GC tile
-      // as enabled:true into event.page_config. If for any reason it's still disabled
-      // or missing (e.g. user navigated directly to design page with ?gc=committed),
-      // enable/inject it now synchronously — no network call, no race condition.
-      // Set the final config
-      if (finalConfig) {
-        setConfig(finalConfig)
-        
-        // Initialize previewOrder from saved order values (fallback when previewOrder is empty)
-        if (finalConfig.tiles && finalConfig.tiles.length > 0) {
-          const initialPreviewOrder = new Map<string, number>()
-          finalConfig.tiles.forEach(tile => {
-            if (tile.order !== undefined) {
-              initialPreviewOrder.set(tile.id, tile.order)
+        // Load the InvitePage to know the publish state and the published snapshot.
+        // The baseline drives Publish gating + per-tile "Edited" badges. If the page
+        // was never published, baseline stays null (Publish stays available).
+        try {
+          const invite = await getInvitePage(eventId)
+          if (invite) {
+            setInvitePage(invite)
+            setPublishedBaseline(invite.published_config ?? null)
           }
+        } catch (inviteError) {
+          // No invite page yet (never saved) — leave baseline null so Publish is available.
+          logDebug('No invite page loaded for change tracking', inviteError)
+        }
+      } catch (error: any) {
+        if (error.response?.status === 401) {
+          router.push('/host/login')
+        } else if (error.response?.status === 403 || error.response?.status === 404) {
+          showToast('You do not have access to this event', 'error')
+          router.push('/host/dashboard')
+        } else {
+          logError('Failed to load data:', error)
+          logError('Error details:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
           })
-          setPreviewOrder(initialPreviewOrder)
+          showToast(getErrorMessage(error), 'error')
         }
-      } else {
-        logError('Final config is null - this should not happen')
+      } finally {
+        setLoading(false)
       }
-
-      // Load the InvitePage to know the publish state and the published snapshot.
-      // The baseline drives Publish gating + per-tile "Edited" badges. If the page
-      // was never published, baseline stays null (Publish stays available).
-      try {
-        const invite = await getInvitePage(eventId)
-        if (invite) {
-          setInvitePage(invite)
-          setPublishedBaseline(invite.published_config ?? null)
-        }
-      } catch (inviteError) {
-        // No invite page yet (never saved) — leave baseline null so Publish is available.
-        logDebug('No invite page loaded for change tracking', inviteError)
-      }
-    } catch (error: any) {
-      if (error.response?.status === 401) {
-        router.push('/host/login')
-      } else if (error.response?.status === 403 || error.response?.status === 404) {
-        showToast('You do not have access to this event', 'error')
-        router.push('/host/dashboard')
-      } else {
-        logError('Failed to load data:', error)
-        logError('Error details:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status,
-        })
-        showToast(getErrorMessage(error), 'error')
-      }
-    } finally {
-      setLoading(false)
     }
-  }
-    
+
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
@@ -607,8 +607,8 @@ export default function DesignInvitationPage(): JSX.Element {
       setGradientColor1(m[2])
       setGradientColor2(m[3])
     }
-  // only run when a new config is loaded from the server, not on every user edit
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // only run when a new config is loaded from the server, not on every user edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   // Measure header height for sticky positioning
@@ -663,154 +663,154 @@ export default function DesignInvitationPage(): JSX.Element {
   // cleans customColors/linkMetadata, strips previewOrder). Shared by auto-save and
   // the change-tracking diff so both compare apples to apples.
   const buildConfigToSave = useCallback((): InviteConfig => {
-      // Build config to save - ensure customColors.backgroundColor is always included if set
-      // Build tiles first - sort by previewOrder (real-time order) and snapshot to order field
-      // IMPORTANT: This respects user's manual ordering (from drag-and-drop) because:
-      // 1. When user reorders tiles, previewOrder is updated in state
-      // 2. We sort by previewOrder (which reflects what user sees in preview)
-      // 3. Then we snapshot previewOrder values into order field sequentially (0, 1, 2...)
-      // CRITICAL: Only assign order to enabled tiles to match what invite page shows
-      // This ensures the saved order matches what the user sees and expects
-      const sortedTilesForSave = [...(config.tiles || [])].filter(isKnownTile).sort((a, b) => {
-        // Use previewOrder from state map, fallback to tile's previewOrder, then saved order
-        const orderA = previewOrder.get(a.id) ?? a.previewOrder ?? a.order ?? 0
-        const orderB = previewOrder.get(b.id) ?? b.previewOrder ?? b.order ?? 0
-        return orderA - orderB
-      })
-      
-      // Separate enabled and disabled tiles (simple filter, no special requirements)
-      let enabledTiles = sortedTilesForSave.filter(t => t.enabled !== false)
-      let disabledTiles = sortedTilesForSave.filter(t => t.enabled === false)
-      
-      // Ensure all enabled tiles have previewOrder before assigning final order values
-      enabledTiles = enabledTiles.map(tile => {
-        // If tile doesn't have previewOrder, use its position in sortedTilesForSave
-        if (!previewOrder.has(tile.id) && tile.previewOrder === undefined) {
-          const positionInSorted = sortedTilesForSave.findIndex(t => t.id === tile.id)
-          if (positionInSorted >= 0) {
-            // Use position in sorted array as previewOrder
-            return { ...tile, previewOrder: positionInSorted }
-          }
+    // Build config to save - ensure customColors.backgroundColor is always included if set
+    // Build tiles first - sort by previewOrder (real-time order) and snapshot to order field
+    // IMPORTANT: This respects user's manual ordering (from drag-and-drop) because:
+    // 1. When user reorders tiles, previewOrder is updated in state
+    // 2. We sort by previewOrder (which reflects what user sees in preview)
+    // 3. Then we snapshot previewOrder values into order field sequentially (0, 1, 2...)
+    // CRITICAL: Only assign order to enabled tiles to match what invite page shows
+    // This ensures the saved order matches what the user sees and expects
+    const sortedTilesForSave = [...(config.tiles || [])].filter(isKnownTile).sort((a, b) => {
+      // Use previewOrder from state map, fallback to tile's previewOrder, then saved order
+      const orderA = previewOrder.get(a.id) ?? a.previewOrder ?? a.order ?? 0
+      const orderB = previewOrder.get(b.id) ?? b.previewOrder ?? b.order ?? 0
+      return orderA - orderB
+    })
+
+    // Separate enabled and disabled tiles (simple filter, no special requirements)
+    let enabledTiles = sortedTilesForSave.filter(t => t.enabled !== false)
+    let disabledTiles = sortedTilesForSave.filter(t => t.enabled === false)
+
+    // Ensure all enabled tiles have previewOrder before assigning final order values
+    enabledTiles = enabledTiles.map(tile => {
+      // If tile doesn't have previewOrder, use its position in sortedTilesForSave
+      if (!previewOrder.has(tile.id) && tile.previewOrder === undefined) {
+        const positionInSorted = sortedTilesForSave.findIndex(t => t.id === tile.id)
+        if (positionInSorted >= 0) {
+          // Use position in sorted array as previewOrder
+          return { ...tile, previewOrder: positionInSorted }
         }
-        return tile
-      })
-      
-      // Sort enabled tiles by previewOrder
-      enabledTiles.sort((a, b) => {
-        const orderA = previewOrder.get(a.id) ?? a.previewOrder ?? a.order ?? 999
-        const orderB = previewOrder.get(b.id) ?? b.previewOrder ?? b.order ?? 999
-        return orderA - orderB
-      })
-      
-      // Assign order values only to enabled tiles (sequential: 0, 1, 2...)
-      // Disabled tiles keep their existing order (or get a high value) but won't be shown on invite page
-      const tilesToSave = [
-        ...enabledTiles.map((t, index) => {
-          // Snapshot: copy previewOrder to order field for saving (only for enabled tiles)
-          const baseTile = { 
-            ...t, 
-            order: index, // Snapshot previewOrder as sequential order values for enabled tiles
-            previewOrder: undefined, // Don't save previewOrder to backend
-          }
-          
-          // CRITICAL: Always get latest settings from current config state (not from sorted array which might be stale)
-          // This ensures all tile updates are saved, not just initial values
-          const currentTileInConfig = config.tiles?.find(t => t.id === baseTile.id)
-          const latestSettings = currentTileInConfig?.settings || baseTile.settings
-          
-          if (baseTile.type === 'title') {
-            return { ...baseTile, enabled: true, settings: { ...latestSettings } as any }
-          }
-          // For image tiles, explicitly preserve all settings including coverPosition
-          if (baseTile.type === 'image') {
-            const imageSettings = latestSettings as any
-            return { ...baseTile, settings: { ...imageSettings } }
-          }
-          // For feature-buttons tiles, explicitly preserve all settings including custom labels
-          if (baseTile.type === 'feature-buttons') {
-            const featureButtonsSettings = latestSettings as any
-            return { ...baseTile, settings: { ...featureButtonsSettings } }
-          }
-          // For event-carousel tiles, explicitly preserve all settings including slideshow and styling options
-          if (baseTile.type === 'event-carousel') {
-            const carouselSettings = latestSettings as any
-            return { ...baseTile, settings: { ...carouselSettings } }
-          }
-          // For event-details tiles, explicitly preserve all settings including time
-          if (baseTile.type === 'event-details') {
-            const eventDetailsSettings = latestSettings as any
-            // Explicitly preserve ALL fields from the latest settings
-            const preservedSettings = {
-              ...eventDetailsSettings, // Spread all current settings
-              // Explicitly preserve each field to ensure nothing is lost
-              location: eventDetailsSettings.location || '',
-              date: eventDetailsSettings.date || '',
-              time: eventDetailsSettings.time, // Can be undefined, that's fine
-              dressCode: eventDetailsSettings.dressCode,
-              mapUrl: eventDetailsSettings.mapUrl,
-              locationVerified: eventDetailsSettings.locationVerified,
-              coordinates: eventDetailsSettings.coordinates,
-              showMap: eventDetailsSettings.showMap,
-              mapZoom: eventDetailsSettings.mapZoom,
-              fontColor: eventDetailsSettings.fontColor,
-              buttonColor: eventDetailsSettings.buttonColor,
-              borderStyle: eventDetailsSettings.borderStyle,
-              borderColor: eventDetailsSettings.borderColor,
-              borderWidth: eventDetailsSettings.borderWidth,
-              decorativeSymbol: eventDetailsSettings.decorativeSymbol,
-              backgroundColor: eventDetailsSettings.backgroundColor,
-              borderRadius: eventDetailsSettings.borderRadius,
-            }
-            return { ...baseTile, settings: preservedSettings }
-          }
-          // For all other tile types, use latest settings
-          return { ...baseTile, settings: { ...latestSettings } as any }
-        }),
-        // Disabled tiles keep their existing order (won't be shown on invite page anyway)
-        ...disabledTiles.map(t => ({
+      }
+      return tile
+    })
+
+    // Sort enabled tiles by previewOrder
+    enabledTiles.sort((a, b) => {
+      const orderA = previewOrder.get(a.id) ?? a.previewOrder ?? a.order ?? 999
+      const orderB = previewOrder.get(b.id) ?? b.previewOrder ?? b.order ?? 999
+      return orderA - orderB
+    })
+
+    // Assign order values only to enabled tiles (sequential: 0, 1, 2...)
+    // Disabled tiles keep their existing order (or get a high value) but won't be shown on invite page
+    const tilesToSave = [
+      ...enabledTiles.map((t, index) => {
+        // Snapshot: copy previewOrder to order field for saving (only for enabled tiles)
+        const baseTile = {
           ...t,
+          order: index, // Snapshot previewOrder as sequential order values for enabled tiles
           previewOrder: undefined, // Don't save previewOrder to backend
-        }))
-      ]
-      
-      // Build customColors - always include backgroundColor if it exists
-      let customColorsToSave = undefined
-      if (config.customColors?.backgroundColor) {
-        // If backgroundColor is set, include it along with any other customColors properties
-        customColorsToSave = {
-          ...(config.customColors || {}),
-          backgroundColor: config.customColors.backgroundColor,
         }
-      } else if (config.customColors && Object.keys(config.customColors).filter(k => k !== 'backgroundColor').length > 0) {
-        // Include customColors if it has other properties (fontColor, primaryColor, etc.)
-        customColorsToSave = config.customColors
+
+        // CRITICAL: Always get latest settings from current config state (not from sorted array which might be stale)
+        // This ensures all tile updates are saved, not just initial values
+        const currentTileInConfig = config.tiles?.find(t => t.id === baseTile.id)
+        const latestSettings = currentTileInConfig?.settings || baseTile.settings
+
+        if (baseTile.type === 'title') {
+          return { ...baseTile, enabled: true, settings: { ...latestSettings } as any }
+        }
+        // For image tiles, explicitly preserve all settings including coverPosition
+        if (baseTile.type === 'image') {
+          const imageSettings = latestSettings as any
+          return { ...baseTile, settings: { ...imageSettings } }
+        }
+        // For feature-buttons tiles, explicitly preserve all settings including custom labels
+        if (baseTile.type === 'feature-buttons') {
+          const featureButtonsSettings = latestSettings as any
+          return { ...baseTile, settings: { ...featureButtonsSettings } }
+        }
+        // For event-carousel tiles, explicitly preserve all settings including slideshow and styling options
+        if (baseTile.type === 'event-carousel') {
+          const carouselSettings = latestSettings as any
+          return { ...baseTile, settings: { ...carouselSettings } }
+        }
+        // For event-details tiles, explicitly preserve all settings including time
+        if (baseTile.type === 'event-details') {
+          const eventDetailsSettings = latestSettings as any
+          // Explicitly preserve ALL fields from the latest settings
+          const preservedSettings = {
+            ...eventDetailsSettings, // Spread all current settings
+            // Explicitly preserve each field to ensure nothing is lost
+            location: eventDetailsSettings.location || '',
+            date: eventDetailsSettings.date || '',
+            time: eventDetailsSettings.time, // Can be undefined, that's fine
+            dressCode: eventDetailsSettings.dressCode,
+            mapUrl: eventDetailsSettings.mapUrl,
+            locationVerified: eventDetailsSettings.locationVerified,
+            coordinates: eventDetailsSettings.coordinates,
+            showMap: eventDetailsSettings.showMap,
+            mapZoom: eventDetailsSettings.mapZoom,
+            fontColor: eventDetailsSettings.fontColor,
+            buttonColor: eventDetailsSettings.buttonColor,
+            borderStyle: eventDetailsSettings.borderStyle,
+            borderColor: eventDetailsSettings.borderColor,
+            borderWidth: eventDetailsSettings.borderWidth,
+            decorativeSymbol: eventDetailsSettings.decorativeSymbol,
+            backgroundColor: eventDetailsSettings.backgroundColor,
+            borderRadius: eventDetailsSettings.borderRadius,
+          }
+          return { ...baseTile, settings: preservedSettings }
+        }
+        // For all other tile types, use latest settings
+        return { ...baseTile, settings: { ...latestSettings } as any }
+      }),
+      // Disabled tiles keep their existing order (won't be shown on invite page anyway)
+      ...disabledTiles.map(t => ({
+        ...t,
+        previewOrder: undefined, // Don't save previewOrder to backend
+      }))
+    ]
+
+    // Build customColors - always include backgroundColor if it exists
+    let customColorsToSave = undefined
+    if (config.customColors?.backgroundColor) {
+      // If backgroundColor is set, include it along with any other customColors properties
+      customColorsToSave = {
+        ...(config.customColors || {}),
+        backgroundColor: config.customColors.backgroundColor,
       }
-      // If customColors is empty or doesn't exist, don't include it (undefined)
-      
-      // Clean up linkMetadata - only include if it has at least one defined property
-      const linkMetadataToSave = config.linkMetadata &&
-        (config.linkMetadata.title || config.linkMetadata.description || config.linkMetadata.image ||
-         config.linkMetadata.previewImageSource || config.linkMetadata.previewTitleSource || config.linkMetadata.previewDescriptionSource)
-        ? config.linkMetadata
-        : undefined
-      
-      const configToSave: InviteConfig = {
-        themeId: config.themeId,
-        tiles: tilesToSave,
-        ...(customColorsToSave && { customColors: customColorsToSave }),
-        ...(config.customFonts && { customFonts: config.customFonts }),
-        ...(config.texture && { texture: config.texture }),
-        ...(config.pageBorder && { pageBorder: config.pageBorder }),
-        ...(config.pageFrame && { pageFrame: config.pageFrame }),
-        ...(config.cornerDecorations && Object.keys(config.cornerDecorations).length > 0 && { cornerDecorations: config.cornerDecorations }),
-        ...(config.spacing && { spacing: config.spacing }),
-        ...(linkMetadataToSave && { linkMetadata: linkMetadataToSave }),
-        ...(config.rsvpForm && { rsvpForm: config.rsvpForm }),
-        ...(config.tileSetComplete !== undefined && { tileSetComplete: config.tileSetComplete }),
-        ...(config.animations !== undefined && { animations: config.animations }),
-      }
-      
-      return configToSave
+    } else if (config.customColors && Object.keys(config.customColors).filter(k => k !== 'backgroundColor').length > 0) {
+      // Include customColors if it has other properties (fontColor, primaryColor, etc.)
+      customColorsToSave = config.customColors
+    }
+    // If customColors is empty or doesn't exist, don't include it (undefined)
+
+    // Clean up linkMetadata - only include if it has at least one defined property
+    const linkMetadataToSave = config.linkMetadata &&
+      (config.linkMetadata.title || config.linkMetadata.description || config.linkMetadata.image ||
+        config.linkMetadata.previewImageSource || config.linkMetadata.previewTitleSource || config.linkMetadata.previewDescriptionSource)
+      ? config.linkMetadata
+      : undefined
+
+    const configToSave: InviteConfig = {
+      themeId: config.themeId,
+      tiles: tilesToSave,
+      ...(customColorsToSave && { customColors: customColorsToSave }),
+      ...(config.customFonts && { customFonts: config.customFonts }),
+      ...(config.texture && { texture: config.texture }),
+      ...(config.pageBorder && { pageBorder: config.pageBorder }),
+      ...(config.pageFrame && { pageFrame: config.pageFrame }),
+      ...(config.cornerDecorations && Object.keys(config.cornerDecorations).length > 0 && { cornerDecorations: config.cornerDecorations }),
+      ...(config.spacing && { spacing: config.spacing }),
+      ...(linkMetadataToSave && { linkMetadata: linkMetadataToSave }),
+      ...(config.rsvpForm && { rsvpForm: config.rsvpForm }),
+      ...(config.tileSetComplete !== undefined && { tileSetComplete: config.tileSetComplete }),
+      ...(config.animations !== undefined && { animations: config.animations }),
+    }
+
+    return configToSave
   }, [config, previewOrder])
 
   // Persist the current draft to the backend. Used by the debounced auto-save and as
@@ -963,7 +963,7 @@ export default function DesignInvitationPage(): JSX.Element {
           // Adaptive compression to meet WhatsApp's 300KB requirement
           const MAX_SIZE = 300 * 1024 // 300KB - WhatsApp's limit
           const MIN_QUALITY = 0.5 // Minimum quality to prevent too much degradation
-          
+
           const compressToTargetSize = (quality: number): Promise<File> => {
             return new Promise((resolve, reject) => {
               canvas.toBlob(
@@ -972,7 +972,7 @@ export default function DesignInvitationPage(): JSX.Element {
                     reject(new Error('Failed to create blob'))
                     return
                   }
-                  
+
                   // Check if file size is under WhatsApp's limit
                   if (blob.size <= MAX_SIZE || quality <= MIN_QUALITY) {
                     // Create a new File with optimized image
@@ -1145,7 +1145,7 @@ export default function DesignInvitationPage(): JSX.Element {
       showToast('Event slug not found', 'error')
       return
     }
-    
+
     // Check if InvitePage exists
     if (!invitePage) {
       const shouldCreate = confirm(
@@ -1169,7 +1169,7 @@ export default function DesignInvitationPage(): JSX.Element {
       }
       return
     }
-    
+
     // Check if published
     if (!invitePage.is_published) {
       showToast(
@@ -1177,7 +1177,7 @@ export default function DesignInvitationPage(): JSX.Element {
         'info'
       )
     }
-    
+
     // Add preview=true to bypass cache for editor
     // Store reference to preview window for refresh messages
     // If preview window already exists, refresh it; otherwise open new one
@@ -1241,15 +1241,15 @@ export default function DesignInvitationPage(): JSX.Element {
     }
 
     const defaultSettings: Record<TileType, object> = {
-      'title':           { text: 'Event Title' },
-      'image':           { src: '', fitMode: 'fit-to-screen' },
-      'design':          savedDesignSettings ?? { backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)', textOverlays: [] },
-      'timer':           {},
-      'event-details':   { location: '', date: new Date().toISOString().split('T')[0] },
-      'description':     { content: '' },
+      'title': { text: 'Event Title' },
+      'image': { src: '', fitMode: 'fit-to-screen' },
+      'design': savedDesignSettings ?? { backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)', textOverlays: [] },
+      'timer': {},
+      'event-details': { location: '', date: new Date().toISOString().split('T')[0] },
+      'description': { content: '' },
       'feature-buttons': {},
-      'footer':          {},
-      'event-carousel':  {},
+      'footer': {},
+      'event-carousel': {},
     }
     const maxOrder = Math.max(...(config.tiles?.map(t => t.order ?? 0) ?? [0]), 0)
     const newTile: Tile = {
@@ -1290,7 +1290,7 @@ export default function DesignInvitationPage(): JSX.Element {
 
   const handleTileToggle = (tileId: string, enabled: boolean) => {
     const tile = config.tiles?.find(t => t.id === tileId)
-    
+
     // Check if trying to disable title tile
     if (tile?.type === 'title' && !enabled) {
       // Check if there's an enabled image tile with a valid image source - if yes, allow disabling title
@@ -1299,14 +1299,14 @@ export default function DesignInvitationPage(): JSX.Element {
         const imageSettings = t.settings as any
         return imageSettings?.src && imageSettings.src.trim() !== ''
       })
-      
+
       if (!hasValidImageTile) {
         showToast('Title tile cannot be disabled when no valid image is present. Please add and upload an image first.', 'error')
         return
       }
       // If valid image exists, allow disabling title tile
     }
-    
+
     setConfig(prev => ({
       ...prev,
       tiles: prev.tiles?.map(t => t.id === tileId ? { ...t, enabled } : t) || [],
@@ -1317,12 +1317,12 @@ export default function DesignInvitationPage(): JSX.Element {
     // CRITICAL: Calculate previewOrder for ALL tiles based on their position in the reordered array
     // This ensures every tile has a previewOrder that reflects its actual position, not just moved tiles
     const newPreviewOrder = new Map<string, number>()
-    
+
     // Assign previewOrder based on actual position in reordered array
     reorderedTiles.forEach((tile, index) => {
       newPreviewOrder.set(tile.id, index)
     })
-    
+
     // Ensure ALL tiles have previewOrder (including any that might have been missed)
     reorderedTiles.forEach((tile) => {
       if (!newPreviewOrder.has(tile.id)) {
@@ -1336,15 +1336,15 @@ export default function DesignInvitationPage(): JSX.Element {
         }
       }
     })
-    
+
     setPreviewOrder(newPreviewOrder)
-    
+
     // Update tiles with their previewOrder values
     const tilesWithPreviewOrder = reorderedTiles.map(tile => ({
       ...tile,
       previewOrder: newPreviewOrder.get(tile.id),
     }))
-    
+
     setConfig(prev => ({
       ...prev,
       tiles: tilesWithPreviewOrder,
@@ -1539,212 +1539,212 @@ export default function DesignInvitationPage(): JSX.Element {
     <div className="min-h-screen bg-eco-beige w-full overflow-x-hidden">
       {/* Wizard progress bar */}
       <WizardProgress currentStep={4} eventId={eventId} />
-        {/* Header */}
+      {/* Header */}
       <div ref={headerRef} className="sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 w-full overflow-x-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 w-full">
-          <div className="flex-1 min-w-0 w-full">
-            <div className="mb-2">
-              <Link
-                href={`/host/events/${eventId}/layout`}
-                className="text-xs text-gray-500 hover:text-eco-green transition-colors flex items-center gap-1"
-              >
-                <span aria-hidden>&#8592;</span> Back to Layout
-              </Link>
+            <div className="flex-1 min-w-0 w-full">
+              <div className="mb-2">
+                <Link
+                  href={`/host/events/${eventId}/layout`}
+                  className="text-xs text-gray-500 hover:text-eco-green transition-colors flex items-center gap-1"
+                >
+                  <span aria-hidden>&#8592;</span> Back to Layout
+                </Link>
+              </div>
+              <h1 className="text-xl font-bold text-eco-green">Invitation Design</h1>
             </div>
-            <h1 className="text-xl font-bold text-eco-green">Invitation Design</h1>
-          </div>
-          <div className="flex gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto items-center">
-            {/* Auto-save status chip */}
-            <AnimatePresence mode="wait">
-              {saveStatus === 'saving' && (
-                <motion.span
-                  key="saving"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-pulse" />
-                  Saving…
-                </motion.span>
-              )}
-              {saveStatus === 'saved' && (
-                <motion.span
-                  key="saved"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="hidden sm:flex items-center gap-1.5 text-xs text-green-600"
-                >
-                  <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
-                  </svg>
-                  All changes saved
-                </motion.span>
-              )}
-              {saveStatus === 'error' && (
-                <motion.button
-                  key="error"
-                  type="button"
-                  onClick={() => persistDraftRef.current?.()}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="flex items-center gap-1.5 text-xs text-red-600 hover:underline"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                  Save failed — Retry
-                </motion.button>
-              )}
-            </AnimatePresence>
-
-            {/* Publish status badge */}
-            {invitePage?.is_published ? (
-              <Badge variant="success" className="text-xs">Published</Badge>
-            ) : invitePage && (invitePage.published_at || publishedBaseline) ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="warning" className="text-xs">Coming Soon</Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Your invite is pulled back — guests see a Coming Soon page. Publish again to make it live.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : invitePage ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="warning" className="text-xs">Draft</Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Your invite page is in draft mode. Publish it to share with guests.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : null}
-            
-            {/* Preview/View Site button - changes based on publish status */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    onClick={handlePreview}
-                    variant="outline" 
-                    className="border-eco-green text-eco-green text-xs sm:text-sm px-3 sm:px-4 w-full sm:w-auto flex-1 sm:flex-none"
+            <div className="flex gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto items-center">
+              {/* Auto-save status chip */}
+              <AnimatePresence mode="wait">
+                {saveStatus === 'saving' && (
+                  <motion.span
+                    key="saving"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400"
                   >
-                    {invitePage?.is_published ? (
-                      <>
-                        👁️ <span className="hidden sm:inline">View Site</span>
-                      </>
-                    ) : (
-                      <>
-              👁️ <span className="hidden sm:inline">Preview</span>
-                      </>
-                    )}
-            </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {invitePage?.is_published 
-                      ? 'View your published invite page as guests see it'
-                      : 'Preview your draft invite page (host only)'}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            
-            {/* Templates */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-eco-green text-eco-green text-xs sm:text-sm px-3 sm:px-4 w-full sm:w-auto flex-1 sm:flex-none"
-              onClick={() => router.push(`/host/events/${eventId}/layout`)}
-            >
-              Templates
-            </Button>
-            
-            {/* Pull back (only when live) — temporarily unpublish to a Coming Soon page */}
-            {invitePage?.is_published && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-pulse" />
+                    Saving…
+                  </motion.span>
+                )}
+                {saveStatus === 'saved' && (
+                  <motion.span
+                    key="saved"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="hidden sm:flex items-center gap-1.5 text-xs text-green-600"
+                  >
+                    <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
+                    </svg>
+                    All changes saved
+                  </motion.span>
+                )}
+                {saveStatus === 'error' && (
+                  <motion.button
+                    key="error"
+                    type="button"
+                    onClick={() => persistDraftRef.current?.()}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="flex items-center gap-1.5 text-xs text-red-600 hover:underline"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    Save failed — Retry
+                  </motion.button>
+                )}
+              </AnimatePresence>
+
+              {/* Publish status badge */}
+              {invitePage?.is_published ? (
+                <Badge variant="success" className="text-xs">Published</Badge>
+              ) : invitePage && (invitePage.published_at || publishedBaseline) ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="warning" className="text-xs">Coming Soon</Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Your invite is pulled back — guests see a Coming Soon page. Publish again to make it live.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : invitePage ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="warning" className="text-xs">Draft</Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Your invite page is in draft mode. Publish it to share with guests.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
+
+              {/* Preview/View Site button - changes based on publish status */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      type="button"
+                      onClick={handlePreview}
                       variant="outline"
-                      onClick={() => {
-                        setPublishModalMode('pullback')
-                        setShowPublishModal(true)
-                      }}
-                      className="border-amber-500 text-amber-600 hover:bg-amber-50 text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
+                      className="border-eco-green text-eco-green text-xs sm:text-sm px-3 sm:px-4 w-full sm:w-auto flex-1 sm:flex-none"
                     >
-                      Pull back
+                      {invitePage?.is_published ? (
+                        <>
+                          👁️ <span className="hidden sm:inline">View Site</span>
+                        </>
+                      ) : (
+                        <>
+                          👁️ <span className="hidden sm:inline">Preview</span>
+                        </>
+                      )}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Temporarily unpublish your invite. Guests will see a Coming Soon page until you publish again.</p>
+                    <p>
+                      {invitePage?.is_published
+                        ? 'View your published invite page as guests see it'
+                        : 'Preview your draft invite page (host only)'}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            )}
 
-            {/* Publish button — enabled only when the page is not live or has unpublished changes */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    onClick={async () => {
-                      const validationError = validateForPublish()
-                      if (validationError) {
-                        showToast(validationError, 'error')
-                        return
-                      }
-                      // Ensure an InvitePage exists before publishing
-                      if (!invitePage) {
-                        try {
-                          const newInvite = await createInvitePage(eventId, {
-                            config: config,
-                            background_url: event?.banner_image || '',
-                          })
-                          setInvitePage(newInvite)
-                        } catch (error) {
-                          logError('Failed to create invite page:', error)
-                          showToast('Could not prepare the invite page. Please try again.', 'error')
+              {/* Templates */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-eco-green text-eco-green text-xs sm:text-sm px-3 sm:px-4 w-full sm:w-auto flex-1 sm:flex-none"
+                onClick={() => router.push(`/host/events/${eventId}/layout`)}
+              >
+                Templates
+              </Button>
+
+              {/* Pull back (only when live) — temporarily unpublish to a Coming Soon page */}
+              {invitePage?.is_published && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setPublishModalMode('pullback')
+                          setShowPublishModal(true)
+                        }}
+                        className="border-amber-500 text-amber-600 hover:bg-amber-50 text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
+                      >
+                        Pull back
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Temporarily unpublish your invite. Guests will see a Coming Soon page until you publish again.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
+              {/* Publish button — enabled only when the page is not live or has unpublished changes */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={async () => {
+                        const validationError = validateForPublish()
+                        if (validationError) {
+                          showToast(validationError, 'error')
                           return
                         }
-                      }
-                      // Flush the latest draft so the published snapshot is current
-                      const ok = await persistDraft()
-                      if (!ok) {
-                        showToast('Could not save your latest changes. Please retry before publishing.', 'error')
-                        return
-                      }
-                      setPublishModalMode('publish')
-                      setShowPublishModal(true)
-                    }}
-                    disabled={!canPublish}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
-                  >
-                    {invitePage?.is_published ? (hasUnpublishedChanges ? 'Publish changes' : 'Published') : 'Publish'}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {!canPublish
-                      ? 'No changes to publish — your live page is up to date.'
-                      : invitePage?.is_published
-                        ? 'Publish your latest changes to the live invite page.'
-                        : 'Publish your invite page to make it publicly accessible.'}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                        // Ensure an InvitePage exists before publishing
+                        if (!invitePage) {
+                          try {
+                            const newInvite = await createInvitePage(eventId, {
+                              config: config,
+                              background_url: event?.banner_image || '',
+                            })
+                            setInvitePage(newInvite)
+                          } catch (error) {
+                            logError('Failed to create invite page:', error)
+                            showToast('Could not prepare the invite page. Please try again.', 'error')
+                            return
+                          }
+                        }
+                        // Flush the latest draft so the published snapshot is current
+                        const ok = await persistDraft()
+                        if (!ok) {
+                          showToast('Could not save your latest changes. Please retry before publishing.', 'error')
+                          return
+                        }
+                        setPublishModalMode('publish')
+                        setShowPublishModal(true)
+                      }}
+                      disabled={!canPublish}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs sm:text-sm px-3 sm:px-4 flex-1 sm:flex-none w-full sm:w-auto"
+                    >
+                      {invitePage?.is_published ? (hasUnpublishedChanges ? 'Publish changes' : 'Published') : 'Publish'}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {!canPublish
+                        ? 'No changes to publish — your live page is up to date.'
+                        : invitePage?.is_published
+                          ? 'Publish your latest changes to the live invite page.'
+                          : 'Publish your invite page to make it publicly accessible.'}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
@@ -1775,7 +1775,7 @@ export default function DesignInvitationPage(): JSX.Element {
           }
           return null
         })()}
-        
+
         <div ref={gridContainerRef} className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">
           {/* Left Panel - Settings */}
           <div className="lg:col-span-3 space-y-4 w-full min-w-0 pt-4 sm:pt-6">
@@ -1795,147 +1795,147 @@ export default function DesignInvitationPage(): JSX.Element {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                <div className={`space-y-3 mt-3 ${showPageBackground ? '' : 'hidden'}`}>
+                  <div className={`space-y-3 mt-3 ${showPageBackground ? '' : 'hidden'}`}>
 
-                  {/* Type toggle */}
-                  <div className="flex rounded-lg overflow-hidden border border-gray-300 w-fit">
-                    <button
-                      type="button"
-                      onClick={() => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: undefined } }))}
-                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${!isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      Solid
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
-                        setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
-                      }}
-                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      Gradient
-                    </button>
-                  </div>
-
-                  {/* Auto from card + restore previous */}
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const cardTile = config.tiles?.find(t => t.type === 'design')
-                        const cardSrc = (cardTile?.settings as any)?.src as string | undefined
-                        if (!cardSrc) return
-                        const prevState = {
-                          backgroundColor: config.customColors?.backgroundColor,
-                          backgroundGradient: config.customColors?.backgroundGradient,
-                        }
-                        sessionStorage.setItem('bgRestorePrev', JSON.stringify(prevState))
-                        setCanRestoreBg(true)
-                        const colors = await extractDominantColors(cardSrc, isGradientBg ? 2 : 1)
-                        const hex1 = rgbToHex(colors[0] ?? 'rgb(232,216,195)')
-                        if (isGradientBg) {
-                          const hex2 = rgbToHex(colors[1] ?? 'rgb(196,168,130)')
-                          setGradientColor1(hex1)
-                          setGradientColor2(hex2)
-                          const g = `linear-gradient(${gradientAngle}deg, ${hex1} 0%, ${hex2} 100%)`
-                          setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
-                        } else {
-                          setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: hex1 } }))
-                        }
-                      }}
-                      className="px-3 py-1.5 text-sm font-medium bg-eco-beige text-eco-green border border-eco-green-light rounded hover:bg-eco-green hover:text-white transition-colors"
-                    >
-                      Auto from card
-                    </button>
-                    {canRestoreBg && (
+                    {/* Type toggle */}
+                    <div className="flex rounded-lg overflow-hidden border border-gray-300 w-fit">
+                      <button
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: undefined } }))}
+                        className={`px-3 py-1.5 text-sm font-medium transition-colors ${!isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        Solid
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
-                          const raw = sessionStorage.getItem('bgRestorePrev')
-                          if (!raw) return
-                          try {
-                            const prev = JSON.parse(raw) as { backgroundColor?: string; backgroundGradient?: string }
-                            setConfig(p => ({ ...p, customColors: { ...p.customColors, backgroundColor: prev.backgroundColor, backgroundGradient: prev.backgroundGradient } }))
-                            if (prev.backgroundGradient) {
-                              const m = prev.backgroundGradient.match(/linear-gradient\((\d+)deg,\s*(#[0-9a-fA-F]{3,8})\s+0%,\s*(#[0-9a-fA-F]{3,8})\s+100%\)/)
-                              if (m) { setGradientAngle(parseInt(m[1], 10)); setGradientColor1(m[2]); setGradientColor2(m[3]) }
-                            }
-                            setCanRestoreBg(false)
-                            sessionStorage.removeItem('bgRestorePrev')
-                          } catch { /* ignore */ }
+                          const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
+                          setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
                         }}
-                        className="text-sm text-gray-500 hover:text-eco-green underline"
+                        className={`px-3 py-1.5 text-sm font-medium transition-colors ${isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                       >
-                        ← restore previous
+                        Gradient
                       </button>
-                    )}
-                  </div>
-
-                  {/* Solid: single color picker */}
-                  {!isGradientBg && (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={displayBackgroundColor}
-                        onChange={(e) => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: e.target.value } }))}
-                        className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
-                      />
-                      <Input
-                        type="text"
-                        value={displayBackgroundColor}
-                        onChange={(e) => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: e.target.value } }))}
-                        placeholder="#E8D8C3"
-                        className="w-32 font-mono text-sm"
-                      />
                     </div>
-                  )}
 
-                  {/* Gradient: two pickers + preview strip + angle */}
-                  {isGradientBg && (
-                    <div className="space-y-3">
+                    {/* Auto from card + restore previous */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const cardTile = config.tiles?.find(t => t.type === 'design')
+                          const cardSrc = (cardTile?.settings as any)?.src as string | undefined
+                          if (!cardSrc) return
+                          const prevState = {
+                            backgroundColor: config.customColors?.backgroundColor,
+                            backgroundGradient: config.customColors?.backgroundGradient,
+                          }
+                          sessionStorage.setItem('bgRestorePrev', JSON.stringify(prevState))
+                          setCanRestoreBg(true)
+                          const colors = await extractDominantColors(cardSrc, isGradientBg ? 2 : 1)
+                          const hex1 = rgbToHex(colors[0] ?? 'rgb(232,216,195)')
+                          if (isGradientBg) {
+                            const hex2 = rgbToHex(colors[1] ?? 'rgb(196,168,130)')
+                            setGradientColor1(hex1)
+                            setGradientColor2(hex2)
+                            const g = `linear-gradient(${gradientAngle}deg, ${hex1} 0%, ${hex2} 100%)`
+                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                          } else {
+                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: hex1 } }))
+                          }
+                        }}
+                        className="px-3 py-1.5 text-sm font-medium bg-eco-beige text-eco-green border border-eco-green-light rounded hover:bg-eco-green hover:text-white transition-colors"
+                      >
+                        Auto from card
+                      </button>
+                      {canRestoreBg && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const raw = sessionStorage.getItem('bgRestorePrev')
+                            if (!raw) return
+                            try {
+                              const prev = JSON.parse(raw) as { backgroundColor?: string; backgroundGradient?: string }
+                              setConfig(p => ({ ...p, customColors: { ...p.customColors, backgroundColor: prev.backgroundColor, backgroundGradient: prev.backgroundGradient } }))
+                              if (prev.backgroundGradient) {
+                                const m = prev.backgroundGradient.match(/linear-gradient\((\d+)deg,\s*(#[0-9a-fA-F]{3,8})\s+0%,\s*(#[0-9a-fA-F]{3,8})\s+100%\)/)
+                                if (m) { setGradientAngle(parseInt(m[1], 10)); setGradientColor1(m[2]); setGradientColor2(m[3]) }
+                              }
+                              setCanRestoreBg(false)
+                              sessionStorage.removeItem('bgRestorePrev')
+                            } catch { /* ignore */ }
+                          }}
+                          className="text-sm text-gray-500 hover:text-eco-green underline"
+                        >
+                          ← restore previous
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Solid: single color picker */}
+                    {!isGradientBg && (
                       <div className="flex items-center gap-2">
                         <input
                           type="color"
-                          value={gradientColor1}
-                          onChange={(e) => {
-                            setGradientColor1(e.target.value)
-                            const g = `linear-gradient(${gradientAngle}deg, ${e.target.value} 0%, ${gradientColor2} 100%)`
-                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
-                          }}
+                          value={displayBackgroundColor}
+                          onChange={(e) => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: e.target.value } }))}
                           className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
                         />
-                        <div className="flex-1 h-5 rounded" style={{ background: `linear-gradient(to right, ${gradientColor1}, ${gradientColor2})` }} />
-                        <input
-                          type="color"
-                          value={gradientColor2}
-                          onChange={(e) => {
-                            setGradientColor2(e.target.value)
-                            const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${e.target.value} 100%)`
-                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
-                          }}
-                          className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
+                        <Input
+                          type="text"
+                          value={displayBackgroundColor}
+                          onChange={(e) => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: e.target.value } }))}
+                          placeholder="#E8D8C3"
+                          className="w-32 font-mono text-sm"
                         />
                       </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Direction: {gradientAngle}°</label>
-                        <input
-                          type="range"
-                          min={0}
-                          max={360}
-                          value={gradientAngle}
-                          onChange={(e) => {
-                            const a = parseInt(e.target.value, 10)
-                            setGradientAngle(a)
-                            const g = `linear-gradient(${a}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
-                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
-                          }}
-                          className="w-full mt-1"
-                        />
+                    )}
+
+                    {/* Gradient: two pickers + preview strip + angle */}
+                    {isGradientBg && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={gradientColor1}
+                            onChange={(e) => {
+                              setGradientColor1(e.target.value)
+                              const g = `linear-gradient(${gradientAngle}deg, ${e.target.value} 0%, ${gradientColor2} 100%)`
+                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                            }}
+                            className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
+                          />
+                          <div className="flex-1 h-5 rounded" style={{ background: `linear-gradient(to right, ${gradientColor1}, ${gradientColor2})` }} />
+                          <input
+                            type="color"
+                            value={gradientColor2}
+                            onChange={(e) => {
+                              setGradientColor2(e.target.value)
+                              const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${e.target.value} 100%)`
+                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                            }}
+                            className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Direction: {gradientAngle}°</label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={360}
+                            value={gradientAngle}
+                            onChange={(e) => {
+                              const a = parseInt(e.target.value, 10)
+                              setGradientAngle(a)
+                              const g = `linear-gradient(${a}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
+                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                            }}
+                            className="w-full mt-1"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Advanced Settings - Collapsible */}
@@ -2199,8 +2199,8 @@ export default function DesignInvitationPage(): JSX.Element {
                           const src = effectiveImageSource
                           const label =
                             src === 'greeting-card' ? 'Using greeting card' :
-                            src === 'image-tile' ? 'Using image tile' :
-                            config.linkMetadata?.image ? 'Using custom image' : 'Using default'
+                              src === 'image-tile' ? 'Using image tile' :
+                                config.linkMetadata?.image ? 'Using custom image' : 'Using default'
                           const isDefault = !config.linkMetadata?.image && src !== 'greeting-card' && src !== 'image-tile'
                           return (
                             <span className={`text-xs px-2 py-0.5 rounded-full ${isDefault ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
@@ -2232,11 +2232,10 @@ export default function DesignInvitationPage(): JSX.Element {
                               ...prev,
                               linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'auto' },
                             }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                              (config.linkMetadata?.previewTitleSource ?? 'auto') === 'auto'
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewTitleSource ?? 'auto') === 'auto'
                                 ? 'bg-eco-green text-white border-eco-green'
                                 : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                            }`}
+                              }`}
                           >Auto</button>
                           <button
                             type="button"
@@ -2244,11 +2243,10 @@ export default function DesignInvitationPage(): JSX.Element {
                               ...prev,
                               linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'custom' },
                             }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                              config.linkMetadata?.previewTitleSource === 'custom'
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewTitleSource === 'custom'
                                 ? 'bg-eco-green text-white border-eco-green'
                                 : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                            }`}
+                              }`}
                           >Custom</button>
                         </div>
                         {config.linkMetadata?.previewTitleSource === 'custom' ? (
@@ -2292,11 +2290,10 @@ export default function DesignInvitationPage(): JSX.Element {
                               ...prev,
                               linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'auto' },
                             }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                              (config.linkMetadata?.previewDescriptionSource ?? 'auto') === 'auto'
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewDescriptionSource ?? 'auto') === 'auto'
                                 ? 'bg-eco-green text-white border-eco-green'
                                 : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                            }`}
+                              }`}
                           >Auto</button>
                           <button
                             type="button"
@@ -2304,11 +2301,10 @@ export default function DesignInvitationPage(): JSX.Element {
                               ...prev,
                               linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'custom' },
                             }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                              config.linkMetadata?.previewDescriptionSource === 'custom'
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewDescriptionSource === 'custom'
                                 ? 'bg-eco-green text-white border-eco-green'
                                 : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                            }`}
+                              }`}
                           >Custom</button>
                         </div>
                         {config.linkMetadata?.previewDescriptionSource === 'custom' ? (
@@ -2617,8 +2613,8 @@ export default function DesignInvitationPage(): JSX.Element {
               ) : (
                 <p className="text-gray-500 text-sm">No tiles available</p>
               )}
-                  </div>
-                </div>
+            </div>
+          </div>
 
           {/* Right Panel - Preview */}
           <>
@@ -2627,132 +2623,132 @@ export default function DesignInvitationPage(): JSX.Element {
               className="lg:col-span-2 w-full min-w-0 overflow-x-hidden self-start lg:sticky"
               style={{ top: stickyTop > 0 ? `${stickyTop}px` : undefined }}
             >
-            <div
-              className="lg:z-40 bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden"
-              style={{
-                maxHeight: `calc(100vh - ${stickyTop + 16}px)`,
-                overflowY: 'auto'
-              }}
-            >
-              <h2 className="text-base sm:text-lg font-semibold text-eco-green mb-2">
-                Mobile Preview
-                {sortedTiles && (
-                  <span className="text-xs text-gray-500 font-normal ml-2">
-                    ({sortedTiles.filter(t => t.enabled).length} of {sortedTiles.length} enabled)
-                  </span>
-                )}
-              </h2>
-              <p className="text-xs text-gray-600 mb-3 sm:mb-4">This preview matches your live invite. Reorder tiles using the drag handles in Tile Settings (left).</p>
-              {/* iPhone 16 Frame - Responsive */}
-              <div className="flex justify-center items-start w-full overflow-x-hidden">
-                <div className="relative w-full flex justify-center" style={{ maxWidth: '100%' }}>
-                  {/* iPhone 16 Frame - Black bezel with rounded corners */}
-                  <div 
-                    className="bg-black shadow-2xl mx-auto"
-                    style={{ 
-                      maxWidth: 'calc(100% - 16px)',
-                      width: 'min(100%, 320px, 390px)',
-                      borderRadius: 'clamp(1.5rem, 4vw, 3rem)',
-                      padding: 'clamp(3px, 1vw, 6px)'
-                    }}
-                  >
-                    {/* Screen Bezel */}
-                    <div 
-                      className="bg-black relative"
-                      style={{ 
-                        borderRadius: 'clamp(1.25rem, 3.5vw, 2.75rem)',
-                        padding: 'clamp(1px, 0.5vw, 3px)'
+              <div
+                className="lg:z-40 bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden"
+                style={{
+                  maxHeight: `calc(100vh - ${stickyTop + 16}px)`,
+                  overflowY: 'auto'
+                }}
+              >
+                <h2 className="text-base sm:text-lg font-semibold text-eco-green mb-2">
+                  Mobile Preview
+                  {sortedTiles && (
+                    <span className="text-xs text-gray-500 font-normal ml-2">
+                      ({sortedTiles.filter(t => t.enabled).length} of {sortedTiles.length} enabled)
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-gray-600 mb-3 sm:mb-4">This preview matches your live invite. Reorder tiles using the drag handles in Tile Settings (left).</p>
+                {/* iPhone 16 Frame - Responsive */}
+                <div className="flex justify-center items-start w-full overflow-x-hidden">
+                  <div className="relative w-full flex justify-center" style={{ maxWidth: '100%' }}>
+                    {/* iPhone 16 Frame - Black bezel with rounded corners */}
+                    <div
+                      className="bg-black shadow-2xl mx-auto"
+                      style={{
+                        maxWidth: 'calc(100% - 16px)',
+                        width: 'min(100%, 320px, 390px)',
+                        borderRadius: 'clamp(1.5rem, 4vw, 3rem)',
+                        padding: 'clamp(3px, 1vw, 6px)'
                       }}
                     >
-                      {/* Dynamic Island (iPhone 16) */}
-                      <div 
-                        className="absolute left-1/2 transform -translate-x-1/2 bg-black rounded-full z-20"
-                        style={{ 
-                          top: 'clamp(6px, 1.5vw, 12px)',
-                          width: 'clamp(80px, 25vw, 126px)',
-                          height: 'clamp(24px, 7.5vw, 37px)'
-                        }}
-                      ></div>
-                      {/* Screen - iPhone 16 aspect ratio (1179:2556 ≈ 0.461) */}
-                        <ThemeProvider config={config}>
-                <div
-                        className="relative overflow-hidden bg-white flex flex-col w-full"
-                  style={{
-                          width: '100%',
-                          aspectRatio: '1179 / 2556',
-                    background: displayBackground,
-                    borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
+                      {/* Screen Bezel */}
+                      <div
+                        className="bg-black relative"
+                        style={{
+                          borderRadius: 'clamp(1.25rem, 3.5vw, 2.75rem)',
+                          padding: 'clamp(1px, 0.5vw, 3px)'
                         }}
                       >
-                          <TextureOverlay
-                            type={config.texture?.type ?? 'none'}
-                            intensity={config.texture?.intensity ?? 40}
-                            imageUrl={config.texture?.imageUrl}
-                            textureBlend={config.texture?.textureBlend}
-                          />
-                          {/* Status Bar Area with Dynamic Island space */}
+                        {/* Dynamic Island (iPhone 16) */}
+                        <div
+                          className="absolute left-1/2 transform -translate-x-1/2 bg-black rounded-full z-20"
+                          style={{
+                            top: 'clamp(6px, 1.5vw, 12px)',
+                            width: 'clamp(80px, 25vw, 126px)',
+                            height: 'clamp(24px, 7.5vw, 37px)'
+                          }}
+                        ></div>
+                        {/* Screen - iPhone 16 aspect ratio (1179:2556 ≈ 0.461) */}
+                        <ThemeProvider config={config}>
                           <div
-                            className="bg-transparent flex items-start justify-center flex-shrink-0"
+                            className="relative overflow-hidden bg-white flex flex-col w-full"
                             style={{
-                              height: 'clamp(30px, 8vw, 47px)',
-                              paddingTop: 'clamp(4px, 1vw, 8px)'
+                              width: '100%',
+                              aspectRatio: '1179 / 2556',
+                              background: displayBackground,
+                              borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
                             }}
                           >
-                            {/* Dynamic Island visual indicator */}
+                            <TextureOverlay
+                              type={config.texture?.type ?? 'none'}
+                              intensity={config.texture?.intensity ?? 40}
+                              imageUrl={config.texture?.imageUrl}
+                              textureBlend={config.texture?.textureBlend}
+                            />
+                            {/* Status Bar Area with Dynamic Island space */}
                             <div
-                              className="bg-black rounded-full opacity-30"
+                              className="bg-transparent flex items-start justify-center flex-shrink-0"
                               style={{
-                                width: 'clamp(80px, 25vw, 126px)',
-                                height: 'clamp(24px, 7.5vw, 37px)'
+                                height: 'clamp(30px, 8vw, 47px)',
+                                paddingTop: 'clamp(4px, 1vw, 8px)'
+                              }}
+                            >
+                              {/* Dynamic Island visual indicator */}
+                              <div
+                                className="bg-black rounded-full opacity-30"
+                                style={{
+                                  width: 'clamp(80px, 25vw, 126px)',
+                                  height: 'clamp(24px, 7.5vw, 37px)'
+                                }}
+                              ></div>
+                            </div>
+                            {/* Content Area */}
+                            <div className="overflow-y-auto flex-1 w-full overflow-x-hidden [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                              {sortedTiles && sortedTiles.length > 0 ? (
+                                <>
+                                  <TileList
+                                    variant="invite"
+                                    tiles={sortedTiles}
+                                    onReorder={handleTileReorder}
+                                    eventDate={event?.date}
+                                    eventSlug={event?.slug}
+                                    eventTitle={(sortedTiles.find(t => t.type === 'title')?.settings as { text?: string })?.text || event?.title || 'Event'}
+                                    hasRsvp={event?.has_rsvp}
+                                    hasRegistry={event?.has_registry}
+                                    allowedSubEvents={allowedSubEvents}
+                                  />
+                                </>
+                              ) : (
+                                <div className="p-8 text-center text-gray-500">
+                                  <p>Loading tiles...</p>
+                                </div>
+                              )}
+                            </div>
+                            {/* Home Indicator (iPhone 16) */}
+                            <div
+                              className="absolute left-1/2 transform -translate-x-1/2 bg-gray-800 rounded-full z-10"
+                              style={{
+                                bottom: 'clamp(4px, 1vw, 8px)',
+                                width: 'clamp(90px, 28vw, 134px)',
+                                height: 'clamp(3px, 0.8vw, 5px)'
                               }}
                             ></div>
                           </div>
-                          {/* Content Area */}
-                          <div className="overflow-y-auto flex-1 w-full overflow-x-hidden [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                    {sortedTiles && sortedTiles.length > 0 ? (
-                      <>
-                        <TileList
-                          variant="invite"
-                          tiles={sortedTiles}
-                          onReorder={handleTileReorder}
-                          eventDate={event?.date}
-                          eventSlug={event?.slug}
-                          eventTitle={(sortedTiles.find(t => t.type === 'title')?.settings as { text?: string })?.text || event?.title || 'Event'}
-                          hasRsvp={event?.has_rsvp}
-                          hasRegistry={event?.has_registry}
-                          allowedSubEvents={allowedSubEvents}
-                        />
-                      </>
-                    ) : (
-                      <div className="p-8 text-center text-gray-500">
-                        <p>Loading tiles...</p>
-                      </div>
-                    )}
-                          </div>
-                          {/* Home Indicator (iPhone 16) */}
-                          <div
-                            className="absolute left-1/2 transform -translate-x-1/2 bg-gray-800 rounded-full z-10"
-                            style={{
-                              bottom: 'clamp(4px, 1vw, 8px)',
-                              width: 'clamp(90px, 28vw, 134px)',
-                              height: 'clamp(3px, 0.8vw, 5px)'
-                            }}
-                          ></div>
-                      </div>
                         </ThemeProvider>
+                      </div>
                     </div>
-                  </div>
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2 text-center">
-                Use the drag handle in Tile Settings (left) to reorder. Footer stays at the bottom.
+                  Use the drag handle in Tile Settings (left) to reorder. Footer stays at the bottom.
                 </p>
-                </div>
+              </div>
             </div>
           </>
         </div>
       </div>
-      
+
       {isPreviewCropOpen && previewCropSrc && previewCropDimensions && (
         <ImageCropModal
           imageSrc={previewCropSrc}
@@ -2779,10 +2775,10 @@ export default function DesignInvitationPage(): JSX.Element {
             setInvitePage(prev =>
               prev
                 ? {
-                    ...prev,
-                    is_published: published,
-                    ...(published ? { published_at: new Date().toISOString() } : {}),
-                  }
+                  ...prev,
+                  is_published: published,
+                  ...(published ? { published_at: new Date().toISOString() } : {}),
+                }
                 : prev,
             )
             if (published) {

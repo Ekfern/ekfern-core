@@ -48,7 +48,7 @@ export default function DesignTile({ settings, preview: _preview = false }: Desi
               : { minHeight: `${overlay.fontSize * 1.6}px` }),
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
-            textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+            textShadow: '0 1px 4px rgba(203, 242, 10, 0.95)',
             padding: '2px 4px',
             pointerEvents: 'none',
           }}
