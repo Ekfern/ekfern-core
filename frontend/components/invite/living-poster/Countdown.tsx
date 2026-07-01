@@ -116,47 +116,47 @@ export default function Countdown({ targetDate, config, eventSlug, eventTitle }:
 
   return (
     <div className="flex flex-col items-center gap-6">
-    <div
-      role="timer"
-      aria-live="polite"
-      aria-label={`Countdown to event: ${formatNumber(timeLeft.days)} days, ${formatNumber(timeLeft.hours)} hours, ${formatNumber(timeLeft.minutes)} minutes, ${formatNumber(timeLeft.seconds)} seconds`}
-      className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6"
-    >
-      {timeUnits.map((unit, index) => (
-        <div
-          key={unit.label}
-          className="flex flex-col md:flex-row items-center gap-1 md:gap-2"
-        >
+      <div
+        role="timer"
+        aria-live="polite"
+        aria-label={`Countdown to event: ${formatNumber(timeLeft.days)} days, ${formatNumber(timeLeft.hours)} hours, ${formatNumber(timeLeft.minutes)} minutes, ${formatNumber(timeLeft.seconds)} seconds`}
+        className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6"
+      >
+        {timeUnits.map((unit, index) => (
           <div
-            className="text-2xl md:text-3xl font-bold tabular-nums"
-            style={{
-              color: fontColor,
-              textShadow: '0 2px 8px rgba(0,0,0,0.3)',
-            }}
+            key={unit.label}
+            className="flex flex-col md:flex-row items-center gap-1 md:gap-2"
           >
-            {formatNumber(unit.value)}
-          </div>
-          <div
-            className="text-xs md:text-sm uppercase tracking-wider"
-            style={{
-              color: mutedColor,
-              textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-            }}
-          >
-            {unit.label}
-          </div>
-          {index < timeUnits.length - 1 && (
-            <span
-              className="hidden md:inline mx-2 text-xl"
-              style={{ color: mutedColor }}
+            <div
+              className="text-2xl md:text-3xl font-bold tabular-nums"
+              style={{
+                color: fontColor,
+                textShadow: '0 2px 8px rgba(244, 2, 2, 0.3)',
+              }}
             >
-              •
-            </span>
-          )}
-        </div>
-      ))}
+              {formatNumber(unit.value)}
+            </div>
+            <div
+              className="text-xs md:text-sm uppercase tracking-wider"
+              style={{
+                color: mutedColor,
+                textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+              }}
+            >
+              {unit.label}
+            </div>
+            {index < timeUnits.length - 1 && (
+              <span
+                className="hidden md:inline mx-2 text-xl"
+                style={{ color: mutedColor }}
+              >
+                •
+              </span>
+            )}
+          </div>
+        ))}
       </div>
-      
+
       {/* Save the Date Button */}
       <div className="relative">
         <button

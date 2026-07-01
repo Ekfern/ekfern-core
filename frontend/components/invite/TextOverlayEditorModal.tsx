@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from "react-dom";
 import type { TextOverlay } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
 
@@ -24,6 +25,11 @@ interface TextBox {
   strikethrough: boolean
   textAlign: 'left' | 'center' | 'right'
   verticalAlign: 'top' | 'middle' | 'bottom'
+  shadowX: number
+  shadowY: number
+  shadowBlur: number
+  shadowOpacity: number
+  shadowColor: string,
 }
 
 type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
@@ -86,11 +92,18 @@ export default function TextOverlayEditorModal({
   const canvasRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<DragState | null>(null)
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const effectsButtonRef = useRef<HTMLButtonElement>(null)
+  const effectsRef = useRef<HTMLDivElement>(null)
 
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fontSizeInput, setFontSizeInput] = useState<string>('')
+  const [showEffects, setShowEffects] = useState(false)
+  const [effectsPosition, setEffectsPosition] = useState({
+    top: 0,
+    left: 0,
+  })
 
   // Keep a ref in sync so pointer-move callbacks always see the latest boxes
   const textBoxesRef = useRef<TextBox[]>([])
@@ -102,6 +115,7 @@ export default function TextOverlayEditorModal({
     setTextBoxes(initialOverlays.map(overlayToTextBox))
     setSelectedId(null)
     setEditingId(null)
+    setShowEffects(false)
   }, [open]) // intentionally only depends on `open` — we only reset on open
 
   // Auto-focus contentEditable when editing starts
@@ -118,6 +132,25 @@ export default function TextOverlayEditorModal({
     window.getSelection()?.removeAllRanges()
     window.getSelection()?.addRange(range)
   }, [editingId])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        effectsRef.current &&
+        !effectsRef.current.contains(event.target as Node) &&
+        effectsButtonRef.current &&
+        !effectsButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowEffects(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   const selectedBox = textBoxes.find((b) => b.id === selectedId) ?? null
 
@@ -143,13 +176,28 @@ export default function TextOverlayEditorModal({
     const newBox: TextBox = {
       id: makeId(),
       text: 'Placeholder text',
-      x: 10, y: 20, width: 80, height: null,
-      fontFamily: "'Playfair Display', serif",
+      x: 10,
+      y: 20,
+      width: 80,
+      height: null,
+
+      fontFamily: '"Playfair Display", serif',
       fontSize: 32,
       color: '#ffffff',
-      bold: false, italic: false, underline: false, strikethrough: false,
+
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+
       textAlign: 'center',
       verticalAlign: 'middle',
+
+      shadowX: 0,
+      shadowY: 1,
+      shadowBlur: 4,
+      shadowOpacity: 0.8,
+      shadowColor: "#000000",
     }
     setTextBoxes((prev) => [...prev, newBox])
     setSelectedId(newBox.id)
@@ -382,6 +430,43 @@ export default function TextOverlayEditorModal({
 
               <div className="w-px h-5 bg-gray-200 flex-none" />
 
+              <div className="relative">
+                <button
+                  ref={effectsButtonRef}
+                  type="button"
+                  onClick={() => {
+                    if (!showEffects && effectsButtonRef.current) {
+                      const rect = effectsButtonRef.current.getBoundingClientRect()
+
+                      setEffectsPosition({
+                        top: rect.bottom + 6,
+                        left: rect.left,
+                      })
+                    }
+
+                    setShowEffects((prev) => !prev)
+                  }}
+                  className="flex items-center gap-2 px-3 py-1 rounded text-sm border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
+                >
+                  <span>✨ Effects</span>
+
+
+                  <svg
+                    className={`w-4 h-4 transition-transform duration-200 ${showEffects ? "rotate-180" : ""
+                      }`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+              </div>
+
               {/* Delete */}
               <button
                 type="button"
@@ -391,8 +476,98 @@ export default function TextOverlayEditorModal({
               >
                 Delete
               </button>
+
+
+
             </div>
           </div>
+          {showEffects &&
+            createPortal(
+              <div
+                ref={effectsRef}
+                style={{
+                  position: "fixed",
+                  top: effectsPosition.top,
+                  left: effectsPosition.left,
+                  width: 288,
+                }}
+                className="rounded-xl border border-gray-200 bg-white shadow-2xl z-[9999]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-4">
+                  <h3 className="font-semibold text-gray-800">
+                    Text Effects
+                  </h3>
+
+                  <div className="p-4 space-y-5">
+
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="font-medium text-gray-700">
+                          Shadow 
+                        </span>
+
+                        <span className="text-gray-500">
+                          {selectedBox?.shadowBlur ?? 4}px
+                        </span>
+                      </div>
+
+                      <input
+                        type="range"
+                        min="0"
+                        max="20"
+                        value={selectedBox?.shadowBlur ?? 4}
+                        onChange={(e) => {
+                          if (!selectedBox) return
+
+                          const blur = Number(e.target.value)
+
+                          updateBox(selectedBox.id, "shadowBlur", blur)
+                          updateBox(selectedBox.id, "shadowOpacity", blur === 0 ? 0 : 0.8)
+                        }}
+                        className="w-full accent-blue-600"
+                      />
+
+                      <p className="text-xs text-gray-400 mt-1">
+                        0 = No Shadow
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Shadow Color
+                      </label>
+
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={selectedBox?.shadowColor ?? "#000000"}
+                          onChange={(e) => {
+                            if (!selectedBox) return
+                            updateBox(selectedBox.id, "shadowColor", e.target.value)
+                          }}
+                          className="w-10 h-10 rounded border border-gray-300 cursor-pointer p-0.5"
+                        />
+
+                        <input
+                          type="text"
+                          value={selectedBox?.shadowColor ?? "#000000"}
+                          onChange={(e) => {
+                            if (!selectedBox) return
+                            updateBox(selectedBox.id, "shadowColor", e.target.value)
+                          }}
+                          className="flex-1 text-xs border border-gray-300 rounded px-2 py-2 font-mono"
+                          placeholder="#000000"
+                          maxLength={7}
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
 
           {/* Canvas area */}
           <div className="flex-1 flex flex-col items-center justify-start px-4 py-6 bg-gray-100 overflow-auto min-h-0">
@@ -429,8 +604,8 @@ export default function TextOverlayEditorModal({
                     const isEditing = editingId === box.id
                     const justifyContent =
                       box.verticalAlign === 'top' ? 'flex-start' :
-                      box.verticalAlign === 'bottom' ? 'flex-end' :
-                      'center'
+                        box.verticalAlign === 'bottom' ? 'flex-end' :
+                          'center'
                     const textDecoration =
                       [box.underline ? 'underline' : '', box.strikethrough ? 'line-through' : '']
                         .filter(Boolean)
@@ -505,7 +680,13 @@ export default function TextOverlayEditorModal({
                             wordBreak: 'break-word',
                             outline: 'none',
                             padding: '2px 4px',
-                            textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                            textShadow:
+                              (box.shadowBlur ?? 0) === 0
+                                ? "none"
+                                : `0px 1px ${box.shadowBlur}px ${box.shadowColor ?? "#000000"
+                                }${Math.round((box.shadowOpacity ?? 0.8) * 255)
+                                  .toString(16)
+                                  .padStart(2, "0")}`,
                             minWidth: '1em',
                           }}
                           onKeyDown={(e) => { if (e.key === 'Escape') setEditingId(null) }}
