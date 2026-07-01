@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { TextOverlay } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
+import { createPortal } from "react-dom";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,13 +85,20 @@ export default function TextOverlayEditorModal({
   onClose,
 }: Props): React.ReactElement | null {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const fontPickerRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<DragState | null>(null)
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const fontButtonRef = useRef<HTMLButtonElement>(null)
 
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fontSizeInput, setFontSizeInput] = useState<string>('')
+  const [showFontPicker, setShowFontPicker] = useState(false)
+  const [fontPickerPosition, setFontPickerPosition] = useState({
+    top: 0,
+    left: 0,
+  })
 
   // Keep a ref in sync so pointer-move callbacks always see the latest boxes
   const textBoxesRef = useRef<TextBox[]>([])
@@ -118,6 +126,22 @@ export default function TextOverlayEditorModal({
     window.getSelection()?.removeAllRanges()
     window.getSelection()?.addRange(range)
   }, [editingId])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        fontPickerRef.current &&
+        !fontPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowFontPicker(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   const selectedBox = textBoxes.find((b) => b.id === selectedId) ?? null
 
@@ -240,7 +264,7 @@ export default function TextOverlayEditorModal({
       >
         {/* Modal shell */}
         <div
-          className="relative w-full max-w-4xl max-h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="relative w-full max-w-4xl max-h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-visisible"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -269,15 +293,54 @@ export default function TextOverlayEditorModal({
 
             <div className={`flex items-center gap-2 flex-wrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
               {/* Font family */}
-              <select
-                value={selectedBox?.fontFamily ?? FONT_OPTIONS[0]!.family}
-                onChange={(e) => selectedBox && updateBox(selectedBox.id, 'fontFamily', e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white max-w-[130px]"
-              >
-                {FONT_OPTIONS.map((f) => (
-                  <option key={f.id} value={f.family}>{f.name}</option>
-                ))}
-              </select>
+              <div ref={fontPickerRef} className="relative w-48">
+                <button
+                  ref={fontButtonRef}
+                  type="button"
+                  onClick={() => {
+                    if (!showFontPicker && fontButtonRef.current) {
+                      const rect = fontButtonRef.current.getBoundingClientRect()
+
+                      setFontPickerPosition({
+                        top: rect.bottom + 6,
+                        left: rect.left,
+                      })
+                    }
+
+                    setShowFontPicker((prev) => !prev)
+                  }}
+                  className="w-full flex items-center justify-between rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm shadow-sm hover:border-blue-400 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className="text-gray-500 font-semibold">Aa</span>
+
+                    <span
+                      style={{ fontFamily: selectedBox?.fontFamily }}
+                      className="truncate text-xs font-medium"
+                    >
+                      {FONT_OPTIONS.find(
+                        (f) => f.family === selectedBox?.fontFamily
+                      )?.name ?? "Select Font"}
+                    </span>
+                  </div>
+
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showFontPicker ? "rotate-180" : ""
+                      }`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+
+              </div>
+
 
               {/* Font size */}
               <div className="flex items-center gap-1">
@@ -393,6 +456,46 @@ export default function TextOverlayEditorModal({
               </button>
             </div>
           </div>
+          {showFontPicker &&
+            createPortal(
+              <div
+                ref={fontPickerRef}
+                style={{
+                  position: "fixed",
+                  top: fontPickerPosition.top,
+                  left: fontPickerPosition.left,
+                  width: 288,
+                }}
+                className="rounded-xl border border-gray-200 bg-white shadow-2xl z-[9999]"
+                onClick={(e) => e.stopPropagation()}
+              >
+
+                <div className="max-h-80 overflow-y-auto py-2">
+                  {FONT_OPTIONS.map((font) => (
+                    <button
+                      key={font.id}
+                      type="button"
+                      onClick={() => {
+                        if (selectedBox) {
+                          updateBox(selectedBox.id, "fontFamily", font.family)
+                        }
+                        setShowFontPicker(false)
+                      }}
+                      className="w-full text-left px-5 py-3 hover:bg-gray-100 transition-colors"
+                    >
+                      <span
+                        style={{ fontFamily: font.family }}
+                        className="text-lg"
+                      >
+                        {font.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+              </div>,
+              document.body
+            )}
 
           {/* Canvas area */}
           <div className="flex-1 flex flex-col items-center justify-start px-4 py-6 bg-gray-100 overflow-auto min-h-0">
@@ -429,8 +532,8 @@ export default function TextOverlayEditorModal({
                     const isEditing = editingId === box.id
                     const justifyContent =
                       box.verticalAlign === 'top' ? 'flex-start' :
-                      box.verticalAlign === 'bottom' ? 'flex-end' :
-                      'center'
+                        box.verticalAlign === 'bottom' ? 'flex-end' :
+                          'center'
                     const textDecoration =
                       [box.underline ? 'underline' : '', box.strikethrough ? 'line-through' : '']
                         .filter(Boolean)
