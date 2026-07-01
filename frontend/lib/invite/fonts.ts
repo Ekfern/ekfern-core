@@ -43,7 +43,85 @@ export const FONT_OPTIONS: FontOption[] = [
     family: 'Courier New, monospace',
     category: 'sans-serif', // Monospace but categorized as sans-serif
   },
+  {
+    id: 'manrope',
+    name: 'Manrope',
+    family: "'Manrope', sans-serif",
+    category: 'sans-serif',
+  },
+  {
+    id: 'outfit',
+    name: 'Outfit',
+    family: "'Outfit', sans-serif",
+    category: 'sans-serif',
+  },
+  {
+    id: 'urbanist',
+    name: 'Urbanist',
+    family: "'Urbanist', sans-serif",
+    category: 'sans-serif',
+  },
+  {
+    id: 'dm-sans',
+    name: 'DM Sans',
+    family: "'DM Sans', sans-serif",
+    category: 'sans-serif',
+  },
+  {
+    id: 'rubik',
+    name: 'Rubik',
+    family: "'Rubik', sans-serif",
+    category: 'sans-serif',
+  },
+  {
+    id: 'work-sans',
+    name: 'Work Sans',
+    family: "'Work Sans', sans-serif",
+    category: 'sans-serif',
+  },
+  {
+    id: 'nunito',
+    name: 'Nunito',
+    family: "'Nunito', sans-serif",
+    category: 'sans-serif',
+  },
+  {
+    id: 'ubuntu',
+    name: 'Ubuntu',
+    family: "'Ubuntu', sans-serif",
+    category: 'sans-serif',
+  },
   // Serif fonts
+  {
+    id: 'merriweather',
+    name: 'Merriweather',
+    family: "'Merriweather', serif",
+    category: 'serif',
+  },
+  {
+    id: 'libre-baskerville',
+    name: 'Libre Baskerville',
+    family: "'Libre Baskerville', serif",
+    category: 'serif',
+  },
+  {
+    id: 'crimson-text',
+    name: 'Crimson Text',
+    family: "'Crimson Text', serif",
+    category: 'serif',
+  },
+  {
+    id: 'eb-garamond',
+    name: 'EB Garamond',
+    family: "'EB Garamond', serif",
+    category: 'serif',
+  },
+  {
+    id: 'cinzel',
+    name: 'Cinzel',
+    family: "'Cinzel', serif",
+    category: 'serif',
+  },
   {
     id: 'times-new-roman',
     name: 'Times New Roman',
@@ -64,12 +142,84 @@ export const FONT_OPTIONS: FontOption[] = [
   },
   // Script fonts
   {
+    id: 'allura',
+    name: 'Allura',
+    family: "'Allura', cursive",
+    category: 'script',
+  },
+  {
+    id: 'alex-brush',
+    name: 'Alex Brush',
+    family: "'Alex Brush', cursive",
+    category: 'script',
+  },
+  {
+    id: 'parisienne',
+    name: 'Parisienne',
+    family: "'Parisienne', cursive",
+    category: 'script',
+  },
+  {
+    id: 'satisfy',
+    name: 'Satisfy',
+    family: "'Satisfy', cursive",
+    category: 'script',
+  },
+  {
+    id: 'sacramento',
+    name: 'Sacramento',
+    family: "'Sacramento', cursive",
+    category: 'script',
+  },
+  {
+    id: 'kaushan-script',
+    name: 'Kaushan Script',
+    family: "'Kaushan Script', cursive",
+    category: 'script',
+  },
+  {
     id: 'comic-sans-ms',
     name: 'Comic Sans MS',
     family: 'Comic Sans MS, cursive',
     category: 'script',
   },
   // Display fonts
+  {
+    id: 'bebas-neue',
+    name: 'Bebas Neue',
+    family: "'Bebas Neue', sans-serif",
+    category: 'display',
+  },
+  {
+    id: 'anton',
+    name: 'Anton',
+    family: "'Anton', sans-serif",
+    category: 'display',
+  },
+  {
+    id: 'abril-fatface',
+    name: 'Abril Fatface',
+    family: "'Abril Fatface', cursive",
+    category: 'display',
+  },
+  {
+    id: 'oswald',
+    name: 'Oswald',
+    family: "'Oswald', sans-serif",
+    category: 'display',
+  },
+  {
+    id: 'orbitron',
+    name: 'Orbitron',
+    family: "'Orbitron', sans-serif",
+    category: 'display',
+  },
+  {
+    id: 'lobster',
+    name: 'Lobster',
+    family: "'Lobster', cursive",
+    category: 'display',
+  },
   {
     id: 'impact',
     name: 'Impact',
@@ -163,23 +313,23 @@ export function getFontFamily(id: string): string {
  */
 export function findFontByFamily(family: string | undefined | null): FontOption | undefined {
   if (!family) return undefined
-  
+
   // Normalize the family string for comparison (remove extra spaces, quotes)
-  const normalize = (str: string) => 
+  const normalize = (str: string) =>
     str.toLowerCase().replace(/['"]/g, '').replace(/\s+/g, ' ').trim()
-  
+
   const normalizedFamily = normalize(family)
-  
+
   // First try exact match
   let font = FONT_OPTIONS.find(f => normalize(f.family) === normalizedFamily)
   if (font) return font
-  
+
   // Try matching by first font name (e.g., "Playfair Display" from "'Playfair Display', serif")
   const firstFontName = normalizedFamily.split(',')[0].trim()
   font = FONT_OPTIONS.find(f => {
     const fontName = normalize(f.family).split(',')[0].trim()
     return fontName === firstFontName
   })
-  
+
   return font
 }
