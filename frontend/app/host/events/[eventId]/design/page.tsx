@@ -357,10 +357,10 @@ export default function DesignPage(): React.ReactElement {
 
   // Canvas + drag
   const canvasRef = useRef<HTMLDivElement>(null)
-  const effectsRef = useRef<HTMLDivElement>(null)
+  
   const dragState = useRef<DragState | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const effectsButtonRef = useRef<HTMLButtonElement>(null)
+  
 
   const [effectsPosition, setEffectsPosition] = useState({
     top: 0,
@@ -392,6 +392,8 @@ export default function DesignPage(): React.ReactElement {
   const [userHasEditedText, setUserHasEditedText] = useState(false)
   const [pendingSample, setPendingSample] = useState<DesignSample | null>(null)
   const [sampleSearch, setSampleSearch] = useState('')
+  const effectsRef = useRef<HTMLDivElement>(null)
+  const effectsButtonRef = useRef<HTMLButtonElement>(null)
 
   // Phase-1 background catalog (paginated + server-searched, only while choosing).
   const catalog = useDesignCatalog({ enabled: !hasSelectedBackground, q: sampleSearch })
@@ -1225,6 +1227,7 @@ export default function DesignPage(): React.ReactElement {
 
             <div className="relative">
               <button
+                ref={effectsButtonRef}
                 type="button"
                 onClick={() => setShowEffects(prev => !prev)}
                 className="flex items-center gap-2 px-3 py-1 rounded text-sm border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
@@ -1260,38 +1263,10 @@ export default function DesignPage(): React.ReactElement {
                     </div>
 
                     <div className="text-sm text-gray-500">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">
-                          Enable Shadow
-                        </span>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!selectedBox) return
-
-                            updateBox(
-                              selectedBox.id,
-                              "shadowOpacity",
-                              (selectedBox.shadowOpacity ?? 0.4) > 0 ? 0 : 0.4
-                            )
-                          }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${(selectedBox?.shadowOpacity ?? 0.4) > 0
-                            ? "bg-green-600"
-                            : "bg-gray-300"
-                            }`}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${(selectedBox?.shadowOpacity ?? 0.4) > 0
-                              ? "translate-x-6"
-                              : "translate-x-1"
-                              }`}
-                          />
-                        </button>
-                      </div>
                       <div>
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-700">Blur</span>
+                          <span className="text-gray-700">Shadow</span>
                           <span className="text-gray-500">
                             {selectedBox?.shadowBlur ?? 4}px
                           </span>
@@ -1302,41 +1277,18 @@ export default function DesignPage(): React.ReactElement {
                           min="0"
                           max="20"
                           value={selectedBox?.shadowBlur ?? 4}
-                          onChange={(e) =>
-                            selectedBox &&
-                            updateBox(
-                              selectedBox.id,
-                              "shadowBlur",
-                              Number(e.target.value)
-                            )
-                          }
-                          className="w-full accent-blue-600"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-700">Opacity</span>
-                          <span className="text-gray-500">
-                            {Math.round((selectedBox?.shadowOpacity ?? 0.4) * 100)}%
-                          </span>
-                        </div>
+                          onChange={(e) => {
+                            if (!selectedBox) return
 
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={Math.round((selectedBox?.shadowOpacity ?? 0.4) * 100)}
-                          onChange={(e) =>
-                            selectedBox &&
-                            updateBox(
-                              selectedBox.id,
-                              "shadowOpacity",
-                              Number(e.target.value) / 100
-                            )
-                          }
+                            const blur = Number(e.target.value)
+
+                            updateBox(selectedBox.id, "shadowBlur", blur)
+                            updateBox(selectedBox.id, "shadowOpacity", blur === 0 ? 0 : 0.8)
+                          }}
                           className="w-full accent-blue-600"
                         />
                       </div>
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Shadow Color
@@ -1529,7 +1481,7 @@ export default function DesignPage(): React.ReactElement {
                       padding: '2px 4px',
                       textShadow: `${box.shadowX ?? 0}px ${box.shadowY ?? 1}px ${box.shadowBlur ?? 4}px ${hexToRgba(
                         box.shadowColor ?? '#000000',
-                        box.shadowOpacity ?? 0.99
+                        box.shadowOpacity ?? 0.8
                       )}`,
                       minWidth: '1em',
                     }}
