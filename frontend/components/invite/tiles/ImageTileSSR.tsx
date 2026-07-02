@@ -59,7 +59,7 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
               : { minHeight: `${overlay.fontSize * 1.6}px` }),
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
-            textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+            textShadow: '0 1px 4px rgba(238, 11, 11, 0.94)',
             padding: '2px 4px',
             pointerEvents: 'none',
           }}
@@ -97,24 +97,24 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
   // Convert cover position to CSS object-position value
   const getObjectPosition = (): string => {
     const position = settings.coverPosition
-    
+
     // Handle undefined or null - default to center
     if (!position) {
       return 'center center'
     }
-    
+
     // Handle custom object position (x, y percentages)
     if (typeof position === 'object' && position !== null && 'x' in position && 'y' in position) {
       // Custom position: x and y are percentages (0-100)
       return `${position.x}% ${position.y}%`
     }
-    
+
     // Handle string positions
     if (typeof position === 'string') {
       if (position === 'center') {
         return 'center center'
       }
-      
+
       // Named positions map to CSS object-position values
       const positionMap: Record<string, string> = {
         'top': 'center top',
@@ -126,10 +126,10 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
         'bottom-left': 'left bottom',
         'bottom-right': 'right bottom',
       }
-      
+
       return positionMap[position] || 'center center'
     }
-    
+
     return 'center center'
   }
 
@@ -140,18 +140,18 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
 
     switch (settings.fitMode) {
       case 'fit-to-screen':
-        return { 
-          ...baseStyle, 
-          width: '100%', 
-          height: '100%', 
+        return {
+          ...baseStyle,
+          width: '100%',
+          height: '100%',
           objectFit: 'contain' as const
         }
 
       case 'full-image':
-        return { 
-          ...baseStyle, 
-          width: '100%', 
-          height: '100%', 
+        return {
+          ...baseStyle,
+          width: '100%',
+          height: '100%',
           objectFit: 'cover' as const,
           objectPosition: getObjectPosition()
         }
@@ -165,7 +165,7 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
     return (
       <div
         className="w-full relative overflow-hidden"
-        style={{ 
+        style={{
           backgroundColor,
           width: '100%',
           height: '100dvh', // Modern browsers will use this
@@ -179,7 +179,7 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
           padding: 0,
         }}
       >
-        <img 
+        <img
           src={convertToCloudFrontUrl(settings.src)}
           alt="Event"
           loading="eager"
@@ -202,23 +202,23 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
 
   // For full-image (cover) mode
   const imageStyle = getImageStyle()
-  const objectPosition = settings.fitMode === 'full-image' 
+  const objectPosition = settings.fitMode === 'full-image'
     ? (imageStyle.objectPosition || getObjectPosition())
     : undefined
-  
+
   return (
     <div
       className={cn(
         "w-full relative overflow-hidden max-h-screen",
         settings.fitMode === 'full-image' ? "min-h-[70vh]" : ""
       )}
-      style={{ 
+      style={{
         backgroundColor,
         maxHeight: '100vh',
       }}
     >
-      <img 
-        src={settings.src} 
+      <img
+        src={settings.src}
         alt="Event"
         loading="eager"
         decoding="async"
@@ -230,7 +230,7 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
           maxWidth: '100%',
           maxHeight: '100%',
           objectPosition: objectPosition,
-        }} 
+        }}
       />
     </div>
   )

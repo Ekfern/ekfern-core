@@ -1,0 +1,103 @@
+diff --git a/frontend/app/host/events/[eventId]/design/page.tsx b/frontend/app/host/events/[eventId]/design/page.tsx
+index c278da2..d8fad7d 100644
+--- a/frontend/app/host/events/[eventId]/design/page.tsx
++++ b/frontend/app/host/events/[eventId]/design/page.tsx
+@@ -34,6 +34,10 @@ interface TextBox {
+   strikethrough: boolean
+   textAlign: 'left' | 'center' | 'right'
+   verticalAlign: 'top' | 'middle' | 'bottom'
++  shadowX?: number
++  shadowY?: number
++  shadowBlur?: number
++  shadowOpacity?: number
+ }
+ 
+ type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
+@@ -56,21 +60,21 @@ interface DragState {
+ // ---------------------------------------------------------------------------
+ 
+ const GRADIENT_PRESETS: { label: string; value: string }[] = [
+-  { label: 'Rose Blush',  value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
+-  { label: 'Sage Mist',   value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
+-  { label: 'Dusk Blue',   value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
++  { label: 'Rose Blush', value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
++  { label: 'Sage Mist', value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
++  { label: 'Dusk Blue', value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
+   { label: 'Golden Hour', value: 'linear-gradient(135deg, #fff8e1, #ffca28)' },
+-  { label: 'Lavender',    value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
++  { label: 'Lavender', value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
+   { label: 'Peach Cream', value: 'linear-gradient(135deg, #fff3e0, #ffb74d)' },
+-  { label: 'Midnight',    value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
+-  { label: 'Forest',      value: 'linear-gradient(135deg, #1b4332, #40916c)' },
++  { label: 'Midnight', value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
++  { label: 'Forest', value: 'linear-gradient(135deg, #1b4332, #40916c)' },
+ ]
+ 
+ const GRADIENT_DIRECTIONS = [
+   { label: '↘ Diagonal', value: '135deg' },
+-  { label: '↓ Down',     value: '180deg' },
+-  { label: '→ Right',    value: '90deg'  },
+-  { label: '↗ Up-right', value: '45deg'  },
++  { label: '↓ Down', value: '180deg' },
++  { label: '→ Right', value: '90deg' },
++  { label: '↗ Up-right', value: '45deg' },
+ ]
+ 
+ const SUBTITLE_MAP: Record<string, string> = {
+@@ -360,6 +364,7 @@ export default function DesignPage(): React.ReactElement {
+   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
+   const [selectedId, setSelectedId] = useState<string | null>(null)
+   const [editingId, setEditingId] = useState<string | null>(null)
++  const [showEffects, setShowEffects] = useState(false)
+   const [showBgModal, setShowBgModal] = useState(false)
+   const [uploading, setUploading] = useState(false)
+   const [saving, setSaving] = useState(false)
+@@ -1178,7 +1183,28 @@ export default function DesignPage(): React.ReactElement {
+             </div>
+ 
+             <div className="w-px h-5 bg-gray-200 flex-none" />
++            <div className="relative">
++              {/* Effects */}
++              <button
++                type="button"
++                onClick={() => setShowEffects(!showEffects)}
++                className="px-3 py-1 rounded text-sm border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
++              >
++                ✨ Effects
++              </button>
++
++              {showEffects && (
++                <div className="fixed top-40 right-10 w-72 bg-red-500 text-white border-4 border-black rounded-lg shadow-2xl p-4 z-[9999]">
++                  <h3 className="font-semibold text-gray-800 mb-2">
++                    Text Effects
++                  </h3>
+ 
++                  <p className="text-sm text-gray-500">
++                    Shadow controls coming here...
++                  </p>
++                </div>
++              )}
++            </div>
+             <button
+               onClick={() => selectedBox && deleteBox(selectedBox.id)}
+               className="text-red-500 hover:bg-red-50 px-2 py-1 rounded text-sm transition-colors"
+@@ -1240,8 +1266,8 @@ export default function DesignPage(): React.ReactElement {
+                 box.verticalAlign === 'top'
+                   ? 'flex-start'
+                   : box.verticalAlign === 'bottom'
+-                  ? 'flex-end'
+-                  : 'center'
++                    ? 'flex-end'
++                    : 'center'
+ 
+               const textDecoration = [
+                 box.underline ? 'underline' : '',
+@@ -1324,7 +1350,7 @@ export default function DesignPage(): React.ReactElement {
+                       wordBreak: 'break-word',
+                       outline: 'none',
+                       padding: '2px 4px',
+-                      textShadow: '0 1px 4px rgba(0,0,0,0.4)',
++                      textShadow: `${box.shadowX ?? 0}px ${box.shadowY ?? 1}px ${box.shadowBlur ?? 4}px rgba(246, 6, 6, ${box.shadowOpacity ?? 0.99})`,
+                       minWidth: '1em',
+                     }}
+                     onKeyDown={(e) => {
