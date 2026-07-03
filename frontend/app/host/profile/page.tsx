@@ -5,51 +5,55 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
+import { PasswordRequirements } from '@/components/ui/PasswordRequirements'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
   type NotificationPreferences,
 } from '@/lib/user/api'
+import {
+  getCurrentUser,
+  setPassword as setPasswordApi,
+  changePassword as changePasswordApi,
+  disablePassword as disablePasswordApi,
+  startOtp,
+  otpCodeSchema,
+  newPasswordSchema,
+  requiredPasswordSchema,
+  type AuthUser,
+} from '@/lib/auth/api'
 
 const setPasswordSchema = z.object({
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  password: newPasswordSchema,
+  confirmPassword: newPasswordSchema,
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
 })
 
 const changePasswordSchema = z.object({
-  code: z.string().length(6, 'Code must be 6 digits'),
-  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
-  confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  code: otpCodeSchema,
+  newPassword: newPasswordSchema,
+  confirmPassword: newPasswordSchema,
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
 })
 
 const disablePasswordSchema = z.object({
-  password: z.string().min(1, 'Password is required'),
+  password: requiredPasswordSchema,
 })
 
 type SetPasswordForm = z.infer<typeof setPasswordSchema>
 type ChangePasswordForm = z.infer<typeof changePasswordSchema>
 type DisablePasswordForm = z.infer<typeof disablePasswordSchema>
 
-interface User {
-  id: number
-  email: string
-  name: string
-  email_verified: boolean
-  has_password: boolean
-  created_at: string
-}
+type User = AuthUser
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -70,6 +74,7 @@ export default function ProfilePage() {
     handleSubmit: handleSubmitSetPassword,
     formState: { errors: setPasswordErrors },
     reset: resetSetPassword,
+    watch: watchSetPassword,
   } = useForm<SetPasswordForm>({
     resolver: zodResolver(setPasswordSchema),
     mode: 'onSubmit',
@@ -80,6 +85,7 @@ export default function ProfilePage() {
     handleSubmit: handleSubmitChangePassword,
     formState: { errors: changePasswordErrors },
     reset: resetChangePassword,
+    watch: watchChangePassword,
   } = useForm<ChangePasswordForm>({
     resolver: zodResolver(changePasswordSchema),
     mode: 'onSubmit',
@@ -104,8 +110,8 @@ export default function ProfilePage() {
 
   const fetchUser = async () => {
     try {
-      const response = await api.get('/api/auth/me/')
-      setUser(response.data)
+      const userData = await getCurrentUser()
+      setUser(userData)
     } catch (error: any) {
       if (error.response?.status === 401) {
         router.push('/host/login')
@@ -121,7 +127,7 @@ export default function ProfilePage() {
   const onSetPassword = async (data: SetPasswordForm) => {
     setSubmitting(true)
     try {
-      await api.post('/api/auth/set-password/', { password: data.password })
+      await setPasswordApi(data.password)
       showToast('Password set successfully', 'success')
       setAction('none')
       resetSetPassword()
@@ -139,7 +145,7 @@ export default function ProfilePage() {
     
     setSendingOtp(true)
     try {
-      await api.post('/api/auth/otp/start', { email: user.email })
+      await startOtp(user.email)
       setOtpSent(true)
       showToast('Verification code sent to your email', 'success')
     } catch (error: any) {
@@ -153,10 +159,7 @@ export default function ProfilePage() {
   const onChangePassword = async (data: ChangePasswordForm) => {
     setSubmitting(true)
     try {
-      await api.post('/api/auth/change-password/', {
-        code: data.code,
-        new_password: data.newPassword,
-      })
+      await changePasswordApi(data.code, data.newPassword)
       showToast('Password changed successfully', 'success')
       setAction('none')
       setOtpSent(false)
@@ -172,7 +175,7 @@ export default function ProfilePage() {
   const onDisablePassword = async (data: DisablePasswordForm) => {
     setSubmitting(true)
     try {
-      await api.post('/api/auth/disable-password/', { password: data.password })
+      await disablePasswordApi(data.password)
       showToast('Password disabled successfully', 'success')
       setAction('none')
       resetDisablePassword()
@@ -199,23 +202,6 @@ export default function ProfilePage() {
       showToast(getErrorMessage(error), 'error')
     } finally {
       setSavingNotif(false)
-    }
-  }
-
-  const validatePasswordStrength = (password: string): { strength: 'weak' | 'medium' | 'strong', message: string } => {
-    if (password.length < 8) {
-      return { strength: 'weak', message: 'Password must be at least 8 characters' }
-    }
-    const hasLetter = /[a-zA-Z]/.test(password)
-    const hasNumber = /[0-9]/.test(password)
-    const hasSpecial = /[^a-zA-Z0-9]/.test(password)
-    
-    if (hasLetter && hasNumber && hasSpecial && password.length >= 12) {
-      return { strength: 'strong', message: 'Strong password' }
-    } else if (hasLetter && hasNumber) {
-      return { strength: 'medium', message: 'Medium strength - add special characters for stronger password' }
-    } else {
-      return { strength: 'weak', message: 'Weak password - add letters and numbers' }
     }
   }
 
@@ -402,6 +388,7 @@ export default function ProfilePage() {
                       {setPasswordErrors.password.message}
                     </p>
                   )}
+                  <PasswordRequirements password={watchSetPassword('password') || ''} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Confirm Password</label>
@@ -490,6 +477,7 @@ export default function ProfilePage() {
                           {changePasswordErrors.newPassword.message}
                         </p>
                       )}
+                      <PasswordRequirements password={watchChangePassword('newPassword') || ''} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Confirm New Password</label>

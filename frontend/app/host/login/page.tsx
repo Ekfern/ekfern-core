@@ -6,12 +6,21 @@ import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logDebug, logError } from '@/lib/error-handler'
+import {
+  startOtp,
+  verifyOtp,
+  passwordLogin,
+  checkPasswordEnabled,
+  storeAuthTokens,
+  otpCodeSchema,
+  requiredPasswordSchema,
+  type AuthTokens,
+} from '@/lib/auth/api'
 
 const LOGIN_EMAIL_KEY = 'host_login_email'
 
@@ -20,11 +29,11 @@ const emailSchema = z.object({
 })
 
 const codeSchema = z.object({
-  code: z.string().length(6, 'Code must be 6 digits'),
+  code: otpCodeSchema,
 })
 
 const passwordSchema = z.object({
-  password: z.string().min(1, 'Password is required'),
+  password: requiredPasswordSchema,
 })
 
 type EmailForm = z.infer<typeof emailSchema>
@@ -104,8 +113,7 @@ function LoginForm() {
       persistLoginEmail(trimmedEmail)
       
       // Check if password is enabled for this email
-      const checkResponse = await api.get(`/api/auth/check-password-enabled/?email=${encodeURIComponent(trimmedEmail)}`)
-      const passwordEnabled = checkResponse.data.has_password
+      const passwordEnabled = await checkPasswordEnabled(trimmedEmail)
       setHasPassword(passwordEnabled)
       
       // Check if user has a remembered preference
@@ -132,14 +140,14 @@ function LoginForm() {
 
   const startOtpFlow = async (emailAddress: string) => {
     try {
-      const response = await api.post('/api/auth/otp/start', { email: emailAddress })
+      const response = await startOtp(emailAddress)
       logDebug('OTP response received')
       setStep('code')
-      
+
       // In development, show OTP if returned (for testing without email)
-      if (response.data.otp_code) {
-        logDebug('🔑 OTP Code (dev mode):', response.data.otp_code)
-        showToast(`OTP Code: ${response.data.otp_code} (check console for details)`, 'info')
+      if (response.otp_code) {
+        logDebug('🔑 OTP Code (dev mode):', response.otp_code)
+        showToast(`OTP Code: ${response.otp_code} (check console for details)`, 'info')
       } else {
         showToast('Verification code sent to your email', 'success')
       }
@@ -167,24 +175,23 @@ function LoginForm() {
     }
   }
 
-  const handleLoginSuccess = (response: any) => {
+  const handleLoginSuccess = (tokens: AuthTokens) => {
     // Set tokens
-    localStorage.setItem('access_token', response.data.access)
-    localStorage.setItem('refresh_token', response.data.refresh)
-    
+    storeAuthTokens(tokens)
+
     // CRITICAL: Verify token is actually set (handles slow localStorage on new devices)
     // Wait up to 500ms (10 attempts × 50ms) to verify token is saved
     const verifyTokenSet = async (maxAttempts = 10, delay = 50) => {
       for (let i = 0; i < maxAttempts; i++) {
         const token = localStorage.getItem('access_token')
-        if (token === response.data.access) {
+        if (token === tokens.access) {
           return true
         }
         await new Promise(resolve => setTimeout(resolve, delay))
       }
       return false
     }
-    
+
     return verifyTokenSet()
   }
 
@@ -197,18 +204,15 @@ function LoginForm() {
         setStep('email')
         return
       }
-      const response = await api.post('/api/auth/otp/verify', {
-        email: loginEmail,
-        code: data.code.trim(),
-      })
-      
-      const tokenVerified = await handleLoginSuccess(response)
+      const tokens = await verifyOtp(loginEmail, data.code.trim())
+
+      const tokenVerified = await handleLoginSuccess(tokens)
       if (!tokenVerified) {
         throw new Error('Failed to save authentication token. Please try again.')
       }
-      
+
       showToast('Login successful!', 'success')
-      
+
       // Use window.location.href for full page reload (ensures clean state)
       // This is more reliable than router.push for post-login navigation
       window.location.href = '/host/dashboard'
@@ -229,18 +233,15 @@ function LoginForm() {
         setStep('email')
         return
       }
-      const response = await api.post('/api/auth/password-login', {
-        email: loginEmail,
-        password: data.password.trim(),
-      })
-      
-      const tokenVerified = await handleLoginSuccess(response)
+      const tokens = await passwordLogin(loginEmail, data.password.trim())
+
+      const tokenVerified = await handleLoginSuccess(tokens)
       if (!tokenVerified) {
         throw new Error('Failed to save authentication token. Please try again.')
       }
-      
+
       showToast('Login successful!', 'success')
-      
+
       // Use window.location.href for full page reload (ensures clean state)
       window.location.href = '/host/dashboard'
     } catch (error: any) {
