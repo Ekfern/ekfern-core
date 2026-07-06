@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { ImagePlus } from 'lucide-react'
 import { DesignTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 
@@ -75,8 +76,14 @@ export default function DesignTile({ settings, preview: _preview = false }: Desi
       )
     }
     return (
-      <div className="w-full h-48 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
-        <p className="text-gray-400 text-sm">No greeting card content</p>
+      <div className="w-full flex justify-center">
+        <div
+          className="relative w-full max-w-sm flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50"
+          style={{ aspectRatio: '9 / 16' }}
+        >
+          <ImagePlus className="w-10 h-10 text-gray-400" aria-hidden />
+          <p className="text-gray-500 text-sm font-medium">Add your design</p>
+        </div>
       </div>
     )
   }

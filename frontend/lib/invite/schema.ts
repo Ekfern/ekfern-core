@@ -24,6 +24,7 @@ export interface TitleTileSettings {
   font?: string // Font family from FONT_OPTIONS
   color?: string // Hex color
   size?: 'small' | 'medium' | 'large' | 'xlarge' // Title size option (preset)
+  textAlign?: 'left' | 'center' | 'right' // Default: center
   // Optional second line (e.g. "Request the pleasure of your company…")
   subtitle?: string
   subtitleFont?: string
@@ -99,6 +100,7 @@ export interface EventDetailsTileSettings {
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
   fontColor?: string // Font color for event details text (hex color, e.g., "#000000")
   buttonColor?: string // Hex color for Save the Date button (e.g., "#1F2937")
+  textAlign?: 'left' | 'center' | 'right' // Default: center
   // Date block layout: single-line (default) or day-prominent (large day number, smaller weekday/month/year/time)
   dateLayout?: 'single-line' | 'day-prominent'
   // Border styling options

@@ -1,0 +1,17 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: 🌿
+      - heading "Host Login" [level=3] [ref=e6]
+      - paragraph [ref=e7]: Enter your email to continue
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]: Email
+          - textbox "your@email.com" [ref=e12]
+        - button "Continue" [ref=e13] [cursor=pointer]
+      - paragraph [ref=e15]:
+        - text: Don't have an account?
+        - link "Sign up" [ref=e16] [cursor=pointer]:
+          - /url: /host/signup
+  - alert [ref=e17]

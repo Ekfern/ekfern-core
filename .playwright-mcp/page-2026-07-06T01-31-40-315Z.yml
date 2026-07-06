@@ -1,0 +1,208 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - complementary [ref=f2e3]:
+      - generic [ref=f2e4]:
+        - generic [ref=f2e5]:
+          - link "Ekfern" [ref=f2e6] [cursor=pointer]:
+            - /url: /host/dashboard
+            - generic [ref=f2e7]:
+              - img [ref=f2e8]
+              - generic [ref=f2e11]: Ekfern
+          - button "Collapse navigation panel" [ref=f2e12] [cursor=pointer]:
+            - img [ref=f2e13]
+        - navigation [ref=f2e15]:
+          - link "Dashboard" [ref=f2e16] [cursor=pointer]:
+            - /url: /host/dashboard
+            - img [ref=f2e17]
+            - generic [ref=f2e22]: Dashboard
+          - link "Create Event" [ref=f2e23] [cursor=pointer]:
+            - /url: /host/events/new
+            - img [ref=f2e24]
+            - generic [ref=f2e26]: Create Event
+          - link "Profile" [ref=f2e27] [cursor=pointer]:
+            - /url: /host/profile
+            - img [ref=f2e28]
+            - generic [ref=f2e31]: Profile
+          - link "Page Layout Studio" [ref=f2e32] [cursor=pointer]:
+            - /url: /host/page-layouts
+            - img [ref=f2e33]
+            - generic [ref=f2e39]: Page Layout Studio
+          - link "Design Studio" [ref=f2e40] [cursor=pointer]:
+            - /url: /host/templates/designs
+            - img [ref=f2e41]
+            - generic [ref=f2e43]: Design Studio
+        - link "Help & Support" [ref=f2e45] [cursor=pointer]:
+          - /url: /contact
+          - img [ref=f2e46]
+          - generic [ref=f2e49]: Help & Support
+    - generic [ref=f2e50]:
+      - banner [ref=f2e51]:
+        - generic [ref=f2e52]:
+          - generic [ref=f2e54]:
+            - link "Host Workspace" [ref=f2e55] [cursor=pointer]:
+              - /url: /host/dashboard
+            - generic [ref=f2e56]: /
+            - button "Wizard Reorder Test" [ref=f2e828] [cursor=pointer]:
+              - generic [ref=f2e59]: Wizard Reorder Test
+              - img [ref=f2e60]
+          - button "Logout" [ref=f2e62] [cursor=pointer]:
+            - img [ref=f2e63]
+            - generic [ref=f2e66]: Logout
+        - generic [ref=f2e68]:
+          - link "Overview" [ref=f2e69] [cursor=pointer]:
+            - /url: /host/events/24
+            - img [ref=f2e70]
+            - text: Overview
+          - link "Page Editor" [ref=f2e75] [cursor=pointer]:
+            - /url: /host/events/24/page-editor
+            - img [ref=f2e76]
+            - text: Page Editor
+          - link "Guests" [ref=f2e80] [cursor=pointer]:
+            - /url: /host/events/24/guests
+            - img [ref=f2e81]
+            - text: Guests
+          - link "RSVP" [ref=f2e86] [cursor=pointer]:
+            - /url: /host/events/24/rsvp
+            - img [ref=f2e87]
+            - text: RSVP
+          - link "Messages" [ref=f2e90] [cursor=pointer]:
+            - /url: /host/events/24/communications
+            - img [ref=f2e91]
+            - text: Messages
+          - link "Host Catalog" [ref=f2e93] [cursor=pointer]:
+            - /url: /host/events/24/catalog
+            - img [ref=f2e94]
+            - text: Host Catalog
+      - main [ref=f2e98]:
+        - generic [ref=f2e1313]:
+          - navigation "Invitation creation wizard progress" [ref=f2e1314]:
+            - list [ref=f2e1316]:
+              - listitem [ref=f2e1317]:
+                - 'link "Go to step 1: Event Details" [ref=f2e1318] [cursor=pointer]':
+                  - /url: /host/events/24/details
+                  - img [ref=f2e1320]
+                  - generic [ref=f2e1322]: Event Details
+              - listitem [ref=f2e1324]:
+                - 'link "Go to step 2: Layout" [ref=f2e1325] [cursor=pointer]':
+                  - /url: /host/events/24/layout
+                  - img [ref=f2e1327]
+                  - generic [ref=f2e1329]: Layout
+              - listitem [ref=f2e1331]:
+                - 'link "Go to step 3: Design" [ref=f2e1332] [cursor=pointer]':
+                  - /url: /host/events/24/design
+                  - img [ref=f2e1334]
+                  - generic [ref=f2e1336]: Design
+              - listitem [ref=f2e1338]:
+                - generic [ref=f2e1339]:
+                  - generic [ref=f2e1340]: "4"
+                  - generic [ref=f2e1341]: Page Editor
+          - generic [ref=f2e1344]:
+            - generic [ref=f2e1345]:
+              - link "Back to Layout" [ref=f2e1347] [cursor=pointer]:
+                - /url: /host/events/24/layout
+                - generic [ref=f2e1348]: ←
+                - text: Back to Layout
+              - heading "Invitation Design" [level=1] [ref=f2e1349]
+            - generic [ref=f2e1350]:
+              - generic [ref=f2e1351]: Draft
+              - generic:
+                - paragraph: Your invite page is in draft mode. Publish it to share with guests.
+              - button "👁️ Preview" [ref=f2e1352] [cursor=pointer]:
+                - text: 👁️
+                - generic [ref=f2e1353]: Preview
+              - generic:
+                - paragraph: Preview your draft invite page (host only)
+              - button "Templates" [ref=f2e1354] [cursor=pointer]
+              - button "Publish" [ref=f2e1355] [cursor=pointer]
+              - generic:
+                - paragraph: Publish your invite page to make it publicly accessible.
+          - generic [ref=f2e1356]:
+            - paragraph [ref=f2e1358]: ⚠️ Your invite page is in draft mode. Publish it to share with guests.
+            - generic [ref=f2e1359]:
+              - generic [ref=f2e1360]:
+                - generic [ref=f2e1361]:
+                  - heading "Page Settings" [level=2] [ref=f2e1362]
+                  - generic [ref=f2e1363]:
+                    - button "Page Background" [ref=f2e1365] [cursor=pointer]:
+                      - generic [ref=f2e1366]: Page Background
+                      - img [ref=f2e1367]
+                    - button "Advanced Settings" [ref=f2e1370] [cursor=pointer]:
+                      - heading "Advanced Settings" [level=3] [ref=f2e1371]
+                      - img [ref=f2e1372]
+                    - button "Link Preview Settings Using default Customize how your invite appears when shared on WhatsApp, Facebook, and other platforms" [ref=f2e1375] [cursor=pointer]:
+                      - generic [ref=f2e1376]:
+                        - generic [ref=f2e1377]:
+                          - heading "Link Preview Settings" [level=3] [ref=f2e1378]
+                          - generic [ref=f2e1379]: Using default
+                        - paragraph [ref=f2e1380]: Customize how your invite appears when shared on WhatsApp, Facebook, and other platforms
+                      - img [ref=f2e1381]
+                - generic [ref=f2e1383]:
+                  - generic [ref=f2e1384]:
+                    - heading "Tile Settings(3 tiles)" [level=2] [ref=f2e1385]:
+                      - text: Tile Settings
+                      - generic [ref=f2e1386]: (3 tiles)
+                    - button "Expand All" [ref=f2e1387] [cursor=pointer]
+                  - generic [ref=f2e1388]:
+                    - generic [ref=f2e1390]:
+                      - button [ref=f2e1391]:
+                        - img [ref=f2e1392]
+                      - generic [ref=f2e1400]:
+                        - generic [ref=f2e1401]:
+                          - checkbox [checked] [ref=f2e1402] [cursor=pointer]
+                          - heading "Title" [level=3] [ref=f2e1403]
+                        - generic [ref=f2e1404]:
+                          - button "Remove tile" [ref=f2e1405] [cursor=pointer]:
+                            - img [ref=f2e1406]
+                          - button [ref=f2e1409] [cursor=pointer]:
+                            - img [ref=f2e1410]
+                    - generic [ref=f2e1413]:
+                      - button [ref=f2e1414]:
+                        - img [ref=f2e1415]
+                      - generic [ref=f2e1423]:
+                        - generic [ref=f2e1424]:
+                          - checkbox [checked] [ref=f2e1425] [cursor=pointer]
+                          - heading "Event Details" [level=3] [ref=f2e1426]
+                        - generic [ref=f2e1427]:
+                          - button "Remove tile" [ref=f2e1428] [cursor=pointer]:
+                            - img [ref=f2e1429]
+                          - button [ref=f2e1432] [cursor=pointer]:
+                            - img [ref=f2e1433]
+                    - generic [ref=f2e1436]:
+                      - button [ref=f2e1437]:
+                        - img [ref=f2e1438]
+                      - generic [ref=f2e1446]:
+                        - generic [ref=f2e1447]:
+                          - checkbox [checked] [ref=f2e1448] [cursor=pointer]
+                          - heading "Feature Buttons" [level=3] [ref=f2e1449]
+                        - generic [ref=f2e1450]:
+                          - button "Remove tile" [ref=f2e1451] [cursor=pointer]:
+                            - img [ref=f2e1452]
+                          - button [ref=f2e1455] [cursor=pointer]:
+                            - img [ref=f2e1456]
+                    - button "Add a tile" [ref=f2e1459] [cursor=pointer]:
+                      - img [ref=f2e1460]
+                      - text: Add a tile
+                  - status [ref=f2e1461]
+              - generic [ref=f2e1463]:
+                - heading "Mobile Preview(3 of 3 enabled)" [level=2] [ref=f2e1464]:
+                  - text: Mobile Preview
+                  - generic [ref=f2e1465]: (3 of 3 enabled)
+                - paragraph [ref=f2e1466]: This preview matches your live invite. Reorder tiles using the drag handles in Tile Settings (left).
+                - generic [ref=f2e1477]:
+                  - heading "Wizard Reorder Test" [level=1] [ref=f2e1480]
+                  - generic [ref=f2e1483]:
+                    - generic [ref=f2e1487]: ❦
+                    - generic [ref=f2e1490]:
+                      - generic [ref=f2e1491]: Date
+                      - generic [ref=f2e1492]: Thursday, November 11, 2032
+                    - generic [ref=f2e1496]: ❦
+                    - button "Save the Date" [ref=f2e1499] [cursor=pointer]:
+                      - text: Save the Date
+                      - img [ref=f2e1500]
+                  - generic [ref=f2e1504]:
+                    - link "RSVP" [ref=f2e1505] [cursor=pointer]:
+                      - /url: /event/wizard-reorder-test/rsvp
+                    - link "View Registry" [ref=f2e1506] [cursor=pointer]:
+                      - /url: /catalog/wizard-reorder-test?source=invite
+                - paragraph [ref=f2e1508]: Use the drag handle in Tile Settings (left) to reorder. Footer stays at the bottom.
+  - alert [ref=f2e827]

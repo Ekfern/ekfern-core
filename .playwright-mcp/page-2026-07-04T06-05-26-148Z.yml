@@ -1,0 +1,92 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - link "Ekfern" [ref=e6] [cursor=pointer]:
+            - /url: /host/dashboard
+            - generic [ref=e7]:
+              - img [ref=e8]
+              - generic [ref=e11]: Ekfern
+          - button "Collapse navigation panel" [ref=e12] [cursor=pointer]:
+            - img [ref=e13]
+        - navigation [ref=e15]:
+          - link "Dashboard" [ref=e16] [cursor=pointer]:
+            - /url: /host/dashboard
+            - img [ref=e17]
+            - generic [ref=e22]: Dashboard
+          - link "Create Event" [ref=e23] [cursor=pointer]:
+            - /url: /host/events/new
+            - img [ref=e24]
+            - generic [ref=e26]: Create Event
+          - link "Profile" [ref=e27] [cursor=pointer]:
+            - /url: /host/profile
+            - img [ref=e28]
+            - generic [ref=e31]: Profile
+        - link "Help & Support" [ref=e33] [cursor=pointer]:
+          - /url: /contact
+          - img [ref=e34]
+          - generic [ref=e37]: Help & Support
+    - generic [ref=e38]:
+      - banner [ref=e39]:
+        - generic [ref=e40]:
+          - generic [ref=e42]:
+            - link "Host Workspace" [ref=e43] [cursor=pointer]:
+              - /url: /host/dashboard
+            - generic [ref=e44]: /
+            - button "…" [ref=e46] [cursor=pointer]:
+              - generic [ref=e47]: …
+              - img [ref=e48]
+          - button "Logout" [ref=e50] [cursor=pointer]:
+            - img [ref=e51]
+            - generic [ref=e54]: Logout
+        - generic [ref=e56]:
+          - link "Overview" [ref=e57] [cursor=pointer]:
+            - /url: /host/events/24
+            - img [ref=e58]
+            - text: Overview
+          - link "Page Editor" [ref=e63] [cursor=pointer]:
+            - /url: /host/events/24/page-editor
+            - img [ref=e64]
+            - text: Page Editor
+          - link "Guests" [ref=e68] [cursor=pointer]:
+            - /url: /host/events/24/guests
+            - img [ref=e69]
+            - text: Guests
+          - link "RSVP" [ref=e74] [cursor=pointer]:
+            - /url: /host/events/24/rsvp
+            - img [ref=e75]
+            - text: RSVP
+          - link "Messages" [ref=e78] [cursor=pointer]:
+            - /url: /host/events/24/communications
+            - img [ref=e79]
+            - text: Messages
+          - link "Host Catalog" [ref=e81] [cursor=pointer]:
+            - /url: /host/events/24/catalog
+            - img [ref=e82]
+            - text: Host Catalog
+      - main [ref=e86]:
+        - generic [ref=e88]:
+          - navigation "Invitation creation wizard progress" [ref=e89]:
+            - list [ref=e91]:
+              - listitem [ref=e92]:
+                - generic [ref=e93]:
+                  - generic [ref=e94]: "1"
+                  - generic [ref=e95]: Event Details
+              - listitem [ref=e97]:
+                - generic [ref=e98]:
+                  - generic [ref=e99]: "2"
+                  - generic [ref=e100]: Layout
+              - listitem [ref=e102]:
+                - generic [ref=e103]:
+                  - generic [ref=e104]: "3"
+                  - generic [ref=e105]: Design
+              - listitem [ref=e107]:
+                - generic [ref=e108]:
+                  - generic [ref=e109]: "4"
+                  - generic [ref=e110]: Page Editor
+          - generic [ref=e111]:
+            - heading "Edit Event Details" [level=1] [ref=e112]
+            - paragraph [ref=e113]: Update your event's basic details.
+            - heading "Event Details" [level=3] [ref=e116]
+  - alert [ref=e118]

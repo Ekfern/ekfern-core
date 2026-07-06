@@ -13,10 +13,13 @@ interface TitleTileSSRProps {
  * No client-side hooks or interactions
  */
 export default function TitleTileSSR({ settings, overlayMode = false }: TitleTileSSRProps) {
-  const fontFamily = settings.font || FONT_OPTIONS[0].family
-  const color = settings.color || '#000000'
+  const fontFamily = settings.font || `var(--theme-font-title, ${FONT_OPTIONS[0].family})`
+  const color = settings.color || 'var(--theme-fg, #000000)'
   const text = settings.text || 'Event Title'
   const size = settings.size || 'medium'
+  const textAlign = settings.textAlign || 'center'
+  const alignItemsClass = textAlign === 'left' ? 'items-start' : textAlign === 'right' ? 'items-end' : 'items-center'
+  const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
 
   // Size classes mapping (matches client version)
   const sizeClasses = {
@@ -50,8 +53,8 @@ export default function TitleTileSSR({ settings, overlayMode = false }: TitleTil
 
   // Standalone mode - normal flow layout
   return (
-    <div className="w-full py-8 px-4 text-center flex flex-col items-center justify-center" style={{ fontFamily, color }}>
-      <h1 className={`${titleClassName} font-bold text-center mx-auto`}>{text}</h1>
+    <div className={`w-full py-8 px-4 ${textAlignClass} flex flex-col ${alignItemsClass} justify-center`} style={{ fontFamily, color }}>
+      <h1 className={`${titleClassName} font-bold ${textAlignClass}`}>{text}</h1>
     </div>
   )
 }

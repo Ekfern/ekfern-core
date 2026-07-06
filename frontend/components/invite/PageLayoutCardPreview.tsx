@@ -48,13 +48,42 @@ export function enrichConfigWithSampleData(config: InviteConfig): InviteConfig {
 }
 
 /**
+ * Blanks out the `design` tile's background art (image/gradient/text) so the
+ * layout gallery doesn't present a staff-authored companion background as if
+ * it were already chosen — that decision belongs to the (later) Design step.
+ * Structure, theme, and every other tile's styling is left untouched.
+ * `DesignTile` already renders a dashed empty-state box when given no
+ * image/gradient/overlays, so this alone produces the "add your design here"
+ * placeholder. Pure function — never mutates the original config.
+ */
+export function skeletonizeDesignTiles(config: InviteConfig): InviteConfig {
+  if (!config.tiles?.length) return config
+  const tiles = config.tiles.map((tile: Tile) => {
+    if (tile.type !== 'design') return tile
+    return {
+      ...tile,
+      settings: {
+        ...(tile.settings as Record<string, unknown>),
+        src: undefined,
+        backgroundGradient: undefined,
+        textOverlays: [],
+      },
+    }
+  })
+  return { ...config, tiles }
+}
+
+/**
  * Renders a live preview of an invite config inside a fixed aspect box (e.g. page layout library card).
  * Uses inviting sample copy so the library looks professional; same pipeline as the invite page.
  */
 export default function PageLayoutCardPreview({ config, className = '' }: PageLayoutCardPreviewProps): React.ReactElement {
   const theme = getTheme(config?.themeId ?? 'classic-noir')
   const backgroundColor = config?.customColors?.backgroundColor ?? theme.palette.bg
-  const previewConfig = useMemo(() => enrichConfigWithSampleData(config), [config])
+  const previewConfig = useMemo(
+    () => skeletonizeDesignTiles(enrichConfigWithSampleData(config)),
+    [config]
+  )
 
   return (
     <div

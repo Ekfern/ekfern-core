@@ -144,7 +144,7 @@ export default function DescriptionTile({ settings, preview = false }: Descripti
         text-align: justify !important;
       }
     `
-    const textStyle = settings.fontColor ? { backgroundColor: 'transparent' as const, color: settings.fontColor } : { backgroundColor: 'transparent' as const }
+    const textStyle = { backgroundColor: 'transparent' as const, color: settings.fontColor || 'var(--theme-fg, inherit)' }
     return (
       <>
         <style dangerouslySetInnerHTML={{ __html: styleContent }} />

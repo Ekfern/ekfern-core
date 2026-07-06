@@ -1,0 +1,408 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - complementary [ref=f3e3]:
+      - generic [ref=f3e4]:
+        - generic [ref=f3e5]:
+          - link "Ekfern" [ref=f3e6] [cursor=pointer]:
+            - /url: /host/dashboard
+            - generic [ref=f3e7]:
+              - img [ref=f3e8]
+              - generic [ref=f3e11]: Ekfern
+          - button "Collapse navigation panel" [ref=f3e12] [cursor=pointer]:
+            - img [ref=f3e13]
+        - navigation [ref=f3e15]:
+          - link "Dashboard" [ref=f3e16] [cursor=pointer]:
+            - /url: /host/dashboard
+            - img [ref=f3e17]
+            - generic [ref=f3e22]: Dashboard
+          - link "Create Event" [ref=f3e23] [cursor=pointer]:
+            - /url: /host/events/new
+            - img [ref=f3e24]
+            - generic [ref=f3e26]: Create Event
+          - link "Profile" [ref=f3e27] [cursor=pointer]:
+            - /url: /host/profile
+            - img [ref=f3e28]
+            - generic [ref=f3e31]: Profile
+          - link "Page Layout Studio" [ref=f3e32] [cursor=pointer]:
+            - /url: /host/page-layouts
+            - img [ref=f3e33]
+            - generic [ref=f3e39]: Page Layout Studio
+          - link "Design Studio" [ref=f3e40] [cursor=pointer]:
+            - /url: /host/templates/designs
+            - img [ref=f3e41]
+            - generic [ref=f3e43]: Design Studio
+        - link "Help & Support" [ref=f3e45] [cursor=pointer]:
+          - /url: /contact
+          - img [ref=f3e46]
+          - generic [ref=f3e49]: Help & Support
+    - generic [ref=f3e50]:
+      - banner [ref=f3e51]:
+        - generic [ref=f3e52]:
+          - generic [ref=f3e54]:
+            - link "Host Workspace" [ref=f3e55] [cursor=pointer]:
+              - /url: /host/dashboard
+            - generic [ref=f3e56]: /
+            - button "…" [ref=f3e58] [cursor=pointer]:
+              - generic [ref=f3e59]: …
+              - img [ref=f3e60]
+          - button "Logout" [ref=f3e62] [cursor=pointer]:
+            - img [ref=f3e63]
+            - generic [ref=f3e66]: Logout
+        - generic [ref=f3e68]:
+          - link "Overview" [ref=f3e69] [cursor=pointer]:
+            - /url: /host/events/24
+            - img [ref=f3e70]
+            - text: Overview
+          - link "Page Editor" [ref=f3e75] [cursor=pointer]:
+            - /url: /host/events/24/page-editor
+            - img [ref=f3e76]
+            - text: Page Editor
+          - link "Guests" [ref=f3e80] [cursor=pointer]:
+            - /url: /host/events/24/guests
+            - img [ref=f3e81]
+            - text: Guests
+          - link "RSVP" [ref=f3e86] [cursor=pointer]:
+            - /url: /host/events/24/rsvp
+            - img [ref=f3e87]
+            - text: RSVP
+          - link "Messages" [ref=f3e90] [cursor=pointer]:
+            - /url: /host/events/24/communications
+            - img [ref=f3e91]
+            - text: Messages
+          - link "Host Catalog" [ref=f3e93] [cursor=pointer]:
+            - /url: /host/events/24/catalog
+            - img [ref=f3e94]
+            - text: Host Catalog
+      - main [ref=f3e98]:
+        - generic [ref=f3e100]:
+          - navigation "Invitation creation wizard progress" [ref=f3e101]:
+            - list [ref=f3e103]:
+              - listitem [ref=f3e104]:
+                - generic [ref=f3e105]:
+                  - generic [ref=f3e106]: "1"
+                  - generic [ref=f3e107]: Event Details
+              - listitem [ref=f3e109]:
+                - generic [ref=f3e110]:
+                  - generic [ref=f3e111]: "2"
+                  - generic [ref=f3e112]: Layout
+              - listitem [ref=f3e114]:
+                - generic [ref=f3e115]:
+                  - generic [ref=f3e116]: "3"
+                  - generic [ref=f3e117]: Design
+              - listitem [ref=f3e119]:
+                - generic [ref=f3e120]:
+                  - generic [ref=f3e121]: "4"
+                  - generic [ref=f3e122]: Page Editor
+          - generic [ref=f3e123]:
+            - heading "Edit Event Details" [level=1] [ref=f3e124]
+            - paragraph [ref=f3e125]: Update your event's basic details.
+            - generic [ref=f3e126]:
+              - heading "Event Details" [level=3] [ref=f3e128]
+              - generic [ref=f3e130]:
+                - generic [ref=f3e131]:
+                  - generic [ref=f3e132]: Event Title
+                  - textbox "Your event name" [ref=f3e133]: Wizard Reorder Test
+                - generic [ref=f3e134]:
+                  - generic [ref=f3e135]: What type of event are you hosting?
+                  - button "Wedding" [ref=f3e137] [cursor=pointer]:
+                    - generic [ref=f3e138]: Wedding
+                    - img [ref=f3e139]
+                - generic [ref=f3e141]:
+                  - generic [ref=f3e142]: Date
+                  - textbox [ref=f3e143]: 2027-12-25
+                - generic [ref=f3e144]:
+                  - generic [ref=f3e145]:
+                    - generic [ref=f3e146]: City (leave blank for virtual)
+                    - textbox "e.g. New York, London, Mumbai" [ref=f3e147]
+                  - generic [ref=f3e148]:
+                    - generic [ref=f3e149]: Country
+                    - combobox [ref=f3e150]:
+                      - option "🇦🇫 Afghanistan"
+                      - option "🇦🇽 Åland Islands"
+                      - option "🇦🇱 Albania"
+                      - option "🇩🇿 Algeria"
+                      - option "🇦🇸 American Samoa"
+                      - option "🇦🇩 Andorra"
+                      - option "🇦🇴 Angola"
+                      - option "🇦🇮 Anguilla"
+                      - option "🇦🇶 Antarctica"
+                      - option "🇦🇬 Antigua and Barbuda"
+                      - option "🇦🇷 Argentina"
+                      - option "🇦🇲 Armenia"
+                      - option "🇦🇼 Aruba"
+                      - option "🇦🇺 Australia"
+                      - option "🇦🇹 Austria"
+                      - option "🇦🇿 Azerbaijan"
+                      - option "🇧🇸 Bahamas"
+                      - option "🇧🇭 Bahrain"
+                      - option "🇧🇩 Bangladesh"
+                      - option "🇧🇧 Barbados"
+                      - option "🇧🇾 Belarus"
+                      - option "🇧🇪 Belgium"
+                      - option "🇧🇿 Belize"
+                      - option "🇧🇯 Benin"
+                      - option "🇧🇲 Bermuda"
+                      - option "🇧🇹 Bhutan"
+                      - option "🇧🇴 Bolivia"
+                      - option "🇧🇦 Bosnia and Herzegovina"
+                      - option "🇧🇼 Botswana"
+                      - option "🇧🇻 Bouvet Island"
+                      - option "🇧🇷 Brazil"
+                      - option "🇮🇴 British Indian Ocean Territory"
+                      - option "🇻🇬 British Virgin Islands"
+                      - option "🇧🇳 Brunei"
+                      - option "🇧🇬 Bulgaria"
+                      - option "🇧🇫 Burkina Faso"
+                      - option "🇧🇮 Burundi"
+                      - option "🇰🇭 Cambodia"
+                      - option "🇨🇲 Cameroon"
+                      - option "🇨🇦 Canada"
+                      - option "🇨🇻 Cape Verde"
+                      - option "🇧🇶 Caribbean Netherlands"
+                      - option "🇰🇾 Cayman Islands"
+                      - option "🇨🇫 Central African Republic"
+                      - option "🇹🇩 Chad"
+                      - option "🇨🇱 Chile"
+                      - option "🇨🇳 China"
+                      - option "🇨🇽 Christmas Island"
+                      - option "🇨🇨 Cocos Islands"
+                      - option "🇨🇴 Colombia"
+                      - option "🇰🇲 Comoros"
+                      - option "🇨🇰 Cook Islands"
+                      - option "🇨🇷 Costa Rica"
+                      - option "🇨🇮 Côte d'Ivoire"
+                      - option "🇭🇷 Croatia"
+                      - option "🇨🇺 Cuba"
+                      - option "🇨🇼 Curaçao"
+                      - option "🇨🇾 Cyprus"
+                      - option "🇨🇿 Czech Republic"
+                      - option "🇩🇰 Denmark"
+                      - option "🇩🇯 Djibouti"
+                      - option "🇩🇲 Dominica"
+                      - option "🇩🇴 Dominican Republic"
+                      - option "🇨🇩 DR Congo"
+                      - option "🇹🇱 East Timor"
+                      - option "🇪🇨 Ecuador"
+                      - option "🇪🇬 Egypt"
+                      - option "🇸🇻 El Salvador"
+                      - option "🇬🇶 Equatorial Guinea"
+                      - option "🇪🇷 Eritrea"
+                      - option "🇪🇪 Estonia"
+                      - option "🇸🇿 Eswatini"
+                      - option "🇪🇹 Ethiopia"
+                      - option "🇫🇰 Falkland Islands"
+                      - option "🇫🇴 Faroe Islands"
+                      - option "🇫🇯 Fiji"
+                      - option "🇫🇮 Finland"
+                      - option "🇫🇷 France"
+                      - option "🇬🇫 French Guiana"
+                      - option "🇵🇫 French Polynesia"
+                      - option "🇹🇫 French Southern Territories"
+                      - option "🇬🇦 Gabon"
+                      - option "🇬🇲 Gambia"
+                      - option "🇬🇪 Georgia"
+                      - option "🇩🇪 Germany"
+                      - option "🇬🇭 Ghana"
+                      - option "🇬🇮 Gibraltar"
+                      - option "🇬🇷 Greece"
+                      - option "🇬🇱 Greenland"
+                      - option "🇬🇩 Grenada"
+                      - option "🇬🇵 Guadeloupe"
+                      - option "🇬🇺 Guam"
+                      - option "🇬🇹 Guatemala"
+                      - option "🇬🇬 Guernsey"
+                      - option "🇬🇳 Guinea"
+                      - option "🇬🇼 Guinea-Bissau"
+                      - option "🇬🇾 Guyana"
+                      - option "🇭🇹 Haiti"
+                      - option "🇭🇲 Heard Island"
+                      - option "🇭🇳 Honduras"
+                      - option "🇭🇰 Hong Kong"
+                      - option "🇭🇺 Hungary"
+                      - option "🇮🇸 Iceland"
+                      - option "🇮🇳 India" [selected]
+                      - option "🇮🇩 Indonesia"
+                      - option "🇮🇷 Iran"
+                      - option "🇮🇶 Iraq"
+                      - option "🇮🇪 Ireland"
+                      - option "🇮🇲 Isle of Man"
+                      - option "🇮🇱 Israel"
+                      - option "🇮🇹 Italy"
+                      - option "🇯🇲 Jamaica"
+                      - option "🇯🇵 Japan"
+                      - option "🇯🇪 Jersey"
+                      - option "🇯🇴 Jordan"
+                      - option "🇰🇿 Kazakhstan"
+                      - option "🇰🇪 Kenya"
+                      - option "🇰🇮 Kiribati"
+                      - option "🇽🇰 Kosovo"
+                      - option "🇰🇼 Kuwait"
+                      - option "🇰🇬 Kyrgyzstan"
+                      - option "🇱🇦 Laos"
+                      - option "🇱🇻 Latvia"
+                      - option "🇱🇧 Lebanon"
+                      - option "🇱🇸 Lesotho"
+                      - option "🇱🇷 Liberia"
+                      - option "🇱🇾 Libya"
+                      - option "🇱🇮 Liechtenstein"
+                      - option "🇱🇹 Lithuania"
+                      - option "🇱🇺 Luxembourg"
+                      - option "🇲🇴 Macau"
+                      - option "🇲🇬 Madagascar"
+                      - option "🇲🇼 Malawi"
+                      - option "🇲🇾 Malaysia"
+                      - option "🇲🇻 Maldives"
+                      - option "🇲🇱 Mali"
+                      - option "🇲🇹 Malta"
+                      - option "🇲🇭 Marshall Islands"
+                      - option "🇲🇶 Martinique"
+                      - option "🇲🇷 Mauritania"
+                      - option "🇲🇺 Mauritius"
+                      - option "🇾🇹 Mayotte"
+                      - option "🇲🇽 Mexico"
+                      - option "🇫🇲 Micronesia"
+                      - option "🇲🇩 Moldova"
+                      - option "🇲🇨 Monaco"
+                      - option "🇲🇳 Mongolia"
+                      - option "🇲🇪 Montenegro"
+                      - option "🇲🇸 Montserrat"
+                      - option "🇲🇦 Morocco"
+                      - option "🇲🇿 Mozambique"
+                      - option "🇲🇲 Myanmar"
+                      - option "🇳🇦 Namibia"
+                      - option "🇳🇷 Nauru"
+                      - option "🇳🇵 Nepal"
+                      - option "🇳🇱 Netherlands"
+                      - option "🇳🇨 New Caledonia"
+                      - option "🇳🇿 New Zealand"
+                      - option "🇳🇮 Nicaragua"
+                      - option "🇳🇪 Niger"
+                      - option "🇳🇬 Nigeria"
+                      - option "🇳🇺 Niue"
+                      - option "🇳🇫 Norfolk Island"
+                      - option "🇰🇵 North Korea"
+                      - option "🇲🇰 North Macedonia"
+                      - option "🇲🇵 Northern Mariana Islands"
+                      - option "🇳🇴 Norway"
+                      - option "🇴🇲 Oman"
+                      - option "🇵🇰 Pakistan"
+                      - option "🇵🇼 Palau"
+                      - option "🇵🇸 Palestine"
+                      - option "🇵🇦 Panama"
+                      - option "🇵🇬 Papua New Guinea"
+                      - option "🇵🇾 Paraguay"
+                      - option "🇵🇪 Peru"
+                      - option "🇵🇭 Philippines"
+                      - option "🇵🇳 Pitcairn"
+                      - option "🇵🇱 Poland"
+                      - option "🇵🇹 Portugal"
+                      - option "🇵🇷 Puerto Rico"
+                      - option "🇶🇦 Qatar"
+                      - option "🇨🇬 Republic of the Congo"
+                      - option "🇷🇪 Réunion"
+                      - option "🇷🇴 Romania"
+                      - option "🇷🇺 Russia"
+                      - option "🇷🇼 Rwanda"
+                      - option "🇧🇱 Saint Barthélemy"
+                      - option "🇸🇭 Saint Helena"
+                      - option "🇰🇳 Saint Kitts and Nevis"
+                      - option "🇱🇨 Saint Lucia"
+                      - option "🇲🇫 Saint Martin"
+                      - option "🇵🇲 Saint Pierre and Miquelon"
+                      - option "🇻🇨 Saint Vincent and the Grenadines"
+                      - option "🇼🇸 Samoa"
+                      - option "🇸🇲 San Marino"
+                      - option "🇸🇹 São Tomé and Príncipe"
+                      - option "🇸🇦 Saudi Arabia"
+                      - option "🇸🇳 Senegal"
+                      - option "🇷🇸 Serbia"
+                      - option "🇸🇨 Seychelles"
+                      - option "🇸🇱 Sierra Leone"
+                      - option "🇸🇬 Singapore"
+                      - option "🇸🇽 Sint Maarten"
+                      - option "🇸🇰 Slovakia"
+                      - option "🇸🇮 Slovenia"
+                      - option "🇸🇧 Solomon Islands"
+                      - option "🇸🇴 Somalia"
+                      - option "🇿🇦 South Africa"
+                      - option "🇬🇸 South Georgia"
+                      - option "🇰🇷 South Korea"
+                      - option "🇸🇸 South Sudan"
+                      - option "🇪🇸 Spain"
+                      - option "🇱🇰 Sri Lanka"
+                      - option "🇸🇩 Sudan"
+                      - option "🇸🇷 Suriname"
+                      - option "🇸🇯 Svalbard and Jan Mayen"
+                      - option "🇸🇪 Sweden"
+                      - option "🇨🇭 Switzerland"
+                      - option "🇸🇾 Syria"
+                      - option "🇹🇼 Taiwan"
+                      - option "🇹🇯 Tajikistan"
+                      - option "🇹🇿 Tanzania"
+                      - option "🇹🇭 Thailand"
+                      - option "🇹🇬 Togo"
+                      - option "🇹🇰 Tokelau"
+                      - option "🇹🇴 Tonga"
+                      - option "🇹🇹 Trinidad and Tobago"
+                      - option "🇹🇳 Tunisia"
+                      - option "🇹🇷 Turkey"
+                      - option "🇹🇲 Turkmenistan"
+                      - option "🇹🇨 Turks and Caicos Islands"
+                      - option "🇹🇻 Tuvalu"
+                      - option "🇺🇲 U.S. Outlying Islands"
+                      - option "🇻🇮 U.S. Virgin Islands"
+                      - option "🇺🇬 Uganda"
+                      - option "🇺🇦 Ukraine"
+                      - option "🇦🇪 United Arab Emirates"
+                      - option "🇬🇧 United Kingdom"
+                      - option "🇺🇸 United States"
+                      - option "🇺🇾 Uruguay"
+                      - option "🇺🇿 Uzbekistan"
+                      - option "🇻🇺 Vanuatu"
+                      - option "🇻🇦 Vatican City"
+                      - option "🇻🇪 Venezuela"
+                      - option "🇻🇳 Vietnam"
+                      - option "🇼🇫 Wallis and Futuna"
+                      - option "🇪🇭 Western Sahara"
+                      - option "🇾🇪 Yemen"
+                      - option "🇿🇲 Zambia"
+                      - option "🇿🇼 Zimbabwe"
+                - generic [ref=f3e151]:
+                  - generic [ref=f3e152]: Timezone
+                  - combobox [ref=f3e153]:
+                    - option "India (IST) — Asia/Kolkata" [selected]
+                    - option "US East — America/New_York"
+                    - option "US Central — America/Chicago"
+                    - option "US Mountain — America/Denver"
+                    - option "US Pacific — America/Los_Angeles"
+                    - option "UK — Europe/London"
+                    - option "UAE — Asia/Dubai"
+                    - option "Singapore — Asia/Singapore"
+                    - option "Australia — Australia/Sydney"
+                    - option "New Zealand — Pacific/Auckland"
+                    - option "UTC"
+                  - paragraph [ref=f3e154]: Times will be shown exactly as you enter them, using this timezone.
+                - generic [ref=f3e156]:
+                  - checkbox "Make this event public ? When public, anyone with the link can view your invite, RSVP, and use the host catalog — even if they're not on your guest list. When private, only people you've invited can participate." [checked] [ref=f3e157]
+                  - generic [ref=f3e158]: Make this event public
+                  - generic [ref=f3e159]:
+                    - generic [ref=f3e160]: "?"
+                    - generic: When public, anyone with the link can view your invite, RSVP, and use the host catalog — even if they're not on your guest list. When private, only people you've invited can participate.
+                - generic [ref=f3e161]:
+                  - paragraph [ref=f3e162]: Features
+                  - generic [ref=f3e163]:
+                    - checkbox "Enable RSVP ? RSVP lets guests confirm whether they'll attend. You'll see a live headcount as responses come in. You can enable or disable this later." [checked] [ref=f3e164]
+                    - generic [ref=f3e165]: Enable RSVP
+                    - generic [ref=f3e166]:
+                      - generic [ref=f3e167]: "?"
+                      - generic: RSVP lets guests confirm whether they'll attend. You'll see a live headcount as responses come in. You can enable or disable this later.
+                  - generic [ref=f3e168]:
+                    - checkbox "Enable Host Catalog ? A host catalog lets guests browse your items and send pledges, interest, or messages. You add catalog items and review responses in your dashboard. You can enable or disable this later." [checked] [ref=f3e169]
+                    - generic [ref=f3e170]: Enable Host Catalog
+                    - generic [ref=f3e171]:
+                      - generic [ref=f3e172]: "?"
+                      - generic: A host catalog lets guests browse your items and send pledges, interest, or messages. You add catalog items and review responses in your dashboard. You can enable or disable this later.
+                - generic [ref=f3e173]:
+                  - button "Cancel" [ref=f3e174] [cursor=pointer]
+                  - button "Save changes" [ref=f3e175] [cursor=pointer]
+  - alert [ref=f3e176]

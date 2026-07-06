@@ -18,7 +18,7 @@ export default function FooterTile({ settings, preview = false }: FooterTileProp
     )
   }
 
-  const textColor = settings.fontColor ?? '#4B5563'
+  const textColor = settings.fontColor ?? 'var(--theme-muted, #4B5563)'
 
   if (preview) {
     return (

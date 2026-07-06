@@ -1,0 +1,121 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - link "Ekfern" [ref=e6] [cursor=pointer]:
+            - /url: /host/dashboard
+            - generic [ref=e7]:
+              - img [ref=e8]
+              - generic [ref=e11]: Ekfern
+          - button "Collapse navigation panel" [ref=e12] [cursor=pointer]:
+            - img [ref=e13]
+        - navigation [ref=e15]:
+          - link "Dashboard" [ref=e16] [cursor=pointer]:
+            - /url: /host/dashboard
+            - img [ref=e17]
+            - generic [ref=e22]: Dashboard
+          - link "Create Event" [ref=e23] [cursor=pointer]:
+            - /url: /host/events/new
+            - img [ref=e24]
+            - generic [ref=e26]: Create Event
+          - link "Profile" [ref=e27] [cursor=pointer]:
+            - /url: /host/profile
+            - img [ref=e28]
+            - generic [ref=e31]: Profile
+          - link "Page Layout Studio" [ref=e84] [cursor=pointer]:
+            - /url: /host/page-layouts
+            - img [ref=e85]
+            - generic [ref=e91]: Page Layout Studio
+          - link "Design Studio" [ref=e92] [cursor=pointer]:
+            - /url: /host/templates/designs
+            - img [ref=e93]
+            - generic [ref=e95]: Design Studio
+        - link "Help & Support" [ref=e33] [cursor=pointer]:
+          - /url: /contact
+          - img [ref=e34]
+          - generic [ref=e37]: Help & Support
+    - generic [ref=e38]:
+      - banner [ref=e39]:
+        - generic [ref=e40]:
+          - generic [ref=e42]:
+            - link "Host Workspace" [ref=e43] [cursor=pointer]:
+              - /url: /host/dashboard
+            - generic [ref=e96]: /
+            - button "Wizard Reorder Test" [ref=e98] [cursor=pointer]:
+              - generic [ref=e99]: Wizard Reorder Test
+              - img [ref=e100]
+          - button "Logout" [ref=e44] [cursor=pointer]:
+            - img [ref=e45]
+            - generic [ref=e48]: Logout
+        - generic [ref=e103]:
+          - link "Overview" [ref=e104] [cursor=pointer]:
+            - /url: /host/events/24
+            - img [ref=e105]
+            - text: Overview
+          - link "Page Editor" [ref=e110] [cursor=pointer]:
+            - /url: /host/events/24/page-editor
+            - img [ref=e111]
+            - text: Page Editor
+          - link "Guests" [ref=e115] [cursor=pointer]:
+            - /url: /host/events/24/guests
+            - img [ref=e116]
+            - text: Guests
+          - link "RSVP" [ref=e121] [cursor=pointer]:
+            - /url: /host/events/24/rsvp
+            - img [ref=e122]
+            - text: RSVP
+          - link "Messages" [ref=e125] [cursor=pointer]:
+            - /url: /host/events/24/communications
+            - img [ref=e126]
+            - text: Messages
+          - link "Host Catalog" [ref=e128] [cursor=pointer]:
+            - /url: /host/events/24/catalog
+            - img [ref=e129]
+            - text: Host Catalog
+      - main [ref=e49]:
+        - generic [ref=e1259]:
+          - navigation "Invitation creation wizard progress" [ref=e1260]:
+            - list [ref=e1262]:
+              - listitem [ref=e1263]:
+                - 'link "Go to step 1: Event Details" [ref=e1264] [cursor=pointer]':
+                  - /url: /host/events/24/details
+                  - img [ref=e1266]
+                  - generic [ref=e1268]: Event Details
+              - listitem [ref=e1270]:
+                - 'link "Go to step 2: Layout" [ref=e1271] [cursor=pointer]':
+                  - /url: /host/events/24/layout
+                  - img [ref=e1273]
+                  - generic [ref=e1275]: Layout
+              - listitem [ref=e1277]:
+                - generic [ref=e1278]:
+                  - generic [ref=e1279]: "3"
+                  - generic [ref=e1280]: Design
+              - listitem [ref=e1282]:
+                - generic [ref=e1283]:
+                  - generic [ref=e1284]: "4"
+                  - generic [ref=e1285]: Page Editor
+          - generic [ref=e1286]:
+            - generic [ref=e1287]:
+              - heading "Choose your background" [level=1] [ref=e1288]
+              - paragraph [ref=e1289]: Pick a background or color for your invite. You'll add text and fine-tune everything in the page editor next.
+              - generic [ref=e1290]:
+                - button "Use Gradient" [ref=e1291] [cursor=pointer]
+                - button "Upload Background / GIF" [ref=e1292] [cursor=pointer]
+                - button "Skip Design" [ref=e1293] [cursor=pointer]
+            - generic [ref=e1294]:
+              - generic [ref=e1295]:
+                - heading "Ekfern Background Catalog" [level=2] [ref=e1296]
+                - generic [ref=e1297]: Select one to continue
+              - generic [ref=e1298]:
+                - img
+                - searchbox "Search design backgrounds" [ref=e1299]
+              - generic [ref=e1301]:
+                - button "Select wedding | rustic-craft | title-card-description (auto) (auto-saved)" [ref=e1302] [cursor=pointer]:
+                  - img "wedding | rustic-craft | title-card-description (auto) (auto-saved)" [ref=e1305]
+                  - paragraph [ref=e1307]: wedding | rustic-craft | title-card-description (auto) (auto-saved)
+                - button "Select test" [ref=e1308] [cursor=pointer]:
+                  - img "test" [ref=e1311]
+                  - paragraph [ref=e1313]: test
+  - generic [ref=e1315]: Layout applied! Now pick a background.
+  - alert [ref=e83]

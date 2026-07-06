@@ -204,7 +204,7 @@ export default function EventDetailsTileSSR({
   }
 
   // Calculate button colors based on settings.buttonColor
-  const buttonColor = settings.buttonColor || '#1F2937'
+  const buttonColor = settings.buttonColor || 'var(--theme-primary, #1F2937)'
   
   // For SSR, we'll use a simple brightness check (can be enhanced client-side)
   // Default to dark button with light text
@@ -215,24 +215,28 @@ export default function EventDetailsTileSSR({
 
   // Get border settings with defaults
   const borderStyle = settings.borderStyle || 'elegant'
-  const borderColor = settings.borderColor || '#D1D5DB'
+  const borderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
   const borderWidth = settings.borderWidth || 1
   const decorativeSymbol = settings.decorativeSymbol
   const backgroundColor = settings.backgroundColor
   const borderRadius = settings.borderRadius ?? 0
-  
+  const textAlign = settings.textAlign || 'center'
+  const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
+  const marginClass = textAlign === 'left' ? 'mr-auto' : textAlign === 'right' ? 'ml-auto' : 'mx-auto'
+  const justifyClass = textAlign === 'left' ? 'justify-start' : textAlign === 'right' ? 'justify-end' : 'justify-center'
+
   const topBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
   const bottomBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
 
   return (
-    <div 
-      className="w-full pt-8 pb-4 px-6 text-center"
+    <div
+      className={`w-full pt-8 pb-4 px-6 ${textAlignClass}`}
       style={{
         backgroundColor: backgroundColor || 'transparent',
         borderRadius: `${borderRadius}px`,
       }}
     >
-      <div className="max-w-2xl mx-auto">
+      <div className={`max-w-2xl ${marginClass}`}>
         {/* Decorative top border */}
         {topBorder && (
           <div className="mb-6">
@@ -246,7 +250,7 @@ export default function EventDetailsTileSSR({
               <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                 Date
               </div>
-              <div className="text-xl md:text-2xl font-normal leading-relaxed" style={{ color: settings.fontColor || '#1F2937' }}>
+              <div className="text-xl md:text-2xl font-normal leading-relaxed" style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
                 {formatDate(settings.date)}
               </div>
             </div>
@@ -257,7 +261,7 @@ export default function EventDetailsTileSSR({
               <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                 Time
               </div>
-              <div className="text-xl md:text-2xl font-normal leading-relaxed" style={{ color: settings.fontColor || '#1F2937' }}>
+              <div className="text-xl md:text-2xl font-normal leading-relaxed" style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
                 {formatTime(settings.time)}
               </div>
             </div>
@@ -278,7 +282,7 @@ export default function EventDetailsTileSSR({
                 <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                   Location
                 </div>
-                <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: settings.fontColor || '#1F2937' }}>
+                <div className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`} style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
                   <span>{settings.location}</span>
                   {canDisplay && mapUrl && (
                     <a
@@ -359,7 +363,7 @@ export default function EventDetailsTileSSR({
               <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                 Dress Code
               </div>
-              <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || '#1F2937' }}>
+              <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
                 {settings.dressCode}
               </div>
             </div>

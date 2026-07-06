@@ -1,0 +1,42 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - complementary [ref=f4e3]:
+      - generic [ref=f4e4]:
+        - generic [ref=f4e5]:
+          - link "Ekfern" [ref=f4e6] [cursor=pointer]:
+            - /url: /host/dashboard
+            - generic [ref=f4e7]:
+              - img [ref=f4e8]
+              - generic [ref=f4e11]: Ekfern
+          - button "Collapse navigation panel" [ref=f4e12] [cursor=pointer]:
+            - img [ref=f4e13]
+        - navigation [ref=f4e15]:
+          - link "Dashboard" [ref=f4e16] [cursor=pointer]:
+            - /url: /host/dashboard
+            - img [ref=f4e17]
+            - generic [ref=f4e22]: Dashboard
+          - link "Create Event" [ref=f4e23] [cursor=pointer]:
+            - /url: /host/events/new
+            - img [ref=f4e24]
+            - generic [ref=f4e26]: Create Event
+          - link "Profile" [ref=f4e27] [cursor=pointer]:
+            - /url: /host/profile
+            - img [ref=f4e28]
+            - generic [ref=f4e31]: Profile
+        - link "Help & Support" [ref=f4e33] [cursor=pointer]:
+          - /url: /contact
+          - img [ref=f4e34]
+          - generic [ref=f4e37]: Help & Support
+    - generic [ref=f4e38]:
+      - banner [ref=f4e39]:
+        - generic [ref=f4e40]:
+          - link "Host Workspace" [ref=f4e43] [cursor=pointer]:
+            - /url: /host/dashboard
+          - button "Logout" [ref=f4e44] [cursor=pointer]:
+            - img [ref=f4e45]
+            - generic [ref=f4e48]: Logout
+      - main [ref=f4e49]:
+        - generic [ref=f4e52]:
+          - generic [ref=f4e53]: 🌿
+          - paragraph [ref=f4e54]: Loading...
+  - alert [ref=f4e55]

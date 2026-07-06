@@ -126,6 +126,10 @@ def _send_campaign_via_ses(
     Send via SES using send_raw_email so we can set custom headers.
     Returns the SES MessageId string.
     """
+    if getattr(settings, 'SES_DRY_RUN', False):
+        logger.info('[EmailCampaign] SES_DRY_RUN — skipping real send to %s: %s', to_email, subject)
+        return 'dry-run'
+
     ses_kwargs = {'region_name': settings.SES_REGION}
     if settings.SES_ACCESS_KEY_ID and settings.SES_SECRET_ACCESS_KEY:
         ses_kwargs['aws_access_key_id'] = settings.SES_ACCESS_KEY_ID
@@ -215,6 +219,10 @@ def _append_unsubscribe_footer(body_text: str, unsubscribe_token) -> str:
 
 def _send_via_ses(to_email, subject, body_text, body_html=None):
     """Send email via AWS SES using IAM role credentials."""
+    if getattr(settings, 'SES_DRY_RUN', False):
+        logger.info('[Email] SES_DRY_RUN — skipping real send to %s: %s', to_email, subject)
+        return
+
     ses_kwargs = {'region_name': settings.SES_REGION}
 
     if settings.SES_ACCESS_KEY_ID and settings.SES_SECRET_ACCESS_KEY:

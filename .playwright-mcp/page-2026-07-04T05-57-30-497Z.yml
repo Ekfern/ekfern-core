@@ -1,0 +1,140 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - link "Ekfern" [ref=e6] [cursor=pointer]:
+            - /url: /host/dashboard
+            - generic [ref=e7]:
+              - img [ref=e8]
+              - generic [ref=e11]: Ekfern
+          - button "Collapse navigation panel" [ref=e12] [cursor=pointer]:
+            - img [ref=e13]
+        - navigation [ref=e15]:
+          - link "Dashboard" [ref=e16] [cursor=pointer]:
+            - /url: /host/dashboard
+            - img [ref=e17]
+            - generic [ref=e22]: Dashboard
+          - link "Create Event" [ref=e23] [cursor=pointer]:
+            - /url: /host/events/new
+            - img [ref=e24]
+            - generic [ref=e26]: Create Event
+          - link "Profile" [ref=e27] [cursor=pointer]:
+            - /url: /host/profile
+            - img [ref=e28]
+            - generic [ref=e31]: Profile
+          - link "Page Layout Studio" [ref=e32] [cursor=pointer]:
+            - /url: /host/page-layouts
+            - img [ref=e33]
+            - generic [ref=e39]: Page Layout Studio
+          - link "Design Studio" [ref=e40] [cursor=pointer]:
+            - /url: /host/templates/designs
+            - img [ref=e41]
+            - generic [ref=e43]: Design Studio
+        - link "Help & Support" [ref=e45] [cursor=pointer]:
+          - /url: /contact
+          - img [ref=e46]
+          - generic [ref=e49]: Help & Support
+    - generic [ref=e50]:
+      - banner [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e54]:
+            - link "Host Workspace" [ref=e55] [cursor=pointer]:
+              - /url: /host/dashboard
+            - generic [ref=e56]: /
+            - button "Wizard Reorder Test" [ref=e177] [cursor=pointer]:
+              - generic [ref=e59]: Wizard Reorder Test
+              - img [ref=e60]
+          - button "Logout" [ref=e62] [cursor=pointer]:
+            - img [ref=e63]
+            - generic [ref=e66]: Logout
+        - generic [ref=e68]:
+          - link "Overview" [ref=e69] [cursor=pointer]:
+            - /url: /host/events/24
+            - img [ref=e70]
+            - text: Overview
+          - link "Page Editor" [ref=e75] [cursor=pointer]:
+            - /url: /host/events/24/page-editor
+            - img [ref=e76]
+            - text: Page Editor
+          - link "Guests" [ref=e80] [cursor=pointer]:
+            - /url: /host/events/24/guests
+            - img [ref=e81]
+            - text: Guests
+          - link "RSVP" [ref=e86] [cursor=pointer]:
+            - /url: /host/events/24/rsvp
+            - img [ref=e87]
+            - text: RSVP
+          - link "Messages" [ref=e90] [cursor=pointer]:
+            - /url: /host/events/24/communications
+            - img [ref=e91]
+            - text: Messages
+          - link "Host Catalog" [ref=e93] [cursor=pointer]:
+            - /url: /host/events/24/catalog
+            - img [ref=e94]
+            - text: Host Catalog
+      - main [ref=e98]:
+        - generic [ref=e180]:
+          - generic [ref=e181]:
+            - heading "Wizard Reorder Test" [level=1] [ref=e182]
+            - paragraph [ref=e183]: wedding · 8 Sept 2029
+            - generic [ref=e184]:
+              - generic [ref=e185]:
+                - generic [ref=e186]: Draft
+                - generic [ref=e188]: ·
+                - generic [ref=e189]: Public
+              - generic [ref=e190]: In 1162 days
+          - paragraph [ref=e193]: No RSVP activity yet
+          - generic [ref=e194]:
+            - paragraph [ref=e195]: Invite page is configured but not published.
+            - link "Publish to go live" [ref=e196] [cursor=pointer]:
+              - /url: /host/events/24/layout
+              - text: Publish to go live
+              - img [ref=e197]
+          - generic [ref=e199]:
+            - heading "Share your event" [level=3] [ref=e201]
+            - generic [ref=e202]:
+              - generic [ref=e203]:
+                - paragraph [ref=e204]: Invite Page
+                - generic [ref=e205]:
+                  - textbox [ref=e206]: http://localhost:3000/invite/wizard-reorder-test?source=link
+                  - button "Actions" [ref=e208] [cursor=pointer]:
+                    - text: Actions
+                    - img [ref=e209]
+              - generic [ref=e211]:
+                - paragraph [ref=e212]: RSVP Page
+                - generic [ref=e213]:
+                  - textbox [ref=e214]: http://localhost:3000/event/wizard-reorder-test/rsvp?source=link
+                  - button "Actions" [ref=e216] [cursor=pointer]:
+                    - text: Actions
+                    - img [ref=e217]
+              - generic [ref=e219]:
+                - paragraph [ref=e220]: Catalog Page
+                - generic [ref=e221]:
+                  - textbox [ref=e222]: http://localhost:3000/catalog/wizard-reorder-test?source=link
+                  - button "Actions" [ref=e224] [cursor=pointer]:
+                    - text: Actions
+                    - img [ref=e225]
+          - generic [ref=e227]:
+            - generic [ref=e228]:
+              - heading "Click details" [level=3] [ref=e229]
+              - paragraph [ref=e230]: QR and link traffic by destination and channel. In the future this will move to a dedicated analytics or reports page.
+            - generic [ref=e232]:
+              - paragraph [ref=e233]: Attribution insights locked
+              - paragraph [ref=e234]: Link and QR traffic is being collected. Enable insights to view click and funnel stats here.
+              - button "Enable Tracking Insights" [ref=e235] [cursor=pointer]
+          - generic [ref=e237]:
+            - generic [ref=e238]:
+              - paragraph [ref=e239]: "0"
+              - paragraph [ref=e240]: Catalog responses
+            - link "View responses →" [ref=e241] [cursor=pointer]:
+              - /url: /host/events/24/catalog/responses
+          - group [ref=e245]:
+            - generic "Settings & Configuration Public · RSVP on · Host catalog on · Standard RSVP Expand" [ref=e246] [cursor=pointer]:
+              - generic [ref=e247]:
+                - generic [ref=e248]:
+                  - heading "Settings & Configuration" [level=2] [ref=e249]
+                  - paragraph [ref=e250]: Public · RSVP on · Host catalog on · Standard RSVP
+                - generic [ref=e251]: Expand
+  - generic [ref=e253]: Event details updated.
+  - alert [ref=e176]

@@ -162,7 +162,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   const tz = eventTimezone || 'Asia/Kolkata'
   
   // Calculate button colors based on settings.buttonColor
-  const buttonColor = settings.buttonColor || '#1F2937'
+  const buttonColor = settings.buttonColor || 'var(--theme-primary, #1F2937)'
   const rgb = hexToRgb(buttonColor)
   const brightness = rgb ? getBrightnessPercentage(rgb.r, rgb.g, rgb.b) : 0
   const textColor = brightness < 50 ? '#FFFFFF' : '#1F2937'
@@ -284,24 +284,29 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   if (preview) {
     // Get border settings with defaults
     const borderStyle = settings.borderStyle || 'elegant'
-    const borderColor = settings.borderColor || '#D1D5DB'
+    const borderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
     const borderWidth = settings.borderWidth || 1
     const decorativeSymbol = settings.decorativeSymbol
     const backgroundColor = settings.backgroundColor
     const borderRadius = settings.borderRadius ?? 0
-    
+    const textAlign = settings.textAlign || 'center'
+    const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
+    const marginClass = textAlign === 'left' ? 'mr-auto' : textAlign === 'right' ? 'ml-auto' : 'mx-auto'
+    const justifyClass = textAlign === 'left' ? 'justify-start' : textAlign === 'right' ? 'justify-end' : 'justify-center'
+    const dropdownPositionClass = textAlign === 'left' ? 'left-0' : textAlign === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'
+
     const topBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
     const bottomBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
-    
+
     return (
-      <div 
-        className="w-full py-12 px-6 text-center"
+      <div
+        className={`w-full py-12 px-6 ${textAlignClass}`}
         style={{
           backgroundColor: backgroundColor || 'transparent',
           borderRadius: `${borderRadius}px`,
         }}
       >
-        <div className="max-w-2xl mx-auto">
+        <div className={`max-w-2xl ${marginClass}`}>
           {/* Decorative top border */}
           {topBorder && (
             <div className="mb-8">
@@ -311,7 +316,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
           {(() => {
             const labelColor = getAutomaticLabelColor(settings.fontColor)
-            const fontColor = settings.fontColor || '#1F2937'
+            const fontColor = settings.fontColor || 'var(--theme-fg, #1F2937)'
             const dateLayout = settings.dateLayout || 'single-line'
 
             if (dateLayout === 'day-prominent' && settings.date) {
@@ -339,7 +344,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                       const canDisplay = canShowMap(settings)
                       return (
                         <div className="space-y-2">
-                          <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: fontColor }}>
+                          <div className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`} style={{ color: fontColor }}>
                             <span>{settings.location}</span>
                             {canDisplay && mapUrl && (
                               <a
@@ -356,7 +361,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                           {canDisplay && settings.showMap && mapUrl && isValidMapUrl(mapUrl) && (() => {
                             const embedUrl = getEmbedUrl(mapUrl, settings.coordinates, settings.mapZoom)
                             if (embedUrl) {
-                              const mapBorderColor = settings.borderColor || '#D1D5DB'
+                              const mapBorderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
                               const mapBorderWidth = settings.borderWidth || 1
                               const mapBackgroundColor = settings.backgroundColor || '#FFFFFF'
                               const mapBorderRadius = settings.borderRadius ?? 8
@@ -436,7 +441,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                       Location
                     </div>
-                    <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: settings.fontColor || '#1F2937' }}>
+                    <div className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`} style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
                       <span>{settings.location}</span>
                         {canDisplay && mapUrl && (
                         <a
@@ -457,7 +462,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                         
                         if (embedUrl) {
                           // Get border settings to match tile styling
-                          const mapBorderColor = settings.borderColor || '#D1D5DB'
+                          const mapBorderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
                           const mapBorderWidth = settings.borderWidth || 1
                           const mapBackgroundColor = settings.backgroundColor || '#FFFFFF'
                           const mapBorderRadius = settings.borderRadius ?? 8
@@ -519,7 +524,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                       Dress Code
                     </div>
-                    <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || '#1F2937' }}>
+                    <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
                       {settings.dressCode}
                     </div>
                 </div>
@@ -571,7 +576,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   onClick={() => setShowCalendarMenu(false)}
                 />
                 <div
-                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-20 rounded-sm overflow-hidden shadow-xl backdrop-blur-md min-w-[200px] border border-gray-200"
+                  className={`absolute top-full ${dropdownPositionClass} mt-2 z-20 rounded-sm overflow-hidden shadow-xl backdrop-blur-md min-w-[200px] border border-gray-200`}
                   style={{
                     backgroundColor: `rgba(255, 255, 255, 0.95)`,
                   }}
@@ -601,12 +606,12 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     )
   }
 
-  const fontColor = settings.fontColor || '#374151' // Default to gray-700 equivalent
+  const fontColor = settings.fontColor || 'var(--theme-fg, #374151)' // Default to gray-700 equivalent
   const labelColor = getAutomaticLabelColor(settings.fontColor)
-  
+
   // Get border settings with defaults for non-preview mode
   const borderStyle = settings.borderStyle || 'elegant'
-  const borderColor = settings.borderColor || '#E5E7EB'
+  const borderColor = settings.borderColor || 'var(--theme-muted, #E5E7EB)'
   const borderWidth = settings.borderWidth || 1
   const borderRadius = settings.borderRadius ?? 4
   const backgroundColor = settings.backgroundColor || '#F9FAFB'

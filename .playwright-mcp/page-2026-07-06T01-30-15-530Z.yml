@@ -1,0 +1,717 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - complementary [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - generic [ref=f1e5]:
+          - link "Ekfern" [ref=f1e6] [cursor=pointer]:
+            - /url: /host/dashboard
+            - generic [ref=f1e7]:
+              - img [ref=f1e8]
+              - generic [ref=f1e11]: Ekfern
+          - button "Collapse navigation panel" [ref=f1e12] [cursor=pointer]:
+            - img [ref=f1e13]
+        - navigation [ref=f1e15]:
+          - link "Dashboard" [ref=f1e16] [cursor=pointer]:
+            - /url: /host/dashboard
+            - img [ref=f1e17]
+            - generic [ref=f1e22]: Dashboard
+          - link "Create Event" [ref=f1e23] [cursor=pointer]:
+            - /url: /host/events/new
+            - img [ref=f1e24]
+            - generic [ref=f1e26]: Create Event
+          - link "Profile" [ref=f1e27] [cursor=pointer]:
+            - /url: /host/profile
+            - img [ref=f1e28]
+            - generic [ref=f1e31]: Profile
+          - link "Page Layout Studio" [ref=f1e121] [cursor=pointer]:
+            - /url: /host/page-layouts
+            - img [ref=f1e122]
+            - generic [ref=f1e128]: Page Layout Studio
+          - link "Design Studio" [ref=f1e129] [cursor=pointer]:
+            - /url: /host/templates/designs
+            - img [ref=f1e130]
+            - generic [ref=f1e132]: Design Studio
+        - link "Help & Support" [ref=f1e33] [cursor=pointer]:
+          - /url: /contact
+          - img [ref=f1e34]
+          - generic [ref=f1e37]: Help & Support
+    - generic [ref=f1e38]:
+      - banner [ref=f1e39]:
+        - generic [ref=f1e40]:
+          - generic [ref=f1e42]:
+            - link "Host Workspace" [ref=f1e43] [cursor=pointer]:
+              - /url: /host/dashboard
+            - generic [ref=f1e44]: /
+            - button "Wizard Reorder Test" [ref=f1e133] [cursor=pointer]:
+              - generic [ref=f1e47]: Wizard Reorder Test
+              - img [ref=f1e48]
+          - button "Logout" [ref=f1e50] [cursor=pointer]:
+            - img [ref=f1e51]
+            - generic [ref=f1e54]: Logout
+        - generic [ref=f1e56]:
+          - link "Overview" [ref=f1e57] [cursor=pointer]:
+            - /url: /host/events/24
+            - img [ref=f1e58]
+            - text: Overview
+          - link "Page Editor" [ref=f1e63] [cursor=pointer]:
+            - /url: /host/events/24/page-editor
+            - img [ref=f1e64]
+            - text: Page Editor
+          - link "Guests" [ref=f1e68] [cursor=pointer]:
+            - /url: /host/events/24/guests
+            - img [ref=f1e69]
+            - text: Guests
+          - link "RSVP" [ref=f1e74] [cursor=pointer]:
+            - /url: /host/events/24/rsvp
+            - img [ref=f1e75]
+            - text: RSVP
+          - link "Messages" [ref=f1e78] [cursor=pointer]:
+            - /url: /host/events/24/communications
+            - img [ref=f1e79]
+            - text: Messages
+          - link "Host Catalog" [ref=f1e81] [cursor=pointer]:
+            - /url: /host/events/24/catalog
+            - img [ref=f1e82]
+            - text: Host Catalog
+      - main [ref=f1e86]:
+        - generic [ref=f1e88]:
+          - navigation "Invitation creation wizard progress" [ref=f1e89]:
+            - list [ref=f1e91]:
+              - listitem [ref=f1e92]:
+                - 'link "Go to step 1: Event Details" [ref=f1e93] [cursor=pointer]':
+                  - /url: /host/events/24/details
+                  - img [ref=f1e95]
+                  - generic [ref=f1e97]: Event Details
+              - listitem [ref=f1e99]:
+                - generic [ref=f1e100]:
+                  - generic [ref=f1e101]: "2"
+                  - generic [ref=f1e102]: Layout
+              - listitem [ref=f1e104]:
+                - generic [ref=f1e105]:
+                  - generic [ref=f1e106]: "3"
+                  - generic [ref=f1e107]: Design
+              - listitem [ref=f1e109]:
+                - generic [ref=f1e110]:
+                  - generic [ref=f1e111]: "4"
+                  - generic [ref=f1e112]: Page Editor
+          - generic [ref=f1e113]:
+            - button "Back" [ref=f1e114] [cursor=pointer]:
+              - generic [ref=f1e115]: ←
+              - text: Back
+            - heading "Choose your invite layout" [level=1] [ref=f1e116]
+            - paragraph [ref=f1e117]: Pick a starting point — you'll choose colors and a background next, then fine-tune everything in the page editor.
+            - generic [ref=f1e134]:
+              - generic [ref=f1e135]:
+                - img
+                - searchbox "Search page layouts" [ref=f1e136]
+              - generic [ref=f1e137]:
+                - button "Start from a blank canvas" [ref=f1e138] [cursor=pointer]:
+                  - generic [ref=f1e140]:
+                    - generic [ref=f1e141]: +
+                    - generic [ref=f1e142]: Blank canvas
+                  - generic [ref=f1e143]:
+                    - heading "Start from scratch" [level=3] [ref=f1e144]
+                    - paragraph [ref=f1e145]: Build your invite page tile by tile.
+                  - button "Use blank canvas" [ref=f1e147]
+                - button "Select Editorial page layout" [ref=f1e148] [cursor=pointer]:
+                  - generic "Editorial invite page layout preview with left-aligned minimalist styling" [ref=f1e149]:
+                    - generic [ref=f1e155]:
+                      - generic [ref=f1e156]:
+                        - heading [level=1] [ref=f1e159]: You're Invited
+                        - paragraph [ref=f1e1061]: An evening of celebration, thoughtfully gathered.
+                        - generic [ref=f1e167]:
+                          - generic [ref=f1e171]:
+                            - generic [ref=f1e172]:
+                              - generic [ref=f1e173]: Date
+                              - generic [ref=f1e174]: Saturday, June 14, 2025
+                            - generic [ref=f1e175]:
+                              - generic [ref=f1e176]: Location
+                              - generic [ref=f1e178]: The Garden Estate
+                          - button [ref=f1e183]:
+                            - text: Save the Date
+                            - img [ref=f1e184]
+                        - generic [ref=f1e188]:
+                          - link [ref=f1e189]:
+                            - /url: /event/preview/rsvp
+                            - text: RSVP
+                          - link [ref=f1e190]:
+                            - /url: /catalog/preview?source=invite
+                            - text: Catalog
+                        - paragraph [ref=f1e193]: With love, always.
+                      - generic:
+                        - generic:
+                          - img
+                  - generic [ref=f1e194]:
+                    - heading "Editorial" [level=3] [ref=f1e196]
+                    - paragraph [ref=f1e197]: Left-aligned masthead title, generous whitespace, magazine feel.
+                    - paragraph [ref=f1e198]: By aakashsheth65
+                  - button "✓ Selected" [active] [ref=f1e1062]
+                - button "Select Letterpress page layout" [ref=f1e201] [cursor=pointer]:
+                  - generic "Letterpress invite page layout preview with warm parchment styling" [ref=f1e202]:
+                    - generic [ref=f1e208]:
+                      - generic [ref=f1e209]:
+                        - generic [ref=f1e211]:
+                          - heading [level=1] [ref=f1e212]: You're Invited
+                          - paragraph [ref=f1e213]: Join us to celebrate
+                        - paragraph [ref=f1e1063]: A celebration to remember, surrounded by those we love.
+                        - generic [ref=f1e221]:
+                          - generic [ref=f1e225]: ❦
+                          - generic [ref=f1e227]:
+                            - generic [ref=f1e228]:
+                              - generic [ref=f1e229]: Date
+                              - generic [ref=f1e230]: Saturday, June 14, 2025
+                            - generic [ref=f1e231]:
+                              - generic [ref=f1e232]: Location
+                              - generic [ref=f1e234]: The Garden Estate
+                          - generic [ref=f1e238]: ❦
+                          - button [ref=f1e241]:
+                            - text: Save the Date
+                            - img [ref=f1e242]
+                        - generic [ref=f1e246]:
+                          - link [ref=f1e247]:
+                            - /url: /event/preview/rsvp
+                            - text: RSVP
+                          - link [ref=f1e248]:
+                            - /url: /catalog/preview?source=invite
+                            - text: Catalog
+                        - paragraph [ref=f1e251]: We can't wait to celebrate with you.
+                      - generic:
+                        - generic:
+                          - img
+                  - generic [ref=f1e252]:
+                    - heading "Letterpress" [level=3] [ref=f1e254]
+                    - paragraph [ref=f1e255]: Parchment, serif type, ornamental dividers, paper texture.
+                    - paragraph [ref=f1e256]: By aakashsheth65
+                  - button "Select" [ref=f1e258]
+                - button "Select Keynote page layout" [ref=f1e259] [cursor=pointer]:
+                  - generic "Keynote invite page layout preview with dark tech-premium styling" [ref=f1e260]:
+                    - generic [ref=f1e266]:
+                      - generic [ref=f1e267]:
+                        - heading [level=1] [ref=f1e270]: You're Invited
+                        - paragraph [ref=f1e1064]: Join us for an evening to remember.
+                        - generic [ref=f1e278]:
+                          - generic [ref=f1e282]:
+                            - generic [ref=f1e283]:
+                              - generic [ref=f1e284]: Date
+                              - generic [ref=f1e285]: Saturday, June 14, 2025
+                            - generic [ref=f1e286]:
+                              - generic [ref=f1e287]: Location
+                              - generic [ref=f1e289]: The Garden Estate
+                          - button [ref=f1e294]:
+                            - text: Save the Date
+                            - img [ref=f1e295]
+                        - generic [ref=f1e299]:
+                          - link [ref=f1e300]:
+                            - /url: /event/preview/rsvp
+                            - text: RSVP
+                          - link [ref=f1e301]:
+                            - /url: /catalog/preview?source=invite
+                            - text: Catalog
+                        - paragraph [ref=f1e304]: Made with care.
+                      - generic:
+                        - generic:
+                          - img
+                  - generic [ref=f1e305]:
+                    - heading "Keynote" [level=3] [ref=f1e307]
+                    - paragraph [ref=f1e308]: Near-black, confident type, one accent color. No ornamentation.
+                    - paragraph [ref=f1e309]: By aakashsheth65
+                  - button "Select" [ref=f1e311]
+                - 'button "Select Corporate Event invitations for playful mood; whimsical greeting art; pre-printed lettering on the card · Page: Festival Bold — Editorial: oversize title first, card as visual punctuation, then… · modern wording page layout" [ref=f1e312] [cursor=pointer]':
+                  - generic "corporate_event invite layout — \"Your presence is requested\"" [ref=f1e313]:
+                    - generic [ref=f1e319]:
+                      - generic [ref=f1e320]:
+                        - generic [ref=f1e322]:
+                          - heading [level=1] [ref=f1e323]: You're Invited
+                          - paragraph [ref=f1e324]: For an evening of innovation and inspiration
+                        - generic [ref=f1e327]:
+                          - img [ref=f1e328]
+                          - paragraph [ref=f1e332]: Add your design
+                        - generic [ref=f1e335]:
+                          - generic [ref=f1e339]: ✤
+                          - generic [ref=f1e341]:
+                            - generic [ref=f1e342]:
+                              - generic [ref=f1e343]: Date
+                              - generic [ref=f1e344]: Saturday, June 14, 2025
+                            - generic [ref=f1e345]:
+                              - generic [ref=f1e346]: Location
+                              - generic [ref=f1e348]: The Garden Estate
+                          - generic [ref=f1e352]: ✤
+                          - button [ref=f1e355]:
+                            - text: Save the Date
+                            - img [ref=f1e356]
+                        - generic [ref=f1e360]:
+                          - link [ref=f1e361]:
+                            - /url: /event/preview/rsvp
+                            - text: Join
+                          - link [ref=f1e362]:
+                            - /url: /catalog/preview?source=invite
+                            - text: Registry
+                        - paragraph [ref=f1e365]: Let's shape the future together
+                      - generic:
+                        - generic:
+                          - img
+                  - generic [ref=f1e366]:
+                    - 'heading "Corporate Event invitations for playful mood; whimsical greeting art; pre-printed lettering on the card · Page: Festival Bold — Editorial: oversize title first, card as visual punctuation, then… · modern wording" [level=3] [ref=f1e368]'
+                    - paragraph [ref=f1e369]: Forward-thinking language appropriate for tech launches, strategy sessions, or innovation showcases.
+                    - paragraph [ref=f1e370]: By aakashsheth65
+                  - button "Select" [ref=f1e372]
+                - 'button "Select Corporate Event invitations for playful mood; whimsical greeting art; pre-printed lettering on the card · Page: Festival Bold — Hero card, paragraph, then headline tile — unusual vertical rhythm. · warm wording page layout" [ref=f1e373] [cursor=pointer]':
+                  - generic "corporate_event invite layout — \"Let's celebrate together\"" [ref=f1e374]:
+                    - generic [ref=f1e380]:
+                      - generic [ref=f1e381]:
+                        - generic [ref=f1e384]:
+                          - img [ref=f1e385]
+                          - paragraph [ref=f1e389]: Add your design
+                        - paragraph [ref=f1e1065]: Your presence would make the occasion complete
+                        - generic [ref=f1e396]:
+                          - heading [level=1] [ref=f1e397]: You're Invited
+                          - paragraph [ref=f1e398]: Join us for an evening of connection and inspiration
+                        - generic [ref=f1e401]:
+                          - generic [ref=f1e405]: ✤
+                          - generic [ref=f1e407]:
+                            - generic [ref=f1e408]:
+                              - generic [ref=f1e409]: Date
+                              - generic [ref=f1e410]: Saturday, June 14, 2025
+                            - generic [ref=f1e411]:
+                              - generic [ref=f1e412]: Location
+                              - generic [ref=f1e414]: The Garden Estate
+                          - generic [ref=f1e418]: ✤
+                          - button [ref=f1e421]:
+                            - text: Save the Date
+                            - img [ref=f1e422]
+                        - generic [ref=f1e426]:
+                          - link [ref=f1e427]:
+                            - /url: /event/preview/rsvp
+                            - text: Join
+                          - link [ref=f1e428]:
+                            - /url: /catalog/preview?source=invite
+                            - text: Registry
+                        - paragraph [ref=f1e431]: Your presence would make the occasion complete
+                      - generic:
+                        - generic:
+                          - img
+                  - generic [ref=f1e432]:
+                    - 'heading "Corporate Event invitations for playful mood; whimsical greeting art; pre-printed lettering on the card · Page: Festival Bold — Hero card, paragraph, then headline tile — unusual vertical rhythm. · warm wording" [level=3] [ref=f1e434]'
+                    - paragraph [ref=f1e435]: Inviting and inclusive language that emphasizes togetherness, perfect for team-building or milestone celebrations.
+                    - paragraph [ref=f1e436]: By aakashsheth65
+                  - button "Select" [ref=f1e438]
+                - 'button "Select Corporate Event invitations for playful mood; whimsical greeting art; pre-printed lettering on the card · Page: Festival Bold — Image hero · playful wording page layout" [ref=f1e439] [cursor=pointer]':
+                  - generic "corporate_event invite layout — \"You're invited\"" [ref=f1e440]:
+                    - img "corporate_event invite layout — \"You're invited\"" [ref=f1e443]
+                  - generic [ref=f1e444]:
+                    - 'heading "Corporate Event invitations for playful mood; whimsical greeting art; pre-printed lettering on the card · Page: Festival Bold — Image hero · playful wording" [level=3] [ref=f1e446]'
+                    - paragraph [ref=f1e447]: Light and engaging copy that matches the whimsical visual style while building anticipation for the event.
+                    - paragraph [ref=f1e448]: By aakashsheth65
+                  - button "Select" [ref=f1e450]
+                - button "Select “She Said Yes!” — Bridal Shower · Rustic Craft — Card — celebratory voice · remix page layout" [ref=f1e451] [cursor=pointer]:
+                  - generic "bridal_shower invite layout — \"She Said Yes!\"" [ref=f1e452]:
+                    - img "bridal_shower invite layout — \"She Said Yes!\"" [ref=f1e455]
+                  - generic [ref=f1e456]:
+                    - heading "“She Said Yes!” — Bridal Shower · Rustic Craft — Card — celebratory voice · remix" [level=3] [ref=f1e458]
+                    - paragraph [ref=f1e459]: Joyful and upbeat, emphasizing the excitement of the engagement and upcoming wedding.
+                    - paragraph [ref=f1e460]: By aakashsheth65
+                  - button "Select" [ref=f1e462]
+                - button "Select “A Celebration of Love” — Bridal Shower · Rustic Craft — Card with a title banner below — elegant voice · remix page layout" [ref=f1e463] [cursor=pointer]:
+                  - generic "bridal_shower invite layout — \"A Celebration of Love\"" [ref=f1e464]:
+                    - img "bridal_shower invite layout — \"A Celebration of Love\"" [ref=f1e467]
+                  - generic [ref=f1e468]:
+                    - heading "“A Celebration of Love” — Bridal Shower · Rustic Craft — Card with a title banner below — elegant voice · remix" [level=3] [ref=f1e470]
+                    - paragraph [ref=f1e471]: Formal and refined wording that suits traditional illustrated backdrops with graceful phrasing.
+                    - paragraph [ref=f1e472]: By aakashsheth65
+                  - button "Select" [ref=f1e474]
+                - button "Select “Cheers to the Bride” — Bridal Shower · Rustic Craft — Card — modern voice · remix page layout" [ref=f1e475] [cursor=pointer]:
+                  - generic "bridal_shower invite layout — \"Cheers to the Bride\"" [ref=f1e476]:
+                    - img "bridal_shower invite layout — \"Cheers to the Bride\"" [ref=f1e479]
+                  - generic [ref=f1e480]:
+                    - heading "“Cheers to the Bride” — Bridal Shower · Rustic Craft — Card — modern voice · remix" [level=3] [ref=f1e482]
+                    - paragraph [ref=f1e483]: Contemporary and fresh with clean phrasing that feels current yet appropriate for illustrated designs.
+                    - paragraph [ref=f1e484]: By aakashsheth65
+                  - button "Select" [ref=f1e486]
+                - button "Select “Honoring the Bride-to-Be” — Bridal Shower · Rustic Craft — Card with a title banner below — traditional voice · remix page layout" [ref=f1e487] [cursor=pointer]:
+                  - generic "bridal_shower invite layout — \"Honoring the Bride-to-Be\"" [ref=f1e488]:
+                    - img "bridal_shower invite layout — \"Honoring the Bride-to-Be\"" [ref=f1e491]
+                  - generic [ref=f1e492]:
+                    - heading "“Honoring the Bride-to-Be” — Bridal Shower · Rustic Craft — Card with a title banner below — traditional voice · remix" [level=3] [ref=f1e494]
+                    - paragraph [ref=f1e495]: Timeless phrasing that respects convention while conveying sincerity and warmth for classic events.
+                    - paragraph [ref=f1e496]: By aakashsheth65
+                  - button "Select" [ref=f1e498]
+                - button "Select “Cheers to the Bride” — Bridal Shower · Rustic Craft — Card with a title banner below — modern voice · remix page layout" [ref=f1e499] [cursor=pointer]:
+                  - generic "bridal_shower invite layout — \"Cheers to the Bride\"" [ref=f1e500]:
+                    - img "bridal_shower invite layout — \"Cheers to the Bride\"" [ref=f1e503]
+                  - generic [ref=f1e504]:
+                    - heading "“Cheers to the Bride” — Bridal Shower · Rustic Craft — Card with a title banner below — modern voice · remix" [level=3] [ref=f1e506]
+                    - paragraph [ref=f1e507]: Contemporary and fresh with clean phrasing that feels current yet appropriate for illustrated designs.
+                    - paragraph [ref=f1e508]: By aakashsheth65
+                  - button "Select" [ref=f1e510]
+                - button "Select wedding | rustic-craft | title-card-description (auto) page layout" [ref=f1e511] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e512]:
+                    - img "wedding auto-generated layout" [ref=f1e515]
+                  - generic [ref=f1e516]:
+                    - heading "wedding | rustic-craft | title-card-description (auto)" [level=3] [ref=f1e518]
+                    - paragraph [ref=f1e519]: Formal British spelling and structure; perfect for traditional ornate aesthetics and etiquette.
+                    - paragraph [ref=f1e520]: By aakashsheth65
+                  - button "Select" [ref=f1e522]
+                - button "Select wedding | satin-traditional | card-then-banner (auto) page layout" [ref=f1e523] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e524]:
+                    - img "wedding auto-generated layout" [ref=f1e527]
+                  - generic [ref=f1e528]:
+                    - heading "wedding | satin-traditional | card-then-banner (auto)" [level=3] [ref=f1e530]
+                    - paragraph [ref=f1e531]: Formal British spelling and structure; perfect for traditional ornate aesthetics and etiquette.
+                    - paragraph [ref=f1e532]: By aakashsheth65
+                  - button "Select" [ref=f1e534]
+                - button "Select wedding | satin-traditional | card-then-title (auto) page layout" [ref=f1e535] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e536]:
+                    - img "wedding auto-generated layout" [ref=f1e539]
+                  - generic [ref=f1e540]:
+                    - heading "wedding | satin-traditional | card-then-title (auto)" [level=3] [ref=f1e542]
+                    - paragraph [ref=f1e543]: Inviting and heartfelt tone that balances formality with genuine warmth for guests.
+                    - paragraph [ref=f1e544]: By aakashsheth65
+                  - button "Select" [ref=f1e546]
+                - button "Select wedding | satin-traditional | card-then-banner (auto) page layout" [ref=f1e547] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e548]:
+                    - img "wedding auto-generated layout" [ref=f1e551]
+                  - generic [ref=f1e552]:
+                    - heading "wedding | satin-traditional | card-then-banner (auto)" [level=3] [ref=f1e554]
+                    - paragraph [ref=f1e555]: Graceful and sophisticated without pretense; works beautifully over ornate visual elements.
+                    - paragraph [ref=f1e556]: By aakashsheth65
+                  - button "Select" [ref=f1e558]
+                - button "Select wedding | rustic-craft | title-card-description (auto) page layout" [ref=f1e559] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e560]:
+                    - img "wedding auto-generated layout" [ref=f1e563]
+                  - generic [ref=f1e564]:
+                    - heading "wedding | rustic-craft | title-card-description (auto)" [level=3] [ref=f1e566]
+                    - paragraph [ref=f1e567]: Classic formal phrasing suited to ornate backdrops; timeless and ceremonial without dated references.
+                    - paragraph [ref=f1e568]: By aakashsheth65
+                  - button "Select" [ref=f1e570]
+                - button "Select wedding | rustic-craft | card-then-banner (auto) page layout" [ref=f1e571] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e572]:
+                    - img "wedding auto-generated layout" [ref=f1e575]
+                  - generic [ref=f1e576]:
+                    - heading "wedding | rustic-craft | card-then-banner (auto)" [level=3] [ref=f1e578]
+                    - paragraph [ref=f1e579]: Personal and meaningful without being overly sentimental; ideal for close circle gatherings.
+                    - paragraph [ref=f1e580]: By aakashsheth65
+                  - button "Select" [ref=f1e582]
+                - button "Select wedding | rustic-craft | title-leads-card (auto) page layout" [ref=f1e583] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e584]:
+                    - img "wedding auto-generated layout" [ref=f1e587]
+                  - generic [ref=f1e588]:
+                    - heading "wedding | rustic-craft | title-leads-card (auto)" [level=3] [ref=f1e590]
+                    - paragraph [ref=f1e591]: Approachable and genuine; softens traditional formality while respecting the occasion's significance.
+                    - paragraph [ref=f1e592]: By aakashsheth65
+                  - button "Select" [ref=f1e594]
+                - button "Select wedding | satin-traditional | title-card-description (auto) page layout" [ref=f1e595] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e596]:
+                    - img "wedding auto-generated layout" [ref=f1e599]
+                  - generic [ref=f1e600]:
+                    - heading "wedding | satin-traditional | title-card-description (auto)" [level=3] [ref=f1e602]
+                    - paragraph [ref=f1e603]: Refined language with poetic undertones; complements ornate styling without excessive formality.
+                    - paragraph [ref=f1e604]: By aakashsheth65
+                  - button "Select" [ref=f1e606]
+                - button "Select wedding | satin-traditional | title-leads-card (auto) page layout" [ref=f1e607] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e608]:
+                    - img "wedding auto-generated layout" [ref=f1e611]
+                  - generic [ref=f1e612]:
+                    - heading "wedding | satin-traditional | title-leads-card (auto)" [level=3] [ref=f1e614]
+                    - paragraph [ref=f1e615]: Uplifting and festive while maintaining elegance; emphasizes the joyful occasion ahead.
+                    - paragraph [ref=f1e616]: By aakashsheth65
+                  - button "Select" [ref=f1e618]
+                - button "Select wedding | rustic-craft | card-then-title (auto) page layout" [ref=f1e619] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e620]:
+                    - img "wedding auto-generated layout" [ref=f1e623]
+                  - generic [ref=f1e624]:
+                    - heading "wedding | rustic-craft | card-then-title (auto)" [level=3] [ref=f1e626]
+                    - paragraph [ref=f1e627]: Formal British spelling and structure; perfect for traditional ornate aesthetics and etiquette.
+                    - paragraph [ref=f1e628]: By aakashsheth65
+                  - button "Select" [ref=f1e630]
+                - button "Select housewarming | festival-bold | title-card-description (auto) page layout" [ref=f1e631] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e632]:
+                    - img "housewarming auto-generated layout" [ref=f1e635]
+                  - generic [ref=f1e636]:
+                    - heading "housewarming | festival-bold | title-card-description (auto)" [level=3] [ref=f1e638]
+                    - paragraph [ref=f1e639]: Contemporary and casual language that appeals to younger hosts or urban settings with relaxed vibes.
+                    - paragraph [ref=f1e640]: By aakashsheth65
+                  - button "Select" [ref=f1e642]
+                - button "Select housewarming | festival-bold | playful-card-led (auto) page layout" [ref=f1e643] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e644]:
+                    - img "housewarming auto-generated layout" [ref=f1e647]
+                  - generic [ref=f1e648]:
+                    - heading "housewarming | festival-bold | playful-card-led (auto)" [level=3] [ref=f1e650]
+                    - paragraph [ref=f1e651]: Friendly and inviting with a touch of whimsy, encouraging guests to be part of the home's story.
+                    - paragraph [ref=f1e652]: By aakashsheth65
+                  - button "Select" [ref=f1e654]
+                - button "Select housewarming | festival-bold | card-then-title (auto) page layout" [ref=f1e655] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e656]:
+                    - img "housewarming auto-generated layout" [ref=f1e659]
+                  - generic [ref=f1e660]:
+                    - heading "housewarming | festival-bold | card-then-title (auto)" [level=3] [ref=f1e662]
+                    - paragraph [ref=f1e663]: Upbeat and festive, focusing on the joy of the occasion and the communal spirit of celebration.
+                    - paragraph [ref=f1e664]: By aakashsheth65
+                  - button "Select" [ref=f1e666]
+                - button "Select housewarming | festival-bold | playful-card-led (auto) page layout" [ref=f1e667] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e668]:
+                    - img "housewarming auto-generated layout" [ref=f1e671]
+                  - generic [ref=f1e672]:
+                    - heading "housewarming | festival-bold | playful-card-led (auto)" [level=3] [ref=f1e674]
+                    - paragraph [ref=f1e675]: Inviting and heartfelt, emphasizing the emotional transition of moving into a new space with loved ones.
+                    - paragraph [ref=f1e676]: By aakashsheth65
+                  - button "Select" [ref=f1e678]
+                - button "Select housewarming | festival-bold | card-then-banner (auto) page layout" [ref=f1e679] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e680]:
+                    - img "housewarming auto-generated layout" [ref=f1e683]
+                  - generic [ref=f1e684]:
+                    - heading "housewarming | festival-bold | card-then-banner (auto)" [level=3] [ref=f1e686]
+                    - paragraph [ref=f1e687]: Inviting and heartfelt, emphasizing the emotional transition of moving into a new space with loved ones.
+                    - paragraph [ref=f1e688]: By aakashsheth65
+                  - button "Select" [ref=f1e690]
+                - button "Select housewarming | festival-bold | card-then-title (auto) page layout" [ref=f1e691] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e692]:
+                    - img "housewarming auto-generated layout" [ref=f1e695]
+                  - generic [ref=f1e696]:
+                    - heading "housewarming | festival-bold | card-then-title (auto)" [level=3] [ref=f1e698]
+                    - paragraph [ref=f1e699]: Lighthearted and fun, matching the illustrated playful aesthetic while staying casual and welcoming.
+                    - paragraph [ref=f1e700]: By aakashsheth65
+                  - button "Select" [ref=f1e702]
+                - button "Select housewarming | festival-bold | title-leads-card (auto) page layout" [ref=f1e703] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e704]:
+                    - img "housewarming auto-generated layout" [ref=f1e707]
+                  - generic [ref=f1e708]:
+                    - heading "housewarming | festival-bold | title-leads-card (auto)" [level=3] [ref=f1e710]
+                    - paragraph [ref=f1e711]: Contemporary and casual language that appeals to younger hosts or urban settings with relaxed vibes.
+                    - paragraph [ref=f1e712]: By aakashsheth65
+                  - button "Select" [ref=f1e714]
+                - button "Select housewarming | festival-bold | title-card-description (auto) page layout" [ref=f1e715] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e716]:
+                    - img "housewarming auto-generated layout" [ref=f1e719]
+                  - generic [ref=f1e720]:
+                    - heading "housewarming | festival-bold | title-card-description (auto)" [level=3] [ref=f1e722]
+                    - paragraph [ref=f1e723]: Uses the nest metaphor to create a cozy, inviting tone that emphasizes the importance of community.
+                    - paragraph [ref=f1e724]: By aakashsheth65
+                  - button "Select" [ref=f1e726]
+                - button "Select housewarming | festival-bold | festival-bold (auto) page layout" [ref=f1e727] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e728]:
+                    - img "housewarming auto-generated layout" [ref=f1e731]
+                  - generic [ref=f1e732]:
+                    - heading "housewarming | festival-bold | festival-bold (auto)" [level=3] [ref=f1e734]
+                    - paragraph [ref=f1e735]: Simple and personal, creating a sense of closeness and emphasizing the meaningful nature of the gathering.
+                    - paragraph [ref=f1e736]: By aakashsheth65
+                  - button "Select" [ref=f1e738]
+                - button "Select housewarming | festival-bold | playful-card-led (auto) page layout" [ref=f1e739] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e740]:
+                    - img "housewarming auto-generated layout" [ref=f1e743]
+                  - generic [ref=f1e744]:
+                    - heading "housewarming | festival-bold | playful-card-led (auto)" [level=3] [ref=f1e746]
+                    - paragraph [ref=f1e747]: Upbeat and festive, focusing on the joy of the occasion and the communal spirit of celebration.
+                    - paragraph [ref=f1e748]: By aakashsheth65
+                  - button "Select" [ref=f1e750]
+                - button "Select housewarming | festival-bold | card-then-title (auto) page layout" [ref=f1e751] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e752]:
+                    - img "housewarming auto-generated layout" [ref=f1e755]
+                  - generic [ref=f1e756]:
+                    - heading "housewarming | festival-bold | card-then-title (auto)" [level=3] [ref=f1e758]
+                    - paragraph [ref=f1e759]: Upbeat and enthusiastic tone emphasizes joy and milestone, perfect for an illustrated, lively card design.
+                    - paragraph [ref=f1e760]: By aakashsheth65
+                  - button "Select" [ref=f1e762]
+                - button "Select housewarming | festival-bold | playful-card-led (auto) page layout" [ref=f1e763] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e764]:
+                    - img "housewarming auto-generated layout" [ref=f1e767]
+                  - generic [ref=f1e768]:
+                    - heading "housewarming | festival-bold | playful-card-led (auto)" [level=3] [ref=f1e770]
+                    - paragraph [ref=f1e771]: Focuses on transformation and gratitude, gently discouraging gifts while emphasizing the value of community and connection.
+                    - paragraph [ref=f1e772]: By aakashsheth65
+                  - button "Select" [ref=f1e774]
+                - button "Select housewarming | festival-bold | card-then-title (auto) page layout" [ref=f1e775] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e776]:
+                    - img "housewarming auto-generated layout" [ref=f1e779]
+                  - generic [ref=f1e780]:
+                    - heading "housewarming | festival-bold | card-then-title (auto)" [level=3] [ref=f1e782]
+                    - paragraph [ref=f1e783]: Lighthearted nest metaphor pairs well with illustrated, playful visuals and invites guests into the spirit of new beginnings.
+                    - paragraph [ref=f1e784]: By aakashsheth65
+                  - button "Select" [ref=f1e786]
+                - button "Select housewarming | festival-bold | card-then-title (auto) page layout" [ref=f1e787] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e788]:
+                    - img "housewarming auto-generated layout" [ref=f1e791]
+                  - generic [ref=f1e792]:
+                    - heading "housewarming | festival-bold | card-then-title (auto)" [level=3] [ref=f1e794]
+                    - paragraph [ref=f1e795]: Refined phrasing and gracious tone suit hosts who want a sophisticated yet approachable invitation feel.
+                    - paragraph [ref=f1e796]: By aakashsheth65
+                  - button "Select" [ref=f1e798]
+                - button "Select housewarming | festival-bold | title-leads-card (auto) page layout" [ref=f1e799] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e800]:
+                    - img "housewarming auto-generated layout" [ref=f1e803]
+                  - generic [ref=f1e804]:
+                    - heading "housewarming | festival-bold | title-leads-card (auto)" [level=3] [ref=f1e806]
+                    - paragraph [ref=f1e807]: Refined phrasing and gracious tone suit hosts who want a sophisticated yet approachable invitation feel.
+                    - paragraph [ref=f1e808]: By aakashsheth65
+                  - button "Select" [ref=f1e810]
+                - button "Select housewarming | festival-bold | card-then-banner (auto) page layout" [ref=f1e811] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e812]:
+                    - img "housewarming auto-generated layout" [ref=f1e815]
+                  - generic [ref=f1e816]:
+                    - heading "housewarming | festival-bold | card-then-banner (auto)" [level=3] [ref=f1e818]
+                    - paragraph [ref=f1e819]: Personal detail creates closeness and curiosity; gentle RSVP call-to-action feels natural rather than pushy.
+                    - paragraph [ref=f1e820]: By aakashsheth65
+                  - button "Select" [ref=f1e822]
+                - button "Select housewarming | festival-bold | festival-bold (auto) page layout" [ref=f1e823] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e824]:
+                    - img "housewarming auto-generated layout" [ref=f1e827]
+                  - generic [ref=f1e828]:
+                    - heading "housewarming | festival-bold | festival-bold (auto)" [level=3] [ref=f1e830]
+                    - paragraph [ref=f1e831]: Lighthearted nest metaphor pairs well with illustrated, playful visuals and invites guests into the spirit of new beginnings.
+                    - paragraph [ref=f1e832]: By aakashsheth65
+                  - button "Select" [ref=f1e834]
+                - button "Select housewarming | festival-bold | title-card-description (auto) page layout" [ref=f1e835] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e836]:
+                    - img "housewarming auto-generated layout" [ref=f1e839]
+                  - generic [ref=f1e840]:
+                    - heading "housewarming | festival-bold | title-card-description (auto)" [level=3] [ref=f1e842]
+                    - paragraph [ref=f1e843]: Upbeat and enthusiastic tone emphasizes joy and milestone, perfect for an illustrated, lively card design.
+                    - paragraph [ref=f1e844]: By aakashsheth65
+                  - button "Select" [ref=f1e846]
+                - button "Select housewarming | festival-bold | playful-card-led (auto) page layout" [ref=f1e847] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e848]:
+                    - img "housewarming auto-generated layout" [ref=f1e851]
+                  - generic [ref=f1e852]:
+                    - heading "housewarming | festival-bold | playful-card-led (auto)" [level=3] [ref=f1e854]
+                    - paragraph [ref=f1e855]: Clean, straightforward language with a contemporary edge suits minimalist or urban illustrated styles.
+                    - paragraph [ref=f1e856]: By aakashsheth65
+                  - button "Select" [ref=f1e858]
+                - button "Select housewarming | festival-bold | card-then-title (auto) page layout" [ref=f1e859] [cursor=pointer]:
+                  - generic "housewarming auto-generated layout" [ref=f1e860]:
+                    - img "housewarming auto-generated layout" [ref=f1e863]
+                  - generic [ref=f1e864]:
+                    - heading "housewarming | festival-bold | card-then-title (auto)" [level=3] [ref=f1e866]
+                    - paragraph [ref=f1e867]: Conversational and fun, inviting interaction and setting an easygoing expectation for the event atmosphere.
+                    - paragraph [ref=f1e868]: By aakashsheth65
+                  - button "Select" [ref=f1e870]
+                - button "Select wedding | festival-bold | title-leads-card (auto) page layout" [ref=f1e871] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e872]:
+                    - img "wedding auto-generated layout" [ref=f1e875]
+                  - generic [ref=f1e876]:
+                    - heading "wedding | festival-bold | title-leads-card (auto)" [level=3] [ref=f1e878]
+                    - paragraph [ref=f1e879]: Classic and heartfelt approach that centers the couple's names, perfect for a welcoming illustrated design.
+                    - paragraph [ref=f1e880]: By aakashsheth65
+                  - button "Select" [ref=f1e882]
+                - button "Select wedding | festival-bold | title-leads-card (auto) page layout" [ref=f1e883] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e884]:
+                    - img "wedding auto-generated layout" [ref=f1e887]
+                  - generic [ref=f1e888]:
+                    - heading "wedding | festival-bold | title-leads-card (auto)" [level=3] [ref=f1e890]
+                    - paragraph [ref=f1e891]: Contemporary language with a narrative twist that feels fresh and current for today's couples.
+                    - paragraph [ref=f1e892]: By aakashsheth65
+                  - button "Select" [ref=f1e894]
+                - button "Select wedding | festival-bold | card-then-title (auto) page layout" [ref=f1e895] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e896]:
+                    - img "wedding auto-generated layout" [ref=f1e899]
+                  - generic [ref=f1e900]:
+                    - heading "wedding | festival-bold | card-then-title (auto)" [level=3] [ref=f1e902]
+                    - paragraph [ref=f1e903]: Refined wording with gentle formality that balances sophistication with the illustrated visual style.
+                    - paragraph [ref=f1e904]: By aakashsheth65
+                  - button "Select" [ref=f1e906]
+                - button "Select wedding | festival-bold | card-then-banner (auto) page layout" [ref=f1e907] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e908]:
+                    - img "wedding auto-generated layout" [ref=f1e911]
+                  - generic [ref=f1e912]:
+                    - heading "wedding | festival-bold | card-then-banner (auto)" [level=3] [ref=f1e914]
+                    - paragraph [ref=f1e915]: Casual and spirited language that creates excitement and emphasizes the fun, social aspect of the event.
+                    - paragraph [ref=f1e916]: By aakashsheth65
+                  - button "Select" [ref=f1e918]
+                - button "Select wedding | festival-bold | title-leads-card (auto) page layout" [ref=f1e919] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e920]:
+                    - img "wedding auto-generated layout" [ref=f1e923]
+                  - generic [ref=f1e924]:
+                    - heading "wedding | festival-bold | title-leads-card (auto)" [level=3] [ref=f1e926]
+                    - paragraph [ref=f1e927]: Casual and spirited language that creates excitement and emphasizes the fun, social aspect of the event.
+                    - paragraph [ref=f1e928]: By aakashsheth65
+                  - button "Select" [ref=f1e930]
+                - button "Select wedding | festival-bold | title-leads-card (auto) page layout" [ref=f1e931] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e932]:
+                    - img "wedding auto-generated layout" [ref=f1e935]
+                  - generic [ref=f1e936]:
+                    - heading "wedding | festival-bold | title-leads-card (auto)" [level=3] [ref=f1e938]
+                    - paragraph [ref=f1e939]: Energetic and joyful language that invites guests to participate in the festive occasion.
+                    - paragraph [ref=f1e940]: By aakashsheth65
+                  - button "Select" [ref=f1e942]
+                - button "Select wedding | festival-bold | title-card-description (auto) page layout" [ref=f1e943] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e944]:
+                    - img "wedding auto-generated layout" [ref=f1e947]
+                  - generic [ref=f1e948]:
+                    - heading "wedding | festival-bold | title-card-description (auto)" [level=3] [ref=f1e950]
+                    - paragraph [ref=f1e951]: Contemporary language with a narrative twist that feels fresh and current for today's couples.
+                    - paragraph [ref=f1e952]: By aakashsheth65
+                  - button "Select" [ref=f1e954]
+                - button "Select wedding | festival-bold | card-then-banner (auto) page layout" [ref=f1e955] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e956]:
+                    - img "wedding auto-generated layout" [ref=f1e959]
+                  - generic [ref=f1e960]:
+                    - heading "wedding | festival-bold | card-then-banner (auto)" [level=3] [ref=f1e962]
+                    - paragraph [ref=f1e963]: Energetic and joyful language that invites guests to participate in the festive occasion.
+                    - paragraph [ref=f1e964]: By aakashsheth65
+                  - button "Select" [ref=f1e966]
+                - button "Select wedding | festival-bold | card-then-title (auto) page layout" [ref=f1e967] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e968]:
+                    - img "wedding auto-generated layout" [ref=f1e971]
+                  - generic [ref=f1e972]:
+                    - heading "wedding | festival-bold | card-then-title (auto)" [level=3] [ref=f1e974]
+                    - paragraph [ref=f1e975]: Time-honored phrasing with natural imagery that complements an illustrated backdrop beautifully.
+                    - paragraph [ref=f1e976]: By aakashsheth65
+                  - button "Select" [ref=f1e978]
+                - button "Select wedding | festival-bold | title-leads-card (auto) page layout" [ref=f1e979] [cursor=pointer]:
+                  - generic "wedding auto-generated layout" [ref=f1e980]:
+                    - img "wedding auto-generated layout" [ref=f1e983]
+                  - generic [ref=f1e984]:
+                    - heading "wedding | festival-bold | title-leads-card (auto)" [level=3] [ref=f1e986]
+                    - paragraph [ref=f1e987]: Refined wording with gentle formality that balances sophistication with the illustrated visual style.
+                    - paragraph [ref=f1e988]: By aakashsheth65
+                  - button "Select" [ref=f1e990]
+                - button "Select something page layout" [ref=f1e991] [cursor=pointer]:
+                  - generic "something invitation preview" [ref=f1e992]:
+                    - img "something invitation preview" [ref=f1e995]
+                  - generic [ref=f1e996]:
+                    - heading "something" [level=3] [ref=f1e998]
+                    - paragraph [ref=f1e999]: By aakashsheth65
+                  - button "Select" [ref=f1e1001]
+                - button "Select Garden Soirée page layout" [ref=f1e1002] [cursor=pointer]:
+                  - generic "Garden Soirée invite with description and borders" [ref=f1e1003]:
+                    - img "Garden Soirée invite with description and borders" [ref=f1e1006]
+                  - generic [ref=f1e1007]:
+                    - heading "Garden Soirée" [level=3] [ref=f1e1009]
+                    - paragraph [ref=f1e1010]: Light, refined layout with description block and map-ready details.
+                    - paragraph [ref=f1e1011]: By aakashsheth65
+                  - button "Select" [ref=f1e1013]
+                - button "Select Emerald Mist page layout" [ref=f1e1014] [cursor=pointer]:
+                  - generic "Emerald Mist invite template preview with rich green theme" [ref=f1e1015]:
+                    - img "Emerald Mist invite template preview with rich green theme" [ref=f1e1018]
+                  - generic [ref=f1e1019]:
+                    - heading "Emerald Mist" [level=3] [ref=f1e1021]
+                    - paragraph [ref=f1e1022]: Elegant green theme with countdown and details.
+                    - paragraph [ref=f1e1023]: By aakashsheth65
+                  - button "Select" [ref=f1e1025]
+                - button "Select Classic page layout" [ref=f1e1026] [cursor=pointer]:
+                  - generic "Classic invite template preview with dark elegant styling and countdown" [ref=f1e1027]:
+                    - img "Classic invite template preview with dark elegant styling and countdown" [ref=f1e1030]
+                  - generic [ref=f1e1031]:
+                    - heading "Classic" [level=3] [ref=f1e1033]
+                    - paragraph [ref=f1e1034]: Full layout with hero image, countdown, details, and footer.
+                    - paragraph [ref=f1e1035]: By aakashsheth65
+                  - button "Select" [ref=f1e1037]
+                - button "Select Minimal page layout" [ref=f1e1038] [cursor=pointer]:
+                  - generic "Minimal invite template preview with light background and clean typography" [ref=f1e1039]:
+                    - img "Minimal invite template preview with light background and clean typography" [ref=f1e1042]
+                  - generic [ref=f1e1043]:
+                    - heading "Minimal" [level=3] [ref=f1e1045]
+                    - paragraph [ref=f1e1046]: "Clean and simple: title, date & place, and actions."
+                    - paragraph [ref=f1e1047]: By aakashsheth65
+                  - button "Select" [ref=f1e1049]
+                - button "Select Testing template page layout" [ref=f1e1050] [cursor=pointer]:
+                  - generic "Testing template invitation preview" [ref=f1e1051]:
+                    - img "Testing template invitation preview" [ref=f1e1054]
+                  - generic [ref=f1e1055]:
+                    - heading "Testing template" [level=3] [ref=f1e1057]
+                    - paragraph [ref=f1e1058]: By aakashsheth65
+                  - button "Select" [ref=f1e1060]
+          - generic [ref=f1e1067]:
+            - paragraph [ref=f1e1068]: "Selected: Editorial"
+            - generic [ref=f1e1069]:
+              - button "Cancel" [ref=f1e1070] [cursor=pointer]
+              - button "Apply layout →" [ref=f1e1071] [cursor=pointer]
+  - alert [ref=f1e120]
