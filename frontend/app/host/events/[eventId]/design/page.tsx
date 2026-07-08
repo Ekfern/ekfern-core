@@ -13,7 +13,7 @@ import { logError } from '@/lib/error-handler'
 import { Input } from '@/components/ui/input'
 import DesignCatalogGrid, { useDesignCatalog } from '@/components/invite/DesignCatalogGrid'
 import { loadSelectedDesignContext, saveSelectedDesignContext } from '@/lib/invite/designContext'
-
+import { Minus, Plus } from "lucide-react";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -49,6 +49,7 @@ interface DragState {
   startBoxWidth: number
   startBoxHeight: number
   snapshot: TextBox[]
+  startFontSize: number
 }
 
 // ---------------------------------------------------------------------------
@@ -56,21 +57,21 @@ interface DragState {
 // ---------------------------------------------------------------------------
 
 const GRADIENT_PRESETS: { label: string; value: string }[] = [
-  { label: 'Rose Blush',  value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
-  { label: 'Sage Mist',   value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
-  { label: 'Dusk Blue',   value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
+  { label: 'Rose Blush', value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
+  { label: 'Sage Mist', value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
+  { label: 'Dusk Blue', value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
   { label: 'Golden Hour', value: 'linear-gradient(135deg, #fff8e1, #ffca28)' },
-  { label: 'Lavender',    value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
+  { label: 'Lavender', value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
   { label: 'Peach Cream', value: 'linear-gradient(135deg, #fff3e0, #ffb74d)' },
-  { label: 'Midnight',    value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
-  { label: 'Forest',      value: 'linear-gradient(135deg, #1b4332, #40916c)' },
+  { label: 'Midnight', value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
+  { label: 'Forest', value: 'linear-gradient(135deg, #1b4332, #40916c)' },
 ]
 
 const GRADIENT_DIRECTIONS = [
   { label: '↘ Diagonal', value: '135deg' },
-  { label: '↓ Down',     value: '180deg' },
-  { label: '→ Right',    value: '90deg'  },
-  { label: '↗ Up-right', value: '45deg'  },
+  { label: '↓ Down', value: '180deg' },
+  { label: '→ Right', value: '90deg' },
+  { label: '↗ Up-right', value: '45deg' },
 ]
 
 const SUBTITLE_MAP: Record<string, string> = {
@@ -369,6 +370,31 @@ export default function DesignPage(): React.ReactElement {
   const [userHasEditedText, setUserHasEditedText] = useState(false)
   const [pendingSample, setPendingSample] = useState<DesignSample | null>(null)
   const [sampleSearch, setSampleSearch] = useState('')
+  const fontSizeInterval = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const startChangingFontSize = (direction: 1 | -1) => {
+    if (!selectedBox) return
+
+    const change = () => {
+      const currentBox = textBoxes.find(box => box.id === selectedBox.id)
+
+      if (!currentBox) return
+
+      changeFontSize(currentBox.fontSize + direction)
+
+      fontSizeInterval.current = setTimeout(change, 80)
+    }
+
+    change()
+  }
+
+  const stopChangingFontSize = () => {
+    if (fontSizeInterval.current) {
+      clearTimeout(fontSizeInterval.current)
+      fontSizeInterval.current = null
+    }
+  }
+
 
   // Phase-1 background catalog (paginated + server-searched, only while choosing).
   const catalog = useDesignCatalog({ enabled: !hasSelectedBackground, q: sampleSearch })
@@ -376,7 +402,14 @@ export default function DesignPage(): React.ReactElement {
   // Refs for auto-save concurrency control
   const isSavingRef = useRef(false)
   const hasUserEditedRef = useRef(false) // prevents auto-save firing on initial load
+  const changeFontSize = (newSize: number) => {
+    if (!selectedBox) return
 
+    const size = clamp(newSize, 12, 200)
+
+    updateBox(selectedBox.id, "fontSize", size)
+    setFontSizeInput(String(size))
+  }
   // Load event + restore state — backend tile takes priority over localStorage (device-independent)
   useEffect(() => {
     if (!eventId || isNaN(eventId)) return
@@ -516,15 +549,27 @@ export default function DesignPage(): React.ReactElement {
     redoStack.current = []
   }, [])
 
-  function updateBox<K extends keyof TextBox>(id: string, key: K, value: TextBox[K]): void {
-    hasUserEditedRef.current = true
-    if (key === 'text') {
-      setUserHasEditedText(true)
-    } else {
-      pushHistory(textBoxesRef.current)
-    }
+  function updateBox<K extends keyof TextBox>(
+    id: string,
+    key: K,
+    value: TextBox[K]
+  ): void {
     setTextBoxes((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, [key]: value } : b))
+      prev.map((b) => {
+        if (b.id !== id) return b
+
+        if (key === "fontSize") {
+          return {
+            ...b,
+            fontSize: clamp(Number(value), 12, 200),
+          }
+        }
+
+        return {
+          ...b,
+          [key]: value,
+        }
+      })
     )
   }
 
@@ -611,21 +656,54 @@ export default function DesignPage(): React.ReactElement {
   // -------------------------------------------------------------------------
   // Drag handlers (pointer events on canvas container)
   // -------------------------------------------------------------------------
+  const updateTextBounds = (boxId: string) => {
+    if (!canvasRef.current) return
 
+    const textEl = contentEditableRefs.current.get(boxId)
+    if (!textEl) return
+
+    const canvasRect = canvasRef.current.getBoundingClientRect()
+    const textRect = textEl.getBoundingClientRect()
+
+    const width = (textRect.width / canvasRect.width) * 100
+    const height = (textRect.height / canvasRect.height) * 100
+
+
+    setTextBoxes(prev =>
+      prev.map(box => {
+        if (box.id !== boxId) return box
+
+        return {
+          ...box,
+          width,
+          height,
+        }
+      })
+    )
+  }
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
-    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight } = dragState.current
+    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
+    const resizeDelta = (dx + dy) / 2
+
+    const MIN_FONT_SIZE = 12
+    const MAX_FONT_SIZE = 200
+    const newFontSize = clamp(
+      Math.round(startFontSize + resizeDelta),
+      MIN_FONT_SIZE,
+      MAX_FONT_SIZE
+    )
     if (mode === 'resize') {
       setTextBoxes((prev) =>
         prev.map((b) => {
           if (b.id !== boxId) return b
           let newX = startBoxX, newY = startBoxY, newW = startBoxWidth, newH = startBoxHeight
           if (resizeHandle === 'se') {
-            newW = clamp(startBoxWidth + dx, 10, 100 - startBoxX)
-            newH = clamp(startBoxHeight + dy, 5, 100 - startBoxY)
+            newW = startBoxWidth
+            newH = startBoxHeight
           } else if (resizeHandle === 'sw') {
             const deltaW = -dx
             newW = clamp(startBoxWidth + deltaW, 10, startBoxX + startBoxWidth)
@@ -644,7 +722,28 @@ export default function DesignPage(): React.ReactElement {
             newH = clamp(startBoxHeight + deltaH, 5, startBoxY + startBoxHeight)
             newY = startBoxY + startBoxHeight - newH
           }
-          return { ...b, x: newX, y: newY, width: newW, height: newH }
+          const sensitivity =
+            startFontSize < 30
+              ? 1.2
+              : startFontSize < 60
+                ? 1.5
+                : 2
+
+          const fontSize = clamp(
+            Math.round(startFontSize + resizeDelta * sensitivity),
+            12,
+            200
+          )
+
+
+          return {
+            ...b,
+            x: newX,
+            y: newY,
+            width: startBoxWidth,
+            height: startBoxHeight,
+            fontSize,
+          }
         })
       )
     } else {
@@ -660,11 +759,12 @@ export default function DesignPage(): React.ReactElement {
 
   const handleCanvasPointerUp = useCallback(() => {
     if (dragState.current) {
+      updateTextBounds(dragState.current.boxId)
+
       pushHistory(dragState.current.snapshot)
       dragState.current = null
     }
   }, [pushHistory])
-
   // -------------------------------------------------------------------------
   // Upload handler
   // -------------------------------------------------------------------------
@@ -1083,23 +1183,89 @@ export default function DesignPage(): React.ReactElement {
               ))}
             </select>
 
-            {/* Font size */}
-            <div className="flex items-center gap-1">
+            {/* Font Size */}
+            <div className="flex items-center h-9 rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden">
+
+              {/* Decrease */}
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center border-r border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onMouseDown={() => startChangingFontSize(-1)}
+                onMouseUp={stopChangingFontSize}
+                onMouseLeave={stopChangingFontSize}
+                onClick={() => {
+                  if (!selectedBox) return
+                  changeFontSize(selectedBox.fontSize - 1)
+                }}
+              >
+                <Minus size={14} />
+              </button>
+
+              {/* Input */}
               <input
                 type="number"
-                min={8}
-                max={200}
-                value={fontSizeInput !== '' ? fontSizeInput : (selectedBox?.fontSize ?? 32)}
-                onFocus={() => setFontSizeInput(String(selectedBox?.fontSize ?? 32))}
-                onChange={(e) => setFontSizeInput(e.target.value)}
+                inputMode="numeric"
+                value={
+                  fontSizeInput !== ""
+                    ? fontSizeInput
+                    : (selectedBox?.fontSize ?? 32)
+                }
+                onFocus={() =>
+                  setFontSizeInput(String(selectedBox?.fontSize ?? 32))
+                }
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFontSizeInput(value)
+
+                  const v = parseInt(value, 10)
+
+                  if (!isNaN(v) && selectedBox) {
+                    changeFontSize(v)
+                  }
+
+                }}
+                onWheel={(e) => {
+                  e.preventDefault()
+
+                  if (!selectedBox) return
+
+                  const delta = e.deltaY < 0 ? 1 : -1
+
+                  changeFontSize(selectedBox.fontSize + delta)
+
+
+
+                }}
                 onBlur={() => {
                   const v = parseInt(fontSizeInput, 10)
-                  if (!isNaN(v) && selectedBox) updateBox(selectedBox.id, 'fontSize', clamp(v, 8, 200))
-                  setFontSizeInput('')
+
+                  if (!isNaN(v)) {
+                    changeFontSize(v)
+                  }
+                  setFontSizeInput("")
                 }}
-                className="w-16 text-sm border border-gray-300 rounded px-2 py-1 text-center"
+                className="w-12 text-center text-sm font-medium outline-none border-0 bg-transparent"
               />
-              <span className="text-xs text-gray-500">px</span>
+
+              <span className="text-xs text-gray-500 pr-2">
+                px
+              </span>
+
+              {/* Increase */}
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center border-l border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onMouseDown={() => startChangingFontSize(1)}
+                onMouseUp={stopChangingFontSize}
+                onMouseLeave={stopChangingFontSize}
+                onClick={() => {
+                  if (!selectedBox) return
+                  changeFontSize(selectedBox.fontSize + 1)
+                }}
+              >
+                <Plus size={14} />
+              </button>
+
             </div>
 
             <div className="w-px h-5 bg-gray-200 flex-none" />
@@ -1240,8 +1406,8 @@ export default function DesignPage(): React.ReactElement {
                 box.verticalAlign === 'top'
                   ? 'flex-start'
                   : box.verticalAlign === 'bottom'
-                  ? 'flex-end'
-                  : 'center'
+                    ? 'flex-end'
+                    : 'center'
 
               const textDecoration = [
                 box.underline ? 'underline' : '',
@@ -1257,10 +1423,10 @@ export default function DesignPage(): React.ReactElement {
                     position: 'absolute',
                     left: `${box.x}%`,
                     top: `${box.y}%`,
-                    width: `${box.width}%`,
-                    ...(box.height != null
-                      ? { height: `${box.height}%`, overflow: 'hidden' }
-                      : { minHeight: `${box.fontSize * 1.6}px` }),
+                    width: "fit-content",
+                    height: "auto",
+                    minHeight: `${box.fontSize * 1.6}px`,
+                    overflow: "visible",
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent,
@@ -1288,6 +1454,7 @@ export default function DesignPage(): React.ReactElement {
                       startBoxY: box.y,
                       startBoxWidth: box.width,
                       startBoxHeight: 0,
+                      startFontSize: box.fontSize,
                       snapshot: [...textBoxesRef.current],
                     }
                   }}
@@ -1323,9 +1490,10 @@ export default function DesignPage(): React.ReactElement {
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       outline: 'none',
-                      padding: '2px 4px',
+                      padding: '0',
                       textShadow: '0 1px 4px rgba(0,0,0,0.4)',
                       minWidth: '1em',
+
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') {
@@ -1347,7 +1515,7 @@ export default function DesignPage(): React.ReactElement {
 
                   {/* Corner resize handles — visible only when selected and not editing */}
                   {isSelected && !isEditing && (
-                    (['nw', 'ne', 'sw', 'se'] as ResizeHandle[]).map((handle) => {
+                    (['se'] as ResizeHandle[]).map((handle) => {
                       const isTop = handle.startsWith('n')
                       const isLeft = handle.endsWith('w')
                       const cursor = handle === 'nw' || handle === 'se' ? 'nwse-resize' : 'nesw-resize'
@@ -1385,6 +1553,7 @@ export default function DesignPage(): React.ReactElement {
                               startBoxY: box.y,
                               startBoxWidth: box.width,
                               startBoxHeight: box.height ?? renderedHeightPct,
+                              startFontSize: box.fontSize,
                               snapshot: [...textBoxesRef.current],
                             }
                           }}
@@ -1434,87 +1603,91 @@ export default function DesignPage(): React.ReactElement {
       {/* ------------------------------------------------------------------ */}
       {/* Keep-text confirmation dialog                                        */}
       {/* ------------------------------------------------------------------ */}
-      {pendingSample && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
-            <h3 className="text-base font-semibold text-gray-800">Replace your text?</h3>
-            <p className="text-sm text-gray-500">
-              This sample comes with its own text layout. Do you want to keep the text you've written or use the sample's text?
-            </p>
-            <div className="flex gap-3">
-              <button
-                className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                onClick={() => {
-                  saveSelectedDesignContext({
-                    eventId,
-                    sourceType: 'sample',
-                    sampleId: pendingSample.id,
-                    sampleName: pendingSample.name,
-                    sampleTags: pendingSample.tags,
-                    bgUrl: pendingSample.background_image_url,
-                    textOverlays: textBoxesRef.current,
-                    selectedAt: new Date().toISOString(),
-                  })
-                  setPendingSample(null)
-                }}
-              >
-                Keep my text
-              </button>
-              <button
-                className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
-                onClick={() => {
-                  setTextBoxes(pendingSample.text_overlays as TextBox[])
-                  setUserHasEditedText(false)
-                  saveSelectedDesignContext({
-                    eventId,
-                    sourceType: 'sample',
-                    sampleId: pendingSample.id,
-                    sampleName: pendingSample.name,
-                    sampleTags: pendingSample.tags,
-                    bgUrl: pendingSample.background_image_url,
-                    textOverlays: pendingSample.text_overlays as TextBox[],
-                    selectedAt: new Date().toISOString(),
-                  })
-                  setPendingSample(null)
-                }}
-              >
-                Use sample text
-              </button>
+      {
+        pendingSample && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
+              <h3 className="text-base font-semibold text-gray-800">Replace your text?</h3>
+              <p className="text-sm text-gray-500">
+                This sample comes with its own text layout. Do you want to keep the text you've written or use the sample's text?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: textBoxesRef.current,
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Keep my text
+                </button>
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+                  onClick={() => {
+                    setTextBoxes(pendingSample.text_overlays as TextBox[])
+                    setUserHasEditedText(false)
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: pendingSample.text_overlays as TextBox[],
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Use sample text
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* ------------------------------------------------------------------ */}
       {/* Background library modal                                             */}
       {/* ------------------------------------------------------------------ */}
-      {showBgModal && (
-        <BgModal
-          onClose={() => setShowBgModal(false)}
-          currentGradient={bgGradient}
-          onUploadClick={() => fileInputRef.current?.click()}
-          onSelectGradient={(gradient) => {
-            hasUserEditedRef.current = true
-            setHasSelectedBackground(true)
-            setBgGradient(gradient)
-            setBgUrl(null)
-            localStorage.setItem(`card-gradient-${eventId}`, gradient)
-            localStorage.removeItem(`card-bg-${eventId}`)
-            saveSelectedDesignContext({
-              eventId,
-              sourceType: 'gradient',
-              bgGradient: gradient,
-              textOverlays: textBoxesRef.current,
-              selectedAt: new Date().toISOString(),
-            })
-            setShowBgModal(false)
-          }}
-          onSelectSample={(sample) => {
-            applySampleBackground(sample)
-            setShowBgModal(false)
-          }}
-        />
-      )}
-    </div>
+      {
+        showBgModal && (
+          <BgModal
+            onClose={() => setShowBgModal(false)}
+            currentGradient={bgGradient}
+            onUploadClick={() => fileInputRef.current?.click()}
+            onSelectGradient={(gradient) => {
+              hasUserEditedRef.current = true
+              setHasSelectedBackground(true)
+              setBgGradient(gradient)
+              setBgUrl(null)
+              localStorage.tem(`card-gradient-${eventId}`, gradient)
+              localStorage.removeItem(`card-bg-${eventId}`)
+              saveSelectedDesignContext({
+                eventId,
+                sourceType: 'gradient',
+                bgGradient: gradient,
+                textOverlays: textBoxesRef.current,
+                selectedAt: new Date().toISOString(),
+              })
+              setShowBgModal(false)
+            }}
+            onSelectSample={(sample) => {
+              applySampleBackground(sample)
+              setShowBgModal(false)
+            }}
+          />
+        )
+      }
+    </div >
   )
 }
