@@ -201,30 +201,7 @@ export default function TextOverlayEditorModal({
   // ------------------------------------------------------------------
   // Drag / resize
   // ------------------------------------------------------------------
-  const updateTextBounds = (boxId: string) => {
-    if (!canvasRef.current) return
-
-    const textEl = contentEditableRefs.current.get(boxId)
-    if (!textEl) return
-
-    const canvasRect = canvasRef.current.getBoundingClientRect()
-    const textRect = textEl.getBoundingClientRect()
-
-    const width = (textRect.width / canvasRect.width) * 100
-    const height = (textRect.height / canvasRect.height) * 100
-
-    setTextBoxes(prev =>
-      prev.map(box =>
-        box.id === boxId
-          ? {
-            ...box,
-            width,
-            height,
-          }
-          : box
-      )
-    )
-  }
+ 
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
@@ -241,8 +218,6 @@ export default function TextOverlayEditorModal({
       e.clientY - startPointerY
     )
 
-
-
     const MIN_FONT_SIZE = 12
     const MAX_FONT_SIZE = 200
 
@@ -250,15 +225,6 @@ export default function TextOverlayEditorModal({
       setTextBoxes((prev) =>
         prev.map((b) => {
           if (b.id !== boxId) return b
-
-          const sensitivity =
-            startFontSize < 30
-              ? 1.2
-              : startFontSize < 60
-                ? 1.5
-                : 2
-
-
 
           const direction =
             (e.clientX - startPointerX) + (e.clientY - startPointerY) >= 0 ? 1 : -1
@@ -268,7 +234,7 @@ export default function TextOverlayEditorModal({
             MIN_FONT_SIZE,
             MAX_FONT_SIZE
           )
-          requestAnimationFrame(() => updateTextBounds(boxId))
+
 
           return {
             ...b,
@@ -587,10 +553,10 @@ export default function TextOverlayEditorModal({
                           position: 'absolute',
                           left: `${box.x}%`,
                           top: `${box.y}%`,
-                          width: `${box.width}%`,
-                          ...(box.height != null
-                            ? { height: `${box.height}%`, overflow: 'hidden' }
-                            : { minHeight: `${box.fontSize * 1.6}px` }),
+                          width: "fit-content",
+                          height: "auto",
+                          minHeight: `${box.fontSize * 1.6}px`,
+                          overflow: "visible",
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent,
@@ -618,6 +584,7 @@ export default function TextOverlayEditorModal({
                             startBoxY: box.y,
                             startBoxWidth: box.width,
                             startBoxHeight: 0,
+                            startFontSize: box.fontSize,
                           }
                         }}
                         onPointerMove={handleCanvasPointerMove}
