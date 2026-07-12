@@ -131,7 +131,7 @@ export default function Countdown({ targetDate, config, eventSlug, eventTitle }:
               className="text-2xl md:text-3xl font-bold tabular-nums"
               style={{
                 color: fontColor,
-                textShadow: '0 2px 8px rgba(244, 2, 2, 0.3)',
+                textShadow: '0 2px 8px rgba(0,0,0,0.3)',
               }}
             >
               {formatNumber(unit.value)}
@@ -212,4 +212,3 @@ export default function Countdown({ targetDate, config, eventSlug, eventTitle }:
     </div>
   )
 }
-

@@ -184,15 +184,12 @@ export default function TextOverlayEditorModal({
       fontFamily: '"Playfair Display", serif',
       fontSize: 32,
       color: '#ffffff',
-
       bold: false,
       italic: false,
       underline: false,
       strikethrough: false,
-
       textAlign: 'center',
       verticalAlign: 'middle',
-
       shadowX: 0,
       shadowY: 1,
       shadowBlur: 4,

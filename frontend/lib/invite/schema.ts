@@ -48,12 +48,6 @@ export interface TextOverlay {
   strikethrough: boolean
   textAlign: 'left' | 'center' | 'right'
   verticalAlign?: 'top' | 'middle' | 'bottom'
-  
-  shadowColor?: string
-  shadowX?: number
-  shadowY?: number
-  shadowBlur?: number
-  shadowOpacity?: number
 }
 
 export interface ImageTileSettings {
