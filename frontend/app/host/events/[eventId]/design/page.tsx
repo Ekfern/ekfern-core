@@ -370,31 +370,38 @@ export default function DesignPage(): React.ReactElement {
   const [userHasEditedText, setUserHasEditedText] = useState(false)
   const [pendingSample, setPendingSample] = useState<DesignSample | null>(null)
   const [sampleSearch, setSampleSearch] = useState('')
-  const fontSizeInterval = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+
+
 
   const startChangingFontSize = (direction: 1 | -1) => {
     if (!selectedBox) return
 
-    const change = () => {
-      const currentBox = textBoxes.find(box => box.id === selectedBox.id)
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(() => {
+        const current = textBoxesRef.current.find(
+          box => box.id === selectedBox.id
+        )
 
-      if (!currentBox) return
+        if (!current) return
 
-      changeFontSize(currentBox.fontSize + direction)
-
-      fontSizeInterval.current = setTimeout(change, 80)
-    }
-
-    change()
+        changeFontSize(current.fontSize + direction)
+      }, 80)
+    }, 400)
   }
 
   const stopChangingFontSize = () => {
-    if (fontSizeInterval.current) {
-      clearTimeout(fontSizeInterval.current)
-      fontSizeInterval.current = null
+    if (holdTimeout.current) {
+      clearTimeout(holdTimeout.current)
+      holdTimeout.current = null
+    }
+
+    if (holdInterval.current) {
+      clearInterval(holdInterval.current)
+      holdInterval.current = null
     }
   }
-
 
   // Phase-1 background catalog (paginated + server-searched, only while choosing).
   const catalog = useDesignCatalog({ enabled: !hasSelectedBackground, q: sampleSearch })
