@@ -56,21 +56,21 @@ interface DragState {
 // ---------------------------------------------------------------------------
 
 const GRADIENT_PRESETS: { label: string; value: string }[] = [
-  { label: 'Rose Blush',  value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
-  { label: 'Sage Mist',   value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
-  { label: 'Dusk Blue',   value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
+  { label: 'Rose Blush', value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
+  { label: 'Sage Mist', value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
+  { label: 'Dusk Blue', value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
   { label: 'Golden Hour', value: 'linear-gradient(135deg, #fff8e1, #ffca28)' },
-  { label: 'Lavender',    value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
+  { label: 'Lavender', value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
   { label: 'Peach Cream', value: 'linear-gradient(135deg, #fff3e0, #ffb74d)' },
-  { label: 'Midnight',    value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
-  { label: 'Forest',      value: 'linear-gradient(135deg, #1b4332, #40916c)' },
+  { label: 'Midnight', value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
+  { label: 'Forest', value: 'linear-gradient(135deg, #1b4332, #40916c)' },
 ]
 
 const GRADIENT_DIRECTIONS = [
   { label: '↘ Diagonal', value: '135deg' },
-  { label: '↓ Down',     value: '180deg' },
-  { label: '→ Right',    value: '90deg'  },
-  { label: '↗ Up-right', value: '45deg'  },
+  { label: '↓ Down', value: '180deg' },
+  { label: '→ Right', value: '90deg' },
+  { label: '↗ Up-right', value: '45deg' },
 ]
 
 const SUBTITLE_MAP: Record<string, string> = {
@@ -219,6 +219,11 @@ function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, o
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'samples' && (
             <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                <span aria-hidden>ⓘ</span>
+                <span>Images in this catalog are not owned by Ekfern.</span>
+              </div>
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
                 <Input
@@ -909,6 +914,9 @@ export default function DesignPage(): React.ReactElement {
               <h2 className="text-sm font-semibold text-gray-800">Ekfern Background Catalog</h2>
               <span className="text-xs text-gray-500">Select one to continue to text editing</span>
             </div>
+            <p className="text-xs text-gray-500">
+              Images in this catalog are not owned by Ekfern.
+            </p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
               <Input
@@ -1240,8 +1248,8 @@ export default function DesignPage(): React.ReactElement {
                 box.verticalAlign === 'top'
                   ? 'flex-start'
                   : box.verticalAlign === 'bottom'
-                  ? 'flex-end'
-                  : 'center'
+                    ? 'flex-end'
+                    : 'center'
 
               const textDecoration = [
                 box.underline ? 'underline' : '',
