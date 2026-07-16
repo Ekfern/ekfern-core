@@ -11,11 +11,11 @@ import { BRAND_NAME } from '@/lib/brand_utility'
 const SERIF = "'Cormorant Garamond', Georgia, serif"
 
 const C = {
-  dark:    '#0B3D2E',
-  parch:   '#E8D8C3',
-  gold:    '#D4A017',
-  earth:   '#8B5E3C',
-  teal:    '#218085',
+  dark: '#0B3D2E',
+  parch: '#E8D8C3',
+  gold: '#D4A017',
+  earth: '#8B5E3C',
+  teal: '#218085',
 } as const
 
 const fadeUp = {
@@ -45,7 +45,7 @@ export default function AboutPage() {
   }, [])
 
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: C.parch, cursor: `url('/cursor-fern.svg') 2 21, auto` }}>
+    <div className="public-site min-h-screen overflow-x-hidden" style={{ background: C.parch, cursor: `url('/cursor-fern.svg') 2 21, auto` }}>
 
       <SiteNav activePage="/about" />
 
@@ -262,11 +262,10 @@ export default function AboutPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-40px' }}
                   transition={{ duration: 0.65, delay: i * 0.08 }}
-                  className={`leading-relaxed ${
-                    i === 2
+                  className={`leading-relaxed ${i === 2
                       ? 'text-2xl md:text-3xl font-light text-center italic'
                       : 'text-base md:text-lg'
-                  }`}
+                    }`}
                   style={{
                     fontFamily: i === 2 ? SERIF : undefined,
                     color: i === 2 ? C.gold : '#a8c4b0',

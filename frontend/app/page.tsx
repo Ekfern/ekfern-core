@@ -10,21 +10,21 @@ import SiteFooter from '@/components/SiteFooter'
 import dynamic from 'next/dynamic'
 import type { Tile } from '@/lib/invite/schema'
 
-const TilePreview      = dynamic(() => import('@/components/invite/tiles/TilePreview'),  { ssr: false })
-const HeroCanvas       = dynamic(() => import('@/components/HeroCanvas'),                { ssr: false })
-const TryItLiveSection = dynamic(() => import('@/components/TryItLiveSection'),          { ssr: false })
+const TilePreview = dynamic(() => import('@/components/invite/tiles/TilePreview'), { ssr: false })
+const HeroCanvas = dynamic(() => import('@/components/HeroCanvas'), { ssr: false })
+const TryItLiveSection = dynamic(() => import('@/components/TryItLiveSection'), { ssr: false })
 
 const SERIF = "'Cormorant Garamond', Georgia, serif"
 
 // ── Brand palette ────────────────────────────────────────────────
 const C = {
-  dark:    '#0B3D2E',   // bottle green  — dark sections, hero, CTA, footer
-  parch:   '#E8D8C3',   // warm parchment — light sections background
-  gold:    '#D4A017',   // deep gold     — accents, decorative lines
-  earth:   '#8B5E3C',   // earth brown   — body text, subtle details
-  teal:    '#218085',   // brand teal    — interactive elements only
+  dark: '#0B3D2E',   // bottle green  — dark sections, hero, CTA, footer
+  parch: '#E8D8C3',   // warm parchment — light sections background
+  gold: '#D4A017',   // deep gold     — accents, decorative lines
+  earth: '#8B5E3C',   // earth brown   — body text, subtle details
+  teal: '#218085',   // brand teal    — interactive elements only
   darkMid: '#0f3326',
-  darkEdge:'#1a4d38',
+  darkEdge: '#1a4d38',
 } as const
 
 // Hardcoded decorative invite tile — no API call
@@ -69,8 +69,14 @@ export default function LandingPage() {
     return () => steps.forEach(s => observer.unobserve(s))
   }, [])
 
+
   return (
-    <div className="min-h-screen overflow-x-hidden scroll-smooth" style={{ background: C.parch, cursor: `url('/cursor-fern.svg') 2 21, auto` }}>
+    <div
+      className="public-site min-h-screen overflow-x-hidden scroll-smooth"
+      style={{
+        background: C.parch,
+      }}
+    >
 
       <SiteNav activePage="/" />
 
@@ -116,8 +122,10 @@ export default function LandingPage() {
           </div>
 
           {/* Radial glow overlay — softens WebGL into content area */}
-          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 2,
-            background: 'radial-gradient(ellipse 55% 60% at 65% 50%, rgba(33,128,133,0.08) 0%, transparent 65%)' }} />
+          <div className="absolute inset-0 pointer-events-none" style={{
+            zIndex: 2,
+            background: 'radial-gradient(ellipse 55% 60% at 65% 50%, rgba(33,128,133,0.08) 0%, transparent 65%)'
+          }} />
 
           <div className="max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-16 items-center relative" style={{ zIndex: 10 }}>
 
@@ -366,11 +374,11 @@ export default function LandingPage() {
 
               <div className="space-y-6">
                 {[
-                  { number: '01', img: '/how-it-works/create.svg',      title: 'Create',      description: 'Design beautiful digital invite pages in minutes.' },
-                  { number: '02', img: '/how-it-works/collect.svg',     title: 'Collect',     description: 'Track RSVPs and attendee responses effortlessly.' },
-                  { number: '03', img: '/how-it-works/organize.svg',    title: 'Organize',    description: 'Manage slots, sessions, and guest capacity clearly.' },
+                  { number: '01', img: '/how-it-works/create.svg', title: 'Create', description: 'Design beautiful digital invite pages in minutes.' },
+                  { number: '02', img: '/how-it-works/collect.svg', title: 'Collect', description: 'Track RSVPs and attendee responses effortlessly.' },
+                  { number: '03', img: '/how-it-works/organize.svg', title: 'Organize', description: 'Manage slots, sessions, and guest capacity clearly.' },
                   { number: '04', img: '/how-it-works/communicate.svg', title: 'Communicate', description: 'Send updates, reminders, and announcements in one click.' },
-                  { number: '05', img: '/how-it-works/automate.svg',    title: 'Automate',    description: 'Reduce manual follow-ups with smart reminders and scheduling.' },
+                  { number: '05', img: '/how-it-works/automate.svg', title: 'Automate', description: 'Reduce manual follow-ups with smart reminders and scheduling.' },
                 ].map((step, idx) => (
                   <div
                     key={idx}
