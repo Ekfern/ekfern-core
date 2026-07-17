@@ -1,6 +1,7 @@
 'use client'
 
-import { ChevronDown } from "lucide-react";
+
+import { ChevronDown, ChevronUp } from "lucide-react";
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useParams, useRouter } from 'next/navigation'
@@ -214,6 +215,8 @@ export default function DesignInvitationPage(): JSX.Element {
   const router = useRouter()
   const eventId = params.eventId ? parseInt(params.eventId as string) : 0
   const { showToast } = useToast()
+  const SCROLL_HINT_THRESHOLD = 20;
+
 
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
@@ -231,6 +234,9 @@ export default function DesignInvitationPage(): JSX.Element {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
   const [headerHeight, setHeaderHeight] = useState(160)
   const headerRef = useRef<HTMLDivElement>(null)
+  const lastScrollY = useRef(0);
+  const [hideHeader, setHideHeader] = useState(false);
+
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const gridContainerRef = useRef<HTMLDivElement>(null)
   const [stickyTop, setStickyTop] = useState(0)
@@ -263,6 +269,10 @@ export default function DesignInvitationPage(): JSX.Element {
   const [showLayoutLibraryOnStart, setShowLayoutLibraryOnStart] = useState(false)
   const [apiLayouts, setApiLayouts] = useState<InvitePageLayout[]>([])
   const [layoutsLoading, setLayoutsLoading] = useState(true)
+  const [showScrollHint, setShowScrollHint] = useState(true);
+
+  const [showEditor, setShowEditor] = useState(true);
+
 
   // Fetch invite page layouts from API (single source of truth)
   useEffect(() => {
@@ -271,6 +281,23 @@ export default function DesignInvitationPage(): JSX.Element {
       .catch(() => setApiLayouts([]))
       .finally(() => setLayoutsLoading(false))
   }, [])
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      console.log("hideHeader:", currentScrollY > 80);
+
+      setHideHeader(currentScrollY > 20);
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -911,6 +938,34 @@ export default function DesignInvitationPage(): JSX.Element {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
     }
   }, [serializedConfig, loading])
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      // Don't hide at the very top
+      if (currentScrollY < 20) {
+        setHideHeader(false);
+        lastScrollY.current = currentScrollY;
+        return;
+      }
+
+      if (currentScrollY > lastScrollY.current) {
+        // Scrolling down
+        setHideHeader(true);
+      } else {
+        // Scrolling up
+        setHideHeader(false);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   // Resize and optimize image for link previews (1200x630px)
   const resizeImageForPreview = (file: File): Promise<File> => {
@@ -1536,12 +1591,17 @@ export default function DesignInvitationPage(): JSX.Element {
     )
   }
 
+
   return (
     <div className="min-h-screen bg-eco-beige w-full overflow-x-hidden">
       {/* Wizard progress bar */}
       <WizardProgress currentStep={4} eventId={eventId} />
       {/* Header */}
-      <div ref={headerRef} className="sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden">
+      <div
+        ref={headerRef}
+        className={`sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden ${hideHeader ? "bg-red-500" : "bg-green-500"
+          }`}
+      >
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 w-full overflow-x-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 w-full">
             <div className="flex-1 min-w-0 w-full">
@@ -1749,6 +1809,8 @@ export default function DesignInvitationPage(): JSX.Element {
             </div>
           </div>
         </div>
+
+
       </div>
 
 
@@ -1780,9 +1842,13 @@ export default function DesignInvitationPage(): JSX.Element {
         <div ref={gridContainerRef} className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">
           {/* Left Panel - Settings */}
           <div
-            className="lg:col-span-3 overflow-y-auto hide-scrollbar"
+            className="relative lg:col-span-3 overflow-y-auto hide-scrollbar"
             style={{
               maxHeight: `calc(100vh - ${stickyTop}px)`,
+            }}
+            onScroll={(e) => {
+              const scrollTop = e.currentTarget.scrollTop;
+              setShowScrollHint(scrollTop < SCROLL_HINT_THRESHOLD);
             }}
           >
             {/* Page Settings */}
@@ -2620,6 +2686,14 @@ export default function DesignInvitationPage(): JSX.Element {
                 <p className="text-gray-500 text-sm">No tiles available</p>
               )}
             </div>
+            <div
+              className={`pointer-events-none sticky bottom-8 flex justify-center transition-all duration-300 ${showScrollHint
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-2"
+                }`}
+            >
+              <ChevronDown className="h-6 w-6 text-eco-green animate-bounce" />
+            </div>
           </div>
 
           {/* Right Panel - Preview */}
@@ -2751,10 +2825,7 @@ export default function DesignInvitationPage(): JSX.Element {
                 <p className="text-xs text-gray-500 mt-2 text-center">
                   Use the drag handle in Tile Settings (left) to reorder. Footer stays at the bottom.
                 </p>
-                <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 animate-bounce">
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                </div>
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-14 bg-gradient-to-t from-white via-white/80 to-transparent" />
+
               </div>
             </div>
           </>
