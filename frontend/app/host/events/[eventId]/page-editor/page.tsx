@@ -235,7 +235,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const [headerHeight, setHeaderHeight] = useState(160)
   const headerRef = useRef<HTMLDivElement>(null)
   const lastScrollY = useRef(0);
-  const [hideHeader, setHideHeader] = useState(false);
+  
 
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const gridContainerRef = useRef<HTMLDivElement>(null)
@@ -281,23 +281,31 @@ export default function DesignInvitationPage(): JSX.Element {
       .catch(() => setApiLayouts([]))
       .finally(() => setLayoutsLoading(false))
   }, [])
+
+  // Measure header height for sticky positioning
+  // Measure header height for sticky positioning
   useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        const height = headerRef.current.offsetHeight
+        setHeaderHeight(height + 16)
+        setStickyTop(height + 8)
+      }
+    }
 
-      console.log("hideHeader:", currentScrollY > 80);
+    updateHeaderHeight()
 
-      setHideHeader(currentScrollY > 20);
+    const t1 = setTimeout(updateHeaderHeight, 100)
+    const t2 = setTimeout(updateHeaderHeight, 500)
 
-      lastScrollY.current = currentScrollY;
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener('resize', updateHeaderHeight)
 
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
+      clearTimeout(t1)
+      clearTimeout(t2)
+      window.removeEventListener('resize', updateHeaderHeight)
+    }
+  }, [event])
 
   useEffect(() => {
     const loadData = async () => {
@@ -311,6 +319,7 @@ export default function DesignInvitationPage(): JSX.Element {
         const eventData = eventResponse.data
         setEvent(eventData)
 
+       
         // Always fetch sub-events (regardless of event_structure) for Event Carousel tile
         try {
           const subEventsResponse = await api.get(`/api/events/envelopes/${eventId}/sub-events/`)
@@ -938,34 +947,6 @@ export default function DesignInvitationPage(): JSX.Element {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
     }
   }, [serializedConfig, loading])
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      // Don't hide at the very top
-      if (currentScrollY < 20) {
-        setHideHeader(false);
-        lastScrollY.current = currentScrollY;
-        return;
-      }
-
-      if (currentScrollY > lastScrollY.current) {
-        // Scrolling down
-        setHideHeader(true);
-      } else {
-        // Scrolling up
-        setHideHeader(false);
-      }
-
-      lastScrollY.current = currentScrollY;
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
 
   // Resize and optimize image for link previews (1200x630px)
   const resizeImageForPreview = (file: File): Promise<File> => {
@@ -1592,16 +1573,13 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
 
+
   return (
     <div className="min-h-screen bg-eco-beige w-full overflow-x-hidden">
       {/* Wizard progress bar */}
       <WizardProgress currentStep={4} eventId={eventId} />
       {/* Header */}
-      <div
-        ref={headerRef}
-        className={`sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden ${hideHeader ? "bg-red-500" : "bg-green-500"
-          }`}
-      >
+      <div ref={headerRef} className="sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 w-full overflow-x-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 w-full">
             <div className="flex-1 min-w-0 w-full">

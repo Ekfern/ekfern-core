@@ -1,0 +1,118 @@
+[1mdiff --git a/frontend/app/host/events/[eventId]/page-editor/page.tsx b/frontend/app/host/events/[eventId]/page-editor/page.tsx[m
+[1mindex 635d788..790c856 100644[m
+[1m--- a/frontend/app/host/events/[eventId]/page-editor/page.tsx[m
+[1m+++ b/frontend/app/host/events/[eventId]/page-editor/page.tsx[m
+[36m@@ -235,7 +235,7 @@[m [mexport default function DesignInvitationPage(): JSX.Element {[m
+   const [headerHeight, setHeaderHeight] = useState(160)[m
+   const headerRef = useRef<HTMLDivElement>(null)[m
+   const lastScrollY = useRef(0);[m
+[31m-  const [hideHeader, setHideHeader] = useState(false);[m
+[32m+[m[41m  [m
+ [m
+   const rightPanelRef = useRef<HTMLDivElement>(null)[m
+   const gridContainerRef = useRef<HTMLDivElement>(null)[m
+[36m@@ -281,23 +281,31 @@[m [mexport default function DesignInvitationPage(): JSX.Element {[m
+       .catch(() => setApiLayouts([]))[m
+       .finally(() => setLayoutsLoading(false))[m
+   }, [])[m
+[31m-  useEffect(() => {[m
+[31m-    const handleScroll = () => {[m
+[31m-      const currentScrollY = window.scrollY;[m
+ [m
+[31m-      console.log("hideHeader:", currentScrollY > 80);[m
+[32m+[m[32m  // Measure header height for sticky positioning[m
+[32m+[m[32m  // Measure header height for sticky positioning[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    const updateHeaderHeight = () => {[m
+[32m+[m[32m      if (headerRef.current) {[m
+[32m+[m[32m        const height = headerRef.current.offsetHeight[m
+[32m+[m[32m        setHeaderHeight(height + 16)[m
+[32m+[m[32m        setStickyTop(height + 8)[m
+[32m+[m[32m      }[m
+[32m+[m[32m    }[m
+ [m
+[31m-      setHideHeader(currentScrollY > 20);[m
+[32m+[m[32m    updateHeaderHeight()[m
+ [m
+[31m-      lastScrollY.current = currentScrollY;[m
+[31m-    };[m
+[32m+[m[32m    const t1 = setTimeout(updateHeaderHeight, 100)[m
+[32m+[m[32m    const t2 = setTimeout(updateHeaderHeight, 500)[m
+ [m
+[31m-    window.addEventListener("scroll", handleScroll, { passive: true });[m
+[32m+[m[32m    window.addEventListener('resize', updateHeaderHeight)[m
+ [m
+     return () => {[m
+[31m-      window.removeEventListener("scroll", handleScroll);[m
+[31m-    };[m
+[31m-  }, []);[m
+[32m+[m[32m      clearTimeout(t1)[m
+[32m+[m[32m      clearTimeout(t2)[m
+[32m+[m[32m      window.removeEventListener('resize', updateHeaderHeight)[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }, [event])[m
+ [m
+   useEffect(() => {[m
+     const loadData = async () => {[m
+[36m@@ -311,6 +319,7 @@[m [mexport default function DesignInvitationPage(): JSX.Element {[m
+         const eventData = eventResponse.data[m
+         setEvent(eventData)[m
+ [m
+[32m+[m[41m       [m
+         // Always fetch sub-events (regardless of event_structure) for Event Carousel tile[m
+         try {[m
+           const subEventsResponse = await api.get(`/api/events/envelopes/${eventId}/sub-events/`)[m
+[36m@@ -938,34 +947,6 @@[m [mexport default function DesignInvitationPage(): JSX.Element {[m
+       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)[m
+     }[m
+   }, [serializedConfig, loading])[m
+[31m-  useEffect(() => {[m
+[31m-    const handleScroll = () => {[m
+[31m-      const currentScrollY = window.scrollY;[m
+[31m-[m
+[31m-      // Don't hide at the very top[m
+[31m-      if (currentScrollY < 20) {[m
+[31m-        setHideHeader(false);[m
+[31m-        lastScrollY.current = currentScrollY;[m
+[31m-        return;[m
+[31m-      }[m
+[31m-[m
+[31m-      if (currentScrollY > lastScrollY.current) {[m
+[31m-        // Scrolling down[m
+[31m-        setHideHeader(true);[m
+[31m-      } else {[m
+[31m-        // Scrolling up[m
+[31m-        setHideHeader(false);[m
+[31m-      }[m
+[31m-[m
+[31m-      lastScrollY.current = currentScrollY;[m
+[31m-    };[m
+[31m-[m
+[31m-    window.addEventListener("scroll", handleScroll, { passive: true });[m
+[31m-[m
+[31m-    return () => {[m
+[31m-      window.removeEventListener("scroll", handleScroll);[m
+[31m-    };[m
+[31m-  }, []);[m
+ [m
+   // Resize and optimize image for link previews (1200x630px)[m
+   const resizeImageForPreview = (file: File): Promise<File> => {[m
+[36m@@ -1592,16 +1573,13 @@[m [mexport default function DesignInvitationPage(): JSX.Element {[m
+   }[m
+ [m
+ [m
+[32m+[m
+   return ([m
+     <div className="min-h-screen bg-eco-beige w-full overflow-x-hidden">[m
+       {/* Wizard progress bar */}[m
+       <WizardProgress currentStep={4} eventId={eventId} />[m
+       {/* Header */}[m
+[31m-      <div[m
+[31m-        ref={headerRef}[m
+[31m-        className={`sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden ${hideHeader ? "bg-red-500" : "bg-green-500"[m
+[31m-          }`}[m
+[31m-      >[m
+[32m+[m[32m      <div ref={headerRef} className="sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden">[m
+         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 w-full overflow-x-hidden">[m
+           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 w-full">[m
+             <div className="flex-1 min-w-0 w-full">[m
