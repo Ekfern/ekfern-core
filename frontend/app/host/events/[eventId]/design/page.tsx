@@ -14,7 +14,7 @@ import { logError } from '@/lib/error-handler'
 import { Input } from '@/components/ui/input'
 import DesignCatalogGrid, { useDesignCatalog } from '@/components/invite/DesignCatalogGrid'
 import { loadSelectedDesignContext, saveSelectedDesignContext } from '@/lib/invite/designContext'
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus } from "lucide-react"
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -357,7 +357,7 @@ export default function DesignPage(): React.ReactElement {
   
   const dragState = useRef<DragState | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+  const fontPickerRef = useRef<HTMLDivElement>(null)
 
   const [effectsPosition, setEffectsPosition] = useState({
     top: 0,
@@ -389,6 +389,11 @@ export default function DesignPage(): React.ReactElement {
   const [userHasEditedText, setUserHasEditedText] = useState(false)
   const [pendingSample, setPendingSample] = useState<DesignSample | null>(null)
   const [sampleSearch, setSampleSearch] = useState('')
+  const [showFontPicker, setShowFontPicker] = useState(false)
+  const [fontSearch, setFontSearch] = useState("")
+  const [fontCategory, setFontCategory] = useState<
+    "all" | "sans-serif" | "serif" | "script" | "display"
+  >("all")
   const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
   const effectsRef = useRef<HTMLDivElement>(null)
@@ -566,6 +571,13 @@ export default function DesignPage(): React.ReactElement {
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node
+
+      if (
+        fontPickerRef.current &&
+        !fontPickerRef.current.contains(target)
+      ) {
+        setShowFontPicker(false)
+      }
 
       if (
         showEffects &&
@@ -994,7 +1006,7 @@ export default function DesignPage(): React.ReactElement {
   if (!hasSelectedBackground) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&display=swap');` }} />
+        <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
         <WizardProgress currentStep={2} eventId={eventId} />
 
         <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-4">
@@ -1145,7 +1157,7 @@ export default function DesignPage(): React.ReactElement {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Google Fonts */}
-      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&display=swap');` }} />
+      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
 
       <WizardProgress currentStep={2} eventId={eventId} />
 
@@ -1206,7 +1218,7 @@ export default function DesignPage(): React.ReactElement {
         </div>
 
         {/* Row 2: text format toolbar — always visible */}
-        <div className="relative bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 overflow-visible">
+        <div className="relative bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 flex-wrap overflow-visible">
           {/* Add Text — always active */}
           <button
             onClick={addTextBox}
@@ -1218,19 +1230,82 @@ export default function DesignPage(): React.ReactElement {
           <div className="w-px h-5 bg-gray-200 flex-none" />
 
           {/* Format controls — dimmed when no box selected */}
-          <div className={`flex items-center gap-2 flex-nowrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+          <div className={`flex items-center gap-2 flex-wrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
             {/* Font family */}
-            <select
-              value={selectedBox?.fontFamily ?? FONT_OPTIONS[0]!.family}
-              onChange={(e) => selectedBox && updateBox(selectedBox.id, 'fontFamily', e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white max-w-[130px]"
-            >
-              {FONT_OPTIONS.map((f) => (
-                <option key={f.id} value={f.family}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
+            <div ref={fontPickerRef} className="relative w-48">
+              <button
+                type="button"
+                onClick={() => setShowFontPicker(prev => !prev)}
+                className="w-full flex items-center justify-between
+             rounded-lg
+             border border-gray-300
+             bg-white
+             px-2.5 py-1.5
+             text-sm
+             shadow-sm
+             hover:border-blue-400
+             hover:shadow-md
+             transition-all"
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <span className="text-gray-500 font-semibold">Aa</span>
+
+                  <span
+                    style={{ fontFamily: selectedBox?.fontFamily }}
+                    className="truncate text-xs font-medium"
+                  >
+                    {FONT_OPTIONS.find(
+                      f => f.family === selectedBox?.fontFamily
+                    )?.name ?? "Select Font"}
+                  </span>
+                </div>
+
+                <svg
+                  className={`w-4 h-4 transition-transform ${showFontPicker ? "rotate-180" : ""
+                    }`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              {showFontPicker && (
+                <div
+                  className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="max-h-80 overflow-y-auto py-2">
+                    {FONT_OPTIONS.map((font) => (
+                      <button
+                        key={font.id}
+                        type="button"
+                        onClick={() => {
+                          if (selectedBox) {
+                            updateBox(selectedBox.id, "fontFamily", font.family)
+                          }
+                          setShowFontPicker(false)
+                        }}
+                        className="w-full text-left px-5 py-3 hover:bg-gray-100 transition-colors"
+                      >
+                        <span
+                          style={{ fontFamily: font.family }}
+                          className="text-lg"
+                        >
+                          {font.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                </div>
+              )}
+
+
+            </div>
 
             {/* Font Size */}
             <div className="flex items-center h-9 rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden">
@@ -1511,6 +1586,7 @@ export default function DesignPage(): React.ReactElement {
 
         </div>
       </div>
+
 
       {/* ------------------------------------------------------------------ */}
       {/* Canvas area                                                          */}

@@ -96,8 +96,10 @@ export default function TextOverlayEditorModal({
   onClose,
 }: Props): React.ReactElement | null {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const fontPickerRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<DragState | null>(null)
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const fontButtonRef = useRef<HTMLButtonElement>(null)
   const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
   const effectsButtonRef = useRef<HTMLButtonElement>(null)
@@ -107,6 +109,11 @@ export default function TextOverlayEditorModal({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fontSizeInput, setFontSizeInput] = useState<string>('')
+  const [showFontPicker, setShowFontPicker] = useState(false)
+  const [fontPickerPosition, setFontPickerPosition] = useState({
+    top: 0,
+    left: 0,
+  })
   const [showEffects, setShowEffects] = useState(false)
   const [effectsPosition, setEffectsPosition] = useState({
     top: 0,
@@ -182,6 +189,13 @@ export default function TextOverlayEditorModal({
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      if (
+        fontPickerRef.current &&
+        !fontPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowFontPicker(false)
+      }
+
       if (
         effectsRef.current &&
         !effectsRef.current.contains(event.target as Node) &&
@@ -321,7 +335,7 @@ export default function TextOverlayEditorModal({
   return (
     <>
       {/* Google Fonts — same set as greeting card studio */}
-      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&display=swap');` }} />
+      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
 
       {/* Backdrop */}
       <div
@@ -359,15 +373,54 @@ export default function TextOverlayEditorModal({
 
             <div className={`flex items-center gap-2 flex-wrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
               {/* Font family */}
-              <select
-                value={selectedBox?.fontFamily ?? FONT_OPTIONS[0]!.family}
-                onChange={(e) => selectedBox && updateBox(selectedBox.id, 'fontFamily', e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white max-w-[130px]"
-              >
-                {FONT_OPTIONS.map((f) => (
-                  <option key={f.id} value={f.family}>{f.name}</option>
-                ))}
-              </select>
+              <div ref={fontPickerRef} className="relative w-48">
+                <button
+                  ref={fontButtonRef}
+                  type="button"
+                  onClick={() => {
+                    if (!showFontPicker && fontButtonRef.current) {
+                      const rect = fontButtonRef.current.getBoundingClientRect()
+
+                      setFontPickerPosition({
+                        top: rect.bottom + 6,
+                        left: rect.left,
+                      })
+                    }
+
+                    setShowFontPicker((prev) => !prev)
+                  }}
+                  className="w-full flex items-center justify-between rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm shadow-sm hover:border-blue-400 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className="text-gray-500 font-semibold">Aa</span>
+
+                    <span
+                      style={{ fontFamily: selectedBox?.fontFamily }}
+                      className="truncate text-xs font-medium"
+                    >
+                      {FONT_OPTIONS.find(
+                        (f) => f.family === selectedBox?.fontFamily
+                      )?.name ?? "Select Font"}
+                    </span>
+                  </div>
+
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showFontPicker ? "rotate-180" : ""
+                      }`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+
+              </div>
+
 
               {/* Font Size */}
               <div className="flex items-center h-9 rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden">
@@ -590,6 +643,45 @@ export default function TextOverlayEditorModal({
 
             </div>
           </div>
+          {showFontPicker &&
+            createPortal(
+              <div
+                ref={fontPickerRef}
+                style={{
+                  position: "fixed",
+                  top: fontPickerPosition.top,
+                  left: fontPickerPosition.left,
+                  width: 288,
+                }}
+                className="rounded-xl border border-gray-200 bg-white shadow-2xl z-[9999]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="max-h-80 overflow-y-auto py-2">
+                  {FONT_OPTIONS.map((font) => (
+                    <button
+                      key={font.id}
+                      type="button"
+                      onClick={() => {
+                        if (selectedBox) {
+                          updateBox(selectedBox.id, "fontFamily", font.family)
+                        }
+                        setShowFontPicker(false)
+                      }}
+                      className="w-full text-left px-5 py-3 hover:bg-gray-100 transition-colors"
+                    >
+                      <span
+                        style={{ fontFamily: font.family }}
+                        className="text-lg"
+                      >
+                        {font.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>,
+              document.body
+            )}
+
           {showEffects &&
             createPortal(
               <div
@@ -613,7 +705,7 @@ export default function TextOverlayEditorModal({
                     <div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="font-medium text-gray-700">
-                          Shadow 
+                          Shadow
                         </span>
 
                         <span className="text-gray-500">
@@ -676,7 +768,6 @@ export default function TextOverlayEditorModal({
               </div>,
               document.body
             )}
-
 
           {/* Canvas area */}
           <div className="flex-1 flex flex-col items-center justify-start px-4 py-6 bg-gray-100 overflow-auto min-h-0">
