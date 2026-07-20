@@ -9,11 +9,11 @@ import SiteFooter from '@/components/SiteFooter'
 const SERIF = "'Cormorant Garamond', Georgia, serif"
 
 const C = {
-  dark:  '#0B3D2E',
+  dark: '#0B3D2E',
   parch: '#E8D8C3',
-  gold:  '#D4A017',
+  gold: '#D4A017',
   earth: '#8B5E3C',
-  teal:  '#218085',
+  teal: '#218085',
 } as const
 
 const USE_CASES = [
@@ -93,8 +93,10 @@ const USE_CASES = [
 
 export default function UseCasesPage() {
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: C.parch }}>
-
+    <div
+      className="public-site min-h-screen overflow-x-hidden"
+      style={{ background: C.parch }}
+    >
       <SiteNav activePage="/use-cases" />
 
       <main>
