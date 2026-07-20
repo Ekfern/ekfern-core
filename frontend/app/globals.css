@@ -216,6 +216,19 @@ input[type="range"].slider:focus::-moz-range-thumb {
   box-shadow: 0 0 0 3px rgba(11, 61, 46, 0.3);
 }
 
+/* Chrome, Edge, Safari */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .public-site,
 .public-site * {
   cursor: url('/cursor-fern.svg') 2 21, auto;

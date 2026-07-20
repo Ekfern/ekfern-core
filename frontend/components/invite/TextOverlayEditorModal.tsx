@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from "react-dom";
 import type { TextOverlay } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
-
+import { Plus, Minus } from "lucide-react"
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -44,6 +44,7 @@ interface DragState {
   startBoxY: number
   startBoxWidth: number
   startBoxHeight: number
+  startFontSize: number
 }
 
 export interface Props {
@@ -74,6 +75,11 @@ function overlayToTextBox(overlay: TextOverlay): TextBox {
     ...overlay,
     height: null,
     verticalAlign: overlay.verticalAlign ?? 'middle',
+    shadowX: overlay.shadowX ?? 0,
+    shadowY: overlay.shadowY ?? 1,
+    shadowBlur: overlay.shadowBlur ?? 4,
+    shadowOpacity: overlay.shadowOpacity ?? 0.8,
+    shadowColor: overlay.shadowColor ?? '#000000',
   }
 }
 
@@ -92,6 +98,8 @@ export default function TextOverlayEditorModal({
   const canvasRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<DragState | null>(null)
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
   const effectsButtonRef = useRef<HTMLButtonElement>(null)
   const effectsRef = useRef<HTMLDivElement>(null)
 
@@ -104,10 +112,49 @@ export default function TextOverlayEditorModal({
     top: 0,
     left: 0,
   })
+  const selectedBox = textBoxes.find((b) => b.id === selectedId) ?? null
+  const changeFontSize = (newSize: number) => {
+    if (!selectedBox) return
+
+    const size = clamp(newSize, 12, 200)
+
+    updateBox(selectedBox.id, "fontSize", size)
+    setFontSizeInput(String(size))
+  }
+  const startChangingFontSize = (direction: 1 | -1) => {
+    if (!selectedBox) return
+
+    // Start repeating only after 400ms
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(() => {
+        const current = textBoxesRef.current.find(
+          box => box.id === selectedBox.id
+        )
+
+        if (!current) return
+
+        changeFontSize(current.fontSize + direction)
+      }, 80)
+    }, 400)
+  }
+
+  const stopChangingFontSize = () => {
+    if (holdTimeout.current) {
+      clearTimeout(holdTimeout.current)
+      holdTimeout.current = null
+    }
+
+    if (holdInterval.current) {
+      clearInterval(holdInterval.current)
+      holdInterval.current = null
+    }
+  }
 
   // Keep a ref in sync so pointer-move callbacks always see the latest boxes
   const textBoxesRef = useRef<TextBox[]>([])
   useEffect(() => { textBoxesRef.current = textBoxes }, [textBoxes])
+
+
 
   // Reset state when the modal opens
   useEffect(() => {
@@ -151,8 +198,6 @@ export default function TextOverlayEditorModal({
       document.removeEventListener("mousedown", handleClickOutside)
     }
   }, [])
-
-  const selectedBox = textBoxes.find((b) => b.id === selectedId) ?? null
 
   // ------------------------------------------------------------------
   // Box mutation helpers
@@ -203,45 +248,45 @@ export default function TextOverlayEditorModal({
   // ------------------------------------------------------------------
   // Drag / resize
   // ------------------------------------------------------------------
-
+ 
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
     const {
       mode, resizeHandle, boxId,
       startPointerX, startPointerY,
-      startBoxX, startBoxY, startBoxWidth, startBoxHeight,
+      startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize
     } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
+
+    const dragDistance = Math.hypot(
+      e.clientX - startPointerX,
+      e.clientY - startPointerY
+    )
+
+    const MIN_FONT_SIZE = 12
+    const MAX_FONT_SIZE = 200
 
     if (mode === 'resize') {
       setTextBoxes((prev) =>
         prev.map((b) => {
           if (b.id !== boxId) return b
-          let newX = startBoxX, newY = startBoxY, newW = startBoxWidth, newH = startBoxHeight
-          if (resizeHandle === 'se') {
-            newW = clamp(startBoxWidth + dx, 10, 100 - startBoxX)
-            newH = clamp(startBoxHeight + dy, 5, 100 - startBoxY)
-          } else if (resizeHandle === 'sw') {
-            const dw = -dx
-            newW = clamp(startBoxWidth + dw, 10, startBoxX + startBoxWidth)
-            newX = startBoxX + startBoxWidth - newW
-            newH = clamp(startBoxHeight + dy, 5, 100 - startBoxY)
-          } else if (resizeHandle === 'ne') {
-            newW = clamp(startBoxWidth + dx, 10, 100 - startBoxX)
-            const dh = -dy
-            newH = clamp(startBoxHeight + dh, 5, startBoxY + startBoxHeight)
-            newY = startBoxY + startBoxHeight - newH
-          } else if (resizeHandle === 'nw') {
-            const dw = -dx
-            newW = clamp(startBoxWidth + dw, 10, startBoxX + startBoxWidth)
-            newX = startBoxX + startBoxWidth - newW
-            const dh = -dy
-            newH = clamp(startBoxHeight + dh, 5, startBoxY + startBoxHeight)
-            newY = startBoxY + startBoxHeight - newH
+
+          const direction =
+            (e.clientX - startPointerX) + (e.clientY - startPointerY) >= 0 ? 1 : -1
+
+          const fontSize = clamp(
+            Math.round(startFontSize + direction * dragDistance * 0.08),
+            MIN_FONT_SIZE,
+            MAX_FONT_SIZE
+          )
+
+
+          return {
+            ...b,
+            fontSize,
           }
-          return { ...b, x: newX, y: newY, width: newW, height: newH }
         })
       )
     } else {
@@ -324,21 +369,88 @@ export default function TextOverlayEditorModal({
                 ))}
               </select>
 
-              {/* Font size */}
-              <div className="flex items-center gap-1">
+              {/* Font Size */}
+              <div className="flex items-center h-9 rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden">
+
+                {/* Decrease */}
+                <button
+                  type="button"
+                  className="w-9 h-9 flex items-center justify-center border-r border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                  onMouseDown={() => startChangingFontSize(-1)}
+                  onMouseUp={stopChangingFontSize}
+                  onMouseLeave={stopChangingFontSize}
+                  onClick={() => {
+                    if (holdInterval.current) return
+                    if (!selectedBox) return
+                    changeFontSize(selectedBox.fontSize - 1)
+                  }}
+                >
+                  <Minus size={14} />
+                </button>
+
+                {/* Input */}
                 <input
-                  type="number" min={8} max={200}
-                  value={fontSizeInput !== '' ? fontSizeInput : (selectedBox?.fontSize ?? 32)}
-                  onFocus={() => setFontSizeInput(String(selectedBox?.fontSize ?? 32))}
-                  onChange={(e) => setFontSizeInput(e.target.value)}
+                  type="number"
+                  inputMode="numeric"
+                  value={
+                    fontSizeInput !== ""
+                      ? fontSizeInput
+                      : (selectedBox?.fontSize ?? 32)
+                  }
+                  onFocus={() =>
+                    setFontSizeInput(String(selectedBox?.fontSize ?? 32))
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setFontSizeInput(value)
+
+                    const v = parseInt(value, 10)
+
+                    if (!isNaN(v) && selectedBox) {
+                      changeFontSize(v)
+                    }
+                  }}
+                  onWheel={(e) => {
+                    e.preventDefault()
+
+                    if (!selectedBox) return
+
+                    const delta = e.deltaY < 0 ? 1 : -1
+
+                    changeFontSize(selectedBox.fontSize + delta)
+                  }}
                   onBlur={() => {
                     const v = parseInt(fontSizeInput, 10)
-                    if (!isNaN(v) && selectedBox) updateBox(selectedBox.id, 'fontSize', clamp(v, 8, 200))
-                    setFontSizeInput('')
+
+                    if (!isNaN(v)) {
+                      changeFontSize(v)
+                    }
+
+                    setFontSizeInput("")
                   }}
-                  className="w-16 text-sm border border-gray-300 rounded px-2 py-1 text-center"
+                  className="w-12 text-center text-sm font-medium outline-none border-0 bg-transparent"
                 />
-                <span className="text-xs text-gray-500">px</span>
+
+                <span className="text-xs text-gray-500 pr-2">
+                  px
+                </span>
+
+                {/* Increase */}
+                <button
+                  type="button"
+                  className="w-9 h-9 flex items-center justify-center border-l border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                  onMouseDown={() => startChangingFontSize(1)}
+                  onMouseUp={stopChangingFontSize}
+                  onMouseLeave={stopChangingFontSize}
+                  onClick={() => {
+                    if (holdInterval.current) return
+                    if (!selectedBox) return
+                    changeFontSize(selectedBox.fontSize + 1)
+                  }}
+                >
+                  <Plus size={14} />
+                </button>
+
               </div>
 
               <div className="w-px h-5 bg-gray-200 flex-none" />
@@ -615,10 +727,10 @@ export default function TextOverlayEditorModal({
                           position: 'absolute',
                           left: `${box.x}%`,
                           top: `${box.y}%`,
-                          width: `${box.width}%`,
-                          ...(box.height != null
-                            ? { height: `${box.height}%`, overflow: 'hidden' }
-                            : { minHeight: `${box.fontSize * 1.6}px` }),
+                          width: "fit-content",
+                          height: "auto",
+                          minHeight: `${box.fontSize * 1.6}px`,
+                          overflow: "visible",
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent,
@@ -646,6 +758,7 @@ export default function TextOverlayEditorModal({
                             startBoxY: box.y,
                             startBoxWidth: box.width,
                             startBoxHeight: 0,
+                            startFontSize: box.fontSize,
                           }
                         }}
                         onPointerMove={handleCanvasPointerMove}
@@ -674,7 +787,8 @@ export default function TextOverlayEditorModal({
                             textAlign: box.textAlign,
                             lineHeight: 1.3,
                             whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
+                            wordBreak: 'normal',
+                            overflowWrap: 'normal',
                             outline: 'none',
                             padding: '2px 4px',
                             textShadow:
@@ -697,7 +811,7 @@ export default function TextOverlayEditorModal({
 
                         {/* Corner resize handles — only when selected and not editing */}
                         {isSelected && !isEditing && (
-                          (['nw', 'ne', 'sw', 'se'] as ResizeHandle[]).map((handle) => {
+                          (['se'] as ResizeHandle[]).map((handle) => {
                             const isTop = handle.startsWith('n')
                             const isLeft = handle.endsWith('w')
                             const cursor =
@@ -737,6 +851,7 @@ export default function TextOverlayEditorModal({
                                     startBoxY: box.y,
                                     startBoxWidth: box.width,
                                     startBoxHeight: box.height ?? renderedHeightPct,
+                                    startFontSize: box.fontSize,
                                   }
                                 }}
                                 onPointerMove={handleCanvasPointerMove}

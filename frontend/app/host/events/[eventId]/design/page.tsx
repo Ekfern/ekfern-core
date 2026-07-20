@@ -14,7 +14,7 @@ import { logError } from '@/lib/error-handler'
 import { Input } from '@/components/ui/input'
 import DesignCatalogGrid, { useDesignCatalog } from '@/components/invite/DesignCatalogGrid'
 import { loadSelectedDesignContext, saveSelectedDesignContext } from '@/lib/invite/designContext'
-
+import { Minus, Plus } from "lucide-react";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -55,6 +55,7 @@ interface DragState {
   startBoxWidth: number
   startBoxHeight: number
   snapshot: TextBox[]
+  startFontSize: number
 }
 
 // ---------------------------------------------------------------------------
@@ -388,8 +389,38 @@ export default function DesignPage(): React.ReactElement {
   const [userHasEditedText, setUserHasEditedText] = useState(false)
   const [pendingSample, setPendingSample] = useState<DesignSample | null>(null)
   const [sampleSearch, setSampleSearch] = useState('')
+  const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
   const effectsRef = useRef<HTMLDivElement>(null)
   const effectsButtonRef = useRef<HTMLButtonElement>(null)
+
+  const startChangingFontSize = (direction: 1 | -1) => {
+    if (!selectedBox) return
+
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(() => {
+        const current = textBoxesRef.current.find(
+          box => box.id === selectedBox.id
+        )
+
+        if (!current) return
+
+        changeFontSize(current.fontSize + direction)
+      }, 80)
+    }, 400)
+  }
+
+  const stopChangingFontSize = () => {
+    if (holdTimeout.current) {
+      clearTimeout(holdTimeout.current)
+      holdTimeout.current = null
+    }
+
+    if (holdInterval.current) {
+      clearInterval(holdInterval.current)
+      holdInterval.current = null
+    }
+  }
 
   // Phase-1 background catalog (paginated + server-searched, only while choosing).
   const catalog = useDesignCatalog({ enabled: !hasSelectedBackground, q: sampleSearch })
@@ -397,7 +428,14 @@ export default function DesignPage(): React.ReactElement {
   // Refs for auto-save concurrency control
   const isSavingRef = useRef(false)
   const hasUserEditedRef = useRef(false) // prevents auto-save firing on initial load
+  const changeFontSize = (newSize: number) => {
+    if (!selectedBox) return
 
+    const size = clamp(newSize, 12, 200)
+
+    updateBox(selectedBox.id, "fontSize", size)
+    setFontSizeInput(String(size))
+  }
   // Load event + restore state — backend tile takes priority over localStorage (device-independent)
   useEffect(() => {
     if (!eventId || isNaN(eventId)) return
@@ -558,15 +596,27 @@ export default function DesignPage(): React.ReactElement {
     redoStack.current = []
   }, [])
 
-  function updateBox<K extends keyof TextBox>(id: string, key: K, value: TextBox[K]): void {
-    hasUserEditedRef.current = true
-    if (key === 'text') {
-      setUserHasEditedText(true)
-    } else {
-      pushHistory(textBoxesRef.current)
-    }
+  function updateBox<K extends keyof TextBox>(
+    id: string,
+    key: K,
+    value: TextBox[K]
+  ): void {
     setTextBoxes((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, [key]: value } : b))
+      prev.map((b) => {
+        if (b.id !== id) return b
+
+        if (key === "fontSize") {
+          return {
+            ...b,
+            fontSize: clamp(Number(value), 12, 200),
+          }
+        }
+
+        return {
+          ...b,
+          [key]: value,
+        }
+      })
     )
   }
 
@@ -655,21 +705,54 @@ export default function DesignPage(): React.ReactElement {
   // -------------------------------------------------------------------------
   // Drag handlers (pointer events on canvas container)
   // -------------------------------------------------------------------------
+  const updateTextBounds = (boxId: string) => {
+    if (!canvasRef.current) return
 
+    const textEl = contentEditableRefs.current.get(boxId)
+    if (!textEl) return
+
+    const canvasRect = canvasRef.current.getBoundingClientRect()
+    const textRect = textEl.getBoundingClientRect()
+
+    const width = (textRect.width / canvasRect.width) * 100
+    const height = (textRect.height / canvasRect.height) * 100
+
+
+    setTextBoxes(prev =>
+      prev.map(box => {
+        if (box.id !== boxId) return box
+
+        return {
+          ...box,
+          width,
+          height,
+        }
+      })
+    )
+  }
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
-    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight } = dragState.current
+    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
+    const resizeDelta = (dx + dy) / 2
+
+    const MIN_FONT_SIZE = 12
+    const MAX_FONT_SIZE = 200
+    const newFontSize = clamp(
+      Math.round(startFontSize + resizeDelta),
+      MIN_FONT_SIZE,
+      MAX_FONT_SIZE
+    )
     if (mode === 'resize') {
       setTextBoxes((prev) =>
         prev.map((b) => {
           if (b.id !== boxId) return b
           let newX = startBoxX, newY = startBoxY, newW = startBoxWidth, newH = startBoxHeight
           if (resizeHandle === 'se') {
-            newW = clamp(startBoxWidth + dx, 10, 100 - startBoxX)
-            newH = clamp(startBoxHeight + dy, 5, 100 - startBoxY)
+            newW = startBoxWidth
+            newH = startBoxHeight
           } else if (resizeHandle === 'sw') {
             const deltaW = -dx
             newW = clamp(startBoxWidth + deltaW, 10, startBoxX + startBoxWidth)
@@ -688,7 +771,28 @@ export default function DesignPage(): React.ReactElement {
             newH = clamp(startBoxHeight + deltaH, 5, startBoxY + startBoxHeight)
             newY = startBoxY + startBoxHeight - newH
           }
-          return { ...b, x: newX, y: newY, width: newW, height: newH }
+          const sensitivity =
+            startFontSize < 30
+              ? 1.2
+              : startFontSize < 60
+                ? 1.5
+                : 2
+
+          const fontSize = clamp(
+            Math.round(startFontSize + resizeDelta * sensitivity),
+            12,
+            200
+          )
+
+
+          return {
+            ...b,
+            x: newX,
+            y: newY,
+            width: startBoxWidth,
+            height: startBoxHeight,
+            fontSize,
+          }
         })
       )
     } else {
@@ -704,11 +808,12 @@ export default function DesignPage(): React.ReactElement {
 
   const handleCanvasPointerUp = useCallback(() => {
     if (dragState.current) {
+      updateTextBounds(dragState.current.boxId)
+
       pushHistory(dragState.current.snapshot)
       dragState.current = null
     }
   }, [pushHistory])
-
   // -------------------------------------------------------------------------
   // Upload handler
   // -------------------------------------------------------------------------
@@ -1127,23 +1232,89 @@ export default function DesignPage(): React.ReactElement {
               ))}
             </select>
 
-            {/* Font size */}
-            <div className="flex items-center gap-1">
+            {/* Font Size */}
+            <div className="flex items-center h-9 rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden">
+
+              {/* Decrease */}
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center border-r border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onMouseDown={() => startChangingFontSize(-1)}
+                onMouseUp={stopChangingFontSize}
+                onMouseLeave={stopChangingFontSize}
+                onClick={() => {
+                  if (!selectedBox) return
+                  changeFontSize(selectedBox.fontSize - 1)
+                }}
+              >
+                <Minus size={14} />
+              </button>
+
+              {/* Input */}
               <input
                 type="number"
-                min={8}
-                max={200}
-                value={fontSizeInput !== '' ? fontSizeInput : (selectedBox?.fontSize ?? 32)}
-                onFocus={() => setFontSizeInput(String(selectedBox?.fontSize ?? 32))}
-                onChange={(e) => setFontSizeInput(e.target.value)}
+                inputMode="numeric"
+                value={
+                  fontSizeInput !== ""
+                    ? fontSizeInput
+                    : (selectedBox?.fontSize ?? 32)
+                }
+                onFocus={() =>
+                  setFontSizeInput(String(selectedBox?.fontSize ?? 32))
+                }
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFontSizeInput(value)
+
+                  const v = parseInt(value, 10)
+
+                  if (!isNaN(v) && selectedBox) {
+                    changeFontSize(v)
+                  }
+
+                }}
+                onWheel={(e) => {
+                  e.preventDefault()
+
+                  if (!selectedBox) return
+
+                  const delta = e.deltaY < 0 ? 1 : -1
+
+                  changeFontSize(selectedBox.fontSize + delta)
+
+
+
+                }}
                 onBlur={() => {
                   const v = parseInt(fontSizeInput, 10)
-                  if (!isNaN(v) && selectedBox) updateBox(selectedBox.id, 'fontSize', clamp(v, 8, 200))
-                  setFontSizeInput('')
+
+                  if (!isNaN(v)) {
+                    changeFontSize(v)
+                  }
+                  setFontSizeInput("")
                 }}
-                className="w-16 text-sm border border-gray-300 rounded px-2 py-1 text-center"
+                className="w-12 text-center text-sm font-medium outline-none border-0 bg-transparent"
               />
-              <span className="text-xs text-gray-500">px</span>
+
+              <span className="text-xs text-gray-500 pr-2">
+                px
+              </span>
+
+              {/* Increase */}
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center border-l border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onMouseDown={() => startChangingFontSize(1)}
+                onMouseUp={stopChangingFontSize}
+                onMouseLeave={stopChangingFontSize}
+                onClick={() => {
+                  if (!selectedBox) return
+                  changeFontSize(selectedBox.fontSize + 1)
+                }}
+              >
+                <Plus size={14} />
+              </button>
+
             </div>
 
             <div className="w-px h-5 bg-gray-200 flex-none" />
@@ -1408,10 +1579,10 @@ export default function DesignPage(): React.ReactElement {
                     position: 'absolute',
                     left: `${box.x}%`,
                     top: `${box.y}%`,
-                    width: `${box.width}%`,
-                    ...(box.height != null
-                      ? { height: `${box.height}%`, overflow: 'hidden' }
-                      : { minHeight: `${box.fontSize * 1.6}px` }),
+                    width: "fit-content",
+                    height: "auto",
+                    minHeight: `${box.fontSize * 1.6}px`,
+                    overflow: "visible",
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent,
@@ -1439,6 +1610,7 @@ export default function DesignPage(): React.ReactElement {
                       startBoxY: box.y,
                       startBoxWidth: box.width,
                       startBoxHeight: 0,
+                      startFontSize: box.fontSize,
                       snapshot: [...textBoxesRef.current],
                     }
                   }}
@@ -1474,12 +1646,13 @@ export default function DesignPage(): React.ReactElement {
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       outline: 'none',
-                      padding: '2px 4px',
+                      padding: '0',
                       textShadow: `${box.shadowX ?? 0}px ${box.shadowY ?? 1}px ${box.shadowBlur ?? 4}px ${hexToRgba(
                         box.shadowColor ?? '#000000',
                         box.shadowOpacity ?? 0.8
                       )}`,
                       minWidth: '1em',
+
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') {
@@ -1501,7 +1674,7 @@ export default function DesignPage(): React.ReactElement {
 
                   {/* Corner resize handles — visible only when selected and not editing */}
                   {isSelected && !isEditing && (
-                    (['nw', 'ne', 'sw', 'se'] as ResizeHandle[]).map((handle) => {
+                    (['se'] as ResizeHandle[]).map((handle) => {
                       const isTop = handle.startsWith('n')
                       const isLeft = handle.endsWith('w')
                       const cursor = handle === 'nw' || handle === 'se' ? 'nwse-resize' : 'nesw-resize'
@@ -1539,6 +1712,7 @@ export default function DesignPage(): React.ReactElement {
                               startBoxY: box.y,
                               startBoxWidth: box.width,
                               startBoxHeight: box.height ?? renderedHeightPct,
+                              startFontSize: box.fontSize,
                               snapshot: [...textBoxesRef.current],
                             }
                           }}
