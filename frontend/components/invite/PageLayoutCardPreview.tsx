@@ -55,15 +55,25 @@ export function enrichConfigWithSampleData(config: InviteConfig): InviteConfig {
  * `DesignTile` already renders a dashed empty-state box when given no
  * image/gradient/overlays, so this alone produces the "add your design here"
  * placeholder. Pure function — never mutates the original config.
+ *
+ * Exception: tiles marked `isLayoutHero` are the layout's OWN baked-in
+ * gradient/title (e.g. a full-bleed hero design), not a staff-chosen photo —
+ * these are preserved so the layout's actual identity is visible while
+ * browsing, the same way page-level customColors.backgroundGradient already is.
+ * Only `src` (an actual uploaded photo) is still blanked in that case.
  */
 export function skeletonizeDesignTiles(config: InviteConfig): InviteConfig {
   if (!config.tiles?.length) return config
   const tiles = config.tiles.map((tile: Tile) => {
     if (tile.type !== 'design') return tile
+    const settings = tile.settings as Record<string, unknown>
+    if (settings.isLayoutHero) {
+      return { ...tile, settings: { ...settings, src: undefined } }
+    }
     return {
       ...tile,
       settings: {
-        ...(tile.settings as Record<string, unknown>),
+        ...settings,
         src: undefined,
         backgroundGradient: undefined,
         textOverlays: [],
@@ -79,7 +89,7 @@ export function skeletonizeDesignTiles(config: InviteConfig): InviteConfig {
  */
 export default function PageLayoutCardPreview({ config, className = '' }: PageLayoutCardPreviewProps): React.ReactElement {
   const theme = getTheme(config?.themeId ?? 'classic-noir')
-  const backgroundColor = config?.customColors?.backgroundColor ?? theme.palette.bg
+  const pageBackground = config?.customColors?.backgroundGradient || config?.customColors?.backgroundColor || theme.palette.bg
   const previewConfig = useMemo(
     () => skeletonizeDesignTiles(enrichConfigWithSampleData(config)),
     [config]
@@ -88,7 +98,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
   return (
     <div
       className={`relative w-full aspect-[9/16] overflow-hidden ${className}`}
-      style={{ backgroundColor, background: backgroundColor }}
+      style={{ background: pageBackground }}
       aria-hidden
     >
       {/*

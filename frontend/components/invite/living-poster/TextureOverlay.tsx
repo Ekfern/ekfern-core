@@ -14,6 +14,54 @@ export interface TextureOverlayProps {
  * CSS-based texture overlay that sits underneath all content.
  * When imageUrl is set, can render an image texture (overlay or replace CSS texture).
  */
+/**
+ * Modern film-grain/noise overlay using an SVG turbulence filter — reads as
+ * analog photographic grain over a rich gradient, unlike the repeating-CSS
+ * craft-material patterns used by the other texture types.
+ */
+function GrainOverlay({ opacity }: { opacity: number }) {
+  const filterId = `fern-grain-${React.useId().replace(/:/g, '')}`
+  return (
+    <div
+      aria-hidden
+      data-texture-type="grain"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 1,
+        opacity,
+        mixBlendMode: 'overlay',
+      }}
+    >
+      <svg width="100%" height="100%">
+        <filter id={filterId}>
+          <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" result="noise" />
+          {/* Convert to true grayscale luminance (both dark and light specks) at full
+              opacity — 'overlay' blend needs value variation on both sides of mid-gray
+              to read on both dark and light backgrounds. Pure-white-at-variable-alpha
+              (the previous approach) only ever lightens, which is nearly invisible
+              once blended over a dark gradient. */}
+          <feColorMatrix
+            in="noise"
+            type="matrix"
+            values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 0 1"
+          />
+          <feComponentTransfer>
+            <feFuncR type="linear" slope="2.2" intercept="-0.35" />
+            <feFuncG type="linear" slope="2.2" intercept="-0.35" />
+            <feFuncB type="linear" slope="2.2" intercept="-0.35" />
+          </feComponentTransfer>
+        </filter>
+        <rect width="100%" height="100%" filter={`url(#${filterId})`} />
+      </svg>
+    </div>
+  )
+}
+
 export default function TextureOverlay({ type, intensity = 40, imageUrl, textureBlend = 'overlay' }: TextureOverlayProps) {
   const opacity = intensity / 100
   const showCssTexture = type !== 'none' && (!imageUrl || textureBlend !== 'replace')
@@ -21,6 +69,10 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
 
   if (!showCssTexture && !showImageTexture) {
     return null
+  }
+
+  if (type === 'grain' && showCssTexture) {
+    return <GrainOverlay opacity={opacity} />
   }
 
   if (showImageTexture && (textureBlend === 'replace' || !showCssTexture)) {

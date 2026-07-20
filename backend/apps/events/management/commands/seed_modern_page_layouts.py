@@ -1,16 +1,24 @@
 """
 Django management command to seed the first batch of "universal" curated
-page layouts: Keynote, Letterpress, and Editorial.
+page layouts: Grain, Glass, and Ink.
 
-Unlike the original 4 defaults (seed_page_layouts.py), these deliberately
-leave tile-level color fields (buttonColor, fontColor, borderColor, etc.)
-unset wherever the tile should inherit the live theme / Design-step-derived
-palette, instead of baking literal hex values into every field. Only
-structural/typographic choices (themeId, texture, borderStyle, textAlign,
-font family where it differs from the theme default) are set explicitly.
+Replaces an earlier batch (Keynote, Letterpress, Editorial) that reused the
+default tile look with only colors/fonts swapped — which read as flat and
+generic. This batch is built around specific design references (moody
+grainy poster photography, a frosted-glass floating card, a single
+saturated flat color with huge whitespace) and leans on real rendering
+capabilities added alongside this command: the 'grain' texture (SVG
+turbulence noise, not a repeating craft pattern), the 'glass' borderStyle
+(frosted blur card) and 'glass' buttonVariant, and the Title tile's
+'eyebrow' kicker line. Colors are still baked in directly (customColors)
+rather than left unset, because in all reference designs the background
+*is* the design — an empty/theme-default background would undercut the
+look before the host even reaches the Design step.
 
-Creates Keynote, Letterpress, and Editorial if they do not already exist
-(keyed by name). Idempotent: re-running does not create duplicates.
+Creates Grain, Glass, and Ink if they do not already exist (keyed by
+name). Deletes any leftover rows from the previous batch (Keynote,
+Letterpress, Editorial) first. Idempotent: re-running does not create
+duplicates.
 
 Usage:
     python manage.py seed_modern_page_layouts
@@ -24,13 +32,24 @@ from apps.events.models import InvitePageLayout
 User = get_user_model()
 
 SEED_DATE = '2025-06-14'
+OLD_BATCH_NAMES = ['Keynote', 'Letterpress', 'Editorial']
 
 
-def get_keynote_config():
+def get_grain_config():
     return {
-        'themeId': 'carbon',
-        'customColors': {},
-        'texture': {'type': 'none', 'intensity': 0},
+        'themeId': 'classic-noir',
+        'customColors': {
+            'backgroundGradient': 'linear-gradient(160deg, #0B1120 0%, #1B2A5C 45%, #2E1E52 100%)',
+            'fontColor': '#F5F5F7',
+            'primaryColor': '#FF5A3C',
+            'mutedColor': '#9AA3C4',
+        },
+        'customFonts': {
+            'titleFont': "'Montserrat', sans-serif",
+            'bodyFont': 'Inter, system-ui, sans-serif',
+        },
+        'texture': {'type': 'grain', 'intensity': 40},
+        'spacing': 'spacious',
         'tiles': [
             {
                 'id': 'tile-title-0',
@@ -39,8 +58,10 @@ def get_keynote_config():
                 'order': 0,
                 'settings': {
                     'text': 'Event Title',
-                    'size': 'large',
-                    # font + color unset -> inherit carbon theme (Inter, off-white)
+                    'size': 'xlarge',
+                    'textAlign': 'left',
+                    'eyebrow': 'SAVE THE DATE',
+                    # eyebrowColor / font / color unset -> inherit coral primary + Montserrat
                 },
             },
             {
@@ -49,7 +70,8 @@ def get_keynote_config():
                 'enabled': True,
                 'order': 1,
                 'settings': {
-                    'content': '<p style="text-align: center">Join us for an evening to remember.</p>',
+                    'content': '<p style="text-align: left">An evening, thoughtfully gathered.</p>',
+                    'textAlign': 'left',
                 },
             },
             {
@@ -60,9 +82,12 @@ def get_keynote_config():
                 'settings': {
                     'location': '',
                     'date': SEED_DATE,
-                    'borderStyle': 'minimal',
+                    'textAlign': 'left',
+                    'borderStyle': 'none',
                     'backgroundColor': 'transparent',
-                    # fontColor / borderColor unset -> inherit theme
+                    'buttonVariant': 'bracket',
+                    'buttonRadius': 'sharp',
+                    # fontColor unset -> inherits theme
                 },
             },
             {
@@ -72,9 +97,8 @@ def get_keynote_config():
                 'order': 3,
                 'settings': {
                     'rsvpLabel': 'RSVP',
-                    'buttonVariant': 'classic',
-                    'buttonRadius': 'pill',
-                    # buttonColor unset -> inherits carbon's Apple-blue primary
+                    'buttonVariant': 'bracket',
+                    'buttonRadius': 'sharp',
                 },
             },
             {
@@ -84,17 +108,28 @@ def get_keynote_config():
                 'order': 4,
                 'settings': {
                     'text': 'Made with care.',
+                    'showDivider': False,
                 },
             },
         ],
     }
 
 
-def get_letterpress_config():
+def get_glass_config():
     return {
-        'themeId': 'warm-parchment',
-        'customColors': {},
-        'texture': {'type': 'paper-grain', 'intensity': 20},
+        'themeId': 'classic-noir',
+        'customColors': {
+            'backgroundGradient': 'linear-gradient(135deg, #2B0B6B 0%, #5A1FB0 40%, #1447E6 100%)',
+            'fontColor': '#FFFFFF',
+            'primaryColor': '#FFFFFF',
+            'mutedColor': '#D8D3FF',
+        },
+        'customFonts': {
+            'titleFont': 'Inter, system-ui, sans-serif',
+            'bodyFont': 'Inter, system-ui, sans-serif',
+        },
+        'texture': {'type': 'grain', 'intensity': 22},
+        'spacing': 'spacious',
         'tiles': [
             {
                 'id': 'tile-title-0',
@@ -104,8 +139,7 @@ def get_letterpress_config():
                 'settings': {
                     'text': 'Event Title',
                     'size': 'large',
-                    'subtitle': 'Join us to celebrate',
-                    # font unset -> inherits warm-parchment's Cormorant Garamond
+                    'eyebrow': "YOU'RE INVITED",
                 },
             },
             {
@@ -114,7 +148,7 @@ def get_letterpress_config():
                 'enabled': True,
                 'order': 1,
                 'settings': {
-                    'content': '<p style="text-align: center">A celebration to remember, surrounded by those we love.</p>',
+                    'content': '<p style="text-align: center">Request-only access. We\'ll see you there.</p>',
                 },
             },
             {
@@ -125,9 +159,9 @@ def get_letterpress_config():
                 'settings': {
                     'location': '',
                     'date': SEED_DATE,
-                    'borderStyle': 'elegant',
-                    'decorativeSymbol': '❦',
-                    # fontColor / borderColor unset -> inherit theme
+                    'borderStyle': 'glass',
+                    'buttonVariant': 'glass',
+                    'buttonRadius': 'pill',
                 },
             },
             {
@@ -137,8 +171,8 @@ def get_letterpress_config():
                 'order': 3,
                 'settings': {
                     'rsvpLabel': 'RSVP',
-                    'buttonVariant': 'ornate',
-                    'buttonRadius': 'subtle',
+                    'buttonVariant': 'glass',
+                    'buttonRadius': 'pill',
                 },
             },
             {
@@ -147,18 +181,29 @@ def get_letterpress_config():
                 'enabled': True,
                 'order': 4,
                 'settings': {
-                    'text': "We can't wait to celebrate with you.",
+                    'text': 'Made with care.',
+                    'showDivider': False,
                 },
             },
         ],
     }
 
 
-def get_editorial_config():
+def get_ink_config():
     return {
-        'themeId': 'minimal-ivory',
-        'customColors': {},
-        'texture': {'type': 'none', 'intensity': 0},
+        'themeId': 'carbon',
+        'customColors': {
+            'backgroundColor': '#0F2E22',
+            'fontColor': '#F5F5F0',
+            'primaryColor': '#EAF5EE',
+            'mutedColor': '#7FA396',
+        },
+        'customFonts': {
+            'titleFont': "'Montserrat', sans-serif",
+            'bodyFont': 'Inter, system-ui, sans-serif',
+        },
+        'texture': {'type': 'grain', 'intensity': 12},
+        'spacing': 'spacious',
         'tiles': [
             {
                 'id': 'tile-title-0',
@@ -167,9 +212,9 @@ def get_editorial_config():
                 'order': 0,
                 'settings': {
                     'text': 'Event Title',
-                    'size': 'large',
+                    'size': 'medium',
                     'textAlign': 'left',
-                    # font unset -> inherits minimal-ivory's Playfair Display
+                    'eyebrow': 'THE DETAILS',
                 },
             },
             {
@@ -178,7 +223,8 @@ def get_editorial_config():
                 'enabled': True,
                 'order': 1,
                 'settings': {
-                    'content': '<p style="text-align: left">An evening of celebration, thoughtfully gathered.</p>',
+                    'content': '<p style="text-align: left">Quietly, joyfully, together.</p>',
+                    'textAlign': 'left',
                 },
             },
             {
@@ -190,7 +236,9 @@ def get_editorial_config():
                     'location': '',
                     'date': SEED_DATE,
                     'textAlign': 'left',
-                    'borderStyle': 'minimal',
+                    'borderStyle': 'none',
+                    'backgroundColor': 'transparent',
+                    'buttonVariant': 'link',
                 },
             },
             {
@@ -201,7 +249,6 @@ def get_editorial_config():
                 'settings': {
                     'rsvpLabel': 'RSVP',
                     'buttonVariant': 'link',
-                    'buttonRadius': 'sharp',
                 },
             },
             {
@@ -210,7 +257,8 @@ def get_editorial_config():
                 'enabled': True,
                 'order': 4,
                 'settings': {
-                    'text': 'With love, always.',
+                    'text': 'Made with care.',
+                    'showDivider': False,
                 },
             },
         ],
@@ -219,31 +267,31 @@ def get_editorial_config():
 
 MODERN_PAGE_LAYOUTS = [
     {
-        'name': 'Keynote',
-        'description': 'Near-black, confident type, one accent color. No ornamentation.',
+        'name': 'Grain',
+        'description': 'Moody blue-violet gradient, film grain, bold left-aligned poster type.',
         'thumbnail': '/invite-templates/minimal.svg',
-        'preview_alt': 'Keynote invite page layout preview with dark tech-premium styling',
-        'config_fn': get_keynote_config,
+        'preview_alt': 'Grain invite page layout preview with moody grainy gradient and bold poster typography',
+        'config_fn': get_grain_config,
     },
     {
-        'name': 'Letterpress',
-        'description': 'Parchment, serif type, ornamental dividers, paper texture.',
+        'name': 'Glass',
+        'description': 'Vivid violet-blue gradient with a frosted glass card floating center.',
         'thumbnail': '/invite-templates/minimal.svg',
-        'preview_alt': 'Letterpress invite page layout preview with warm parchment styling',
-        'config_fn': get_letterpress_config,
+        'preview_alt': 'Glass invite page layout preview with a frosted glass card over a vivid gradient',
+        'config_fn': get_glass_config,
     },
     {
-        'name': 'Editorial',
-        'description': 'Left-aligned masthead title, generous whitespace, magazine feel.',
+        'name': 'Ink',
+        'description': 'One deep saturated forest green, zero borders, tiny precise type.',
         'thumbnail': '/invite-templates/minimal.svg',
-        'preview_alt': 'Editorial invite page layout preview with left-aligned minimalist styling',
-        'config_fn': get_editorial_config,
+        'preview_alt': 'Ink invite page layout preview with a deep saturated forest green and minimal typography',
+        'config_fn': get_ink_config,
     },
 ]
 
 
 class Command(BaseCommand):
-    help = 'Seed the first batch of modern page layouts (Keynote, Letterpress, Editorial)'
+    help = 'Seed the modern page layouts batch (Grain, Glass, Ink), removing the earlier Keynote/Letterpress/Editorial batch'
 
     def handle(self, *args, **options):
         seed_user = User.objects.filter(is_staff=True).first() or User.objects.filter(is_superuser=True).first()
@@ -253,10 +301,15 @@ class Command(BaseCommand):
             )
             return
 
+        removed, _ = InvitePageLayout.objects.filter(name__in=OLD_BATCH_NAMES).delete()
+        if removed:
+            self.stdout.write(f'Removed {removed} row(s) from the previous batch (Keynote/Letterpress/Editorial).')
+
         created_count = 0
+        updated_count = 0
         for spec in MODERN_PAGE_LAYOUTS:
             config = spec['config_fn']()
-            obj, created = InvitePageLayout.objects.get_or_create(
+            obj, created = InvitePageLayout.objects.update_or_create(
                 name=spec['name'],
                 defaults={
                     'description': spec['description'],
@@ -272,6 +325,7 @@ class Command(BaseCommand):
                 created_count += 1
                 self.stdout.write(self.style.SUCCESS(f'Created page layout: {obj.name} (id={obj.id})'))
             else:
-                self.stdout.write(f'Page layout already exists: {obj.name}')
+                updated_count += 1
+                self.stdout.write(f'Updated page layout: {obj.name} (id={obj.id})')
 
-        self.stdout.write(self.style.SUCCESS(f'Done. Created {created_count} new page layout(s).'))
+        self.stdout.write(self.style.SUCCESS(f'Done. Created {created_count}, updated {updated_count} page layout(s).'))

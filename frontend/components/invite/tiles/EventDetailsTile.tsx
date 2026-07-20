@@ -5,8 +5,9 @@ import { MapPin, ChevronDown, Calendar, Download } from 'lucide-react'
 import { EventDetailsTileSettings } from '@/lib/invite/schema'
 import { getTimezoneLabel } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
-import { getAutomaticLabelColor, hexToRgb, getBrightnessPercentage } from '@/lib/invite/colorUtils'
+import { getAutomaticLabelColor } from '@/lib/invite/colorUtils'
 import { isValidMapUrl, getEmbedUrl, canShowMap, generateMapUrlFromLocation, generateMapUrlFromCoordinates } from '@/lib/invite/mapUtils'
+import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 
 export interface EventDetailsTileProps {
   settings: EventDetailsTileSettings
@@ -161,12 +162,12 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   const [showCalendarMenu, setShowCalendarMenu] = useState(false)
   const tz = eventTimezone || 'Asia/Kolkata'
   
-  // Calculate button colors based on settings.buttonColor
+  // Save the Date button styling — shares the same variant system as FeatureButtonsTile
+  // so every layout's CTAs look consistent instead of a fixed hardcoded outline.
   const buttonColor = settings.buttonColor || 'var(--theme-primary, #1F2937)'
-  const rgb = hexToRgb(buttonColor)
-  const brightness = rgb ? getBrightnessPercentage(rgb.r, rgb.g, rgb.b) : 0
-  const textColor = brightness < 50 ? '#FFFFFF' : '#1F2937'
-  const hoverTextColor = brightness < 50 ? '#1F2937' : '#FFFFFF'
+  const buttonVariant = settings.buttonVariant ?? 'classic'
+  const buttonRadius = settings.buttonRadius ?? 'round'
+  const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
   const formatDate = (dateString: string) => {
     try {
       let date: Date
@@ -295,16 +296,31 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     const justifyClass = textAlign === 'left' ? 'justify-start' : textAlign === 'right' ? 'justify-end' : 'justify-center'
     const dropdownPositionClass = textAlign === 'left' ? 'left-0' : textAlign === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'
 
-    const topBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
-    const bottomBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+    const isGlass = borderStyle === 'glass'
+    const topBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+    const bottomBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+
+    const wrapperStyle: React.CSSProperties = isGlass
+      ? {
+          backgroundColor: 'rgba(255,255,255,0.12)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.28)',
+          boxShadow: '0 0 120px 40px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
+          borderRadius: `${borderRadius || 24}px`,
+          maxWidth: '420px',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+        }
+      : {
+          backgroundColor: backgroundColor || 'transparent',
+          borderRadius: `${borderRadius}px`,
+        }
 
     return (
       <div
         className={`w-full py-12 px-6 ${textAlignClass}`}
-        style={{
-          backgroundColor: backgroundColor || 'transparent',
-          borderRadius: `${borderRadius}px`,
-        }}
+        style={wrapperStyle}
       >
         <div className={`max-w-2xl ${marginClass}`}>
           {/* Decorative top border */}
@@ -541,25 +557,13 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           )}
         
           {/* Save the Date Button */}
-          <div className="relative mt-8">
+          <style dangerouslySetInnerHTML={{ __html: BUTTON_CSS }} />
+          <div className="relative mt-8 flex" style={{ justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center' }}>
             <button
               type="button"
               onClick={handleSaveTheDate}
-              className="px-8 py-3 rounded-sm font-light text-sm tracking-widest uppercase border-2 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all mx-auto"
-              style={{
-                minHeight: '44px',
-                letterSpacing: '0.15em',
-                borderColor: buttonColor,
-                color: buttonColor,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = buttonColor
-                e.currentTarget.style.color = hoverTextColor
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-                e.currentTarget.style.color = buttonColor
-              }}
+              className={`px-8 py-3 focus:outline-none focus:ring-2 focus:ring-offset-2 ${btnExtraClass}`}
+              style={{ ...btnStyle, minHeight: '44px' }}
               aria-expanded={showCalendarMenu}
               aria-haspopup="true"
             >

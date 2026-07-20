@@ -20,6 +20,8 @@ export default function TitleTileSSR({ settings, overlayMode = false }: TitleTil
   const textAlign = settings.textAlign || 'center'
   const alignItemsClass = textAlign === 'left' ? 'items-start' : textAlign === 'right' ? 'items-end' : 'items-center'
   const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
+  const eyebrow = settings.eyebrow?.trim()
+  const eyebrowColor = settings.eyebrowColor || 'var(--theme-primary, #D4A017)'
 
   // Size classes mapping (matches client version)
   const sizeClasses = {
@@ -54,6 +56,11 @@ export default function TitleTileSSR({ settings, overlayMode = false }: TitleTil
   // Standalone mode - normal flow layout
   return (
     <div className={`w-full py-8 px-4 ${textAlignClass} flex flex-col ${alignItemsClass} justify-center`} style={{ fontFamily, color }}>
+      {eyebrow && (
+        <p className={`text-xs font-semibold tracking-[0.3em] uppercase mb-3 ${textAlignClass}`} style={{ color: eyebrowColor }}>
+          {eyebrow}
+        </p>
+      )}
       <h1 className={`${titleClassName} font-bold ${textAlignClass}`}>{text}</h1>
     </div>
   )

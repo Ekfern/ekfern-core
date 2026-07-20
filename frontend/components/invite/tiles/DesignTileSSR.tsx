@@ -1,6 +1,7 @@
 import React from 'react'
 import { DesignTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
+import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 
 interface DesignTileSSRProps {
   settings: DesignTileSettings
@@ -19,6 +20,12 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
   if (!hasImage && !hasGradient) {
     return null
   }
+
+  const isFullBleed = settings.frameMode === 'full-bleed'
+  const fullBleedAspectRatio = settings.aspectRatio || '4 / 5'
+  const outerClassName = isFullBleed ? 'w-full' : 'w-full flex justify-center'
+  const boxClassName = isFullBleed ? 'relative w-full overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
+  const boxStyle = isFullBleed ? { aspectRatio: fullBleedAspectRatio } : { aspectRatio: '9 / 16' }
 
   const renderTextOverlays = () => {
     if (!settings.textOverlays || settings.textOverlays.length === 0) return null
@@ -65,13 +72,20 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
     })
   }
 
+  const heroTexture = settings.texture && settings.texture.type !== 'none' && (
+    <TextureOverlay
+      type={settings.texture.type}
+      intensity={settings.texture.intensity}
+      imageUrl={settings.texture.imageUrl}
+      textureBlend={settings.texture.textureBlend}
+    />
+  )
+
   if (!hasImage && hasGradient) {
     return (
-      <div className="w-full flex justify-center">
-        <div
-          className="relative w-full max-w-sm overflow-hidden"
-          style={{ background: settings.backgroundGradient, aspectRatio: '9 / 16' }}
-        >
+      <div className={outerClassName}>
+        <div className={boxClassName} style={{ ...boxStyle, background: settings.backgroundGradient }}>
+          {heroTexture}
           {renderTextOverlays()}
         </div>
       </div>
@@ -82,11 +96,8 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
   // off-9:16 aspects render without side-cropping the title.
   const fit = settings.imageFit === 'contain' ? 'contain' : 'cover'
   return (
-    <div className="w-full flex justify-center">
-      <div
-        className="relative w-full max-w-sm overflow-hidden"
-        style={{ aspectRatio: '9 / 16' }}
-      >
+    <div className={outerClassName}>
+      <div className={boxClassName} style={boxStyle}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={convertToCloudFrontUrl(settings.src!)}
@@ -97,6 +108,7 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
           className="absolute inset-0 w-full h-full"
           style={{ objectFit: fit, objectPosition: 'center center' }}
         />
+        {heroTexture}
         {renderTextOverlays()}
       </div>
     </div>

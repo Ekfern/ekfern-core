@@ -19,10 +19,11 @@ export default function FooterTile({ settings, preview = false }: FooterTileProp
   }
 
   const textColor = settings.fontColor ?? 'var(--theme-muted, #4B5563)'
+  const showDivider = settings.showDivider ?? true
 
   if (preview) {
     return (
-      <div className="w-full py-6 px-4 text-center border-t border-gray-200/50">
+      <div className={`w-full py-6 px-4 text-center ${showDivider ? 'border-t border-gray-200/50' : ''}`}>
         <p className="text-sm" style={{ color: textColor }}>{settings.text}</p>
       </div>
     )

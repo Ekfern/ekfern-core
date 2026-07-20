@@ -34,6 +34,8 @@ export default function TitleTile({ settings, preview = false }: TitleTileProps)
   }
 
   const titleClassName = sizeClasses[size]
+  const eyebrow = settings.eyebrow?.trim()
+  const eyebrowColor = settings.eyebrowColor || 'var(--theme-primary, #D4A017)'
   const subtitle = settings.subtitle?.trim()
   const subtitleFont = settings.subtitleFont || FONT_OPTIONS[0].family
   const subtitleColor = settings.subtitleColor ?? color
@@ -47,6 +49,11 @@ export default function TitleTile({ settings, preview = false }: TitleTileProps)
   if (preview) {
     return (
       <div className={`w-full py-10 px-6 ${textAlignClass} flex flex-col ${alignItemsClass} justify-center`} style={{ fontFamily, color }}>
+        {eyebrow && (
+          <p className={`text-xs font-semibold tracking-[0.3em] uppercase mb-3 ${textAlignClass}`} style={{ color: eyebrowColor }}>
+            {eyebrow}
+          </p>
+        )}
         <h1 className={`${titleClassName} font-light leading-tight tracking-wide ${textAlignClass}`}>{text}</h1>
         {subtitle && (
           <p className={`${subtitleSizeClasses[subtitleSize]} mt-4 font-light tracking-widest uppercase ${textAlignClass} ${subtitleMarginClass} max-w-xl opacity-80`} style={{ fontFamily: subtitleFont, color: subtitleColor }}>
