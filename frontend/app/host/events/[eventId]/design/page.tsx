@@ -1677,7 +1677,7 @@ export default function DesignPage(): React.ReactElement {
               setHasSelectedBackground(true)
               setBgGradient(gradient)
               setBgUrl(null)
-              localStorage.tem(`card-gradient-${eventId}`, gradient)
+              localStorage.setItem(`card-gradient-${eventId}`, gradient)
               localStorage.removeItem(`card-bg-${eventId}`)
               saveSelectedDesignContext({
                 eventId,
