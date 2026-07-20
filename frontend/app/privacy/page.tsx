@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="public-site min-h-screen overflow-x-hidden">
+    <div className="public-site min-h-screen overflow-x-hidden bg-white">
       {/* Navigation Bar */}
       <nav className="bg-white border-b border-pastel-green sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
