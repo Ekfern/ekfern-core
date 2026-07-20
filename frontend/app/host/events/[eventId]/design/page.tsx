@@ -226,6 +226,11 @@ function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, o
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'samples' && (
             <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                <span aria-hidden>ⓘ</span>
+                <span>Images in this catalog are not owned by Ekfern.</span>
+              </div>
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
                 <Input
@@ -1070,6 +1075,9 @@ export default function DesignPage(): React.ReactElement {
               <h2 className="text-sm font-semibold text-gray-800">Ekfern Background Catalog</h2>
               <span className="text-xs text-gray-500">Select one to continue to text editing</span>
             </div>
+            <p className="text-xs text-gray-500">
+              Images in this catalog are not owned by Ekfern.
+            </p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
               <Input
