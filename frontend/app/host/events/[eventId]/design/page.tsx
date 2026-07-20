@@ -192,14 +192,10 @@ function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, o
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-800">
-            Text Effects
-          </h2>
-
+          <h2 className="text-base font-semibold text-gray-800">Choose Background</h2>
           <button
-            onClick={() => setShowEffects(false)}
+            onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 text-gray-500 text-lg leading-none"
             aria-label="Close"
           >
