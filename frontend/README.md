@@ -1,4 +1,4 @@
-# Ekfern Frontend
+   # Ekfern Frontend
 
 Next.js 14 frontend for [Ekfern](https://github.com/Ekfern/ekfern-core).
 

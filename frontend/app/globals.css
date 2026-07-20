@@ -228,3 +228,8 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+.public-site,
+.public-site * {
+  cursor: url('/cursor-fern.svg') 2 21, auto;
+}

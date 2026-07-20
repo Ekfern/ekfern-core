@@ -5,12 +5,12 @@ import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
+import { forgotPassword } from '@/lib/auth/api'
 
 const emailSchema = z.object({
   email: z.string().email('Invalid email'),
@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (data: EmailForm) => {
     setLoading(true)
     try {
-      await api.post('/api/auth/forgot-password/', { email: data.email })
+      await forgotPassword(data.email)
       setEmailSent(true)
       showToast('Password reset link sent to your email', 'success')
     } catch (error: any) {

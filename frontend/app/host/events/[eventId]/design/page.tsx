@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from "react-dom"
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import api, { uploadImage } from '@/lib/api'
@@ -34,6 +35,11 @@ interface TextBox {
   strikethrough: boolean
   textAlign: 'left' | 'center' | 'right'
   verticalAlign: 'top' | 'middle' | 'bottom'
+  shadowX?: number
+  shadowY?: number
+  shadowBlur?: number
+  shadowOpacity?: number
+  shadowColor?: string
 }
 
 type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
@@ -334,7 +340,13 @@ function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, o
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
+function hexToRgba(hex: string, opacity: number) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
 
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
 export default function DesignPage(): React.ReactElement {
   const params = useParams()
   const router = useRouter()
@@ -342,9 +354,15 @@ export default function DesignPage(): React.ReactElement {
 
   // Canvas + drag
   const canvasRef = useRef<HTMLDivElement>(null)
+  
   const dragState = useRef<DragState | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
 
+  const [effectsPosition, setEffectsPosition] = useState({
+    top: 0,
+    left: 0,
+  })
   // Undo / redo
   const undoStack = useRef<TextBox[][]>([])
   const redoStack = useRef<TextBox[][]>([])
@@ -361,6 +379,7 @@ export default function DesignPage(): React.ReactElement {
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [showEffects, setShowEffects] = useState(false)
   const [showBgModal, setShowBgModal] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -372,8 +391,8 @@ export default function DesignPage(): React.ReactElement {
   const [sampleSearch, setSampleSearch] = useState('')
   const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
-
-
+  const effectsRef = useRef<HTMLDivElement>(null)
+  const effectsButtonRef = useRef<HTMLButtonElement>(null)
 
   const startChangingFontSize = (direction: 1 | -1) => {
     if (!selectedBox) return
@@ -544,6 +563,27 @@ export default function DesignPage(): React.ReactElement {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node
+
+      if (
+        showEffects &&
+        effectsRef.current &&
+        !effectsRef.current.contains(target) &&
+        effectsButtonRef.current &&
+        !effectsButtonRef.current.contains(target)
+      ) {
+        setShowEffects(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [showEffects])
 
   // -------------------------------------------------------------------------
   // Text box helpers
@@ -615,6 +655,8 @@ export default function DesignPage(): React.ReactElement {
       strikethrough: false,
       textAlign: 'center',
       verticalAlign: 'middle',
+      shadowColor: '#000000',
+
     }
     setTextBoxes((prev) => [...prev, newBox])
     setSelectedId(newBox.id)
@@ -955,7 +997,7 @@ export default function DesignPage(): React.ReactElement {
         <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&display=swap');` }} />
         <WizardProgress currentStep={2} eventId={eventId} />
 
-        <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-5">
+        <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
             <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Choose your background</h1>
             <p className="text-sm text-gray-600 mt-1">
@@ -1164,7 +1206,7 @@ export default function DesignPage(): React.ReactElement {
         </div>
 
         {/* Row 2: text format toolbar — always visible */}
-        <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 flex-wrap overflow-x-auto">
+        <div className="relative bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 overflow-visible">
           {/* Add Text — always active */}
           <button
             onClick={addTextBox}
@@ -1176,7 +1218,7 @@ export default function DesignPage(): React.ReactElement {
           <div className="w-px h-5 bg-gray-200 flex-none" />
 
           {/* Format controls — dimmed when no box selected */}
-          <div className={`flex items-center gap-2 flex-wrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+          <div className={`flex items-center gap-2 flex-nowrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
             {/* Font family */}
             <select
               value={selectedBox?.fontFamily ?? FONT_OPTIONS[0]!.family}
@@ -1350,8 +1392,113 @@ export default function DesignPage(): React.ReactElement {
               />
             </div>
 
-            <div className="w-px h-5 bg-gray-200 flex-none" />
+            <div className="relative">
+              <button
+                ref={effectsButtonRef}
+                type="button"
+                onClick={() => setShowEffects(prev => !prev)}
+                className="flex items-center gap-2 px-3 py-1 rounded text-sm border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
+              >
+                <span>✨ Effects</span>
 
+                <svg
+                  className={`w-4 h-4 transition-transform duration-200 ${showEffects ? "rotate-180" : ""
+                    }`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {showEffects && (
+                <div
+                  ref={effectsRef}
+                  className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="p-4 space-y-4">
+
+                    <div className="border-b pb-3">
+                      <h3 className="font-semibold text-gray-800">
+                        Text Effects
+                      </h3>
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+
+                      <div>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-gray-700">Shadow</span>
+                          <span className="text-gray-500">
+                            {selectedBox?.shadowBlur ?? 4}px
+                          </span>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="20"
+                          value={selectedBox?.shadowBlur ?? 4}
+                          onChange={(e) => {
+                            if (!selectedBox) return
+
+                            const blur = Number(e.target.value)
+
+                            updateBox(selectedBox.id, "shadowBlur", blur)
+                            updateBox(selectedBox.id, "shadowOpacity", blur === 0 ? 0 : 0.8)
+                          }}
+                          className="w-full accent-blue-600"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Shadow Color
+                        </label>
+
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={selectedBox?.shadowColor ?? "#000000"}
+                            onChange={(e) =>
+                              selectedBox &&
+                              updateBox(
+                                selectedBox.id,
+                                "shadowColor",
+                                e.target.value
+                              )
+                            }
+                            className="w-10 h-10 rounded border border-gray-300 cursor-pointer p-0.5"
+                          />
+
+                          <input
+                            type="text"
+                            value={selectedBox?.shadowColor ?? "#000000"}
+                            onChange={(e) =>
+                              selectedBox &&
+                              updateBox(
+                                selectedBox.id,
+                                "shadowColor",
+                                e.target.value
+                              )
+                            }
+                            className="flex-1 text-xs border border-gray-300 rounded px-2 py-2 font-mono"
+                            placeholder="#000000"
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => selectedBox && deleteBox(selectedBox.id)}
               className="text-red-500 hover:bg-red-50 px-2 py-1 rounded text-sm transition-colors"
@@ -1359,7 +1506,9 @@ export default function DesignPage(): React.ReactElement {
             >
               Delete
             </button>
+
           </div>
+
         </div>
       </div>
 
@@ -1498,7 +1647,10 @@ export default function DesignPage(): React.ReactElement {
                       wordBreak: 'break-word',
                       outline: 'none',
                       padding: '0',
-                      textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                      textShadow: `${box.shadowX ?? 0}px ${box.shadowY ?? 1}px ${box.shadowBlur ?? 4}px ${hexToRgba(
+                        box.shadowColor ?? '#000000',
+                        box.shadowOpacity ?? 0.8
+                      )}`,
                       minWidth: '1em',
 
                     }}
