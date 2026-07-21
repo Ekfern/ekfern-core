@@ -64,33 +64,33 @@ function renderDecorativeBorder(
 ) {
   const borderConfig = BORDER_STYLES[style as keyof typeof BORDER_STYLES] || BORDER_STYLES.elegant
   const symbol = customSymbol !== undefined ? customSymbol : borderConfig.symbol
-  
+
   if (style === 'none') {
     return null
   }
-  
+
   // Render based on line style
   if (borderConfig.lineStyle === 'gradient') {
     return (
       <div className="flex items-center justify-center">
-        <div 
+        <div
           className="flex-1 h-px bg-gradient-to-r from-transparent via-current to-transparent"
-          style={{ 
+          style={{
             color,
             height: `${width}px`,
           }}
         />
         {borderConfig.showSymbol && symbol && (
-          <div 
+          <div
             className="mx-4 text-2xl"
             style={{ color }}
           >
             {symbol}
           </div>
         )}
-        <div 
+        <div
           className="flex-1 h-px bg-gradient-to-r from-transparent via-current to-transparent"
-          style={{ 
+          style={{
             color,
             height: `${width}px`,
           }}
@@ -98,41 +98,41 @@ function renderDecorativeBorder(
       </div>
     )
   }
-  
+
   if (borderConfig.lineStyle === 'solid') {
     return (
       <div className="flex items-center justify-center">
-        <div 
+        <div
           className="flex-1"
-          style={{ 
+          style={{
             borderTop: `${width}px solid ${color}`,
           }}
         />
       </div>
     )
   }
-  
+
   if (borderConfig.lineStyle === 'dotted') {
     return (
       <div className="flex items-center justify-center">
-        <div 
+        <div
           className="flex-1 h-px border-t-2 border-dotted"
-          style={{ 
+          style={{
             borderColor: color,
             borderTopWidth: `${width}px`,
           }}
         />
         {borderConfig.showSymbol && symbol && (
-          <div 
+          <div
             className="mx-4 text-2xl"
             style={{ color }}
           >
             {symbol}
           </div>
         )}
-        <div 
+        <div
           className="flex-1 h-px border-t-2 border-dotted"
-          style={{ 
+          style={{
             borderColor: color,
             borderTopWidth: `${width}px`,
           }}
@@ -140,27 +140,27 @@ function renderDecorativeBorder(
       </div>
     )
   }
-  
+
   if (borderConfig.lineStyle === 'double') {
     return (
       <div className="flex items-center justify-center">
-        <div 
+        <div
           className="flex-1"
-          style={{ 
+          style={{
             borderTop: `${width}px double ${color}`,
           }}
         />
       </div>
     )
   }
-  
+
   return null
 }
 
 export default function EventDetailsTile({ settings, preview = false, eventSlug, eventTitle, eventDate, eventTimezone }: EventDetailsTileProps) {
   const [showCalendarMenu, setShowCalendarMenu] = useState(false)
   const tz = eventTimezone || 'Asia/Kolkata'
-  
+
   // Calculate button colors based on settings.buttonColor
   const buttonColor = settings.buttonColor || '#1F2937'
   const rgb = hexToRgb(buttonColor)
@@ -182,7 +182,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
         }
         date = new Date(year, month - 1, day)
       }
-      
+
       return date.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
@@ -243,7 +243,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           const [year, month, day] = dateToUse.split('-').map(Number)
           startDate = new Date(year, month - 1, day)
         }
-        
+
         // Add time if available
         if (settings.time) {
           const [hours, minutes] = settings.time.split(':').map(Number)
@@ -253,7 +253,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
         } else {
           startDate.setHours(0, 0, 0, 0)
         }
-        
+
         const endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000) // 4 hours later
 
         const googleUrl = getGoogleCalendarHref({
@@ -289,12 +289,12 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     const decorativeSymbol = settings.decorativeSymbol
     const backgroundColor = settings.backgroundColor
     const borderRadius = settings.borderRadius ?? 0
-    
+
     const topBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
     const bottomBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
-    
+
     return (
-      <div 
+      <div
         className="w-full py-12 px-6 text-center"
         style={{
           backgroundColor: backgroundColor || 'transparent',
@@ -306,7 +306,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           {topBorder && (
             <div className="mb-8">
               {topBorder}
-          </div>
+            </div>
           )}
 
           {(() => {
@@ -406,7 +406,13 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                       Date
                     </div>
-                    <div className="text-xl md:text-2xl font-normal leading-relaxed" style={{ color: fontColor }}>
+                    <div
+                      className="text-xl md:text-2xl font-normal leading-relaxed"
+                      style={{
+                        color: fontColor,
+                        fontFamily: settings.dateFontFamily,
+                      }}
+                    >
                       {formatDate(settings.date)}
                     </div>
                   </div>
@@ -427,45 +433,45 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   if (settings.coordinates) {
                     mapUrl = generateMapUrlFromCoordinates(settings.coordinates.lat, settings.coordinates.lng)
                   }
-                  
+
                   // Check if map can be shown (location must be verified)
                   const canDisplay = canShowMap(settings)
-                  
+
                   return (
-                  <div className="space-y-2">
-                    <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
-                      Location
-                    </div>
-                    <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: settings.fontColor || '#1F2937' }}>
-                      <span>{settings.location}</span>
+                    <div className="space-y-2">
+                      <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+                        Location
+                      </div>
+                      <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: settings.fontColor || '#1F2937' }}>
+                        <span>{settings.location}</span>
                         {canDisplay && mapUrl && (
-                        <a
+                          <a
                             href={mapUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 transition-colors ml-2"
-                          aria-label="Open location in maps"
-                        >
-                          <MapPin className="w-4 h-4 text-gray-600" />
-                        </a>
-                      )}
-                    </div>
-                      
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 transition-colors ml-2"
+                            aria-label="Open location in maps"
+                          >
+                            <MapPin className="w-4 h-4 text-gray-600" />
+                          </a>
+                        )}
+                      </div>
+
                       {/* Embedded Map - only show if verified, enabled, and valid */}
                       {canDisplay && settings.showMap && mapUrl && isValidMapUrl(mapUrl) && (() => {
                         const embedUrl = getEmbedUrl(mapUrl, settings.coordinates, settings.mapZoom)
-                        
+
                         if (embedUrl) {
                           // Get border settings to match tile styling
                           const mapBorderColor = settings.borderColor || '#D1D5DB'
                           const mapBorderWidth = settings.borderWidth || 1
                           const mapBackgroundColor = settings.backgroundColor || '#FFFFFF'
                           const mapBorderRadius = settings.borderRadius ?? 8
-                          
+
                           return (
                             <div className="mt-6">
                               {/* Map container with enhanced styling */}
-                              <div 
+                              <div
                                 className="w-full rounded-xl overflow-hidden"
                                 style={{
                                   border: `${mapBorderWidth * 2}px solid ${mapBorderColor}`,
@@ -492,15 +498,15 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                             </div>
                           )
                         }
-                        
+
                         // If URL is valid but not embeddable (e.g., Apple Maps, short links), show helpful message
                         return (
                           <div className="mt-4 p-3 bg-gray-50 rounded border border-gray-200">
                             <p className="text-xs text-gray-600 text-center">
-                              Map preview not available for this link type. 
-                              <a 
-                                href={mapUrl} 
-                                target="_blank" 
+                              Map preview not available for this link type.
+                              <a
+                                href={mapUrl}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:underline ml-1"
                               >
@@ -514,7 +520,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   )
                 })()}
 
-              {settings.dressCode && (
+                {settings.dressCode && (
                   <div className="space-y-2">
                     <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                       Dress Code
@@ -522,8 +528,8 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || '#1F2937' }}>
                       {settings.dressCode}
                     </div>
-                </div>
-              )}
+                  </div>
+                )}
               </div>
             )
           })()}
@@ -532,9 +538,9 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           {bottomBorder && (
             <div className="mt-10 mb-8">
               {bottomBorder}
-          </div>
+            </div>
           )}
-        
+
           {/* Save the Date Button */}
           <div className="relative mt-8">
             <button
@@ -603,24 +609,24 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
   const fontColor = settings.fontColor || '#374151' // Default to gray-700 equivalent
   const labelColor = getAutomaticLabelColor(settings.fontColor)
-  
+
   // Get border settings with defaults for non-preview mode
   const borderStyle = settings.borderStyle || 'elegant'
   const borderColor = settings.borderColor || '#E5E7EB'
   const borderWidth = settings.borderWidth || 1
   const borderRadius = settings.borderRadius ?? 4
   const backgroundColor = settings.backgroundColor || '#F9FAFB'
-  
+
   // Apply conditional border classes
-  const borderClasses = 
-    borderStyle === 'none' 
-      ? '' 
+  const borderClasses =
+    borderStyle === 'none'
+      ? ''
       : borderStyle === 'classic'
-      ? 'border-2'
-      : 'border'
-  
+        ? 'border-2'
+        : 'border'
+
   return (
-    <div 
+    <div
       className={`w-full py-6 px-4 ${borderClasses}`}
       style={{
         borderRadius: `${borderRadius}px`,
@@ -648,26 +654,26 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           if (settings.coordinates) {
             mapUrl = generateMapUrlFromCoordinates(settings.coordinates.lat, settings.coordinates.lng)
           }
-          
+
           // Check if map can be shown (location must be verified)
           const canDisplay = canShowMap(settings)
-          
+
           return (
             <div>
-          <p>
-            <span className="text-xs uppercase tracking-widest font-light italic mr-2" style={{ color: labelColor }}>Location:</span>
-            <span className="font-normal" style={{ color: fontColor }}>{settings.location}</span>
-          </p>
-              
+              <p>
+                <span className="text-xs uppercase tracking-widest font-light italic mr-2" style={{ color: labelColor }}>Location:</span>
+                <span className="font-normal" style={{ color: fontColor }}>{settings.location}</span>
+              </p>
+
               {/* Embedded Map - only show if verified, enabled, and valid */}
               {canDisplay && settings.showMap && mapUrl && isValidMapUrl(mapUrl) && (() => {
                 const embedUrl = getEmbedUrl(mapUrl, settings.coordinates, settings.mapZoom)
-                
+
                 if (embedUrl) {
                   return (
                     <div className="mt-4">
                       {/* Map container with enhanced styling */}
-                      <div 
+                      <div
                         className="w-full rounded-xl overflow-hidden"
                         style={{
                           border: `${borderWidth * 2}px solid ${borderColor}`,
@@ -694,15 +700,15 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     </div>
                   )
                 }
-                
+
                 // If URL is valid but not embeddable (e.g., Apple Maps, short links), show helpful message
                 return (
                   <div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200">
                     <p className="text-xs text-gray-600 text-center">
-                      Map preview not available for this link type. 
-                      <a 
-                        href={mapUrl} 
-                        target="_blank" 
+                      Map preview not available for this link type.
+                      <a
+                        href={mapUrl}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline ml-1"
                       >

@@ -104,10 +104,9 @@ export interface EventDetailsTileSettings {
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
   fontColor?: string // Font color for event details text (hex color, e.g., "#000000")
   buttonColor?: string // Hex color for Save the Date button (e.g., "#1F2937")
-  dateFontFamily?: string
-  timeFontFamily?: string
-  locationFontFamily?: string
-  dressCodeFontFamily?: string
+  headerFontFamily?: string
+  contentFontFamily?: string
+ 
 
   // Date block layout: single-line (default) or day-prominent (large day number, smaller weekday/month/year/time)
   dateLayout?: 'single-line' | 'day-prominent'

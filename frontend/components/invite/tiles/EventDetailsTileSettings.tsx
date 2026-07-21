@@ -343,33 +343,37 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <label className="block text-sm font-medium mb-2">Date Font</label>
 
         <select
-          value={findFontByFamily(settings.dateFontFamily)?.id || FONT_OPTIONS[0].id}
+          value={findFontByFamily(settings.contentFontFamily)?.id || FONT_OPTIONS[0].id}
           onChange={(e) => {
             const font = FONT_OPTIONS.find((f) => f.id === e.target.value)
             onChange({
               ...settings,
-              dateFontFamily: font?.family,
+              contentFontFamily: font?.family,
             })
           }}
           className="w-full text-sm border rounded px-3 py-2"
         >
           {FONT_OPTIONS.map((font) => (
-            <option key={font.id} value={font.id}>
+            <option
+              key={font.id}
+              value={font.id}
+              style={{ fontFamily: font.family }}
+            >
               {font.name} ({font.category})
             </option>
           ))}
-        </select>
 
-        <p className="text-xs text-gray-500 mt-1">
-          Preview:{' '}
-          <span
-            style={{
-              fontFamily: settings.dateFontFamily || FONT_OPTIONS[0].family,
-            }}
-          >
-            Wednesday, August 5, 2026
-          </span>
-        </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Preview:{' '}
+            <span
+              style={{
+                fontFamily: settings.contentFontFamily || FONT_OPTIONS[0].family,
+              }}
+            >
+              Wednesday, August 5, 2026
+            </span>
+          </p>
+        </select>
       </div>
 
       {/* Styling Options */}
@@ -460,8 +464,8 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
                       type="button"
                       onClick={() => onChange({ ...settings, borderStyle: style })}
                       className={`p-3 border-2 rounded-md text-left transition-all ${isSelected
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                     >
                       <div className="text-xs font-medium mb-2 capitalize">{style}</div>
