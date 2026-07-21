@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from "react-dom"
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import api, { uploadImage } from '@/lib/api'
@@ -13,7 +14,7 @@ import { logError } from '@/lib/error-handler'
 import { Input } from '@/components/ui/input'
 import DesignCatalogGrid, { useDesignCatalog } from '@/components/invite/DesignCatalogGrid'
 import { loadSelectedDesignContext, saveSelectedDesignContext } from '@/lib/invite/designContext'
-
+import { Minus, Plus } from "lucide-react"
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -34,6 +35,11 @@ interface TextBox {
   strikethrough: boolean
   textAlign: 'left' | 'center' | 'right'
   verticalAlign: 'top' | 'middle' | 'bottom'
+  shadowX?: number
+  shadowY?: number
+  shadowBlur?: number
+  shadowOpacity?: number
+  shadowColor?: string
 }
 
 type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
@@ -49,6 +55,7 @@ interface DragState {
   startBoxWidth: number
   startBoxHeight: number
   snapshot: TextBox[]
+  startFontSize: number
 }
 
 // ---------------------------------------------------------------------------
@@ -56,21 +63,21 @@ interface DragState {
 // ---------------------------------------------------------------------------
 
 const GRADIENT_PRESETS: { label: string; value: string }[] = [
-  { label: 'Rose Blush',  value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
-  { label: 'Sage Mist',   value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
-  { label: 'Dusk Blue',   value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
+  { label: 'Rose Blush', value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
+  { label: 'Sage Mist', value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
+  { label: 'Dusk Blue', value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
   { label: 'Golden Hour', value: 'linear-gradient(135deg, #fff8e1, #ffca28)' },
-  { label: 'Lavender',    value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
+  { label: 'Lavender', value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
   { label: 'Peach Cream', value: 'linear-gradient(135deg, #fff3e0, #ffb74d)' },
-  { label: 'Midnight',    value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
-  { label: 'Forest',      value: 'linear-gradient(135deg, #1b4332, #40916c)' },
+  { label: 'Midnight', value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
+  { label: 'Forest', value: 'linear-gradient(135deg, #1b4332, #40916c)' },
 ]
 
 const GRADIENT_DIRECTIONS = [
   { label: '↘ Diagonal', value: '135deg' },
-  { label: '↓ Down',     value: '180deg' },
-  { label: '→ Right',    value: '90deg'  },
-  { label: '↗ Up-right', value: '45deg'  },
+  { label: '↓ Down', value: '180deg' },
+  { label: '→ Right', value: '90deg' },
+  { label: '↗ Up-right', value: '45deg' },
 ]
 
 const SUBTITLE_MAP: Record<string, string> = {
@@ -219,6 +226,11 @@ function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, o
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'samples' && (
             <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                <span aria-hidden>ⓘ</span>
+                <span>Images in this catalog are not owned by Ekfern.</span>
+              </div>
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
                 <Input
@@ -333,7 +345,13 @@ function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, o
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
+function hexToRgba(hex: string, opacity: number) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
 
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
 export default function DesignPage(): React.ReactElement {
   const params = useParams()
   const router = useRouter()
@@ -341,9 +359,15 @@ export default function DesignPage(): React.ReactElement {
 
   // Canvas + drag
   const canvasRef = useRef<HTMLDivElement>(null)
+  
   const dragState = useRef<DragState | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fontPickerRef = useRef<HTMLDivElement>(null)
 
+  const [effectsPosition, setEffectsPosition] = useState({
+    top: 0,
+    left: 0,
+  })
   // Undo / redo
   const undoStack = useRef<TextBox[][]>([])
   const redoStack = useRef<TextBox[][]>([])
@@ -360,6 +384,7 @@ export default function DesignPage(): React.ReactElement {
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [showEffects, setShowEffects] = useState(false)
   const [showBgModal, setShowBgModal] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -369,6 +394,43 @@ export default function DesignPage(): React.ReactElement {
   const [userHasEditedText, setUserHasEditedText] = useState(false)
   const [pendingSample, setPendingSample] = useState<DesignSample | null>(null)
   const [sampleSearch, setSampleSearch] = useState('')
+  const [showFontPicker, setShowFontPicker] = useState(false)
+  const [fontSearch, setFontSearch] = useState("")
+  const [fontCategory, setFontCategory] = useState<
+    "all" | "sans-serif" | "serif" | "script" | "display"
+  >("all")
+  const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+  const effectsRef = useRef<HTMLDivElement>(null)
+  const effectsButtonRef = useRef<HTMLButtonElement>(null)
+
+  const startChangingFontSize = (direction: 1 | -1) => {
+    if (!selectedBox) return
+
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(() => {
+        const current = textBoxesRef.current.find(
+          box => box.id === selectedBox.id
+        )
+
+        if (!current) return
+
+        changeFontSize(current.fontSize + direction)
+      }, 80)
+    }, 400)
+  }
+
+  const stopChangingFontSize = () => {
+    if (holdTimeout.current) {
+      clearTimeout(holdTimeout.current)
+      holdTimeout.current = null
+    }
+
+    if (holdInterval.current) {
+      clearInterval(holdInterval.current)
+      holdInterval.current = null
+    }
+  }
 
   // Phase-1 background catalog (paginated + server-searched, only while choosing).
   const catalog = useDesignCatalog({ enabled: !hasSelectedBackground, q: sampleSearch })
@@ -376,7 +438,14 @@ export default function DesignPage(): React.ReactElement {
   // Refs for auto-save concurrency control
   const isSavingRef = useRef(false)
   const hasUserEditedRef = useRef(false) // prevents auto-save firing on initial load
+  const changeFontSize = (newSize: number) => {
+    if (!selectedBox) return
 
+    const size = clamp(newSize, 12, 200)
+
+    updateBox(selectedBox.id, "fontSize", size)
+    setFontSizeInput(String(size))
+  }
   // Load event + restore state — backend tile takes priority over localStorage (device-independent)
   useEffect(() => {
     if (!eventId || isNaN(eventId)) return
@@ -504,6 +573,34 @@ export default function DesignPage(): React.ReactElement {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node
+
+      if (
+        fontPickerRef.current &&
+        !fontPickerRef.current.contains(target)
+      ) {
+        setShowFontPicker(false)
+      }
+
+      if (
+        showEffects &&
+        effectsRef.current &&
+        !effectsRef.current.contains(target) &&
+        effectsButtonRef.current &&
+        !effectsButtonRef.current.contains(target)
+      ) {
+        setShowEffects(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [showEffects])
 
   // -------------------------------------------------------------------------
   // Text box helpers
@@ -516,15 +613,27 @@ export default function DesignPage(): React.ReactElement {
     redoStack.current = []
   }, [])
 
-  function updateBox<K extends keyof TextBox>(id: string, key: K, value: TextBox[K]): void {
-    hasUserEditedRef.current = true
-    if (key === 'text') {
-      setUserHasEditedText(true)
-    } else {
-      pushHistory(textBoxesRef.current)
-    }
+  function updateBox<K extends keyof TextBox>(
+    id: string,
+    key: K,
+    value: TextBox[K]
+  ): void {
     setTextBoxes((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, [key]: value } : b))
+      prev.map((b) => {
+        if (b.id !== id) return b
+
+        if (key === "fontSize") {
+          return {
+            ...b,
+            fontSize: clamp(Number(value), 12, 200),
+          }
+        }
+
+        return {
+          ...b,
+          [key]: value,
+        }
+      })
     )
   }
 
@@ -563,6 +672,8 @@ export default function DesignPage(): React.ReactElement {
       strikethrough: false,
       textAlign: 'center',
       verticalAlign: 'middle',
+      shadowColor: '#000000',
+
     }
     setTextBoxes((prev) => [...prev, newBox])
     setSelectedId(newBox.id)
@@ -611,21 +722,54 @@ export default function DesignPage(): React.ReactElement {
   // -------------------------------------------------------------------------
   // Drag handlers (pointer events on canvas container)
   // -------------------------------------------------------------------------
+  const updateTextBounds = (boxId: string) => {
+    if (!canvasRef.current) return
 
+    const textEl = contentEditableRefs.current.get(boxId)
+    if (!textEl) return
+
+    const canvasRect = canvasRef.current.getBoundingClientRect()
+    const textRect = textEl.getBoundingClientRect()
+
+    const width = (textRect.width / canvasRect.width) * 100
+    const height = (textRect.height / canvasRect.height) * 100
+
+
+    setTextBoxes(prev =>
+      prev.map(box => {
+        if (box.id !== boxId) return box
+
+        return {
+          ...box,
+          width,
+          height,
+        }
+      })
+    )
+  }
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
-    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight } = dragState.current
+    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
+    const resizeDelta = (dx + dy) / 2
+
+    const MIN_FONT_SIZE = 12
+    const MAX_FONT_SIZE = 200
+    const newFontSize = clamp(
+      Math.round(startFontSize + resizeDelta),
+      MIN_FONT_SIZE,
+      MAX_FONT_SIZE
+    )
     if (mode === 'resize') {
       setTextBoxes((prev) =>
         prev.map((b) => {
           if (b.id !== boxId) return b
           let newX = startBoxX, newY = startBoxY, newW = startBoxWidth, newH = startBoxHeight
           if (resizeHandle === 'se') {
-            newW = clamp(startBoxWidth + dx, 10, 100 - startBoxX)
-            newH = clamp(startBoxHeight + dy, 5, 100 - startBoxY)
+            newW = startBoxWidth
+            newH = startBoxHeight
           } else if (resizeHandle === 'sw') {
             const deltaW = -dx
             newW = clamp(startBoxWidth + deltaW, 10, startBoxX + startBoxWidth)
@@ -644,7 +788,28 @@ export default function DesignPage(): React.ReactElement {
             newH = clamp(startBoxHeight + deltaH, 5, startBoxY + startBoxHeight)
             newY = startBoxY + startBoxHeight - newH
           }
-          return { ...b, x: newX, y: newY, width: newW, height: newH }
+          const sensitivity =
+            startFontSize < 30
+              ? 1.2
+              : startFontSize < 60
+                ? 1.5
+                : 2
+
+          const fontSize = clamp(
+            Math.round(startFontSize + resizeDelta * sensitivity),
+            12,
+            200
+          )
+
+
+          return {
+            ...b,
+            x: newX,
+            y: newY,
+            width: startBoxWidth,
+            height: startBoxHeight,
+            fontSize,
+          }
         })
       )
     } else {
@@ -660,11 +825,12 @@ export default function DesignPage(): React.ReactElement {
 
   const handleCanvasPointerUp = useCallback(() => {
     if (dragState.current) {
+      updateTextBounds(dragState.current.boxId)
+
       pushHistory(dragState.current.snapshot)
       dragState.current = null
     }
   }, [pushHistory])
-
   // -------------------------------------------------------------------------
   // Upload handler
   // -------------------------------------------------------------------------
@@ -845,10 +1011,10 @@ export default function DesignPage(): React.ReactElement {
   if (!hasSelectedBackground) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&display=swap');` }} />
+        <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
         <WizardProgress currentStep={2} eventId={eventId} />
 
-        <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-5">
+        <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
             <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Choose your background</h1>
             <p className="text-sm text-gray-600 mt-1">
@@ -909,6 +1075,9 @@ export default function DesignPage(): React.ReactElement {
               <h2 className="text-sm font-semibold text-gray-800">Ekfern Background Catalog</h2>
               <span className="text-xs text-gray-500">Select one to continue to text editing</span>
             </div>
+            <p className="text-xs text-gray-500">
+              Images in this catalog are not owned by Ekfern.
+            </p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
               <Input
@@ -996,7 +1165,7 @@ export default function DesignPage(): React.ReactElement {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Google Fonts */}
-      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&display=swap');` }} />
+      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
 
       <WizardProgress currentStep={2} eventId={eventId} />
 
@@ -1057,7 +1226,7 @@ export default function DesignPage(): React.ReactElement {
         </div>
 
         {/* Row 2: text format toolbar — always visible */}
-        <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 flex-wrap overflow-x-auto">
+        <div className="relative bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 flex-wrap overflow-visible">
           {/* Add Text — always active */}
           <button
             onClick={addTextBox}
@@ -1071,35 +1240,164 @@ export default function DesignPage(): React.ReactElement {
           {/* Format controls — dimmed when no box selected */}
           <div className={`flex items-center gap-2 flex-wrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
             {/* Font family */}
-            <select
-              value={selectedBox?.fontFamily ?? FONT_OPTIONS[0]!.family}
-              onChange={(e) => selectedBox && updateBox(selectedBox.id, 'fontFamily', e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white max-w-[130px]"
-            >
-              {FONT_OPTIONS.map((f) => (
-                <option key={f.id} value={f.family}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
+            <div ref={fontPickerRef} className="relative w-48">
+              <button
+                type="button"
+                onClick={() => setShowFontPicker(prev => !prev)}
+                className="w-full flex items-center justify-between
+             rounded-lg
+             border border-gray-300
+             bg-white
+             px-2.5 py-1.5
+             text-sm
+             shadow-sm
+             hover:border-blue-400
+             hover:shadow-md
+             transition-all"
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <span className="text-gray-500 font-semibold">Aa</span>
 
-            {/* Font size */}
-            <div className="flex items-center gap-1">
+                  <span
+                    style={{ fontFamily: selectedBox?.fontFamily }}
+                    className="truncate text-xs font-medium"
+                  >
+                    {FONT_OPTIONS.find(
+                      f => f.family === selectedBox?.fontFamily
+                    )?.name ?? "Select Font"}
+                  </span>
+                </div>
+
+                <svg
+                  className={`w-4 h-4 transition-transform ${showFontPicker ? "rotate-180" : ""
+                    }`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              {showFontPicker && (
+                <div
+                  className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="max-h-80 overflow-y-auto py-2">
+                    {FONT_OPTIONS.map((font) => (
+                      <button
+                        key={font.id}
+                        type="button"
+                        onClick={() => {
+                          if (selectedBox) {
+                            updateBox(selectedBox.id, "fontFamily", font.family)
+                          }
+                          setShowFontPicker(false)
+                        }}
+                        className="w-full text-left px-5 py-3 hover:bg-gray-100 transition-colors"
+                      >
+                        <span
+                          style={{ fontFamily: font.family }}
+                          className="text-lg"
+                        >
+                          {font.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                </div>
+              )}
+
+
+            </div>
+
+            {/* Font Size */}
+            <div className="flex items-center h-9 rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden">
+
+              {/* Decrease */}
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center border-r border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onMouseDown={() => startChangingFontSize(-1)}
+                onMouseUp={stopChangingFontSize}
+                onMouseLeave={stopChangingFontSize}
+                onClick={() => {
+                  if (!selectedBox) return
+                  changeFontSize(selectedBox.fontSize - 1)
+                }}
+              >
+                <Minus size={14} />
+              </button>
+
+              {/* Input */}
               <input
                 type="number"
-                min={8}
-                max={200}
-                value={fontSizeInput !== '' ? fontSizeInput : (selectedBox?.fontSize ?? 32)}
-                onFocus={() => setFontSizeInput(String(selectedBox?.fontSize ?? 32))}
-                onChange={(e) => setFontSizeInput(e.target.value)}
+                inputMode="numeric"
+                value={
+                  fontSizeInput !== ""
+                    ? fontSizeInput
+                    : (selectedBox?.fontSize ?? 32)
+                }
+                onFocus={() =>
+                  setFontSizeInput(String(selectedBox?.fontSize ?? 32))
+                }
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFontSizeInput(value)
+
+                  const v = parseInt(value, 10)
+
+                  if (!isNaN(v) && selectedBox) {
+                    changeFontSize(v)
+                  }
+
+                }}
+                onWheel={(e) => {
+                  e.preventDefault()
+
+                  if (!selectedBox) return
+
+                  const delta = e.deltaY < 0 ? 1 : -1
+
+                  changeFontSize(selectedBox.fontSize + delta)
+
+
+
+                }}
                 onBlur={() => {
                   const v = parseInt(fontSizeInput, 10)
-                  if (!isNaN(v) && selectedBox) updateBox(selectedBox.id, 'fontSize', clamp(v, 8, 200))
-                  setFontSizeInput('')
+
+                  if (!isNaN(v)) {
+                    changeFontSize(v)
+                  }
+                  setFontSizeInput("")
                 }}
-                className="w-16 text-sm border border-gray-300 rounded px-2 py-1 text-center"
+                className="w-12 text-center text-sm font-medium outline-none border-0 bg-transparent"
               />
-              <span className="text-xs text-gray-500">px</span>
+
+              <span className="text-xs text-gray-500 pr-2">
+                px
+              </span>
+
+              {/* Increase */}
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center border-l border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onMouseDown={() => startChangingFontSize(1)}
+                onMouseUp={stopChangingFontSize}
+                onMouseLeave={stopChangingFontSize}
+                onClick={() => {
+                  if (!selectedBox) return
+                  changeFontSize(selectedBox.fontSize + 1)
+                }}
+              >
+                <Plus size={14} />
+              </button>
+
             </div>
 
             <div className="w-px h-5 bg-gray-200 flex-none" />
@@ -1177,8 +1475,113 @@ export default function DesignPage(): React.ReactElement {
               />
             </div>
 
-            <div className="w-px h-5 bg-gray-200 flex-none" />
+            <div className="relative">
+              <button
+                ref={effectsButtonRef}
+                type="button"
+                onClick={() => setShowEffects(prev => !prev)}
+                className="flex items-center gap-2 px-3 py-1 rounded text-sm border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
+              >
+                <span>✨ Effects</span>
 
+                <svg
+                  className={`w-4 h-4 transition-transform duration-200 ${showEffects ? "rotate-180" : ""
+                    }`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {showEffects && (
+                <div
+                  ref={effectsRef}
+                  className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="p-4 space-y-4">
+
+                    <div className="border-b pb-3">
+                      <h3 className="font-semibold text-gray-800">
+                        Text Effects
+                      </h3>
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+
+                      <div>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-gray-700">Shadow</span>
+                          <span className="text-gray-500">
+                            {selectedBox?.shadowBlur ?? 4}px
+                          </span>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="20"
+                          value={selectedBox?.shadowBlur ?? 4}
+                          onChange={(e) => {
+                            if (!selectedBox) return
+
+                            const blur = Number(e.target.value)
+
+                            updateBox(selectedBox.id, "shadowBlur", blur)
+                            updateBox(selectedBox.id, "shadowOpacity", blur === 0 ? 0 : 0.8)
+                          }}
+                          className="w-full accent-blue-600"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Shadow Color
+                        </label>
+
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={selectedBox?.shadowColor ?? "#000000"}
+                            onChange={(e) =>
+                              selectedBox &&
+                              updateBox(
+                                selectedBox.id,
+                                "shadowColor",
+                                e.target.value
+                              )
+                            }
+                            className="w-10 h-10 rounded border border-gray-300 cursor-pointer p-0.5"
+                          />
+
+                          <input
+                            type="text"
+                            value={selectedBox?.shadowColor ?? "#000000"}
+                            onChange={(e) =>
+                              selectedBox &&
+                              updateBox(
+                                selectedBox.id,
+                                "shadowColor",
+                                e.target.value
+                              )
+                            }
+                            className="flex-1 text-xs border border-gray-300 rounded px-2 py-2 font-mono"
+                            placeholder="#000000"
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => selectedBox && deleteBox(selectedBox.id)}
               className="text-red-500 hover:bg-red-50 px-2 py-1 rounded text-sm transition-colors"
@@ -1186,9 +1589,12 @@ export default function DesignPage(): React.ReactElement {
             >
               Delete
             </button>
+
           </div>
+
         </div>
       </div>
+
 
       {/* ------------------------------------------------------------------ */}
       {/* Canvas area                                                          */}
@@ -1240,8 +1646,8 @@ export default function DesignPage(): React.ReactElement {
                 box.verticalAlign === 'top'
                   ? 'flex-start'
                   : box.verticalAlign === 'bottom'
-                  ? 'flex-end'
-                  : 'center'
+                    ? 'flex-end'
+                    : 'center'
 
               const textDecoration = [
                 box.underline ? 'underline' : '',
@@ -1257,10 +1663,10 @@ export default function DesignPage(): React.ReactElement {
                     position: 'absolute',
                     left: `${box.x}%`,
                     top: `${box.y}%`,
-                    width: `${box.width}%`,
-                    ...(box.height != null
-                      ? { height: `${box.height}%`, overflow: 'hidden' }
-                      : { minHeight: `${box.fontSize * 1.6}px` }),
+                    width: "fit-content",
+                    height: "auto",
+                    minHeight: `${box.fontSize * 1.6}px`,
+                    overflow: "visible",
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent,
@@ -1288,6 +1694,7 @@ export default function DesignPage(): React.ReactElement {
                       startBoxY: box.y,
                       startBoxWidth: box.width,
                       startBoxHeight: 0,
+                      startFontSize: box.fontSize,
                       snapshot: [...textBoxesRef.current],
                     }
                   }}
@@ -1323,9 +1730,13 @@ export default function DesignPage(): React.ReactElement {
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       outline: 'none',
-                      padding: '2px 4px',
-                      textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                      padding: '0',
+                      textShadow: `${box.shadowX ?? 0}px ${box.shadowY ?? 1}px ${box.shadowBlur ?? 4}px ${hexToRgba(
+                        box.shadowColor ?? '#000000',
+                        box.shadowOpacity ?? 0.8
+                      )}`,
                       minWidth: '1em',
+
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') {
@@ -1347,7 +1758,7 @@ export default function DesignPage(): React.ReactElement {
 
                   {/* Corner resize handles — visible only when selected and not editing */}
                   {isSelected && !isEditing && (
-                    (['nw', 'ne', 'sw', 'se'] as ResizeHandle[]).map((handle) => {
+                    (['se'] as ResizeHandle[]).map((handle) => {
                       const isTop = handle.startsWith('n')
                       const isLeft = handle.endsWith('w')
                       const cursor = handle === 'nw' || handle === 'se' ? 'nwse-resize' : 'nesw-resize'
@@ -1385,6 +1796,7 @@ export default function DesignPage(): React.ReactElement {
                               startBoxY: box.y,
                               startBoxWidth: box.width,
                               startBoxHeight: box.height ?? renderedHeightPct,
+                              startFontSize: box.fontSize,
                               snapshot: [...textBoxesRef.current],
                             }
                           }}
@@ -1434,87 +1846,91 @@ export default function DesignPage(): React.ReactElement {
       {/* ------------------------------------------------------------------ */}
       {/* Keep-text confirmation dialog                                        */}
       {/* ------------------------------------------------------------------ */}
-      {pendingSample && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
-            <h3 className="text-base font-semibold text-gray-800">Replace your text?</h3>
-            <p className="text-sm text-gray-500">
-              This sample comes with its own text layout. Do you want to keep the text you've written or use the sample's text?
-            </p>
-            <div className="flex gap-3">
-              <button
-                className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                onClick={() => {
-                  saveSelectedDesignContext({
-                    eventId,
-                    sourceType: 'sample',
-                    sampleId: pendingSample.id,
-                    sampleName: pendingSample.name,
-                    sampleTags: pendingSample.tags,
-                    bgUrl: pendingSample.background_image_url,
-                    textOverlays: textBoxesRef.current,
-                    selectedAt: new Date().toISOString(),
-                  })
-                  setPendingSample(null)
-                }}
-              >
-                Keep my text
-              </button>
-              <button
-                className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
-                onClick={() => {
-                  setTextBoxes(pendingSample.text_overlays as TextBox[])
-                  setUserHasEditedText(false)
-                  saveSelectedDesignContext({
-                    eventId,
-                    sourceType: 'sample',
-                    sampleId: pendingSample.id,
-                    sampleName: pendingSample.name,
-                    sampleTags: pendingSample.tags,
-                    bgUrl: pendingSample.background_image_url,
-                    textOverlays: pendingSample.text_overlays as TextBox[],
-                    selectedAt: new Date().toISOString(),
-                  })
-                  setPendingSample(null)
-                }}
-              >
-                Use sample text
-              </button>
+      {
+        pendingSample && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
+              <h3 className="text-base font-semibold text-gray-800">Replace your text?</h3>
+              <p className="text-sm text-gray-500">
+                This sample comes with its own text layout. Do you want to keep the text you've written or use the sample's text?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: textBoxesRef.current,
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Keep my text
+                </button>
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+                  onClick={() => {
+                    setTextBoxes(pendingSample.text_overlays as TextBox[])
+                    setUserHasEditedText(false)
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: pendingSample.text_overlays as TextBox[],
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Use sample text
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* ------------------------------------------------------------------ */}
       {/* Background library modal                                             */}
       {/* ------------------------------------------------------------------ */}
-      {showBgModal && (
-        <BgModal
-          onClose={() => setShowBgModal(false)}
-          currentGradient={bgGradient}
-          onUploadClick={() => fileInputRef.current?.click()}
-          onSelectGradient={(gradient) => {
-            hasUserEditedRef.current = true
-            setHasSelectedBackground(true)
-            setBgGradient(gradient)
-            setBgUrl(null)
-            localStorage.setItem(`card-gradient-${eventId}`, gradient)
-            localStorage.removeItem(`card-bg-${eventId}`)
-            saveSelectedDesignContext({
-              eventId,
-              sourceType: 'gradient',
-              bgGradient: gradient,
-              textOverlays: textBoxesRef.current,
-              selectedAt: new Date().toISOString(),
-            })
-            setShowBgModal(false)
-          }}
-          onSelectSample={(sample) => {
-            applySampleBackground(sample)
-            setShowBgModal(false)
-          }}
-        />
-      )}
-    </div>
+      {
+        showBgModal && (
+          <BgModal
+            onClose={() => setShowBgModal(false)}
+            currentGradient={bgGradient}
+            onUploadClick={() => fileInputRef.current?.click()}
+            onSelectGradient={(gradient) => {
+              hasUserEditedRef.current = true
+              setHasSelectedBackground(true)
+              setBgGradient(gradient)
+              setBgUrl(null)
+              localStorage.setItem(`card-gradient-${eventId}`, gradient)
+              localStorage.removeItem(`card-bg-${eventId}`)
+              saveSelectedDesignContext({
+                eventId,
+                sourceType: 'gradient',
+                bgGradient: gradient,
+                textOverlays: textBoxesRef.current,
+                selectedAt: new Date().toISOString(),
+              })
+              setShowBgModal(false)
+            }}
+            onSelectSample={(sample) => {
+              applySampleBackground(sample)
+              setShowBgModal(false)
+            }}
+          />
+        )
+      }
+    </div >
   )
 }

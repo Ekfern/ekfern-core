@@ -6,16 +6,17 @@ import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
+import { PasswordRequirements } from '@/components/ui/PasswordRequirements'
 import { getErrorMessage, logError } from '@/lib/error-handler'
+import { resetPassword, newPasswordSchema } from '@/lib/auth/api'
 
 const resetPasswordSchema = z.object({
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  password: newPasswordSchema,
+  confirmPassword: newPasswordSchema,
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
@@ -49,6 +50,7 @@ function ResetPasswordForm() {
     register,
     handleSubmit,
     formState: { errors },
+    watch,
   } = useForm<ResetPasswordForm>({
     resolver: zodResolver(resetPasswordSchema),
     mode: 'onSubmit',
@@ -62,11 +64,7 @@ function ResetPasswordForm() {
 
     setLoading(true)
     try {
-      await api.post('/api/auth/reset-password/', {
-        token,
-        email,
-        new_password: data.password,
-      })
+      await resetPassword(token, email, data.password)
       showToast('Password reset successfully! You can now login with your new password.', 'success')
       router.push('/host/login')
     } catch (error: any) {
@@ -114,9 +112,7 @@ function ResetPasswordForm() {
                   {errors.password.message}
                 </p>
               )}
-              <p className="text-xs text-gray-500 mt-1">
-                Password must be at least 8 characters and contain letters and numbers.
-              </p>
+              <PasswordRequirements password={watch('password') || ''} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Confirm Password</label>

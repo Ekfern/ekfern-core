@@ -6,12 +6,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import Link from 'next/link'
-import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
+import { PasswordRequirements } from '@/components/ui/PasswordRequirements'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
+import { signup, verifyOtp, setPassword, storeAuthTokens, otpCodeSchema, newPasswordSchema } from '@/lib/auth/api'
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -19,18 +20,26 @@ const signupSchema = z.object({
 })
 
 const codeSchema = z.object({
-  code: z.string().length(6, 'Code must be 6 digits'),
+  code: otpCodeSchema,
+})
+
+const setPasswordSchema = z.object({
+  password: newPasswordSchema,
+  confirmPassword: newPasswordSchema,
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
 })
 
 type SignupForm = z.infer<typeof signupSchema>
 type CodeForm = z.infer<typeof codeSchema>
+type SetPasswordForm = z.infer<typeof setPasswordSchema>
 
 function SignupForm() {
   const router = useRouter()
   const { showToast } = useToast()
-  const [step, setStep] = useState<'signup' | 'verify'>('signup')
+  const [step, setStep] = useState<'signup' | 'verify' | 'set-password'>('signup')
   const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
 
   const {
@@ -49,23 +58,28 @@ function SignupForm() {
     resolver: zodResolver(codeSchema),
   })
 
+  const {
+    register: registerSetPassword,
+    handleSubmit: handleSubmitSetPassword,
+    formState: { errors: setPasswordErrors },
+    watch: watchSetPassword,
+  } = useForm<SetPasswordForm>({
+    resolver: zodResolver(setPasswordSchema),
+  })
+
   const onSignupSubmit = async (data: SignupForm) => {
     setLoading(true)
     try {
-      // First, register the user with name
-      const response = await api.post('/api/auth/signup/', {
-        name: data.name,
-        email: data.email,
-      })
-      
+      const response = await signup(data.name, data.email)
+
       setEmail(data.email)
-      setName(data.name)
       setStep('verify')
-      
-      // In development, show OTP if returned (for testing without email)
-      if (response.data.otp_code) {
-        logDebug('🔑 OTP Code (dev mode):', response.data.otp_code)
-        showToast(`OTP Code: ${response.data.otp_code} (check console for details)`, 'info')
+
+      if (response.otp_code) {
+        logDebug('🔑 OTP Code (dev mode):', response.otp_code)
+        showToast(`OTP Code: ${response.otp_code} (check console for details)`, 'info')
+      } else if (response.needs_verification) {
+        showToast('This email is registered but not yet verified. A fresh code has been sent.', 'info')
       } else {
         showToast('Verification code sent to your email', 'success')
       }
@@ -80,20 +94,34 @@ function SignupForm() {
   const onCodeSubmit = async (data: { code: string }) => {
     setLoading(true)
     try {
-      const response = await api.post('/api/auth/otp/verify/', {
-        email,
-        code: data.code,
-      })
-      localStorage.setItem('access_token', response.data.access)
-      localStorage.setItem('refresh_token', response.data.refresh)
-      showToast('Account created successfully! Welcome! 🌿', 'success')
-      router.push('/host/dashboard')
+      const tokens = await verifyOtp(email, data.code)
+      storeAuthTokens(tokens)
+      showToast('Email verified! 🌿', 'success')
+      setStep('set-password')
     } catch (error: any) {
       logError('OTP verification error:', error)
       showToast(getErrorMessage(error), 'error')
     } finally {
       setLoading(false)
     }
+  }
+
+  const onSetPasswordSubmit = async (data: SetPasswordForm) => {
+    setLoading(true)
+    try {
+      await setPassword(data.password)
+      showToast('Password set! Welcome! 🌿', 'success')
+      router.push('/host/dashboard')
+    } catch (error: any) {
+      logError('Set password error:', error)
+      showToast(getErrorMessage(error), 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const onSkipPassword = () => {
+    router.push('/host/dashboard')
   }
 
   return (
@@ -103,14 +131,16 @@ function SignupForm() {
           <div className="text-4xl mb-4">🌿</div>
           <CardTitle className="text-2xl text-eco-green">Create Your Account</CardTitle>
           <CardDescription className="text-base">
-            {step === 'signup' 
+            {step === 'signup'
               ? 'Start planning sustainable celebrations in minutes'
-              : `Enter the verification code sent to ${email}`
+              : step === 'verify'
+              ? `Enter the verification code sent to ${email}`
+              : 'Set a password for faster sign in, or skip and use a code every time'
             }
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {step === 'signup' ? (
+          {step === 'signup' && (
             <form 
               onSubmit={handleSubmitSignup(onSignupSubmit)} 
               className="space-y-4"
@@ -158,7 +188,9 @@ function SignupForm() {
                 By creating an account, you agree to our Terms of Service and Privacy Policy
               </p>
             </form>
-          ) : (
+          )}
+
+          {step === 'verify' && (
             <form onSubmit={handleSubmitCode(onCodeSubmit)} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">
@@ -200,15 +232,73 @@ function SignupForm() {
               </div>
             </form>
           )}
-          
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Already have an account?{' '}
-              <Link href="/host/login" className="text-eco-green font-medium hover:underline">
-                Sign in
-              </Link>
-            </p>
-          </div>
+
+          {step === 'set-password' && (
+            <form onSubmit={handleSubmitSetPassword(onSetPasswordSubmit)} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-700">
+                  Password
+                </label>
+                <Input
+                  type="password"
+                  {...registerSetPassword('password')}
+                  placeholder="Enter a password (min 8 characters)"
+                  autoComplete="new-password"
+                  className="border-eco-green-light focus:border-eco-green"
+                />
+                {setPasswordErrors.password && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {setPasswordErrors.password.message}
+                  </p>
+                )}
+                <PasswordRequirements password={watchSetPassword('password') || ''} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-700">
+                  Confirm Password
+                </label>
+                <Input
+                  type="password"
+                  {...registerSetPassword('confirmPassword')}
+                  placeholder="Confirm password"
+                  autoComplete="new-password"
+                  className="border-eco-green-light focus:border-eco-green"
+                />
+                {setPasswordErrors.confirmPassword && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {setPasswordErrors.confirmPassword.message}
+                  </p>
+                )}
+              </div>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-eco-green hover:bg-eco-green-dark text-white py-6 text-lg"
+              >
+                {loading ? 'Saving...' : 'Set Password & Continue →'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onSkipPassword}
+                disabled={loading}
+                className="w-full border-eco-green text-eco-green"
+              >
+                Skip — continue with OTP
+              </Button>
+            </form>
+          )}
+
+          {step !== 'set-password' && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                Already have an account?{' '}
+                <Link href="/host/login" className="text-eco-green font-medium hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

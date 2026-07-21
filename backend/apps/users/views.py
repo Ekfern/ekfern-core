@@ -34,17 +34,22 @@ def signup(request):
         return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
 
     email = User.objects.normalize_email(email.strip())
-    
-    # Check if user already exists
-    if User.objects.filter(email__iexact=email).exists():
-        return Response(
-            {'error': 'An account with this email already exists. Please login instead.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
+
+    existing = User.objects.filter(email__iexact=email).first()
+    if existing:
+        if existing.email_verified:
+            return Response(
+                {'error': 'An account with this email already exists. Please login instead.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # Account exists but was never verified — resend OTP so the user can resume
+        response = _send_otp(existing)
+        response.data['needs_verification'] = True
+        return response
+
     # Create new user
     user = User.objects.create_user(email=email, name=name or email.split('@')[0])
-    
+
     # Generate and send OTP
     return _send_otp(user)
 

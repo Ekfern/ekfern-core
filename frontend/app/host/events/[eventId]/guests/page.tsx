@@ -1854,18 +1854,6 @@ export default function GuestsPage() {
     <div className="min-h-screen bg-eco-beige">
       <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="mb-6 md:mb-8">
-          <div className="flex flex-wrap gap-2 mb-4">
-          <Link href={`/host/events/${eventId}`}>
-              <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
-              Back to Event
-            </Button>
-          </Link>
-            <Link href={`/host/events/${eventId}/communications`}>
-              <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
-                Messages
-              </Button>
-            </Link>
-          </div>
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <h1 className="text-3xl md:text-4xl font-bold mb-2 text-eco-green leading-tight">Guest List</h1>

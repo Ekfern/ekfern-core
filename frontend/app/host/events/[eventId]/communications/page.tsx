@@ -355,18 +355,6 @@ export default function CommunicationsPage() {
         {/* Page Header */}
         <div className="mb-6">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/host/events/${eventId}`}>
-                <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
-                  Back to Event
-                </Button>
-              </Link>
-              <Link href={`/host/events/${eventId}/guests`}>
-                <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
-                  Manage Guests
-                </Button>
-              </Link>
-            </div>
             {activeTab === 'templates' && (
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <Button
