@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import Logo from '@/components/Logo'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 
 const C = {
@@ -25,6 +26,18 @@ type NavPage = typeof NAV_LINKS[number]['href']
 
 export default function SiteNav({ activePage }: { activePage?: NavPage }) {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
+
+  // Chrome caches the last-painted custom cursor and won't repaint it after a
+  // client-side route change until a genuine new pointer-move event occurs.
+  // Toggling body cursor forces a style/paint pass that re-evaluates it.
+  useEffect(() => {
+    document.body.style.cursor = 'none'
+    const raf = requestAnimationFrame(() => {
+      document.body.style.cursor = ''
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [pathname])
 
   return (
     <>
