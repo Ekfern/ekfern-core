@@ -339,8 +339,48 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
           placeholder="e.g., Formal, Casual, Traditional"
         />
       </div>
+
+      {/* Header Font */}
       <div>
-        <label className="block text-sm font-medium mb-2">Date Font</label>
+        <label className="block text-sm font-medium mb-2">Header Font</label>
+
+        <select
+          value={findFontByFamily(settings.headerFontFamily)?.id || FONT_OPTIONS[0].id}
+          onChange={(e) => {
+            const font = FONT_OPTIONS.find((f) => f.id === e.target.value)
+            onChange({
+              ...settings,
+              headerFontFamily: font?.family,
+            })
+          }}
+          className="w-full text-sm border rounded px-3 py-2"
+        >
+          {FONT_OPTIONS.map((font) => (
+            <option
+              key={font.id}
+              value={font.id}
+              style={{ fontFamily: font.family }}
+            >
+              {font.name} ({font.category})
+            </option>
+          ))}
+        </select>
+
+        <p className="text-xs text-gray-500 mt-1">
+          Preview:{' '}
+          <span
+            style={{
+              fontFamily: settings.headerFontFamily || FONT_OPTIONS[0].family,
+            }}
+          >
+            Wednesday, August 5, 2026
+          </span>
+        </p>
+      </div>
+
+      {/* Content Font */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Content Font</label>
 
         <select
           value={findFontByFamily(settings.contentFontFamily)?.id || FONT_OPTIONS[0].id}
@@ -362,18 +402,18 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
               {font.name} ({font.category})
             </option>
           ))}
-
-          <p className="text-xs text-gray-500 mt-1">
-            Preview:{' '}
-            <span
-              style={{
-                fontFamily: settings.contentFontFamily || FONT_OPTIONS[0].family,
-              }}
-            >
-              Wednesday, August 5, 2026
-            </span>
-          </p>
         </select>
+
+        <p className="text-xs text-gray-500 mt-1">
+          Preview:{' '}
+          <span
+            style={{
+              fontFamily: settings.contentFontFamily || FONT_OPTIONS[0].family,
+            }}
+          >
+            Wednesday, August 5, 2026
+          </span>
+        </p>
       </div>
 
       {/* Styling Options */}

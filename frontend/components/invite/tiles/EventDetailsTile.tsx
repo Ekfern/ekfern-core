@@ -403,14 +403,20 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
               <div className="space-y-8" style={{ fontFamily: 'var(--theme-font-body, Georgia, serif)' }}>
                 {settings.date && (
                   <div className="space-y-2">
-                    <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+                    <div
+                      className="text-xs uppercase tracking-widest font-light italic mb-3"
+                      style={{
+                        color: labelColor,
+                        fontFamily: settings.headerFontFamily,
+                      }}
+                    >
                       Date
                     </div>
                     <div
                       className="text-xl md:text-2xl font-normal leading-relaxed"
                       style={{
                         color: fontColor,
-                        fontFamily: settings.dateFontFamily,
+                        fontFamily: settings.contentFontFamily,
                       }}
                     >
                       {formatDate(settings.date)}
@@ -419,10 +425,22 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                 )}
                 {settings.time && (
                   <div className="space-y-2">
-                    <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+                    <div
+                      className="text-xs uppercase tracking-widest font-light italic mb-3"
+                      style={{
+                        color: labelColor,
+                        fontFamily: settings.headerFontFamily,
+                      }}
+                    >
                       Time
                     </div>
-                    <div className="text-xl md:text-2xl font-normal leading-relaxed" style={{ color: fontColor }}>
+                    <div
+                      className="text-xl md:text-2xl font-normal leading-relaxed"
+                      style={{
+                        color: fontColor,
+                        fontFamily: settings.contentFontFamily,
+                      }}
+                    >
                       {formatTime(settings.time)}
                     </div>
                   </div>
@@ -439,10 +457,22 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
                   return (
                     <div className="space-y-2">
-                      <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+                      <div
+                        className="text-xs uppercase tracking-widest font-light italic mb-3"
+                        style={{
+                          color: labelColor,
+                          fontFamily: settings.headerFontFamily,
+                        }}
+                      >
                         Location
                       </div>
-                      <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: settings.fontColor || '#1F2937' }}>
+                      <div
+                        className="text-xl md:text-2xl font-normal leading-relaxed"
+                        style={{
+                          color: fontColor,
+                          fontFamily: settings.contentFontFamily,
+                        }}
+                      >
                         <span>{settings.location}</span>
                         {canDisplay && mapUrl && (
                           <a
@@ -522,10 +552,22 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
                 {settings.dressCode && (
                   <div className="space-y-2">
-                    <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+                    <div
+                      className="text-xs uppercase tracking-widest font-light italic mb-3"
+                      style={{
+                        color: labelColor,
+                        fontFamily: settings.headerFontFamily,
+                      }}
+                    >
                       Dress Code
                     </div>
-                    <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || '#1F2937' }}>
+                    <div
+                      className="text-xl md:text-2xl font-normal leading-relaxed"
+                      style={{
+                        color: fontColor,
+                        fontFamily: settings.contentFontFamily,
+                      }}
+                    >
                       {settings.dressCode}
                     </div>
                   </div>
@@ -638,14 +680,46 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
       <div className="space-y-3 text-sm" style={{ fontFamily: 'var(--theme-font-body, Georgia, serif)' }}>
         {settings.date && (
           <p>
-            <span className="text-xs uppercase tracking-widest font-light italic mr-2" style={{ color: labelColor }}>Date:</span>
-            <span className="font-normal" style={{ color: fontColor }}>{formatDate(settings.date)}</span>
+            <span
+              className="text-xs uppercase tracking-widest font-light italic mr-2"
+              style={{
+                color: labelColor,
+                fontFamily: settings.headerFontFamily,
+              }}
+            >
+              Date:
+            </span>
+            <span
+              className="font-normal"
+              style={{
+                color: fontColor,
+                fontFamily: settings.contentFontFamily,
+              }}
+            >
+              {formatDate(settings.date)}
+            </span>
           </p>
         )}
         {settings.time && (
           <p>
-            <span className="text-xs uppercase tracking-widest font-light italic mr-2" style={{ color: labelColor }}>Time:</span>
-            <span className="font-normal" style={{ color: fontColor }}>{formatTime(settings.time)}</span>
+            <span
+              className="text-xs uppercase tracking-widest font-light italic mr-2"
+              style={{
+                color: labelColor,
+                fontFamily: settings.headerFontFamily,
+              }}
+            >
+              Time:
+            </span>
+            <span
+              className="font-normal"
+              style={{
+                color: fontColor,
+                fontFamily: settings.contentFontFamily,
+              }}
+            >
+              {formatTime(settings.time)}
+            </span>
           </p>
         )}
         {settings.location && (() => {
@@ -661,8 +735,24 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           return (
             <div>
               <p>
-                <span className="text-xs uppercase tracking-widest font-light italic mr-2" style={{ color: labelColor }}>Location:</span>
-                <span className="font-normal" style={{ color: fontColor }}>{settings.location}</span>
+                <span
+                  className="text-xs uppercase tracking-widest font-light italic mr-2"
+                  style={{
+                    color: labelColor,
+                    fontFamily: settings.headerFontFamily,
+                  }}
+                >
+                  Location:
+                </span>
+                <span
+                  className="font-normal"
+                  style={{
+                    color: fontColor,
+                    fontFamily: settings.contentFontFamily,
+                  }}
+                >
+                  {settings.location}
+                </span>
               </p>
 
               {/* Embedded Map - only show if verified, enabled, and valid */}
@@ -723,8 +813,24 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
         })()}
         {settings.dressCode && (
           <p>
-            <span className="text-xs uppercase tracking-widest font-light italic mr-2" style={{ color: labelColor }}>Dress Code:</span>
-            <span className="font-normal italic" style={{ color: fontColor }}>{settings.dressCode}</span>
+            <span
+              className="text-xs uppercase tracking-widest font-light italic mr-2"
+              style={{
+                color: labelColor,
+                fontFamily: settings.headerFontFamily,
+              }}
+            >
+              Dress Code:
+            </span>
+            <span
+              className="font-normal italic"
+              style={{
+                color: fontColor,
+                fontFamily: settings.contentFontFamily,
+              }}
+            >
+              {settings.dressCode}
+            </span>
           </p>
         )}
       </div>
