@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="public-site min-h-screen overflow-x-hidden bg-white">
       <SiteNav activePage="/contact" />
 
       <main className="container mx-auto px-4 py-12 max-w-5xl">

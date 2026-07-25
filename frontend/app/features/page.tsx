@@ -178,7 +178,7 @@ function CompCell({ value }: { value: CellValue }) {
 
 export default function FeaturesPage() {
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: C.parch }}>
+    <div className="public-site min-h-screen overflow-x-hidden" style={{ background: C.parch }}>
 
       {/* ── Navigation ─────────────────────────────────────────── */}
       <SiteNav activePage="/features" />

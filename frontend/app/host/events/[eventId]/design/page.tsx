@@ -1,163 +1,839 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from "react-dom"
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import api, { uploadImage } from '@/lib/api'
-import type { DesignSample } from '@/lib/invite/api'
+import { updateInvitePage, createInvitePage, getInvitePage, type DesignSample } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
-import type { DesignTileSettings, InviteConfig, Tile } from '@/lib/invite/schema'
+import type { ImageTileSettings, DesignTileSettings } from '@/lib/invite/schema'
+import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import WizardProgress from '@/components/host/WizardProgress'
 import { logError } from '@/lib/error-handler'
 import { Input } from '@/components/ui/input'
 import DesignCatalogGrid, { useDesignCatalog } from '@/components/invite/DesignCatalogGrid'
-import { deriveHarmoniousPalette } from '@/lib/invite/paletteUtils'
+import { loadSelectedDesignContext, saveSelectedDesignContext } from '@/lib/invite/designContext'
+import { Minus, Plus } from "lucide-react"
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface TextBox {
+  id: string
+  text: string
+  x: number         // % from left of canvas (0–100)
+  y: number         // % from top of canvas (0–100)
+  width: number     // % of canvas width (default 80)
+  height: number | null  // % of canvas height, null = auto
+  fontFamily: string
+  fontSize: number  // px (default 32)
+  color: string     // hex (default '#ffffff')
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  strikethrough: boolean
+  textAlign: 'left' | 'center' | 'right'
+  verticalAlign: 'top' | 'middle' | 'bottom'
+  shadowX?: number
+  shadowY?: number
+  shadowBlur?: number
+  shadowOpacity?: number
+  shadowColor?: string
+}
+
+type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
+
+interface DragState {
+  mode: 'move' | 'resize'
+  resizeHandle: ResizeHandle | null
+  boxId: string
+  startPointerX: number
+  startPointerY: number
+  startBoxX: number
+  startBoxY: number
+  startBoxWidth: number
+  startBoxHeight: number
+  snapshot: TextBox[]
+  startFontSize: number
+}
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const GRADIENT_PRESETS: { label: string; value: string }[] = [
-  { label: 'Rose Blush',  value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
-  { label: 'Sage Mist',   value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
-  { label: 'Dusk Blue',   value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
+  { label: 'Rose Blush', value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
+  { label: 'Sage Mist', value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
+  { label: 'Dusk Blue', value: 'linear-gradient(135deg, #e3f2fd, #64b5f6)' },
   { label: 'Golden Hour', value: 'linear-gradient(135deg, #fff8e1, #ffca28)' },
-  { label: 'Lavender',    value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
+  { label: 'Lavender', value: 'linear-gradient(135deg, #f3e5f5, #ce93d8)' },
   { label: 'Peach Cream', value: 'linear-gradient(135deg, #fff3e0, #ffb74d)' },
-  { label: 'Midnight',    value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
-  { label: 'Forest',      value: 'linear-gradient(135deg, #1b4332, #40916c)' },
+  { label: 'Midnight', value: 'linear-gradient(135deg, #1a1a2e, #16213e)' },
+  { label: 'Forest', value: 'linear-gradient(135deg, #1b4332, #40916c)' },
 ]
+
+const GRADIENT_DIRECTIONS = [
+  { label: '↘ Diagonal', value: '135deg' },
+  { label: '↓ Down', value: '180deg' },
+  { label: '→ Right', value: '90deg' },
+  { label: '↗ Up-right', value: '45deg' },
+]
+
+const SUBTITLE_MAP: Record<string, string> = {
+  wedding: "We're getting married!",
+  birthday: 'Come celebrate with us!',
+  baby_shower: 'A little one is on the way!',
+  engagement: 'We said yes!',
+  anniversary: 'Celebrating our love',
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeId(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2)
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function buildInitialBoxes(title: string, eventType: string): TextBox[] {
+  const subtitle = SUBTITLE_MAP[eventType] ?? 'Join us for a special celebration!'
+  return [
+    {
+      id: makeId(),
+      text: title || 'Your Names Here',
+      x: 10,
+      y: 30,
+      width: 80,
+      height: null,
+      fontFamily: "'Playfair Display', serif",
+      fontSize: 40,
+      color: '#ffffff',
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      textAlign: 'center',
+      verticalAlign: 'middle',
+    },
+    {
+      id: makeId(),
+      text: subtitle,
+      x: 10,
+      y: 60,
+      width: 80,
+      height: null,
+      fontFamily: 'Georgia, serif',
+      fontSize: 20,
+      color: '#f0f0f0',
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      textAlign: 'center',
+      verticalAlign: 'middle',
+    },
+  ]
+}
+
+// ---------------------------------------------------------------------------
+// Sub-component: Background Library Modal
+// ---------------------------------------------------------------------------
+
+function parseLinearGradient(css: string): { angle: string; color1: string; color2: string } {
+  const defaults = { angle: '135deg', color1: '#fce4ec', color2: '#f48fb1' }
+  if (!css) return defaults
+  const m = css.match(/linear-gradient\(\s*([^,]+),\s*(#[0-9a-fA-F]{3,6})[^,]*,\s*(#[0-9a-fA-F]{3,6})/)
+  if (!m) return defaults
+  return { angle: m[1]!.trim(), color1: m[2]!, color2: m[3]! }
+}
+
+interface BgModalProps {
+  onClose: () => void
+  onSelectGradient: (gradient: string) => void
+  onSelectSample: (sample: DesignSample) => void
+  currentGradient: string
+  onUploadClick: () => void
+}
+
+function BgModal({ onClose, onSelectGradient, onSelectSample, currentGradient, onUploadClick }: BgModalProps): React.ReactElement {
+  const [activeTab, setActiveTab] = useState<'samples' | 'gradients' | 'gifs'>('samples')
+  const [sampleSearch, setSampleSearch] = useState('')
+
+  const catalog = useDesignCatalog({ enabled: activeTab === 'samples', q: sampleSearch })
+
+  const parsedGrad = React.useMemo(() => parseLinearGradient(currentGradient), [currentGradient])
+  const [gradAngle, setGradAngle] = useState(parsedGrad.angle)
+  const [gradColor1, setGradColor1] = useState(parsedGrad.color1)
+  const [gradColor2, setGradColor2] = useState(parsedGrad.color2)
+
+  function applyCustomGradient(angle: string, c1: string, c2: string) {
+    onSelectGradient(`linear-gradient(${angle}, ${c1}, ${c2})`)
+  }
+
+  const TABS = [
+    { id: 'samples' as const, label: 'Samples' },
+    { id: 'gradients' as const, label: 'Gradients' },
+    { id: 'gifs' as const, label: 'GIFs' },
+  ]
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+          <h2 className="text-base font-semibold text-gray-800">Choose Background</h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 text-gray-500 text-lg leading-none"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 px-5">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={[
+                'py-2.5 px-4 text-sm font-medium border-b-2 -mb-px transition-colors',
+                activeTab === tab.id
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700',
+              ].join(' ')}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {activeTab === 'samples' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                <span aria-hidden>ⓘ</span>
+                <span>Images in this catalog are not owned by Ekfern.</span>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
+                <Input
+                  type="search"
+                  value={sampleSearch}
+                  onChange={(e) => setSampleSearch(e.target.value)}
+                  placeholder="Search samples"
+                  className="pl-9 h-9 text-sm"
+                  aria-label="Search background samples"
+                />
+              </div>
+              <DesignCatalogGrid
+                items={catalog.items}
+                loading={catalog.loading}
+                loadingMore={catalog.loadingMore}
+                error={catalog.error}
+                hasNext={catalog.hasNext}
+                onSelect={onSelectSample}
+                onLoadMore={catalog.loadMore}
+                onRetry={catalog.reload}
+                gridClassName="grid grid-cols-2 gap-4"
+                skeletonCount={6}
+                emptyMessage={sampleSearch.trim() ? 'No samples match your search.' : 'No samples available yet. Upload your own background using “Upload Background”.'}
+                renderMeta={(sample) => sample.description ? (
+                  <p className="text-xs text-gray-400 truncate mt-0.5">{sample.description}</p>
+                ) : null}
+              />
+            </div>
+          )}
+
+          {activeTab === 'gradients' && (
+            <div className="space-y-4">
+              {/* Preset swatches */}
+              <div className="grid grid-cols-4 gap-3">
+                {GRADIENT_PRESETS.map((g) => (
+                  <button
+                    key={g.value}
+                    aria-label={g.label}
+                    title={g.label}
+                    onClick={() => onSelectGradient(g.value)}
+                    className="h-20 rounded-xl border-2 border-transparent hover:border-blue-400 transition-all hover:scale-105"
+                    style={{ background: g.value }}
+                  />
+                ))}
+              </div>
+
+              {/* Custom gradient builder */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                <p className="text-xs font-medium text-gray-600">Custom gradient</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={gradColor1}
+                    onChange={(e) => {
+                      setGradColor1(e.target.value)
+                      applyCustomGradient(gradAngle, e.target.value, gradColor2)
+                    }}
+                    className="w-9 h-9 rounded border border-gray-300 cursor-pointer p-0.5 flex-none"
+                    title="Start color"
+                  />
+                  <div
+                    className="flex-1 h-9 rounded-md border border-gray-200"
+                    style={{ background: `linear-gradient(90deg, ${gradColor1}, ${gradColor2})` }}
+                  />
+                  <input
+                    type="color"
+                    value={gradColor2}
+                    onChange={(e) => {
+                      setGradColor2(e.target.value)
+                      applyCustomGradient(gradAngle, gradColor1, e.target.value)
+                    }}
+                    className="w-9 h-9 rounded border border-gray-300 cursor-pointer p-0.5 flex-none"
+                    title="End color"
+                  />
+                </div>
+                <select
+                  value={gradAngle}
+                  onChange={(e) => {
+                    setGradAngle(e.target.value)
+                    applyCustomGradient(e.target.value, gradColor1, gradColor2)
+                  }}
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                >
+                  {GRADIENT_DIRECTIONS.map((d) => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'gifs' && (
+            <div className="flex flex-col items-center justify-center h-40 text-center gap-3">
+              <p className="text-gray-500 text-sm leading-relaxed">
+                No GIF library yet — but you can upload any GIF as your background.
+              </p>
+              <button
+                type="button"
+                onClick={() => { onClose(); onUploadClick() }}
+                className="text-sm text-blue-600 underline hover:text-blue-800"
+              >
+                Upload a GIF
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Main page
-//
-// This step is a pure background/color picker — it no longer hosts the text
-// overlay canvas. Text editing for the `design` tile now happens in the Page
-// Editor's tile settings panel (DesignTileSettings + TextOverlayEditorModal),
-// which already supports the same drag/resize/font controls that used to
-// live here. Picking a background writes straight into the `design` tile
-// that the (now earlier) Layout step already created in page_config.
 // ---------------------------------------------------------------------------
+function hexToRgba(hex: string, opacity: number) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
 
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
 export default function DesignPage(): React.ReactElement {
   const params = useParams()
   const router = useRouter()
   const eventId = Number(params.eventId)
 
+  // Canvas + drag
+  const canvasRef = useRef<HTMLDivElement>(null)
+  
+  const dragState = useRef<DragState | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fontPickerRef = useRef<HTMLDivElement>(null)
 
+  const [effectsPosition, setEffectsPosition] = useState({
+    top: 0,
+    left: 0,
+  })
+  // Undo / redo
+  const undoStack = useRef<TextBox[][]>([])
+  const redoStack = useRef<TextBox[][]>([])
+  const textBoxesRef = useRef<TextBox[]>([])
+  const editStartSnapshotRef = useRef<TextBox[] | null>(null)
+
+  // Refs to each contentEditable div — keyed by box.id — for auto-focus
+  const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  // State
   const [event, setEvent] = useState<{ title: string; event_type: string } | null>(null)
   const [bgUrl, setBgUrl] = useState<string | null>(null)
   const [bgGradient, setBgGradient] = useState<string>(GRADIENT_PRESETS[0]!.value)
-  const [hasSelectedBackground, setHasSelectedBackground] = useState(false)
+  const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [showEffects, setShowEffects] = useState(false)
+  const [showBgModal, setShowBgModal] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [hasSelectedBackground, setHasSelectedBackground] = useState(false)
+  const [fontSizeInput, setFontSizeInput] = useState<string>('')
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [userHasEditedText, setUserHasEditedText] = useState(false)
+  const [pendingSample, setPendingSample] = useState<DesignSample | null>(null)
   const [sampleSearch, setSampleSearch] = useState('')
+  const [showFontPicker, setShowFontPicker] = useState(false)
+  const [fontSearch, setFontSearch] = useState("")
+  const [fontCategory, setFontCategory] = useState<
+    "all" | "sans-serif" | "serif" | "script" | "display"
+  >("all")
+  const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+  const effectsRef = useRef<HTMLDivElement>(null)
+  const effectsButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Paginated + server-searched background catalog, only while choosing.
+  const startChangingFontSize = (direction: 1 | -1) => {
+    if (!selectedBox) return
+
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(() => {
+        const current = textBoxesRef.current.find(
+          box => box.id === selectedBox.id
+        )
+
+        if (!current) return
+
+        changeFontSize(current.fontSize + direction)
+      }, 80)
+    }, 400)
+  }
+
+  const stopChangingFontSize = () => {
+    if (holdTimeout.current) {
+      clearTimeout(holdTimeout.current)
+      holdTimeout.current = null
+    }
+
+    if (holdInterval.current) {
+      clearInterval(holdInterval.current)
+      holdInterval.current = null
+    }
+  }
+
+  // Phase-1 background catalog (paginated + server-searched, only while choosing).
   const catalog = useDesignCatalog({ enabled: !hasSelectedBackground, q: sampleSearch })
 
-  // Load event + restore whatever the `design` tile already holds (e.g. the
-  // layout's own default background, or a background picked on a previous visit).
+  // Refs for auto-save concurrency control
+  const isSavingRef = useRef(false)
+  const hasUserEditedRef = useRef(false) // prevents auto-save firing on initial load
+  const changeFontSize = (newSize: number) => {
+    if (!selectedBox) return
+
+    const size = clamp(newSize, 12, 200)
+
+    updateBox(selectedBox.id, "fontSize", size)
+    setFontSizeInput(String(size))
+  }
+  // Load event + restore state — backend tile takes priority over localStorage (device-independent)
   useEffect(() => {
     if (!eventId || isNaN(eventId)) return
     Promise.all([
       api.get<{ id: number; title: string; event_type: string }>(`/api/events/${eventId}/`),
-      getEventPageConfig(eventId).catch(() => null),
-    ]).then(([eventRes, pageConfig]) => {
-      setEvent(eventRes.data)
-      const designTile = pageConfig?.page_config?.tiles?.find((t) => t.type === 'design')
-      const settings = designTile?.settings as DesignTileSettings | undefined
-      if (settings?.src) {
-        setBgUrl(settings.src)
+      getInvitePage(eventId).catch(() => null),
+    ]).then(([eventRes, page]) => {
+      const data = eventRes.data
+      setEvent(data)
+
+      // Check if backend already has greeting-card content (e.g. saved from another device)
+      const gcTile = page?.config?.tiles?.find((t) => t.type === 'design')
+      const gcSettings = gcTile?.settings as DesignTileSettings | undefined
+      const hasBackendContent = !!gcSettings?.src || (gcSettings?.textOverlays?.length ?? 0) > 0
+
+      if (hasBackendContent) {
+        // Backend is authoritative — use it regardless of localStorage
+        setBgUrl(gcSettings!.src ?? null)
+        setBgGradient(gcSettings!.backgroundGradient ?? GRADIENT_PRESETS[0]!.value)
+        setTextBoxes((gcSettings!.textOverlays ?? []) as TextBox[])
+        setUserHasEditedText(true)
         setHasSelectedBackground(true)
-      } else if (settings?.backgroundGradient) {
-        setBgGradient(settings.backgroundGradient)
+        saveSelectedDesignContext({
+          eventId,
+          sourceType: gcSettings?.src ? 'sample' : 'gradient',
+          bgUrl: gcSettings?.src,
+          bgGradient: gcSettings?.backgroundGradient,
+          textOverlays: (gcSettings?.textOverlays ?? []) as TextBox[],
+          selectedAt: new Date().toISOString(),
+        })
+        return
+      }
+
+      // Fall back to localStorage (same-device fast restore)
+      const savedContext = loadSelectedDesignContext(eventId)
+      const savedBg = localStorage.getItem(`card-bg-${eventId}`)
+      const savedGradient = localStorage.getItem(`card-gradient-${eventId}`)
+      const savedBoxes = localStorage.getItem(`card-textboxes-${eventId}`)
+
+      if (savedContext?.bgUrl || savedBg) {
+        setBgUrl(savedContext?.bgUrl ?? savedBg)
+        setBgGradient(GRADIENT_PRESETS[0]!.value)
         setHasSelectedBackground(true)
+      } else if (savedContext?.bgGradient || savedGradient) {
+        setBgGradient(savedContext?.bgGradient ?? savedGradient ?? GRADIENT_PRESETS[0]!.value)
+        setHasSelectedBackground(true)
+      } else {
+        setHasSelectedBackground(false)
+      }
+
+      const savedBoxesRaw = savedContext?.textOverlays ? JSON.stringify(savedContext.textOverlays) : savedBoxes
+      if (savedBoxesRaw) {
+        try {
+          setTextBoxes(JSON.parse(savedBoxesRaw) as TextBox[])
+          setUserHasEditedText(true)
+        } catch {
+          setTextBoxes(buildInitialBoxes(data.title, data.event_type))
+        }
+      } else {
+        setTextBoxes(buildInitialBoxes(data.title, data.event_type))
       }
     }).catch((err: unknown) => {
       logError('DesignPage: failed to load', err)
     })
   }, [eventId])
 
-  // -------------------------------------------------------------------------
-  // Save helpers
-  // -------------------------------------------------------------------------
+  // Persist text boxes to localStorage — debounced 500ms to avoid writing on every drag pixel
+  useEffect(() => {
+    if (!eventId || isNaN(eventId) || textBoxes.length === 0) return
+    const timer = setTimeout(() => {
+      localStorage.setItem(`card-textboxes-${eventId}`, JSON.stringify(textBoxes))
+      const previous = loadSelectedDesignContext(eventId)
+      if (previous) {
+        saveSelectedDesignContext({
+          ...previous,
+          textOverlays: textBoxes,
+          selectedAt: new Date().toISOString(),
+        })
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [textBoxes, eventId])
 
-  async function saveBackground(nextBgUrl: string | null, nextBgGradient: string | null): Promise<boolean> {
-    setSaving(true)
-    try {
-      const pageConfig = await getEventPageConfig(eventId)
-      const existingConfig = pageConfig?.page_config
-      const baseConfig: InviteConfig = existingConfig ?? { themeId: 'classic-noir', tiles: [] }
+  // Keep textBoxesRef in sync (used by undo/redo handlers in stable closures)
+  useEffect(() => { textBoxesRef.current = textBoxes }, [textBoxes])
 
-      // Derive a full, contrast-checked palette (background + legible text +
-      // accent) from the chosen background — not just the page background —
-      // so every tile that inherits from the theme (rather than baking its
-      // own literal color) actually follows the host's pick.
-      let customColors = baseConfig.customColors
-      if (nextBgGradient || nextBgUrl) {
-        const palette = await deriveHarmoniousPalette(nextBgUrl, nextBgGradient)
-        customColors = {
-          ...customColors,
-          backgroundGradient: palette.backgroundGradient,
-          backgroundColor: palette.backgroundColor,
-          fontColor: palette.fontColor,
-          primaryColor: palette.primaryColor,
+  // Auto-focus + populate the contentEditable div when editing starts
+  useEffect(() => {
+    if (!editingId) return
+    const el = contentEditableRefs.current.get(editingId)
+    if (!el) return
+    const text = textBoxesRef.current.find((b) => b.id === editingId)?.text ?? ''
+    el.innerText = text
+    el.focus()
+    // Move cursor to end
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+  }, [editingId])
+
+  // Keyboard undo / redo (Ctrl/Cmd+Z and Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+      if (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        const prev = undoStack.current.pop()
+        if (prev !== undefined) {
+          redoStack.current.push([...textBoxesRef.current])
+          setTextBoxes(prev)
         }
       }
-
-      const cardSettings: DesignTileSettings = {
-        src: nextBgUrl ?? undefined,
-        backgroundGradient: nextBgUrl ? undefined : (nextBgGradient ?? undefined),
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        const next = redoStack.current.pop()
+        if (next !== undefined) {
+          undoStack.current.push([...textBoxesRef.current])
+          setTextBoxes(next)
+        }
       }
-      const hasDesignTile = baseConfig.tiles?.some((t) => t.type === 'design')
-      let tiles: Tile[]
-      if (hasDesignTile) {
-        tiles = baseConfig.tiles!.map((t) =>
-          t.type === 'design'
-            ? { ...t, enabled: true, settings: { ...(t.settings as DesignTileSettings), ...cardSettings } }
-            : t
-        )
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node
+
+      if (
+        fontPickerRef.current &&
+        !fontPickerRef.current.contains(target)
+      ) {
+        setShowFontPicker(false)
+      }
+
+      if (
+        showEffects &&
+        effectsRef.current &&
+        !effectsRef.current.contains(target) &&
+        effectsButtonRef.current &&
+        !effectsButtonRef.current.contains(target)
+      ) {
+        setShowEffects(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [showEffects])
+
+  // -------------------------------------------------------------------------
+  // Text box helpers
+  // -------------------------------------------------------------------------
+
+  const selectedBox = textBoxes.find((b) => b.id === selectedId) ?? null
+
+  const pushHistory = useCallback((snapshot: TextBox[]): void => {
+    undoStack.current = [...undoStack.current, [...snapshot]].slice(-50)
+    redoStack.current = []
+  }, [])
+
+  function updateBox<K extends keyof TextBox>(
+    id: string,
+    key: K,
+    value: TextBox[K]
+  ): void {
+    setTextBoxes((prev) =>
+      prev.map((b) => {
+        if (b.id !== id) return b
+
+        if (key === "fontSize") {
+          return {
+            ...b,
+            fontSize: clamp(Number(value), 12, 200),
+          }
+        }
+
+        return {
+          ...b,
+          [key]: value,
+        }
+      })
+    )
+  }
+
+  function toggleProp(id: string, key: 'bold' | 'italic' | 'underline' | 'strikethrough'): void {
+    hasUserEditedRef.current = true
+    pushHistory(textBoxesRef.current)
+    setTextBoxes((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, [key]: !b[key] } : b))
+    )
+  }
+
+  function deleteBox(id: string): void {
+    hasUserEditedRef.current = true
+    pushHistory(textBoxesRef.current)
+    setTextBoxes((prev) => prev.filter((b) => b.id !== id))
+    if (selectedId === id) setSelectedId(null)
+    if (editingId === id) setEditingId(null)
+  }
+
+  function addTextBox(): void {
+    hasUserEditedRef.current = true
+    pushHistory(textBoxesRef.current)
+    const newBox: TextBox = {
+      id: makeId(),
+      text: 'Add text here',
+      x: 10,
+      y: 20,
+      width: 80,
+      height: null,
+      fontFamily: "'Playfair Display', serif",
+      fontSize: 32,
+      color: '#ffffff',
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      textAlign: 'center',
+      verticalAlign: 'middle',
+      shadowColor: '#000000',
+
+    }
+    setTextBoxes((prev) => [...prev, newBox])
+    setSelectedId(newBox.id)
+  }
+
+  function applySampleBackground(sample: DesignSample): void {
+    hasUserEditedRef.current = true
+    setHasSelectedBackground(true)
+    setBgUrl(sample.background_image_url)
+    setBgGradient(GRADIENT_PRESETS[0]!.value)
+    localStorage.setItem(`card-bg-${eventId}`, sample.background_image_url)
+    localStorage.removeItem(`card-gradient-${eventId}`)
+    saveSelectedDesignContext({
+      eventId,
+      sourceType: 'sample',
+      sampleId: sample.id,
+      sampleCode: sample.code,
+      sampleName: sample.name,
+      sampleTags: sample.tags,
+      bgUrl: sample.background_image_url,
+      // Keep current overlays unless user explicitly chooses sample overlays.
+      textOverlays: textBoxesRef.current,
+      selectedAt: new Date().toISOString(),
+    })
+    if (sample.text_overlays && sample.text_overlays.length > 0) {
+      if (userHasEditedText) {
+        setPendingSample(sample)
       } else {
-        const maxOrder = Math.max(...(baseConfig.tiles?.map((t) => t.order ?? 0) ?? [0]), 0)
-        tiles = [
-          ...(baseConfig.tiles ?? []),
-          { id: `tile-design-${Date.now().toString(36)}`, type: 'design' as const, enabled: true, order: maxOrder + 1, settings: cardSettings },
-        ]
+        setTextBoxes(sample.text_overlays as TextBox[])
+        setUserHasEditedText(false)
+        saveSelectedDesignContext({
+          eventId,
+          sourceType: 'sample',
+          sampleId: sample.id,
+          sampleCode: sample.code,
+          sampleName: sample.name,
+          sampleTags: sample.tags,
+          bgUrl: sample.background_image_url,
+          textOverlays: sample.text_overlays as TextBox[],
+          selectedAt: new Date().toISOString(),
+        })
       }
-
-      await updateEventPageConfig(eventId, { ...baseConfig, customColors, tiles })
-      return true
-    } catch (err) {
-      logError('DesignPage: save failed', err)
-      return false
-    } finally {
-      setSaving(false)
     }
   }
 
-  // A fresh pick (sample/gradient/upload) saves and moves straight on to Page
-  // Editor — there's nothing to review here that Page Editor's Design tile
-  // settings don't already show. The "selected" screen below is only for
-  // revisiting an already-configured background (e.g. via WizardProgress).
-  async function applySampleBackground(sample: DesignSample): Promise<void> {
-    const ok = await saveBackground(sample.background_image_url, null)
-    if (ok) {
-      router.push(`/host/events/${eventId}/page-editor`)
+  // -------------------------------------------------------------------------
+  // Drag handlers (pointer events on canvas container)
+  // -------------------------------------------------------------------------
+  const updateTextBounds = (boxId: string) => {
+    if (!canvasRef.current) return
+
+    const textEl = contentEditableRefs.current.get(boxId)
+    if (!textEl) return
+
+    const canvasRect = canvasRef.current.getBoundingClientRect()
+    const textRect = textEl.getBoundingClientRect()
+
+    const width = (textRect.width / canvasRect.width) * 100
+    const height = (textRect.height / canvasRect.height) * 100
+
+
+    setTextBoxes(prev =>
+      prev.map(box => {
+        if (box.id !== boxId) return box
+
+        return {
+          ...box,
+          width,
+          height,
+        }
+      })
+    )
+  }
+  const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current || !canvasRef.current) return
+    const rect = canvasRef.current.getBoundingClientRect()
+    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize } = dragState.current
+    const dx = ((e.clientX - startPointerX) / rect.width) * 100
+    const dy = ((e.clientY - startPointerY) / rect.height) * 100
+    const resizeDelta = (dx + dy) / 2
+
+    const MIN_FONT_SIZE = 12
+    const MAX_FONT_SIZE = 200
+    const newFontSize = clamp(
+      Math.round(startFontSize + resizeDelta),
+      MIN_FONT_SIZE,
+      MAX_FONT_SIZE
+    )
+    if (mode === 'resize') {
+      setTextBoxes((prev) =>
+        prev.map((b) => {
+          if (b.id !== boxId) return b
+          let newX = startBoxX, newY = startBoxY, newW = startBoxWidth, newH = startBoxHeight
+          if (resizeHandle === 'se') {
+            newW = startBoxWidth
+            newH = startBoxHeight
+          } else if (resizeHandle === 'sw') {
+            const deltaW = -dx
+            newW = clamp(startBoxWidth + deltaW, 10, startBoxX + startBoxWidth)
+            newX = startBoxX + startBoxWidth - newW
+            newH = clamp(startBoxHeight + dy, 5, 100 - startBoxY)
+          } else if (resizeHandle === 'ne') {
+            newW = clamp(startBoxWidth + dx, 10, 100 - startBoxX)
+            const deltaH = -dy
+            newH = clamp(startBoxHeight + deltaH, 5, startBoxY + startBoxHeight)
+            newY = startBoxY + startBoxHeight - newH
+          } else if (resizeHandle === 'nw') {
+            const deltaW = -dx
+            newW = clamp(startBoxWidth + deltaW, 10, startBoxX + startBoxWidth)
+            newX = startBoxX + startBoxWidth - newW
+            const deltaH = -dy
+            newH = clamp(startBoxHeight + deltaH, 5, startBoxY + startBoxHeight)
+            newY = startBoxY + startBoxHeight - newH
+          }
+          const sensitivity =
+            startFontSize < 30
+              ? 1.2
+              : startFontSize < 60
+                ? 1.5
+                : 2
+
+          const fontSize = clamp(
+            Math.round(startFontSize + resizeDelta * sensitivity),
+            12,
+            200
+          )
+
+
+          return {
+            ...b,
+            x: newX,
+            y: newY,
+            width: startBoxWidth,
+            height: startBoxHeight,
+            fontSize,
+          }
+        })
+      )
     } else {
-      alert('Failed to save background. Please try again.')
+      setTextBoxes((prev) =>
+        prev.map((b) => b.id !== boxId ? b : {
+          ...b,
+          x: clamp(startBoxX + dx, 0, 100 - b.width),
+          y: clamp(startBoxY + dy, 0, 95),
+        })
+      )
     }
-  }
+  }, [])
 
-  async function applyGradient(gradient: string): Promise<void> {
-    const ok = await saveBackground(null, gradient)
-    if (ok) {
-      router.push(`/host/events/${eventId}/page-editor`)
-    } else {
-      alert('Failed to save background. Please try again.')
+  const handleCanvasPointerUp = useCallback(() => {
+    if (dragState.current) {
+      updateTextBounds(dragState.current.boxId)
+
+      pushHistory(dragState.current.snapshot)
+      dragState.current = null
     }
-  }
+  }, [pushHistory])
+  // -------------------------------------------------------------------------
+  // Upload handler
+  // -------------------------------------------------------------------------
 
   async function handleUpload(file: File): Promise<void> {
     if (file.size > 10 * 1024 * 1024) {
@@ -167,12 +843,20 @@ export default function DesignPage(): React.ReactElement {
     setUploading(true)
     try {
       const url = await uploadImage(file, eventId)
-      const ok = await saveBackground(url, null)
-      if (ok) {
-        router.push(`/host/events/${eventId}/page-editor`)
-      } else {
-        alert('Failed to save background. Please try again.')
-      }
+      const sourceType = file.type === 'image/gif' ? 'gif' : 'upload'
+      hasUserEditedRef.current = true
+      setHasSelectedBackground(true)
+      setBgUrl(url)
+      setBgGradient(GRADIENT_PRESETS[0]!.value)
+      localStorage.setItem(`card-bg-${eventId}`, url)
+      localStorage.removeItem(`card-gradient-${eventId}`)
+      saveSelectedDesignContext({
+        eventId,
+        sourceType,
+        bgUrl: url,
+        textOverlays: textBoxesRef.current,
+        selectedAt: new Date().toISOString(),
+      })
     } catch (err: unknown) {
       logError('DesignPage: upload failed', err)
       alert('Upload failed. Please try again.')
@@ -180,6 +864,136 @@ export default function DesignPage(): React.ReactElement {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Auto-save helpers
+  // -------------------------------------------------------------------------
+
+  // Builds the updated tiles array with current card settings patched in.
+  // Shared by auto-save and handleNext to avoid duplication.
+  function buildUpdatedTiles(
+    tiles: import('@/lib/invite/schema').Tile[],
+    currentBgUrl: string | null,
+    currentBgGradient: string,
+    currentTextBoxes: TextBox[],
+    enableTile = false,
+  ): import('@/lib/invite/schema').Tile[] {
+    const cardSettings: DesignTileSettings = {
+      src: currentBgUrl ?? undefined,
+      backgroundGradient: currentBgUrl ? undefined : currentBgGradient,
+      textOverlays: currentTextBoxes,
+    }
+    const hasDesignTiles = tiles.some((t) => t.type === 'design')
+    const hasImageTiles = tiles.some((t) => t.type === 'image')
+
+    let updated = tiles.map((t) => {
+      if (hasDesignTiles) {
+        if (t.type !== 'design') return t
+        return { ...t, enabled: enableTile ? true : t.enabled, settings: { ...(t.settings as DesignTileSettings), ...cardSettings } }
+      }
+      if (!hasImageTiles || t.type !== 'image') return t
+      return {
+        ...t,
+        settings: { ...(t.settings as ImageTileSettings), ...cardSettings, fitMode: 'full-image' as const },
+      }
+    })
+
+    if (!hasDesignTiles && !hasImageTiles) {
+      const maxOrder = Math.max(...tiles.map((t) => t.order ?? 0), 0)
+      updated = [
+        ...updated,
+        {
+          id: `tile-design-${Date.now().toString(36)}`,
+          type: 'design' as const,
+          enabled: enableTile,
+          order: maxOrder + 1,
+          settings: cardSettings,
+        },
+      ]
+    }
+    return updated
+  }
+
+  async function performSave(enableTile = false): Promise<void> {
+    if (isSavingRef.current) return
+    isSavingRef.current = true
+    setAutoSaveStatus('saving')
+    try {
+      const existing = await getInvitePage(eventId)
+      if (existing) {
+        const updatedTiles = buildUpdatedTiles(existing.config.tiles ?? [], bgUrl, bgGradient, textBoxes, enableTile)
+        await updateInvitePage(eventId, { config: { ...existing.config, tiles: updatedTiles } })
+      } else {
+        // No InvitePage yet — create one with just the GC tile.
+        // The design page will merge this into the full config on load.
+        const gcTile = buildUpdatedTiles([], bgUrl, bgGradient, textBoxes, enableTile)
+        await createInvitePage(eventId, { config: { themeId: 'classic-noir', tiles: gcTile } })
+      }
+      setAutoSaveStatus('saved')
+    } catch (err) {
+      logError('DesignPage: auto-save failed', err)
+      setAutoSaveStatus('error')
+    } finally {
+      isSavingRef.current = false
+    }
+  }
+
+  // Debounced auto-save — fires 2s after any state change the user caused
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!hasUserEditedRef.current || !eventId || isNaN(eventId)) return
+    const timer = setTimeout(() => { void performSave() }, 2000)
+    return () => clearTimeout(timer)
+  }, [bgUrl, bgGradient, textBoxes, eventId])
+
+  // Auto-dismiss "Saved ✓" indicator after 3s
+  useEffect(() => {
+    if (autoSaveStatus !== 'saved') return
+    const t = setTimeout(() => setAutoSaveStatus('idle'), 3000)
+    return () => clearTimeout(t)
+  }, [autoSaveStatus])
+
+  // -------------------------------------------------------------------------
+  // Next step
+  // -------------------------------------------------------------------------
+
+  async function handleNext(): Promise<void> {
+    setSaving(true)
+    try {
+      // Write the GC tile as enabled:true directly into event.page_config.
+      // This is the same store the design page reads on load — no race, no separate fetch.
+      const pageConfig = await getEventPageConfig(eventId)
+      const existingConfig = pageConfig?.page_config
+      const cardSettings: DesignTileSettings = {
+        src: bgUrl ?? undefined,
+        backgroundGradient: bgUrl ? undefined : bgGradient,
+        textOverlays: textBoxes,
+      }
+
+      const baseConfig = existingConfig ?? { themeId: 'classic-noir', tiles: [] }
+      const hasGC = baseConfig.tiles?.some(t => t.type === 'design')
+      let updatedTiles
+      if (hasGC) {
+        updatedTiles = baseConfig.tiles!.map(t =>
+          t.type === 'design'
+            ? { ...t, enabled: true, settings: { ...(t.settings as DesignTileSettings), ...cardSettings } }
+            : t
+        )
+      } else {
+        const maxOrder = Math.max(...(baseConfig.tiles?.map(t => t.order ?? 0) ?? [0]), 0)
+        updatedTiles = [
+          ...(baseConfig.tiles ?? []),
+          { id: `tile-design-${Date.now().toString(36)}`, type: 'design' as const, enabled: true, order: maxOrder + 1, settings: cardSettings },
+        ]
+      }
+      await updateEventPageConfig(eventId, { ...baseConfig, tiles: updatedTiles })
+    } catch (err) {
+      logError('DesignPage: handleNext save failed', err)
+    } finally {
+      setSaving(false)
+    }
+    router.push(`/host/events/${eventId}/layout`)
   }
 
   // -------------------------------------------------------------------------
@@ -197,19 +1011,33 @@ export default function DesignPage(): React.ReactElement {
   if (!hasSelectedBackground) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <WizardProgress currentStep={3} eventId={eventId} />
+        <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
+        <WizardProgress currentStep={2} eventId={eventId} />
 
-        <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-5">
+        <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
             <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Choose your background</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Pick a background or color for your invite. You'll add text and fine-tune everything
-              in the page editor next.
+              Pick one background source first. Once selected, the text editing canvas will open.
             </p>
             <div className="flex flex-wrap gap-2 mt-4">
               <button
                 type="button"
-                onClick={() => void applyGradient(GRADIENT_PRESETS[0]!.value)}
+                onClick={() => {
+                  hasUserEditedRef.current = true
+                  setBgUrl(null)
+                  setBgGradient(GRADIENT_PRESETS[0]!.value)
+                  setHasSelectedBackground(true)
+                  localStorage.setItem(`card-gradient-${eventId}`, GRADIENT_PRESETS[0]!.value)
+                  localStorage.removeItem(`card-bg-${eventId}`)
+                  saveSelectedDesignContext({
+                    eventId,
+                    sourceType: 'gradient',
+                    bgGradient: GRADIENT_PRESETS[0]!.value,
+                    textOverlays: textBoxesRef.current,
+                    selectedAt: new Date().toISOString(),
+                  })
+                }}
                 className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Use Gradient
@@ -224,7 +1052,7 @@ export default function DesignPage(): React.ReactElement {
               </button>
               <button
                 type="button"
-                onClick={() => router.push(`/host/events/${eventId}/page-editor`)}
+                onClick={() => router.push(`/host/events/${eventId}/layout`)}
                 className="ml-auto px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 Skip Design
@@ -245,8 +1073,11 @@ export default function DesignPage(): React.ReactElement {
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h2 className="text-sm font-semibold text-gray-800">Ekfern Background Catalog</h2>
-              <span className="text-xs text-gray-500">Select one to continue</span>
+              <span className="text-xs text-gray-500">Select one to continue to text editing</span>
             </div>
+            <p className="text-xs text-gray-500">
+              Images in this catalog are not owned by Ekfern.
+            </p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden />
               <Input
@@ -264,82 +1095,727 @@ export default function DesignPage(): React.ReactElement {
               loadingMore={catalog.loadingMore}
               error={catalog.error}
               hasNext={catalog.hasNext}
-              onSelect={(sample) => void applySampleBackground(sample)}
+              onSelect={applySampleBackground}
               onLoadMore={catalog.loadMore}
               onRetry={catalog.reload}
-              emptyMessage={sampleSearch.trim() ? 'No samples match your search.' : 'No samples available yet. Upload your own background using “Upload Background”.'}
             />
           </div>
         </div>
+
+        {pendingSample && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
+              <h3 className="text-base font-semibold text-gray-800">Replace your text?</h3>
+              <p className="text-sm text-gray-500">
+                This sample comes with its own text layout. Do you want to keep the text you've written or use the sample's text?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleCode: pendingSample.code,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: textBoxesRef.current,
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Keep my text
+                </button>
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+                  onClick={() => {
+                    setTextBoxes(pendingSample.text_overlays as TextBox[])
+                    setUserHasEditedText(false)
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleCode: pendingSample.code,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: pendingSample.text_overlays as TextBox[],
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Use sample text
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
 
   // -------------------------------------------------------------------------
-  // Selected state: simple preview + confirm
+  // Render
   // -------------------------------------------------------------------------
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <WizardProgress currentStep={3} eventId={eventId} />
+      {/* Google Fonts */}
+      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
 
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => setHasSelectedBackground(false)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          Change Background
-        </button>
+      <WizardProgress currentStep={2} eventId={eventId} />
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) void handleUpload(file)
-          }}
-        />
+      {/* ------------------------------------------------------------------ */}
+      {/* Sticky header: background bar + always-visible text toolbar         */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="sticky top-0 z-20">
+        {/* Row 1: background controls */}
+        <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setHasSelectedBackground(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Change Background
+          </button>
 
-        {event && (
-          <span className="text-xs text-gray-500 truncate max-w-[180px]">{event.title}</span>
-        )}
+          <button
+            onClick={() => setShowBgModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            Advanced Background Tools
+          </button>
 
-        <div className="ml-auto flex items-center gap-3">
-          {saving && (
-            <span className="text-xs text-gray-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse" />
-              Saving…
-            </span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void handleUpload(file)
+            }}
+          />
+
+          {event && (
+            <span className="text-xs text-gray-500 truncate max-w-[180px]">{event.title}</span>
           )}
-          {bgUrl && (
-            <span className="text-xs text-green-700 font-medium bg-green-50 px-2 py-1 rounded">
-              Custom image active
-            </span>
-          )}
+
+          <div className="ml-auto flex items-center gap-3">
+            {autoSaveStatus === 'saving' && (
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse" />
+                Autosaving…
+              </span>
+            )}
+            {autoSaveStatus === 'saved' && (
+              <span className="text-xs text-green-600">Saved ✓</span>
+            )}
+            {autoSaveStatus === 'error' && (
+              <span className="text-xs text-red-500">Save failed</span>
+            )}
+            {bgUrl && (
+              <span className="text-xs text-green-700 font-medium bg-green-50 px-2 py-1 rounded">
+                Custom image active
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: text format toolbar — always visible */}
+        <div className="relative bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 flex-wrap overflow-visible">
+          {/* Add Text — always active */}
+          <button
+            onClick={addTextBox}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-blue-400 text-sm text-blue-600 hover:bg-blue-50 transition-colors font-medium flex-none"
+          >
+            + Add Text
+          </button>
+
+          <div className="w-px h-5 bg-gray-200 flex-none" />
+
+          {/* Format controls — dimmed when no box selected */}
+          <div className={`flex items-center gap-2 flex-wrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            {/* Font family */}
+            <div ref={fontPickerRef} className="relative w-48">
+              <button
+                type="button"
+                onClick={() => setShowFontPicker(prev => !prev)}
+                className="w-full flex items-center justify-between
+             rounded-lg
+             border border-gray-300
+             bg-white
+             px-2.5 py-1.5
+             text-sm
+             shadow-sm
+             hover:border-blue-400
+             hover:shadow-md
+             transition-all"
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <span className="text-gray-500 font-semibold">Aa</span>
+
+                  <span
+                    style={{ fontFamily: selectedBox?.fontFamily }}
+                    className="truncate text-xs font-medium"
+                  >
+                    {FONT_OPTIONS.find(
+                      f => f.family === selectedBox?.fontFamily
+                    )?.name ?? "Select Font"}
+                  </span>
+                </div>
+
+                <svg
+                  className={`w-4 h-4 transition-transform ${showFontPicker ? "rotate-180" : ""
+                    }`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              {showFontPicker && (
+                <div
+                  className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="max-h-80 overflow-y-auto py-2">
+                    {FONT_OPTIONS.map((font) => (
+                      <button
+                        key={font.id}
+                        type="button"
+                        onClick={() => {
+                          if (selectedBox) {
+                            updateBox(selectedBox.id, "fontFamily", font.family)
+                          }
+                          setShowFontPicker(false)
+                        }}
+                        className="w-full text-left px-5 py-3 hover:bg-gray-100 transition-colors"
+                      >
+                        <span
+                          style={{ fontFamily: font.family }}
+                          className="text-lg"
+                        >
+                          {font.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                </div>
+              )}
+
+
+            </div>
+
+            {/* Font Size */}
+            <div className="flex items-center h-9 rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden">
+
+              {/* Decrease */}
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center border-r border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onMouseDown={() => startChangingFontSize(-1)}
+                onMouseUp={stopChangingFontSize}
+                onMouseLeave={stopChangingFontSize}
+                onClick={() => {
+                  if (!selectedBox) return
+                  changeFontSize(selectedBox.fontSize - 1)
+                }}
+              >
+                <Minus size={14} />
+              </button>
+
+              {/* Input */}
+              <input
+                type="number"
+                inputMode="numeric"
+                value={
+                  fontSizeInput !== ""
+                    ? fontSizeInput
+                    : (selectedBox?.fontSize ?? 32)
+                }
+                onFocus={() =>
+                  setFontSizeInput(String(selectedBox?.fontSize ?? 32))
+                }
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFontSizeInput(value)
+
+                  const v = parseInt(value, 10)
+
+                  if (!isNaN(v) && selectedBox) {
+                    changeFontSize(v)
+                  }
+
+                }}
+                onWheel={(e) => {
+                  e.preventDefault()
+
+                  if (!selectedBox) return
+
+                  const delta = e.deltaY < 0 ? 1 : -1
+
+                  changeFontSize(selectedBox.fontSize + delta)
+
+
+
+                }}
+                onBlur={() => {
+                  const v = parseInt(fontSizeInput, 10)
+
+                  if (!isNaN(v)) {
+                    changeFontSize(v)
+                  }
+                  setFontSizeInput("")
+                }}
+                className="w-12 text-center text-sm font-medium outline-none border-0 bg-transparent"
+              />
+
+              <span className="text-xs text-gray-500 pr-2">
+                px
+              </span>
+
+              {/* Increase */}
+              <button
+                type="button"
+                className="w-9 h-9 flex items-center justify-center border-l border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onMouseDown={() => startChangingFontSize(1)}
+                onMouseUp={stopChangingFontSize}
+                onMouseLeave={stopChangingFontSize}
+                onClick={() => {
+                  if (!selectedBox) return
+                  changeFontSize(selectedBox.fontSize + 1)
+                }}
+              >
+                <Plus size={14} />
+              </button>
+
+            </div>
+
+            <div className="w-px h-5 bg-gray-200 flex-none" />
+
+            <button
+              onClick={() => selectedBox && toggleProp(selectedBox.id, 'bold')}
+              className={`px-2 py-1 rounded text-sm font-bold transition-colors ${selectedBox?.bold ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+              title="Bold"
+            >B</button>
+
+            <button
+              onClick={() => selectedBox && toggleProp(selectedBox.id, 'italic')}
+              className={`px-2 py-1 rounded text-sm italic transition-colors ${selectedBox?.italic ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+              title="Italic"
+            >I</button>
+
+            <button
+              onClick={() => selectedBox && toggleProp(selectedBox.id, 'underline')}
+              className={`px-2 py-1 rounded text-sm underline transition-colors ${selectedBox?.underline ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+              title="Underline"
+            >U</button>
+
+            <button
+              onClick={() => selectedBox && toggleProp(selectedBox.id, 'strikethrough')}
+              className={`px-2 py-1 rounded text-sm line-through transition-colors ${selectedBox?.strikethrough ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+              title="Strikethrough"
+            >S</button>
+
+            <div className="w-px h-5 bg-gray-200 flex-none" />
+
+            {(['left', 'center', 'right'] as const).map((align) => (
+              <button
+                key={align}
+                onClick={() => selectedBox && updateBox(selectedBox.id, 'textAlign', align)}
+                title={`Align ${align}`}
+                className={`px-2 py-1 rounded text-sm transition-colors ${selectedBox?.textAlign === align ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+              >
+                {align === 'left' ? '←' : align === 'center' ? '↔' : '→'}
+              </button>
+            ))}
+
+            <div className="w-px h-5 bg-gray-200 flex-none" />
+
+            {(['top', 'middle', 'bottom'] as const).map((va) => (
+              <button
+                key={va}
+                onClick={() => selectedBox && updateBox(selectedBox.id, 'verticalAlign', va)}
+                title={`Vertical ${va}`}
+                className={`px-2 py-1 rounded text-sm transition-colors ${selectedBox?.verticalAlign === va ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
+              >
+                {va === 'top' ? '↑' : va === 'middle' ? '↕' : '↓'}
+              </button>
+            ))}
+
+            <div className="w-px h-5 bg-gray-200 flex-none" />
+
+            <div className="flex items-center gap-1">
+              <input
+                type="color"
+                value={selectedBox?.color ?? '#ffffff'}
+                onChange={(e) => selectedBox && updateBox(selectedBox.id, 'color', e.target.value)}
+                className="w-8 h-8 rounded border border-gray-300 cursor-pointer p-0.5"
+                title="Text color"
+              />
+              <input
+                type="text"
+                value={selectedBox?.color ?? '#ffffff'}
+                maxLength={7}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (/^#[0-9a-fA-F]{0,6}$/.test(v) && selectedBox) updateBox(selectedBox.id, 'color', v)
+                }}
+                className="w-24 text-xs border border-gray-300 rounded px-2 py-1 font-mono"
+                placeholder="#ffffff"
+              />
+            </div>
+
+            <div className="relative">
+              <button
+                ref={effectsButtonRef}
+                type="button"
+                onClick={() => setShowEffects(prev => !prev)}
+                className="flex items-center gap-2 px-3 py-1 rounded text-sm border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
+              >
+                <span>✨ Effects</span>
+
+                <svg
+                  className={`w-4 h-4 transition-transform duration-200 ${showEffects ? "rotate-180" : ""
+                    }`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {showEffects && (
+                <div
+                  ref={effectsRef}
+                  className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="p-4 space-y-4">
+
+                    <div className="border-b pb-3">
+                      <h3 className="font-semibold text-gray-800">
+                        Text Effects
+                      </h3>
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+
+                      <div>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-gray-700">Shadow</span>
+                          <span className="text-gray-500">
+                            {selectedBox?.shadowBlur ?? 4}px
+                          </span>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="20"
+                          value={selectedBox?.shadowBlur ?? 4}
+                          onChange={(e) => {
+                            if (!selectedBox) return
+
+                            const blur = Number(e.target.value)
+
+                            updateBox(selectedBox.id, "shadowBlur", blur)
+                            updateBox(selectedBox.id, "shadowOpacity", blur === 0 ? 0 : 0.8)
+                          }}
+                          className="w-full accent-blue-600"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Shadow Color
+                        </label>
+
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={selectedBox?.shadowColor ?? "#000000"}
+                            onChange={(e) =>
+                              selectedBox &&
+                              updateBox(
+                                selectedBox.id,
+                                "shadowColor",
+                                e.target.value
+                              )
+                            }
+                            className="w-10 h-10 rounded border border-gray-300 cursor-pointer p-0.5"
+                          />
+
+                          <input
+                            type="text"
+                            value={selectedBox?.shadowColor ?? "#000000"}
+                            onChange={(e) =>
+                              selectedBox &&
+                              updateBox(
+                                selectedBox.id,
+                                "shadowColor",
+                                e.target.value
+                              )
+                            }
+                            className="flex-1 text-xs border border-gray-300 rounded px-2 py-2 font-mono"
+                            placeholder="#000000"
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => selectedBox && deleteBox(selectedBox.id)}
+              className="text-red-500 hover:bg-red-50 px-2 py-1 rounded text-sm transition-colors"
+              title="Delete text box"
+            >
+              Delete
+            </button>
+
+          </div>
+
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 py-6">
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Canvas area                                                          */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="flex-1 flex items-start justify-center px-4 py-6">
+        {/* Outer wrapper enforces 9:16 aspect ratio at max-height 72vh */}
         <div
-          style={{ height: '72vh', aspectRatio: '9 / 16' }}
-          className="relative rounded-2xl shadow-2xl overflow-hidden"
+          style={{
+            height: '72vh',
+            aspectRatio: '9 / 16',
+          }}
+          className="relative select-none"
         >
-          {bgUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={bgUrl}
-              alt="Background preview"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0" style={{ background: bgGradient }} />
-          )}
+          <div
+            ref={canvasRef}
+            className="relative overflow-hidden rounded-2xl shadow-2xl"
+            style={{ width: '100%', height: '100%', touchAction: 'none' }}
+            onPointerMove={handleCanvasPointerMove}
+            onPointerUp={handleCanvasPointerUp}
+            onClick={(e) => {
+              // Deselect if clicking canvas background directly
+              if (e.target === canvasRef.current || e.target === e.currentTarget) {
+                setSelectedId(null)
+                setEditingId(null)
+              }
+            }}
+          >
+            {/* Background layer */}
+            {bgUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={bgUrl}
+                alt="Card background"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+              />
+            ) : (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: bgGradient }}
+              />
+            )}
+
+            {/* Text boxes */}
+            {textBoxes.map((box) => {
+              const isSelected = selectedId === box.id
+              const isEditing = editingId === box.id
+
+              const justifyContent =
+                box.verticalAlign === 'top'
+                  ? 'flex-start'
+                  : box.verticalAlign === 'bottom'
+                    ? 'flex-end'
+                    : 'center'
+
+              const textDecoration = [
+                box.underline ? 'underline' : '',
+                box.strikethrough ? 'line-through' : '',
+              ]
+                .filter(Boolean)
+                .join(' ') || 'none'
+
+              return (
+                <div
+                  key={box.id}
+                  style={{
+                    position: 'absolute',
+                    left: `${box.x}%`,
+                    top: `${box.y}%`,
+                    width: "fit-content",
+                    height: "auto",
+                    minHeight: `${box.fontSize * 1.6}px`,
+                    overflow: "visible",
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent,
+                    cursor: isEditing ? 'text' : 'move',
+                    outline: isSelected ? '2px solid #3b82f6' : 'none',
+                    outlineOffset: '2px',
+                    borderRadius: '2px',
+                    userSelect: isEditing ? 'text' : 'none',
+                    zIndex: isSelected ? 10 : 5,
+                    touchAction: isEditing ? 'auto' : 'none',
+                  }}
+                  onPointerDown={(e) => {
+                    if (isEditing) return // let contentEditable handle it
+                    e.stopPropagation()
+                    e.currentTarget.setPointerCapture(e.pointerId)
+                    setSelectedId(box.id)
+                    if (!canvasRef.current) return
+                    dragState.current = {
+                      mode: 'move',
+                      resizeHandle: null,
+                      boxId: box.id,
+                      startPointerX: e.clientX,
+                      startPointerY: e.clientY,
+                      startBoxX: box.x,
+                      startBoxY: box.y,
+                      startBoxWidth: box.width,
+                      startBoxHeight: 0,
+                      startFontSize: box.fontSize,
+                      snapshot: [...textBoxesRef.current],
+                    }
+                  }}
+                  onPointerMove={handleCanvasPointerMove}
+                  onPointerUp={handleCanvasPointerUp}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedId(box.id)
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedId(box.id)
+                    editStartSnapshotRef.current = [...textBoxesRef.current]
+                    setEditingId(box.id)
+                  }}
+                >
+                  <div
+                    ref={(el) => {
+                      if (el) contentEditableRefs.current.set(box.id, el)
+                      else contentEditableRefs.current.delete(box.id)
+                    }}
+                    contentEditable={isEditing}
+                    suppressContentEditableWarning
+                    style={{
+                      fontFamily: box.fontFamily,
+                      fontSize: `${box.fontSize}px`,
+                      color: box.color,
+                      fontWeight: box.bold ? 700 : 400,
+                      fontStyle: box.italic ? 'italic' : 'normal',
+                      textDecoration,
+                      textAlign: box.textAlign,
+                      lineHeight: 1.3,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      outline: 'none',
+                      padding: '0',
+                      textShadow: `${box.shadowX ?? 0}px ${box.shadowY ?? 1}px ${box.shadowBlur ?? 4}px ${hexToRgba(
+                        box.shadowColor ?? '#000000',
+                        box.shadowOpacity ?? 0.8
+                      )}`,
+                      minWidth: '1em',
+
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setEditingId(null)
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (editStartSnapshotRef.current) {
+                        pushHistory(editStartSnapshotRef.current)
+                        editStartSnapshotRef.current = null
+                      }
+                      const newText = e.currentTarget.innerText
+                      updateBox(box.id, 'text', newText)
+                      setEditingId(null)
+                    }}
+                  >
+                    {isEditing ? undefined : box.text}
+                  </div>
+
+                  {/* Corner resize handles — visible only when selected and not editing */}
+                  {isSelected && !isEditing && (
+                    (['se'] as ResizeHandle[]).map((handle) => {
+                      const isTop = handle.startsWith('n')
+                      const isLeft = handle.endsWith('w')
+                      const cursor = handle === 'nw' || handle === 'se' ? 'nwse-resize' : 'nesw-resize'
+                      return (
+                        <div
+                          key={handle}
+                          style={{
+                            position: 'absolute',
+                            [isTop ? 'top' : 'bottom']: -6,
+                            [isLeft ? 'left' : 'right']: -6,
+                            width: 20,
+                            height: 20,
+                            background: '#ffffff',
+                            border: '2px solid #3b82f6',
+                            borderRadius: 4,
+                            cursor,
+                            zIndex: 20,
+                            touchAction: 'none',
+                          }}
+                          onPointerDown={(e) => {
+                            e.stopPropagation()
+                            e.currentTarget.setPointerCapture(e.pointerId)
+                            const containerEl = e.currentTarget.parentElement
+                            const canvasEl = canvasRef.current
+                            const renderedHeightPct = containerEl && canvasEl
+                              ? (containerEl.offsetHeight / canvasEl.offsetHeight) * 100
+                              : 20
+                            dragState.current = {
+                              mode: 'resize',
+                              resizeHandle: handle,
+                              boxId: box.id,
+                              startPointerX: e.clientX,
+                              startPointerY: e.clientY,
+                              startBoxX: box.x,
+                              startBoxY: box.y,
+                              startBoxWidth: box.width,
+                              startBoxHeight: box.height ?? renderedHeightPct,
+                              startFontSize: box.fontSize,
+                              snapshot: [...textBoxesRef.current],
+                            }
+                          }}
+                          onPointerMove={handleCanvasPointerMove}
+                          onPointerUp={handleCanvasPointerUp}
+                        />
+                      )
+                    })
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Bottom navigation                                                    */}
+      {/* ------------------------------------------------------------------ */}
       <div className="sticky bottom-0 z-10 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3">
         <button
           type="button"
@@ -351,13 +1827,110 @@ export default function DesignPage(): React.ReactElement {
 
         <button
           type="button"
-          onClick={() => router.push(`/host/events/${eventId}/page-editor`)}
+          onClick={() => router.push(`/host/events/${eventId}/layout`)}
+          className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          Skip Design
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void handleNext()}
           disabled={saving}
           className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
         >
-          {saving ? 'Saving…' : 'Next: Customize your invite'}
+          {saving ? 'Saving…' : 'Next: Choose Layout'}
         </button>
       </div>
-    </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Keep-text confirmation dialog                                        */}
+      {/* ------------------------------------------------------------------ */}
+      {
+        pendingSample && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
+              <h3 className="text-base font-semibold text-gray-800">Replace your text?</h3>
+              <p className="text-sm text-gray-500">
+                This sample comes with its own text layout. Do you want to keep the text you've written or use the sample's text?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: textBoxesRef.current,
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Keep my text
+                </button>
+                <button
+                  className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+                  onClick={() => {
+                    setTextBoxes(pendingSample.text_overlays as TextBox[])
+                    setUserHasEditedText(false)
+                    saveSelectedDesignContext({
+                      eventId,
+                      sourceType: 'sample',
+                      sampleId: pendingSample.id,
+                      sampleName: pendingSample.name,
+                      sampleTags: pendingSample.tags,
+                      bgUrl: pendingSample.background_image_url,
+                      textOverlays: pendingSample.text_overlays as TextBox[],
+                      selectedAt: new Date().toISOString(),
+                    })
+                    setPendingSample(null)
+                  }}
+                >
+                  Use sample text
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Background library modal                                             */}
+      {/* ------------------------------------------------------------------ */}
+      {
+        showBgModal && (
+          <BgModal
+            onClose={() => setShowBgModal(false)}
+            currentGradient={bgGradient}
+            onUploadClick={() => fileInputRef.current?.click()}
+            onSelectGradient={(gradient) => {
+              hasUserEditedRef.current = true
+              setHasSelectedBackground(true)
+              setBgGradient(gradient)
+              setBgUrl(null)
+              localStorage.setItem(`card-gradient-${eventId}`, gradient)
+              localStorage.removeItem(`card-bg-${eventId}`)
+              saveSelectedDesignContext({
+                eventId,
+                sourceType: 'gradient',
+                bgGradient: gradient,
+                textOverlays: textBoxesRef.current,
+                selectedAt: new Date().toISOString(),
+              })
+              setShowBgModal(false)
+            }}
+            onSelectSample={(sample) => {
+              applySampleBackground(sample)
+              setShowBgModal(false)
+            }}
+          />
+        )
+      }
+    </div >
   )
 }
