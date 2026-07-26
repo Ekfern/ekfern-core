@@ -216,6 +216,9 @@ SES_FROM_NAME = os.environ.get('SES_FROM_NAME', 'Ekfern')
 SES_CAMPAIGN_CONFIG_SET = os.environ.get('SES_CAMPAIGN_CONFIG_SET', '')
 # Secret token appended to the SES webhook URL — SNS subscription must use this URL
 SES_WEBHOOK_TOKEN = os.environ.get('SES_WEBHOOK_TOKEN', '')
+# When True, email_backend.py logs what it would have sent instead of calling SES.
+# Set in local/test environments to make automated browser testing side-effect-free.
+SES_DRY_RUN = os.environ.get('SES_DRY_RUN', 'False') == 'True'
 # Public base URL of the backend — used to build click-tracking redirect links in emails
 # In production set this to e.g. https://api.ekfern.com
 EMAIL_TRACKING_BASE_URL = os.environ.get('EMAIL_TRACKING_BASE_URL', 'http://localhost:8000')

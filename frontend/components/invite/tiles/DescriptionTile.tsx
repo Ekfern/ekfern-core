@@ -144,12 +144,15 @@ export default function DescriptionTile({ settings, preview = false }: Descripti
         text-align: justify !important;
       }
     `
-    const textStyle = settings.fontColor ? { backgroundColor: 'transparent' as const, color: settings.fontColor } : { backgroundColor: 'transparent' as const }
+    const textStyle = { backgroundColor: 'transparent' as const, color: settings.fontColor || 'var(--theme-fg, inherit)' }
+    const textAlign = settings.textAlign || 'center'
+    const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
+    const marginClass = textAlign === 'left' ? 'mr-auto' : textAlign === 'right' ? 'ml-auto' : 'mx-auto'
     return (
       <>
         <style dangerouslySetInnerHTML={{ __html: styleContent }} />
         <div className="w-full py-1 px-6" style={{ backgroundColor: 'transparent' }}>
-          <div className="max-w-2xl mx-auto" style={textStyle}>
+          <div className={`max-w-2xl ${marginClass} ${textAlignClass}`} style={textStyle}>
           {isHTML ? (
             <div 
                 ref={contentRef}
