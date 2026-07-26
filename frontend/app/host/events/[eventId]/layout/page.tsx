@@ -15,7 +15,7 @@ import {
 } from '@/lib/invite/api'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
-import { updateEventPageConfig } from '@/lib/event/api'
+import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import api from '@/lib/api'
 import { buildStarterLayouts, isStarterLayoutId } from '@/lib/invite/starterLayouts'
 
@@ -57,6 +57,19 @@ export default function LayoutSelectPage(): React.ReactElement {
       .get<EventData>(`/api/events/${eventId}/`)
       .then((res) => setEvent(res.data))
       .catch(() => { /* non-fatal — apply flow falls back to no event title */ })
+  }, [eventId])
+
+  // Highlight whatever layout is already applied when revisiting this step.
+  // Guarded with prev ?? id so it never clobbers a selection the user already
+  // made by clicking a card before this load resolves.
+  useEffect(() => {
+    if (!eventId || isNaN(eventId)) return
+    getEventPageConfig(eventId)
+      .then((res) => {
+        const appliedId = res?.page_config?.appliedLayoutId
+        if (appliedId) setPendingLayoutId((prev) => prev ?? appliedId)
+      })
+      .catch(() => { /* non-fatal — just skip the highlight */ })
   }, [eventId])
 
   // Layout now runs before Design, so there's no design to narrow the catalog
@@ -113,12 +126,12 @@ export default function LayoutSelectPage(): React.ReactElement {
         ? applyLayout(layout.config, undefined, {
             mergeEventIntoTitle: false,
             mergeEventIntoDetails: false,
-          })
+          }, layout.id)
         : applyLayout(layout.config, {
             title: event?.title,
             date: event?.date,
             city: event?.city,
-          })
+          }, undefined, layout.id)
 
       // Save to Event.page_config so the design page reads the layout's tiles
       await updateEventPageConfig(eventId, appliedConfig)

@@ -93,7 +93,10 @@ export default function EventDetailsEditPage() {
         await resyncEventDetailsTile(data.date, data.city)
       }
       showToast('Event details updated.', 'success')
-      router.push(`/host/events/${eventId}`)
+      // This page has exactly one entry point app-wide: the wizard stepper's
+      // step-1 link. So saving should always continue the wizard, same as
+      // /host/events/new does — never dead-end the user at the dashboard.
+      router.push(`/host/events/${eventId}/layout`)
     } catch (err: unknown) {
       logError('EventDetailsEditPage: save failed', err)
       showToast(getErrorMessage(err), 'error')

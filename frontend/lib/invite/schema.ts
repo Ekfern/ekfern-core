@@ -288,6 +288,10 @@ export interface Tile {
 
 export interface InviteConfig {
   themeId: string
+  // id of the InvitePageLayout this config was last cloned from (via applyLayout).
+  // Lets the Layout step highlight what's currently applied when you revisit it.
+  // Not updated by hand-edits in Design/Page Editor — only by re-applying a layout.
+  appliedLayoutId?: string
   // Custom overrides (optional - if not set, uses theme defaults)
   customColors?: {
     backgroundColor?: string // Overrides theme.palette.bg
