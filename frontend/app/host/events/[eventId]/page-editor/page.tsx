@@ -808,6 +808,11 @@ export default function DesignInvitationPage(): JSX.Element {
         ...(config.rsvpForm && { rsvpForm: config.rsvpForm }),
         ...(config.tileSetComplete !== undefined && { tileSetComplete: config.tileSetComplete }),
         ...(config.animations !== undefined && { animations: config.animations }),
+        // Not editable here — just carried through so the Layout step can still
+        // find it after a Page Editor save. This endpoint replaces page_config
+        // wholesale (see backend update_design), so any field missing from this
+        // object is silently deleted, not merged.
+        ...(config.appliedLayoutId && { appliedLayoutId: config.appliedLayoutId }),
       }
       
       return configToSave
