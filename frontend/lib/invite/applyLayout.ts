@@ -37,9 +37,27 @@ export function applyLayout(
   const mergeTitle = options?.mergeEventIntoTitle !== false
   const mergeDetails = options?.mergeEventIntoDetails !== false
   const tiles = layoutConfig.tiles
+
+  // Page Editor-only settings (not part of any layout recipe) that a
+  // *previous* layout/Page Editor session may have left behind. The backend
+  // now merges saves onto the existing draft instead of replacing it, so
+  // switching layouts needs to explicitly clear these rather than just
+  // omitting them, or a stale value from before would keep showing through
+  // the new layout. `?? null` leaves a value alone if this layout itself
+  // defines one (rare, but some hand-authored templates do).
+  const resetFields = {
+    pageBorder: layoutConfig.pageBorder ?? null,
+    pageFrame: layoutConfig.pageFrame ?? null,
+    cornerDecorations: layoutConfig.cornerDecorations ?? null,
+    linkMetadata: layoutConfig.linkMetadata ?? null,
+    rsvpForm: layoutConfig.rsvpForm ?? null,
+    animations: layoutConfig.animations ?? null,
+  }
+
   if (!tiles || tiles.length === 0) {
     return {
       ...layoutConfig,
+      ...resetFields,
       tileSetComplete: true,
       appliedLayoutId: layoutId,
     }
@@ -93,6 +111,7 @@ export function applyLayout(
 
   return {
     ...layoutConfig,
+    ...resetFields,
     tiles: mergedTiles,
     tileSetComplete: true,
     customColors: layoutConfig.customColors ?? {},

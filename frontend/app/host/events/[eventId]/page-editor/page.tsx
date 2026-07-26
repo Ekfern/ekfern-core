@@ -824,8 +824,31 @@ export default function DesignInvitationPage(): JSX.Element {
     const configToSave = buildConfigToSave()
     setSaveStatus('saving')
     try {
+      // The backend now shallow-merges this payload onto the stored draft
+      // instead of replacing it wholesale (see backend update_design), so
+      // that fields this page doesn't manage (e.g. appliedLayoutId, set by
+      // the Layout step) survive a Page Editor save without this page
+      // needing to know about them. But that means, for the fields THIS
+      // page does own, omitting a key is no longer enough to clear it — an
+      // omitted key now means "leave whatever's already there," not
+      // "delete this." Send explicit nulls for those so clearing a setting
+      // (e.g. removing a custom background color) still actually clears it.
+      const wirePayload = {
+        ...configToSave,
+        customColors: configToSave.customColors ?? null,
+        customFonts: configToSave.customFonts ?? null,
+        texture: configToSave.texture ?? null,
+        pageBorder: configToSave.pageBorder ?? null,
+        pageFrame: configToSave.pageFrame ?? null,
+        cornerDecorations: configToSave.cornerDecorations ?? null,
+        spacing: configToSave.spacing ?? null,
+        linkMetadata: configToSave.linkMetadata ?? null,
+        rsvpForm: configToSave.rsvpForm ?? null,
+        tileSetComplete: configToSave.tileSetComplete ?? null,
+        animations: configToSave.animations ?? null,
+      }
       const response = await api.put(`/api/events/${eventId}/design/`, {
-        page_config: configToSave,
+        page_config: wirePayload,
       })
 
       // InvitePage may be auto-created on first save
