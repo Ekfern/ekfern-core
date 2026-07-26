@@ -457,6 +457,116 @@ class PublicInviteViewSetTestCase(TestCase):
         self.assertEqual(guest_resp.data.get('status'), 'coming_soon')
 
 
+class UpdateDesignMergeTestCase(TestCase):
+    """
+    update_design shallow-merges the incoming page_config onto the existing
+    draft instead of replacing it wholesale, so a caller that doesn't know
+    about a given field (e.g. Page Editor saving without appliedLayoutId,
+    which only the Layout step sets) doesn't silently delete it. A field
+    explicitly present in the payload -- including null -- still always wins.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='host@test.com', name='Test Host')
+        self.event = Event.objects.create(
+            host=self.host,
+            slug='test-event',
+            title='Test Event',
+            is_public=True,
+        )
+        self.client.force_authenticate(user=self.host)
+
+    def test_field_absent_from_payload_is_preserved(self):
+        """A save that never mentions a field (e.g. Page Editor omitting appliedLayoutId) doesn't delete it."""
+        first = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'appliedLayoutId': '95'}},
+            format='json',
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        second = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [{'id': 't1', 'type': 'title'}]}},
+            format='json',
+        )
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.page_config['appliedLayoutId'], '95')
+        self.assertEqual(len(self.event.page_config['tiles']), 1)
+
+        invite_page = InvitePage.objects.get(event=self.event)
+        self.assertEqual(invite_page.config['appliedLayoutId'], '95')
+
+    def test_explicit_null_clears_a_field(self):
+        """A field explicitly sent as null overwrites the stored value instead of being ignored."""
+        self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customColors': {'backgroundColor': '#ff00ff'}}},
+            format='json',
+        )
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.page_config['customColors']['backgroundColor'], '#ff00ff')
+
+        cleared = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customColors': None}},
+            format='json',
+        )
+        self.assertEqual(cleared.status_code, status.HTTP_200_OK)
+        self.event.refresh_from_db()
+        self.assertIsNone(self.event.page_config['customColors'])
+
+    def test_first_save_auto_creates_invite_page_with_merged_config(self):
+        """The very first save for an event (no InvitePage yet) still merges onto any pre-existing event.page_config."""
+        self.event.page_config = {'themeId': 'classic-noir', 'appliedLayoutId': '4'}
+        self.event.save(update_fields=['page_config'])
+        self.assertFalse(InvitePage.objects.filter(event=self.event).exists())
+
+        resp = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'modern-minimal', 'tiles': []}},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertTrue(resp.data.get('invite_page_created'))
+
+        invite_page = InvitePage.objects.get(event=self.event)
+        self.assertEqual(invite_page.config['themeId'], 'modern-minimal')
+        self.assertEqual(invite_page.config['appliedLayoutId'], '4')
+
+    def test_merged_draft_save_does_not_touch_published_snapshot(self):
+        """A merge-preserved field in the draft must not leak into published_config until an explicit publish."""
+        invite_page = InvitePage.objects.create(
+            event=self.event,
+            slug=self.event.slug.lower(),
+            is_published=False,
+            config={'themeId': 'classic-noir', 'tiles': [], 'appliedLayoutId': '95'},
+        )
+        self.client.post(
+            f'/api/events/invite/{invite_page.slug}/publish/',
+            {'is_published': True},
+            format='json',
+        )
+        invite_page.refresh_from_db()
+        self.assertEqual(invite_page.published_config['appliedLayoutId'], '95')
+
+        # Draft save that switches layout (appliedLayoutId changes, doesn't mention it being cleared)
+        self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'emerald-mist', 'tiles': [], 'appliedLayoutId': '4'}},
+            format='json',
+        )
+        invite_page.refresh_from_db()
+        self.assertEqual(invite_page.config['appliedLayoutId'], '4')
+        # Published snapshot is untouched by the draft save
+        self.assertEqual(invite_page.published_config['appliedLayoutId'], '95')
+        self.assertEqual(invite_page.published_config['themeId'], 'classic-noir')
+
+
 class CreateRSVPEnvelopeTestCase(TestCase):
     """Test fix E: create_rsvp() ENVELOPE returns 201 if any new RSVP created, else 200"""
     
