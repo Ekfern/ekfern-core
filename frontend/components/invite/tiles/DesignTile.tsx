@@ -1,8 +1,10 @@
 'use client'
 
 import React from 'react'
+import { ImagePlus } from 'lucide-react'
 import { DesignTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
+import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 
 export interface DesignTileProps {
   settings: DesignTileSettings
@@ -13,6 +15,11 @@ export default function DesignTile({ settings, preview: _preview = false }: Desi
   const hasImage = !!settings.src
   const hasGradient = !!settings.backgroundGradient
   const hasTextOverlays = settings.textOverlays && settings.textOverlays.length > 0
+  const isFullBleed = settings.frameMode === 'full-bleed'
+  const fullBleedAspectRatio = settings.aspectRatio || '4 / 5'
+  const outerClassName = isFullBleed ? 'w-full' : 'w-full flex justify-center'
+  const boxClassName = isFullBleed ? 'relative w-full overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
+  const boxStyle = isFullBleed ? { aspectRatio: fullBleedAspectRatio } : { aspectRatio: '9 / 16' }
 
   const renderTextOverlays = () => {
     if (!hasTextOverlays) return null
@@ -69,31 +76,41 @@ export default function DesignTile({ settings, preview: _preview = false }: Desi
   if (!hasImage && !hasGradient) {
     if (hasTextOverlays) {
       return (
-        <div className="w-full flex justify-center">
-          <div
-            className="relative w-full max-w-sm overflow-hidden bg-gray-100"
-            style={{ aspectRatio: '9 / 16' }}
-          >
+        <div className={outerClassName}>
+          <div className={`${boxClassName} bg-gray-100`} style={boxStyle}>
             {renderTextOverlays()}
           </div>
         </div>
       )
     }
     return (
-      <div className="w-full h-48 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
-        <p className="text-gray-400 text-sm">No greeting card content</p>
+      <div className={outerClassName}>
+        <div
+          className={`${boxClassName} flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 ${isFullBleed ? '' : 'rounded-xl'} bg-gray-50`}
+          style={boxStyle}
+        >
+          <ImagePlus className="w-10 h-10 text-gray-400" aria-hidden />
+          <p className="text-gray-500 text-sm font-medium">Add your design</p>
+        </div>
       </div>
     )
   }
 
+  const heroTexture = settings.texture && settings.texture.type !== 'none' && (
+    <TextureOverlay
+      type={settings.texture.type}
+      intensity={settings.texture.intensity}
+      imageUrl={settings.texture.imageUrl}
+      textureBlend={settings.texture.textureBlend}
+    />
+  )
+
   // Gradient-only card (no image)
   if (!hasImage && hasGradient) {
     return (
-      <div className="w-full flex justify-center">
-        <div
-          className="relative w-full max-w-sm overflow-hidden"
-          style={{ background: settings.backgroundGradient, aspectRatio: '9 / 16' }}
-        >
+      <div className={outerClassName}>
+        <div className={boxClassName} style={{ ...boxStyle, background: settings.backgroundGradient }}>
+          {heroTexture}
           {renderTextOverlays()}
         </div>
       </div>
@@ -106,11 +123,8 @@ export default function DesignTile({ settings, preview: _preview = false }: Desi
   // 'contain' so a user-uploaded card with a non-9:16 aspect isn't cropped.
   const fit = settings.imageFit === 'contain' ? 'contain' : 'cover'
   return (
-    <div className="w-full flex justify-center">
-      <div
-        className="relative w-full max-w-sm overflow-hidden"
-        style={{ aspectRatio: '9 / 16' }}
-      >
+    <div className={outerClassName}>
+      <div className={boxClassName} style={boxStyle}>
         <img
           src={convertToCloudFrontUrl(settings.src!)}
           alt="Greeting card"
@@ -120,6 +134,7 @@ export default function DesignTile({ settings, preview: _preview = false }: Desi
           className="absolute inset-0 w-full h-full"
           style={{ objectFit: fit, objectPosition: 'center center' }}
         />
+        {heroTexture}
         {renderTextOverlays()}
       </div>
     </div>

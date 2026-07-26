@@ -2,9 +2,9 @@
  * WizardProgress — horizontal step indicator for the invitation creation wizard.
  *
  * Steps:
- *   1. Event Details  (/host/events/new)
- *   2. Design         (/host/events/[eventId]/design)
- *   3. Layout         (/host/events/[eventId]/layout)
+ *   1. Event Details  (/host/events/new to create; /host/events/[eventId]/details to edit)
+ *   2. Layout         (/host/events/[eventId]/layout)
+ *   3. Design         (/host/events/[eventId]/design)
  *   4. Page Editor    (/host/events/[eventId]/page-editor)
  *
  * Completed steps are clickable (navigate) when eventId is provided.
@@ -27,9 +27,9 @@ interface StepDefinition {
 }
 
 const STEPS: StepDefinition[] = [
-  { number: 1, label: 'Event Details', href: () => '/host/events/new' },
-  { number: 2, label: 'Design', href: (id) => `/host/events/${id}/design` },
-  { number: 3, label: 'Layout', href: (id) => `/host/events/${id}/layout` },
+  { number: 1, label: 'Event Details', href: (id) => `/host/events/${id}/details` },
+  { number: 2, label: 'Layout', href: (id) => `/host/events/${id}/layout` },
+  { number: 3, label: 'Design', href: (id) => `/host/events/${id}/design` },
   { number: 4, label: 'Page Editor', href: (id) => `/host/events/${id}/page-editor` },
 ]
 
@@ -109,7 +109,7 @@ interface StepNodeProps {
 }
 
 function StepNode({ step, state, eventId }: StepNodeProps): React.ReactElement {
-  const isClickable = state === 'completed' && eventId != null && step.number > 1
+  const isClickable = state === 'completed' && eventId != null
   const circle = <StepCircle state={state} number={step.number} />
 
   const labelClasses =

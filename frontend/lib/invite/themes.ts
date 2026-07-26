@@ -74,6 +74,20 @@ export const THEMES: Theme[] = [
       body: "Georgia, 'Times New Roman', serif",
     },
   },
+  {
+    id: 'carbon',
+    palette: {
+      bg: '#0A0A0B',
+      fg: '#F5F5F7',
+      primary: '#0A84FF',
+      muted: '#8E8E93',
+      overlayOpacity: 0.3,
+    },
+    fonts: {
+      title: "'Inter', system-ui, sans-serif",
+      body: "'Inter', system-ui, sans-serif",
+    },
+  },
 ]
 
 export function getTheme(id: string): Theme {

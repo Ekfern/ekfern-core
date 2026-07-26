@@ -160,7 +160,7 @@ export default function ImageTile({ settings, preview = false }: ImageTileProps)
 
   const shape = settings.shape || 'rectangle'
   const frameStyle = settings.frameStyle ?? 'none'
-  const frameColor = settings.frameColor || '#D4AF37'
+  const frameColor = settings.frameColor || 'var(--theme-primary, #D4AF37)'
   const frameWidth = Math.min(8, Math.max(1, settings.frameWidth ?? 2))
 
   const getShapeWrapperStyle = (): React.CSSProperties => {
