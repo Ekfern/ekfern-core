@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 import { useToast } from '@/components/ui/toast'
@@ -49,6 +49,10 @@ export default function LayoutSelectPage(): React.ReactElement {
   const [pendingLayoutId, setPendingLayoutId] = useState<string | null>(null)
   const [starterLayouts, setStarterLayouts] = useState<InvitePageLayout[]>([])
   const [startersLoading, setStartersLoading] = useState(false)
+  // What's actually applied to the event (vs. pendingLayoutId, which also
+  // tracks the user's in-progress click on a different card). Used only to
+  // pin the current layout to the front of the grid on load.
+  const [appliedLayoutId, setAppliedLayoutId] = useState<string | null>(null)
 
   // Load event data (title/date/city merged into the applied layout's tiles).
   useEffect(() => {
@@ -67,7 +71,10 @@ export default function LayoutSelectPage(): React.ReactElement {
     getEventPageConfig(eventId)
       .then((res) => {
         const appliedId = res?.page_config?.appliedLayoutId
-        if (appliedId) setPendingLayoutId((prev) => prev ?? appliedId)
+        if (appliedId) {
+          setPendingLayoutId((prev) => prev ?? appliedId)
+          setAppliedLayoutId(appliedId)
+        }
       })
       .catch(() => { /* non-fatal — just skip the highlight */ })
   }, [eventId])
@@ -82,6 +89,25 @@ export default function LayoutSelectPage(): React.ReactElement {
       .catch(() => setLayouts([]))
       .finally(() => setLayoutsLoading(false))
   }, [eventId])
+
+  // Pin the currently-applied layout to the front of the grid so it's the
+  // first thing you see when revisiting this step, instead of having to hunt
+  // for it among 30+ cards.
+  const orderedLayouts = useMemo(() => {
+    if (!appliedLayoutId) return layouts
+    const index = layouts.findIndex((l) => l.id === appliedLayoutId)
+    if (index <= 0) return layouts
+    const applied = layouts[index]!
+    return [applied, ...layouts.slice(0, index), ...layouts.slice(index + 1)]
+  }, [layouts, appliedLayoutId])
+
+  const orderedStarterLayouts = useMemo(() => {
+    if (!appliedLayoutId) return starterLayouts
+    const index = starterLayouts.findIndex((l) => l.id === appliedLayoutId)
+    if (index <= 0) return starterLayouts
+    const applied = starterLayouts[index]!
+    return [applied, ...starterLayouts.slice(0, index), ...starterLayouts.slice(index + 1)]
+  }, [starterLayouts, appliedLayoutId])
 
   const showStarters = !layoutsLoading && layouts.length === 0 && starterLayouts.length > 0
 
@@ -208,8 +234,8 @@ export default function LayoutSelectPage(): React.ReactElement {
             )}
 
             <PageLayoutLibrary
-              layouts={layouts}
-              starterLayouts={starterLayouts}
+              layouts={orderedLayouts}
+              starterLayouts={orderedStarterLayouts}
               showStarters={showStarters}
               onSelect={setPendingLayoutId}
               selectedId={pendingLayoutId ?? undefined}
