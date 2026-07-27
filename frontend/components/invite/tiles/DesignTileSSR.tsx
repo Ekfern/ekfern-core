@@ -23,8 +23,11 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
 
   const isFullBleed = settings.frameMode === 'full-bleed'
   const fullBleedAspectRatio = settings.aspectRatio || '4 / 5'
-  const outerClassName = isFullBleed ? 'w-full' : 'w-full flex justify-center'
-  const boxClassName = isFullBleed ? 'relative w-full overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
+  const outerClassName = 'w-full flex justify-center'
+  // Keep in sync with DesignTile.tsx (client) — same cap for the same reason,
+  // so the server-rendered first paint and the client hydration agree and
+  // there's no visible size jump when JS takes over.
+  const boxClassName = isFullBleed ? 'relative w-full max-w-4xl overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
   const boxStyle = isFullBleed ? { aspectRatio: fullBleedAspectRatio } : { aspectRatio: '9 / 16' }
 
   const renderTextOverlays = () => {
