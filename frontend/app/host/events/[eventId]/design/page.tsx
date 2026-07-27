@@ -389,6 +389,12 @@ export default function DesignPage(): React.ReactElement {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [hasSelectedBackground, setHasSelectedBackground] = useState(false)
+  // The shape this event's design tile actually renders as on the real page
+  // (DesignTile.tsx / DesignTileSSR.tsx) — set by whichever layout was
+  // applied, independent of whether background/text content exists yet.
+  // Defaults to the old card shape so a blank canvas (no layout-provided
+  // design tile) behaves exactly as before.
+  const [heroAspectRatio, setHeroAspectRatio] = useState('9 / 16')
   const [fontSizeInput, setFontSizeInput] = useState<string>('')
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [userHasEditedText, setUserHasEditedText] = useState(false)
@@ -459,6 +465,13 @@ export default function DesignPage(): React.ReactElement {
       // Check if backend already has greeting-card content (e.g. saved from another device)
       const gcTile = page?.config?.tiles?.find((t) => t.type === 'design')
       const gcSettings = gcTile?.settings as DesignTileSettings | undefined
+
+      // Hero shape comes from the applied layout, not from whether custom
+      // background/text has been added yet — read it unconditionally so the
+      // canvas matches DesignTile.tsx's real render from the first paint.
+      const isFullBleed = gcSettings?.frameMode === 'full-bleed'
+      setHeroAspectRatio(isFullBleed ? (gcSettings?.aspectRatio || '4 / 5') : '9 / 16')
+
       const hasBackendContent = !!gcSettings?.src || (gcSettings?.textOverlays?.length ?? 0) > 0
 
       if (hasBackendContent) {
@@ -1600,11 +1613,14 @@ export default function DesignPage(): React.ReactElement {
       {/* Canvas area                                                          */}
       {/* ------------------------------------------------------------------ */}
       <div className="flex-1 flex items-start justify-center px-4 py-6">
-        {/* Outer wrapper enforces 9:16 aspect ratio at max-height 72vh */}
+        {/* Outer wrapper enforces the applied layout's real hero shape (card
+            9:16, or full-bleed at its own aspectRatio) at max-height 72vh —
+            matches DesignTile.tsx's render exactly, so what you see here is
+            what actually publishes. */}
         <div
           style={{
             height: '72vh',
-            aspectRatio: '9 / 16',
+            aspectRatio: heroAspectRatio,
           }}
           className="relative select-none"
         >
