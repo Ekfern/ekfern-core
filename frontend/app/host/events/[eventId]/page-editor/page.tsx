@@ -232,14 +232,13 @@ export default function DesignInvitationPage(): JSX.Element {
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const persistDraftRef = useRef<(() => Promise<boolean>) | null>(null)
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
-  const [headerHeight, setHeaderHeight] = useState(160)
-  const headerRef = useRef<HTMLDivElement>(null)
+
+
   const lastScrollY = useRef(0);
-  
+
 
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const gridContainerRef = useRef<HTMLDivElement>(null)
-  const [stickyTop, setStickyTop] = useState(0)
   const previewImageInputRef = useRef<HTMLInputElement>(null)
   const previewWindowRef = useRef<Window | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
@@ -270,7 +269,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const [apiLayouts, setApiLayouts] = useState<InvitePageLayout[]>([])
   const [layoutsLoading, setLayoutsLoading] = useState(true)
   const [showScrollHint, setShowScrollHint] = useState(true);
-
+  const [showInviteBanner, setShowInviteBanner] = useState(true)
   const [showEditor, setShowEditor] = useState(true);
 
 
@@ -284,28 +283,7 @@ export default function DesignInvitationPage(): JSX.Element {
 
   // Measure header height for sticky positioning
   // Measure header height for sticky positioning
-  useEffect(() => {
-    const updateHeaderHeight = () => {
-      if (headerRef.current) {
-        const height = headerRef.current.offsetHeight
-        setHeaderHeight(height + 16)
-        setStickyTop(height + 8)
-      }
-    }
 
-    updateHeaderHeight()
-
-    const t1 = setTimeout(updateHeaderHeight, 100)
-    const t2 = setTimeout(updateHeaderHeight, 500)
-
-    window.addEventListener('resize', updateHeaderHeight)
-
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-      window.removeEventListener('resize', updateHeaderHeight)
-    }
-  }, [event])
 
   useEffect(() => {
     const loadData = async () => {
@@ -319,7 +297,7 @@ export default function DesignInvitationPage(): JSX.Element {
         const eventData = eventResponse.data
         setEvent(eventData)
 
-       
+
         // Always fetch sub-events (regardless of event_structure) for Event Carousel tile
         try {
           const subEventsResponse = await api.get(`/api/events/envelopes/${eventId}/sub-events/`)
@@ -649,26 +627,6 @@ export default function DesignInvitationPage(): JSX.Element {
   }, [eventId])
 
   // Measure header height for sticky positioning
-  useEffect(() => {
-    const updateHeaderHeight = () => {
-      if (headerRef.current) {
-        const height = headerRef.current.offsetHeight
-        setHeaderHeight(height + 16)
-        setStickyTop(height + 8)
-      }
-    }
-
-    updateHeaderHeight()
-    const t1 = setTimeout(updateHeaderHeight, 100)
-    const t2 = setTimeout(updateHeaderHeight, 500)
-    window.addEventListener('resize', updateHeaderHeight)
-
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-      window.removeEventListener('resize', updateHeaderHeight)
-    }
-  }, [event])
 
 
   // Validations that must pass before PUBLISHING. Auto-save intentionally does NOT
@@ -1579,7 +1537,7 @@ export default function DesignInvitationPage(): JSX.Element {
       {/* Wizard progress bar */}
       <WizardProgress currentStep={4} eventId={eventId} />
       {/* Header */}
-      <div ref={headerRef} className="sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden">
+      <div className="sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 w-full overflow-x-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 w-full">
             <div className="flex-1 min-w-0 w-full">
@@ -1794,35 +1752,56 @@ export default function DesignInvitationPage(): JSX.Element {
 
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 w-full overflow-x-hidden pt-4 sm:pt-6 pb-6">
         {/* Fix 5: State-based info banners */}
-        {(() => {
-          const state = getInvitePageState(invitePage)
-          if (state === InvitePageState.NOT_CREATED) {
-            return (
-              <div className="mb-4 p-3 bg-eco-green-light/20 border border-eco-green-light rounded-lg">
-                <p className="text-sm text-eco-green">
-                  Design and save your invitation to create the invite page.
-                </p>
-              </div>
-            )
-          }
-          if (state === InvitePageState.DRAFT) {
-            return (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ Your invite page is in draft mode. Publish it to share with guests.
-                </p>
-              </div>
-            )
-          }
-          return null
-        })()}
+        {showInviteBanner &&
+          (() => {
+            const state = getInvitePageState(invitePage)
 
+            if (state === InvitePageState.NOT_CREATED) {
+              return (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start justify-between">
+                  <p className="text-sm text-eco-green">
+                    Design and save your invitation to create the invite page.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteBanner(false)}
+                    className="ml-4 mt-0.5 text-yellow-800 hover:opacity-70 text-lg font-bold leading-none"
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            }
+
+            if (state === InvitePageState.DRAFT) {
+              return (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg relative">
+                  <p className="text-sm text-yellow-800 pr-8">
+                    ⚠️ Your invite page is in draft mode. Publish it to share with guests.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteBanner(false)}
+                    className="absolute top-3 right-3 text-yellow-800 hover:text-yellow-900 text-lg leading-none"
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            }
+
+            return null
+          })()}
         <div ref={gridContainerRef} className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">
           {/* Left Panel - Settings */}
           <div
             className="relative lg:col-span-3 overflow-y-auto hide-scrollbar"
             style={{
-              maxHeight: `calc(100vh - ${stickyTop}px)`,
+              maxHeight: "calc(100vh - 1rem)",
             }}
             onScroll={(e) => {
               const scrollTop = e.currentTarget.scrollTop;
@@ -2679,13 +2658,13 @@ export default function DesignInvitationPage(): JSX.Element {
             <div
               ref={rightPanelRef}
               className="lg:col-span-2 w-full min-w-0 overflow-x-hidden self-start lg:sticky"
-              style={{ top: stickyTop > 0 ? `${stickyTop}px` : undefined }}
+              style={{ top: "1rem" }}
             >
 
               <div
                 className="relative lg:z-40 bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden"
                 style={{
-                  height: `calc(100vh - ${stickyTop}px)`,
+                  height: `calc(100vh - 1rem)`,
                   overflowY: "auto",
                 }}
               >
