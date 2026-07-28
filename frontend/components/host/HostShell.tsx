@@ -82,11 +82,11 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
     if (isAuthRoute) return
     api.get('/api/auth/me/').then((r) => {
       if (r?.data?.is_staff === true) setIsStaff(true)
-    }).catch(() => {})
+    }).catch(() => { })
     api.get('/api/events/').then((r) => {
       const list = r.data.results ?? r.data
       setAllEvents(list.map((e: { id: number; title: string }) => ({ id: e.id, title: e.title })))
-    }).catch(() => {})
+    }).catch(() => { })
   }, [isAuthRoute])
 
   useEffect(() => {
@@ -118,25 +118,25 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
   }, [switcherOpen])
 
   const globalNavItems = useMemo(() => [
-    { href: '/host/dashboard',  label: 'Dashboard',    icon: LayoutDashboard },
+    { href: '/host/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/host/events/new', label: 'Create Event', icon: PlusCircle },
-    { href: '/host/profile',    label: 'Profile',      icon: User },
+    { href: '/host/profile', label: 'Profile', icon: User },
   ], [])
 
   const eventTabItems = useMemo(() => {
     if (!eventId) return []
-    const hasRsvp     = eventSettings?.has_rsvp      ?? true
-    const hasRegistry = eventSettings?.has_registry   ?? true
-    const isEnvelope  = eventSettings?.event_structure === 'ENVELOPE'
+    const hasRsvp = eventSettings?.has_rsvp ?? true
+    const hasRegistry = eventSettings?.has_registry ?? true
+    const isEnvelope = eventSettings?.event_structure === 'ENVELOPE'
     const items: { href: string; label: string; icon: LucideIcon }[] = [
-      { href: `/host/events/${eventId}`,               label: 'Overview',   icon: LayoutDashboard },
-      { href: `/host/events/${eventId}/page-editor`,    label: 'Page Editor', icon: Paintbrush },
-      { href: `/host/events/${eventId}/guests`,        label: 'Guests',     icon: Users },
+      { href: `/host/events/${eventId}`, label: 'Overview', icon: LayoutDashboard },
+      { href: `/host/events/${eventId}/page-editor`, label: 'Page Editor', icon: Paintbrush },
+      { href: `/host/events/${eventId}/guests`, label: 'Guests', icon: Users },
     ]
-    if (hasRsvp)     items.push({ href: `/host/events/${eventId}/rsvp`,        label: 'RSVP',       icon: CalendarCheck })
-    if (isEnvelope)  items.push({ href: `/host/events/${eventId}/sub-events`,  label: 'Sub-Events', icon: Layers })
-    items.push(        { href: `/host/events/${eventId}/communications`, label: 'Messages',   icon: MessageSquare })
-    if (hasRegistry) items.push({ href: `/host/events/${eventId}/catalog`,      label: 'Host Catalog', icon: Gift })
+    if (hasRsvp) items.push({ href: `/host/events/${eventId}/rsvp`, label: 'RSVP', icon: CalendarCheck })
+    if (isEnvelope) items.push({ href: `/host/events/${eventId}/sub-events`, label: 'Sub-Events', icon: Layers })
+    items.push({ href: `/host/events/${eventId}/communications`, label: 'Messages', icon: MessageSquare })
+    if (hasRegistry) items.push({ href: `/host/events/${eventId}/catalog`, label: 'Host Catalog', icon: Gift })
     return items
   }, [eventId, eventSettings])
 
@@ -290,8 +290,8 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
 
         {/* Primary header */}
         <header className="sticky top-0 z-20 border-b border-eco-green-light bg-white/95 backdrop-blur-sm">
-          <div className="flex items-center justify-between px-4 py-3 md:px-6">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center px-4 py-3 md:px-6">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <button
                 type="button"
                 className="rounded-md p-2 text-eco-green hover:bg-eco-green-light md:hidden"
@@ -302,7 +302,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
               </button>
 
               {/* Breadcrumb */}
-              <div className="flex items-center gap-1.5 min-w-0 text-sm">
+              <div className="flex items-center gap-1.5 min-w-[280px] max-w-[320px] text-sm shrink-0">
                 <Link
                   href="/host/dashboard"
                   className="font-semibold text-eco-green hover:text-eco-green/80 transition-colors whitespace-nowrap"
@@ -390,20 +390,48 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
                   </>
                 )}
               </div>
-            </div>
+              <div className="mx-6 h-6 w-px bg-gray-200 shrink-0" />
+              {mounted && eventId && eventTabItems.length > 0 && (
+                <nav className="hidden lg:flex items-center gap-2 ml-8 overflow-x-auto scrollbar-none">
+                  {eventTabItems.map((item) => {
+                    const isRoot = item.href === `/host/events/${eventId}`
+                    const isActive = isActivePath(pathname, item.href, isRoot)
 
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-eco-green-light hover:text-eco-green shrink-0"
-              onClick={handleLogout}
-            >
-              <LogOut size={18} />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-all",
+                          isActive
+                            ? "bg-eco-green text-white"
+                            : "text-gray-600 hover:bg-eco-green-light hover:text-eco-green"
+                        )}
+                      >
+                        <item.icon size={16} />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </nav>
+              )}
+            </div>
+            {/*
+<button
+  type="button"
+  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-eco-green-light hover:text-eco-green shrink-0"
+  onClick={handleLogout}
+>
+  <LogOut size={18} />
+  <span className="hidden sm:inline">Logout</span>
+</button>
+*/}
+
+
           </div>
 
           {/* Event pill tab bar — only shown when inside an event */}
-          {mounted && eventId && eventTabItems.length > 0 && (
+          {/*{mounted && eventId && eventTabItems.length > 0 && (
             <div className="border-t border-eco-green-light/60 bg-white/95 px-4 md:px-6">
               <div className="flex items-center gap-1.5 overflow-x-auto py-2 scrollbar-none">
                 {eventTabItems.map((item) => {
@@ -427,7 +455,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
                 })}
               </div>
             </div>
-          )}
+          )}*/}
         </header>
 
         <main className="min-w-0 flex-1">
