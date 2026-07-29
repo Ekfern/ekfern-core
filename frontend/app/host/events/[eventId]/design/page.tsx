@@ -1612,14 +1612,21 @@ export default function DesignPage(): React.ReactElement {
       {/* ------------------------------------------------------------------ */}
       {/* Canvas area                                                          */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex-1 flex items-start justify-center px-4 py-6">
+      {/* No flex-1: this must size to its own content (the capped canvas
+          height below), not stretch to fill the page's min-h-screen budget —
+          otherwise the leftover space pushes the sticky footer below the
+          fold even after the canvas itself has been shrunk to fit. */}
+      <div className="flex items-start justify-center px-4 py-6">
         {/* Outer wrapper enforces the applied layout's real hero shape (card
-            9:16, or full-bleed at its own aspectRatio) at max-height 72vh —
-            matches DesignTile.tsx's render exactly, so what you see here is
-            what actually publishes. */}
+            9:16, or full-bleed at its own aspectRatio) at up to 72vh — matches
+            DesignTile.tsx's render exactly, so what you see here is what
+            actually publishes. Capped against (100vh - 440px), the measured
+            height of the header/toolbar/footer chrome around the canvas, so
+            on shorter screens the canvas shrinks instead of pushing the
+            Back/Skip/Next footer below the fold. */}
         <div
           style={{
-            height: '72vh',
+            height: 'min(72vh, calc(100vh - 440px))',
             aspectRatio: heroAspectRatio,
           }}
           className="relative select-none"
