@@ -17,8 +17,15 @@ export default function DesignTile({ settings, preview: _preview = false }: Desi
   const hasTextOverlays = settings.textOverlays && settings.textOverlays.length > 0
   const isFullBleed = settings.frameMode === 'full-bleed'
   const fullBleedAspectRatio = settings.aspectRatio || '4 / 5'
-  const outerClassName = isFullBleed ? 'w-full' : 'w-full flex justify-center'
-  const boxClassName = isFullBleed ? 'relative w-full overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
+  const outerClassName = 'w-full flex justify-center'
+  // Full-bleed has no width cap on its own — on a wide desktop window it would
+  // stretch edge to edge and, since it keeps its aspect ratio, get extremely
+  // tall with it (a 4:5 hero at 1920px wide is 2400px tall). max-w-4xl keeps
+  // it clearly bigger than the ~672px text column below (max-w-2xl on the
+  // other tiles) so it still reads as the bold hero moment, without the
+  // runaway height on large screens. Mobile is unaffected — phone widths
+  // never approach this cap.
+  const boxClassName = isFullBleed ? 'relative w-full max-w-4xl overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
   const boxStyle = isFullBleed ? { aspectRatio: fullBleedAspectRatio } : { aspectRatio: '9 / 16' }
 
   const renderTextOverlays = () => {
