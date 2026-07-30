@@ -345,7 +345,7 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <label className="block text-sm font-medium mb-2">Header Font</label>
 
         <select
-          value={findFontByFamily(settings.headerFontFamily)?.id || FONT_OPTIONS[0].id}
+          value={findFontByFamily(settings.headerFontFamily)?.id || ''}
           onChange={(e) => {
             const font = FONT_OPTIONS.find((f) => f.id === e.target.value)
             onChange({
@@ -355,6 +355,7 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
           }}
           className="w-full text-sm border rounded px-3 py-2"
         >
+          <option value="">Theme Default</option>
           {FONT_OPTIONS.map((font) => (
             <option
               key={font.id}
@@ -369,9 +370,7 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <p className="text-xs text-gray-500 mt-1">
           Preview:{' '}
           <span
-            style={{
-              fontFamily: settings.headerFontFamily || FONT_OPTIONS[0].family,
-            }}
+            style={settings.headerFontFamily ? { fontFamily: settings.headerFontFamily } : undefined}
           >
             Wednesday, August 5, 2026
           </span>
@@ -383,7 +382,7 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <label className="block text-sm font-medium mb-2">Content Font</label>
 
         <select
-          value={findFontByFamily(settings.contentFontFamily)?.id || FONT_OPTIONS[0].id}
+          value={findFontByFamily(settings.contentFontFamily)?.id || ''}
           onChange={(e) => {
             const font = FONT_OPTIONS.find((f) => f.id === e.target.value)
             onChange({
@@ -393,6 +392,7 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
           }}
           className="w-full text-sm border rounded px-3 py-2"
         >
+          <option value="">Theme Default</option>
           {FONT_OPTIONS.map((font) => (
             <option
               key={font.id}
@@ -407,9 +407,7 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <p className="text-xs text-gray-500 mt-1">
           Preview:{' '}
           <span
-            style={{
-              fontFamily: settings.contentFontFamily || FONT_OPTIONS[0].family,
-            }}
+            style={settings.contentFontFamily ? { fontFamily: settings.contentFontFamily } : undefined}
           >
             Wednesday, August 5, 2026
           </span>

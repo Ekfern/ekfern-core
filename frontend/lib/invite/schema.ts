@@ -106,7 +106,6 @@ export interface EventDetailsTileSettings {
   buttonColor?: string // Hex color for Save the Date button (e.g., "#1F2937")
   headerFontFamily?: string
   contentFontFamily?: string
- 
 
   // Date block layout: single-line (default) or day-prominent (large day number, smaller weekday/month/year/time)
   dateLayout?: 'single-line' | 'day-prominent'

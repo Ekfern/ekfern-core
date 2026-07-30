@@ -320,14 +320,23 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                 return (
                   <div className="space-y-8" style={{ fontFamily: 'var(--theme-font-body, Georgia, serif)' }}>
                     <div className="space-y-4">
-                      <div className="text-4xl md:text-5xl lg:text-6xl font-bold leading-none tracking-tight" style={{ color: fontColor }}>
+                      <div
+                        className="text-4xl md:text-5xl lg:text-6xl font-bold leading-none tracking-tight"
+                        style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                      >
                         {parts.day}
                       </div>
-                      <div className="text-sm md:text-base uppercase tracking-widest font-medium" style={{ color: fontColor }}>
+                      <div
+                        className="text-sm md:text-base uppercase tracking-widest font-medium"
+                        style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                      >
                         {parts.weekday}
                         {settings.time && ` · ${formatTime(settings.time)}`}
                       </div>
-                      <div className="text-sm md:text-base uppercase tracking-widest" style={{ color: fontColor }}>
+                      <div
+                        className="text-sm md:text-base uppercase tracking-widest"
+                        style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                      >
                         {parts.month} {parts.year}
                       </div>
                     </div>
@@ -339,7 +348,10 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                       const canDisplay = canShowMap(settings)
                       return (
                         <div className="space-y-2">
-                          <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: fontColor }}>
+                          <div
+                            className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2"
+                            style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                          >
                             <span>{settings.location}</span>
                             {canDisplay && mapUrl && (
                               <a
@@ -467,7 +479,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                         Location
                       </div>
                       <div
-                        className="text-xl md:text-2xl font-normal leading-relaxed"
+                        className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2"
                         style={{
                           color: fontColor,
                           fontFamily: settings.contentFontFamily,
