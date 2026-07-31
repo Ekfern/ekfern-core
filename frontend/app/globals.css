@@ -241,6 +241,16 @@ input[type="range"].slider:focus::-moz-range-thumb {
   box-shadow: 0 0 0 3px rgba(11, 61, 46, 0.3);
 }
 
+/* Hide scrollbar but keep scrolling */
+.hide-scrollbar {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* IE 10+ */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;              /* Chrome, Safari, Edge */
+}
+
 /* Chrome, Edge, Safari */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
