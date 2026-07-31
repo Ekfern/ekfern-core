@@ -211,6 +211,7 @@ export default function EventDetailsTileSSR({
   const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
 
   const labelColor = getAutomaticLabelColor(settings.fontColor)
+  const fontColor = settings.fontColor || 'var(--theme-fg, #1F2937)'
 
   // Get border settings with defaults
   const borderStyle = settings.borderStyle || 'elegant'
@@ -262,10 +263,16 @@ export default function EventDetailsTileSSR({
         <div className="space-y-6" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
           {settings.date && (
             <div className="space-y-2">
-              <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+              <div
+                className="text-xs uppercase tracking-widest font-light italic mb-3"
+                style={{ color: labelColor, fontFamily: settings.headerFontFamily }}
+              >
                 Date
               </div>
-              <div className="text-xl md:text-2xl font-normal leading-relaxed" style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
+              <div
+                className="text-xl md:text-2xl font-normal leading-relaxed"
+                style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+              >
                 {formatDate(settings.date)}
               </div>
             </div>
@@ -273,10 +280,16 @@ export default function EventDetailsTileSSR({
 
           {settings.time && (
             <div className="space-y-2">
-              <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+              <div
+                className="text-xs uppercase tracking-widest font-light italic mb-3"
+                style={{ color: labelColor, fontFamily: settings.headerFontFamily }}
+              >
                 Time
               </div>
-              <div className="text-xl md:text-2xl font-normal leading-relaxed" style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
+              <div
+                className="text-xl md:text-2xl font-normal leading-relaxed"
+                style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+              >
                 {formatTime(settings.time)}
               </div>
             </div>
@@ -294,10 +307,16 @@ export default function EventDetailsTileSSR({
             
             return (
               <div className="space-y-2">
-                <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+                <div
+                  className="text-xs uppercase tracking-widest font-light italic mb-3"
+                  style={{ color: labelColor, fontFamily: settings.headerFontFamily }}
+                >
                   Location
                 </div>
-                <div className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`} style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
+                <div
+                  className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`}
+                  style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                >
                   <span>{settings.location}</span>
                   {canDisplay && mapUrl && (
                     <a
@@ -375,10 +394,16 @@ export default function EventDetailsTileSSR({
 
           {settings.dressCode && (
             <div className="space-y-2">
-              <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
+              <div
+                className="text-xs uppercase tracking-widest font-light italic mb-3"
+                style={{ color: labelColor, fontFamily: settings.headerFontFamily }}
+              >
                 Dress Code
               </div>
-              <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
+              <div
+                className="text-xl md:text-2xl font-normal leading-relaxed italic"
+                style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+              >
                 {settings.dressCode}
               </div>
             </div>

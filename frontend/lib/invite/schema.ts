@@ -119,6 +119,8 @@ export interface EventDetailsTileSettings {
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
   fontColor?: string // Font color for event details text (hex color, e.g., "#000000")
   buttonColor?: string // Hex color for Save the Date button (e.g., "#1F2937")
+  headerFontFamily?: string
+  contentFontFamily?: string
   buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'glass' | 'link' // Save the Date button style (default: classic)
   buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill' // Save the Date button corner radius (default: round)
   textAlign?: 'left' | 'center' | 'right' // Default: center
