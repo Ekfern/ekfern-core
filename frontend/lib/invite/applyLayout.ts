@@ -37,9 +37,37 @@ export function applyLayout(
   const mergeTitle = options?.mergeEventIntoTitle !== false
   const mergeDetails = options?.mergeEventIntoDetails !== false
   const tiles = layoutConfig.tiles
+
+  // Purely-visual look-and-feel fields that a *previous* layout/Page Editor
+  // session may have left behind. The backend now merges saves onto the
+  // existing draft instead of replacing it, so switching layouts must
+  // explicitly overwrite these rather than just omitting them, or a stale
+  // value from before would bleed through the newly-applied layout. For each,
+  // `?? <default>` keeps the new layout's own value when it defines one and
+  // otherwise clears the field (null, or `{}` for customColors to preserve
+  // its existing object shape). Spread in BOTH branches below so a blank/
+  // starter layout resets these too.
+  //
+  // Reset ONLY visual fields here. Do NOT reset host *content/config* like
+  // rsvpForm (the host's RSVP questions) or linkMetadata (the social share
+  // preview): no layout recipe defines those, so `?? null` would always clear
+  // them, silently wiping host-entered data on every layout switch. Those must
+  // ride through the backend merge untouched.
+  const resetFields = {
+    customColors: layoutConfig.customColors ?? {},
+    customFonts: layoutConfig.customFonts ?? null,
+    texture: layoutConfig.texture ?? null,
+    spacing: layoutConfig.spacing ?? null,
+    pageBorder: layoutConfig.pageBorder ?? null,
+    pageFrame: layoutConfig.pageFrame ?? null,
+    cornerDecorations: layoutConfig.cornerDecorations ?? null,
+    animations: layoutConfig.animations ?? null,
+  }
+
   if (!tiles || tiles.length === 0) {
     return {
       ...layoutConfig,
+      ...resetFields,
       tileSetComplete: true,
       appliedLayoutId: layoutId,
     }
@@ -93,9 +121,9 @@ export function applyLayout(
 
   return {
     ...layoutConfig,
+    ...resetFields,
     tiles: mergedTiles,
     tileSetComplete: true,
-    customColors: layoutConfig.customColors ?? {},
     appliedLayoutId: layoutId,
   }
 }

@@ -1127,11 +1127,21 @@ class EventViewSet(viewsets.ModelViewSet):
                     {'error': 'page_config is required'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
+            # Shallow-merge onto the existing draft rather than replacing it
+            # wholesale. Callers (Design, Layout, Page Editor) each only know
+            # about a subset of InviteConfig's fields; a full replace means
+            # any field a given caller doesn't build into its payload is
+            # silently deleted on save, not left alone. A key that IS present
+            # in the payload (even `null`) still wins over the old value —
+            # callers that want to clear a field of their own must send it
+            # explicitly as null rather than omitting it.
+            merged_config = {**(event.page_config or {}), **page_config}
+
             # Update event's page_config
-            event.page_config = page_config
+            event.page_config = merged_config
             event.save(update_fields=['page_config', 'updated_at'])
-            
+
             # Sync to InvitePage if it exists, or create one
             invite_page_created = False
             invite_page = None
@@ -1141,7 +1151,7 @@ class EventViewSet(viewsets.ModelViewSet):
                 # published_config and is unaffected until the host publishes,
                 # so there is no need to bust the guest/CDN cache here. Editor
                 # preview always bypasses cache (no-store), so it stays fresh.
-                invite_page.config = page_config
+                invite_page.config = merged_config
                 invite_page.save(update_fields=['config', 'updated_at'])
                 logger.info(f"Updated InvitePage draft config for event {event.id}")
             except InvitePage.DoesNotExist:
@@ -1150,7 +1160,7 @@ class EventViewSet(viewsets.ModelViewSet):
                     invite_page = InvitePage.objects.create(
                         event=event,
                         slug=event.slug.lower(),
-                        config=page_config,
+                        config=merged_config,
                         background_url=event.banner_image or '',
                         is_published=False
                     )
