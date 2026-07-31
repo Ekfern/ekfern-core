@@ -300,18 +300,19 @@ export interface InviteConfig {
     primaryColor?: string // Overrides theme.palette.primary
     mutedColor?: string // Overrides theme.palette.muted
   }
+  // `| null` here (and on the visual fields below) is meaningful, not just
+  // plain omission: applyLayout() and the Page Editor send explicit null for
+  // visual fields a layout recipe doesn't define, so that switching layouts /
+  // clearing a setting actually removes a leftover value from a previous
+  // layout/Page Editor session instead of the backend's save-merge (see
+  // update_design) preserving it by mistake.
   customFonts?: {
     titleFont?: string // Overrides theme.fonts.title
     bodyFont?: string // Overrides theme.fonts.body
-  }
+  } | null
   // Background texture (CSS-based)
-  texture?: TextureSettings
+  texture?: TextureSettings | null
   // Page border settings.
-  // `| null` (in addition to plain omission) is meaningful: applyLayout()
-  // sends explicit null for fields a layout recipe doesn't define, so that
-  // switching layouts actually clears a leftover value from a previous
-  // layout/Page Editor session instead of the backend's save-merge (see
-  // update_design) preserving it by mistake.
   pageBorder?: {
     enabled?: boolean // Enable/disable page border (default: false)
     style?: 'solid' | 'dotted' | 'dashed' | 'double' | 'groove' | 'ridge' | 'inset' | 'outset' | 'intaglio' // Border style
@@ -342,7 +343,7 @@ export interface InviteConfig {
   // When true, design page must not merge in missing tile types (preserves template-defined tile set)
   tileSetComplete?: boolean
   // Global spacing between tiles
-  spacing?: 'tight' | 'normal' | 'spacious'
+  spacing?: 'tight' | 'normal' | 'spacious' | null
   // Legacy structure (for backward compatibility)
   hero?: {
     background?: BackgroundImage | {
