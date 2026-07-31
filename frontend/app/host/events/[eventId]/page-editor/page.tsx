@@ -1,7 +1,6 @@
 'use client'
 
-
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useParams, useRouter } from 'next/navigation'
@@ -270,7 +269,6 @@ export default function DesignInvitationPage(): JSX.Element {
   const [layoutsLoading, setLayoutsLoading] = useState(true)
   const [showScrollHint, setShowScrollHint] = useState(true);
   const [showInviteBanner, setShowInviteBanner] = useState(true)
-  const [showEditor, setShowEditor] = useState(true);
 
 
   // Fetch invite page layouts from API (single source of truth)
@@ -803,6 +801,11 @@ export default function DesignInvitationPage(): JSX.Element {
       ...(config.rsvpForm && { rsvpForm: config.rsvpForm }),
       ...(config.tileSetComplete !== undefined && { tileSetComplete: config.tileSetComplete }),
       ...(config.animations !== undefined && { animations: config.animations }),
+      // Not editable here — just carried through so the Layout step can still
+      // find it after a Page Editor save. This endpoint replaces page_config
+      // wholesale (see backend update_design), so any field missing from this
+      // object is silently deleted, not merged.
+      ...(config.appliedLayoutId && { appliedLayoutId: config.appliedLayoutId }),
     }
 
     return configToSave
@@ -1440,7 +1443,7 @@ export default function DesignInvitationPage(): JSX.Element {
                         title: event.title,
                         date: event.date,
                         city: event.city,
-                      })
+                      }, undefined, t.id)
 
                       setConfig(next)
                       if (next.tiles?.length) {
@@ -1799,10 +1802,7 @@ export default function DesignInvitationPage(): JSX.Element {
         <div ref={gridContainerRef} className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">
           {/* Left Panel - Settings */}
           <div
-            className="relative lg:col-span-3 overflow-y-auto hide-scrollbar"
-            style={{
-              maxHeight: "calc(100vh - 1rem)",
-            }}
+            className="relative lg:col-span-3 lg:overflow-y-auto lg:max-h-[calc(100vh-1rem)] hide-scrollbar"
             onScroll={(e) => {
               const scrollTop = e.currentTarget.scrollTop;
               setShowScrollHint(scrollTop < SCROLL_HINT_THRESHOLD);
