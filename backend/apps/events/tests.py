@@ -566,6 +566,88 @@ class UpdateDesignMergeTestCase(TestCase):
         self.assertEqual(invite_page.published_config['appliedLayoutId'], '95')
         self.assertEqual(invite_page.published_config['themeId'], 'classic-noir')
 
+    def test_layout_switch_clears_visual_fields_but_preserves_host_content(self):
+        """
+        Regression for the layout-switch bleed-through bug.
+
+        applyLayout() (frontend) produces a save payload that, for a layout
+        recipe which doesn't define them, sends the purely-visual fields
+        (customFonts, texture, spacing, pageBorder, ...) as explicit null so
+        they don't bleed a previous layout's values through the save-merge,
+        while OMITTING host content (rsvpForm, linkMetadata) so the merge
+        preserves it. This asserts the backend honors that contract.
+        """
+        # Previous-layout draft: visual look-and-feel + host-entered content.
+        first = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {
+                'themeId': 'classic-noir',
+                'tiles': [{'id': 't1', 'type': 'title'}],
+                'appliedLayoutId': '95',
+                'customFonts': {'titleFont': 'Playfair Display'},
+                'texture': {'type': 'paper'},
+                'spacing': 'spacious',
+                'rsvpForm': {'version': 1, 'fields': [{'q': 'Meal preference?'}]},
+                'linkMetadata': {'title': 'Our Wedding'},
+            }},
+            format='json',
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        # Switch to a Minimal-style layout: visuals explicitly null (applyLayout
+        # resetFields), host content omitted entirely.
+        switch = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {
+                'themeId': 'modern-minimal',
+                'tiles': [{'id': 't2', 'type': 'title'}],
+                'appliedLayoutId': '4',
+                'tileSetComplete': True,
+                'customColors': {},
+                'customFonts': None,
+                'texture': None,
+                'spacing': None,
+                'pageBorder': None,
+                'pageFrame': None,
+                'cornerDecorations': None,
+                'animations': None,
+            }},
+            format='json',
+        )
+        self.assertEqual(switch.status_code, status.HTTP_200_OK)
+
+        self.event.refresh_from_db()
+        cfg = self.event.page_config
+        # Visual fields from the old layout must NOT bleed through.
+        self.assertIsNone(cfg['customFonts'])
+        self.assertIsNone(cfg['texture'])
+        self.assertIsNone(cfg['spacing'])
+        # New layout applied.
+        self.assertEqual(cfg['appliedLayoutId'], '4')
+        self.assertEqual(cfg['themeId'], 'modern-minimal')
+        # Host content is omitted by the switch payload, so the merge keeps it.
+        self.assertEqual(cfg['rsvpForm']['fields'][0]['q'], 'Meal preference?')
+        self.assertEqual(cfg['linkMetadata']['title'], 'Our Wedding')
+
+        invite_page = InvitePage.objects.get(event=self.event)
+        self.assertIsNone(invite_page.config['customFonts'])
+        self.assertEqual(invite_page.config['rsvpForm']['fields'][0]['q'], 'Meal preference?')
+
+    def test_layout_switch_to_recipe_defining_a_visual_field_overwrites_it(self):
+        """A layout that DOES define a visual field overwrites the previous value (present key wins)."""
+        self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customFonts': {'titleFont': 'Playfair Display'}}},
+            format='json',
+        )
+        self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'garden-soiree', 'tiles': [], 'customFonts': {'titleFont': 'Cormorant'}}},
+            format='json',
+        )
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.page_config['customFonts']['titleFont'], 'Cormorant')
+
 
 class CreateRSVPEnvelopeTestCase(TestCase):
     """Test fix E: create_rsvp() ENVELOPE returns 201 if any new RSVP created, else 200"""
