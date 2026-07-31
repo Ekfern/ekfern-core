@@ -389,6 +389,12 @@ export default function DesignPage(): React.ReactElement {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [hasSelectedBackground, setHasSelectedBackground] = useState(false)
+  // The shape this event's design tile actually renders as on the real page
+  // (DesignTile.tsx / DesignTileSSR.tsx) — set by whichever layout was
+  // applied, independent of whether background/text content exists yet.
+  // Defaults to the old card shape so a blank canvas (no layout-provided
+  // design tile) behaves exactly as before.
+  const [heroAspectRatio, setHeroAspectRatio] = useState('9 / 16')
   const [fontSizeInput, setFontSizeInput] = useState<string>('')
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [userHasEditedText, setUserHasEditedText] = useState(false)
@@ -459,6 +465,13 @@ export default function DesignPage(): React.ReactElement {
       // Check if backend already has greeting-card content (e.g. saved from another device)
       const gcTile = page?.config?.tiles?.find((t) => t.type === 'design')
       const gcSettings = gcTile?.settings as DesignTileSettings | undefined
+
+      // Hero shape comes from the applied layout, not from whether custom
+      // background/text has been added yet — read it unconditionally so the
+      // canvas matches DesignTile.tsx's real render from the first paint.
+      const isFullBleed = gcSettings?.frameMode === 'full-bleed'
+      setHeroAspectRatio(isFullBleed ? (gcSettings?.aspectRatio || '4 / 5') : '9 / 16')
+
       const hasBackendContent = !!gcSettings?.src || (gcSettings?.textOverlays?.length ?? 0) > 0
 
       if (hasBackendContent) {
@@ -993,7 +1006,7 @@ export default function DesignPage(): React.ReactElement {
     } finally {
       setSaving(false)
     }
-    router.push(`/host/events/${eventId}/layout`)
+    router.push(`/host/events/${eventId}/page-editor`)
   }
 
   // -------------------------------------------------------------------------
@@ -1012,7 +1025,7 @@ export default function DesignPage(): React.ReactElement {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
-        <WizardProgress currentStep={2} eventId={eventId} />
+        <WizardProgress currentStep={3} eventId={eventId} />
 
         <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
@@ -1052,7 +1065,7 @@ export default function DesignPage(): React.ReactElement {
               </button>
               <button
                 type="button"
-                onClick={() => router.push(`/host/events/${eventId}/layout`)}
+                onClick={() => router.push(`/host/events/${eventId}/page-editor`)}
                 className="ml-auto px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 Skip Design
@@ -1167,7 +1180,7 @@ export default function DesignPage(): React.ReactElement {
       {/* Google Fonts */}
       <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
 
-      <WizardProgress currentStep={2} eventId={eventId} />
+      <WizardProgress currentStep={3} eventId={eventId} />
 
       {/* ------------------------------------------------------------------ */}
       {/* Sticky header: background bar + always-visible text toolbar         */}
@@ -1599,12 +1612,22 @@ export default function DesignPage(): React.ReactElement {
       {/* ------------------------------------------------------------------ */}
       {/* Canvas area                                                          */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex-1 flex items-start justify-center px-4 py-6">
-        {/* Outer wrapper enforces 9:16 aspect ratio at max-height 72vh */}
+      {/* No flex-1: this must size to its own content (the capped canvas
+          height below), not stretch to fill the page's min-h-screen budget —
+          otherwise the leftover space pushes the sticky footer below the
+          fold even after the canvas itself has been shrunk to fit. */}
+      <div className="flex items-start justify-center px-4 py-6">
+        {/* Outer wrapper enforces the applied layout's real hero shape (card
+            9:16, or full-bleed at its own aspectRatio) at up to 72vh — matches
+            DesignTile.tsx's render exactly, so what you see here is what
+            actually publishes. Capped against (100vh - 440px), the measured
+            height of the header/toolbar/footer chrome around the canvas, so
+            on shorter screens the canvas shrinks instead of pushing the
+            Back/Skip/Next footer below the fold. */}
         <div
           style={{
-            height: '72vh',
-            aspectRatio: '9 / 16',
+            height: 'min(72vh, calc(100vh - 440px))',
+            aspectRatio: heroAspectRatio,
           }}
           className="relative select-none"
         >
@@ -1827,7 +1850,7 @@ export default function DesignPage(): React.ReactElement {
 
         <button
           type="button"
-          onClick={() => router.push(`/host/events/${eventId}/layout`)}
+          onClick={() => router.push(`/host/events/${eventId}/page-editor`)}
           className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
           Skip Design
@@ -1839,7 +1862,7 @@ export default function DesignPage(): React.ReactElement {
           disabled={saving}
           className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
         >
-          {saving ? 'Saving…' : 'Next: Choose Layout'}
+          {saving ? 'Saving…' : 'Next: Edit Page'}
         </button>
       </div>
 

@@ -25,11 +25,14 @@ export interface ApplyLayoutOptions {
 /**
  * Clone layout config with unique tile IDs, optional event merge, and tileSetComplete flag.
  * Use when applying a layout from the library or when switching layouts in the editor.
+ * Pass the source layout's own id as `layoutId` so it's stamped onto the result as
+ * `appliedLayoutId`, letting the Layout step later show what's currently applied.
  */
 export function applyLayout(
   layoutConfig: InviteConfig,
   event?: EventDataForLayout,
   options?: ApplyLayoutOptions,
+  layoutId?: string,
 ): InviteConfig {
   const mergeTitle = options?.mergeEventIntoTitle !== false
   const mergeDetails = options?.mergeEventIntoDetails !== false
@@ -38,6 +41,7 @@ export function applyLayout(
     return {
       ...layoutConfig,
       tileSetComplete: true,
+      appliedLayoutId: layoutId,
     }
   }
 
@@ -92,5 +96,6 @@ export function applyLayout(
     tiles: mergedTiles,
     tileSetComplete: true,
     customColors: layoutConfig.customColors ?? {},
+    appliedLayoutId: layoutId,
   }
 }

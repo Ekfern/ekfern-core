@@ -50,3 +50,6 @@ Thumbs.db
 *.pid
 docker-compose.override.yml
 
+# Playwright MCP debug artifacts
+.playwright-mcp/
+

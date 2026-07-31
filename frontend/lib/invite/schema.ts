@@ -24,6 +24,10 @@ export interface TitleTileSettings {
   font?: string // Font family from FONT_OPTIONS
   color?: string // Hex color
   size?: 'small' | 'medium' | 'large' | 'xlarge' // Title size option (preset)
+  textAlign?: 'left' | 'center' | 'right' // Default: center
+  // Small kicker/label line rendered above the headline (e.g. "SAVE THE DATE", editorial masthead style)
+  eyebrow?: string
+  eyebrowColor?: string // Hex color; defaults to theme primary accent
   // Optional second line (e.g. "Request the pleasure of your company…")
   subtitle?: string
   subtitleFont?: string
@@ -80,6 +84,17 @@ export interface DesignTileSettings {
   //   'contain' — shows the entire image, may letterbox if aspect mismatches 9:16
   // Auto-generated layouts use 'contain' so user-uploaded cards aren't cropped.
   imageFit?: 'cover' | 'contain'
+  // 'card' (default): today's small inset 9:16 postcard, max-width constrained.
+  // 'full-bleed': fills the full page width as a hero panel, aspectRatio controls height.
+  frameMode?: 'card' | 'full-bleed'
+  aspectRatio?: string // CSS aspect-ratio value, only used when frameMode is 'full-bleed' (default '4/5')
+  // Marks backgroundGradient/textOverlays as part of THIS layout's own baked-in identity
+  // (not a staff-authored photo choice) so the Layout gallery's skeletonize step — which
+  // hides staff photos pre-Design-step — preserves them instead of wiping them out.
+  isLayoutHero?: boolean
+  // Texture confined to this tile's own box (e.g. grain on a full-bleed hero) instead of
+  // the page-wide texture, which would otherwise paint every tile uniformly.
+  texture?: TextureSettings
 }
 
 export interface TimerTileSettings {
@@ -106,11 +121,13 @@ export interface EventDetailsTileSettings {
   buttonColor?: string // Hex color for Save the Date button (e.g., "#1F2937")
   headerFontFamily?: string
   contentFontFamily?: string
-
+  buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'glass' | 'link' // Save the Date button style (default: classic)
+  buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill' // Save the Date button corner radius (default: round)
+  textAlign?: 'left' | 'center' | 'right' // Default: center
   // Date block layout: single-line (default) or day-prominent (large day number, smaller weekday/month/year/time)
   dateLayout?: 'single-line' | 'day-prominent'
-  // Border styling options
-  borderStyle?: 'elegant' | 'minimal' | 'ornate' | 'modern' | 'classic' | 'vintage' | 'none'
+  // Border styling options ('glass' = frosted blur card, ignores decorative border/symbol rendering)
+  borderStyle?: 'elegant' | 'minimal' | 'ornate' | 'modern' | 'classic' | 'vintage' | 'none' | 'glass'
   borderColor?: string // Hex color for borders (default: based on borderStyle)
   borderWidth?: number // 1-4 pixels (default: 1)
   decorativeSymbol?: string // Custom symbol (❦, ✿, ✤, ✦, •, —, or empty)
@@ -121,19 +138,28 @@ export interface EventDetailsTileSettings {
 export interface DescriptionTileSettings {
   content: string // Rich text/markdown content
   fontColor?: string // Hex color; use for contrast on dark themes
+  textAlign?: 'left' | 'center' | 'right' // Default: center
 }
 
 export interface FeatureButtonsTileSettings {
   buttonColor?: string // Hex color for buttons
   rsvpLabel?: string // Custom label for RSVP button (default: "RSVP")
   registryLabel?: string // Custom label for catalog button on invite (optional override)
-  buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'link'
+  buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'glass' | 'link'
   buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill'
+  // Optional boxed "card" treatment around the whole buttons tile (Luma-style "Get Tickets" card).
+  // Unset/'none' preserves today's borderless look exactly.
+  ctaCardStyle?: 'none' | 'bordered' | 'glass'
+  ctaCardBackgroundColor?: string // Hex color for 'bordered' card fill (default: '#FFFFFF')
+  ctaCardBorderColor?: string // Hex color for 'bordered' card border
+  ctaCardShadow?: boolean // Drop shadow on the card (default: true when ctaCardStyle is set)
+  ctaCardLabel?: string // Small heading inside the card, e.g. "Get Tickets"
 }
 
 export interface FooterTileSettings {
   text: string
   fontColor?: string // Hex color; use theme fg on dark backgrounds for contrast
+  showDivider?: boolean // Hairline top border above the footer text (default: true)
 }
 
 export interface EventCarouselTileSettings {
@@ -184,6 +210,7 @@ export type TextureType =
   | 'vintage-paper'
   | 'silk'
   | 'marble'
+  | 'grain' // Modern film-grain/noise overlay (SVG turbulence) — for rich saturated gradient backgrounds
 
 export interface TextureSettings {
   type: TextureType
@@ -263,6 +290,10 @@ export interface Tile {
 
 export interface InviteConfig {
   themeId: string
+  // id of the InvitePageLayout this config was last cloned from (via applyLayout).
+  // Lets the Layout step highlight what's currently applied when you revisit it.
+  // Not updated by hand-edits in Design/Page Editor — only by re-applying a layout.
+  appliedLayoutId?: string
   // Custom overrides (optional - if not set, uses theme defaults)
   customColors?: {
     backgroundColor?: string // Overrides theme.palette.bg

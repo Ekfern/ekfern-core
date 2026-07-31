@@ -4,6 +4,7 @@ import { EventDetailsTileSettings } from '@/lib/invite/schema'
 import { getTimezoneLabel } from '@/lib/invite/timezone'
 import { getAutomaticLabelColor } from '@/lib/invite/colorUtils'
 import { isValidMapUrl, getEmbedUrl, canShowMap, generateMapUrlFromLocation, generateMapUrlFromCoordinates } from '@/lib/invite/mapUtils'
+import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 
 // Border style configurations (duplicated from EventDetailsTile for SSR)
 const BORDER_STYLES = {
@@ -203,37 +204,55 @@ export default function EventDetailsTileSSR({
     return `${hour12}:${String(minutes).padStart(2, '0')} ${ampm} ${getTimezoneLabel(tz)}`
   }
 
-  // Calculate button colors based on settings.buttonColor
-  const buttonColor = settings.buttonColor || '#1F2937'
-  
-  // For SSR, we'll use a simple brightness check (can be enhanced client-side)
-  // Default to dark button with light text
-  const textColor = '#FFFFFF'
-  const hoverTextColor = '#1F2937'
+  // Save the Date button styling — shares the same variant system as FeatureButtonsTile
+  const buttonColor = settings.buttonColor || 'var(--theme-primary, #1F2937)'
+  const buttonVariant = settings.buttonVariant ?? 'classic'
+  const buttonRadius = settings.buttonRadius ?? 'round'
+  const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
 
   const labelColor = getAutomaticLabelColor(settings.fontColor)
-  const fontColor = settings.fontColor || '#1F2937'
+  const fontColor = settings.fontColor || 'var(--theme-fg, #1F2937)'
 
   // Get border settings with defaults
   const borderStyle = settings.borderStyle || 'elegant'
-  const borderColor = settings.borderColor || '#D1D5DB'
+  const borderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
   const borderWidth = settings.borderWidth || 1
   const decorativeSymbol = settings.decorativeSymbol
   const backgroundColor = settings.backgroundColor
   const borderRadius = settings.borderRadius ?? 0
-  
-  const topBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
-  const bottomBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+  const textAlign = settings.textAlign || 'center'
+  const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
+  const marginClass = textAlign === 'left' ? 'mr-auto' : textAlign === 'right' ? 'ml-auto' : 'mx-auto'
+  const justifyClass = textAlign === 'left' ? 'justify-start' : textAlign === 'right' ? 'justify-end' : 'justify-center'
+  const buttonJustifyStyle = textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center'
 
-  return (
-    <div 
-      className="w-full pt-8 pb-4 px-6 text-center"
-      style={{
+  const isGlass = borderStyle === 'glass'
+  const topBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+  const bottomBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+
+  const wrapperStyle: React.CSSProperties = isGlass
+    ? {
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255,255,255,0.28)',
+        boxShadow: '0 0 120px 40px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
+        borderRadius: `${borderRadius || 24}px`,
+        maxWidth: '420px',
+        marginLeft: 'auto',
+        marginRight: 'auto',
+      }
+    : {
         backgroundColor: backgroundColor || 'transparent',
         borderRadius: `${borderRadius}px`,
-      }}
+      }
+
+  return (
+    <div
+      className={`w-full pt-8 pb-4 px-6 ${textAlignClass}`}
+      style={wrapperStyle}
     >
-      <div className="max-w-2xl mx-auto">
+      <div className={`max-w-2xl ${marginClass}`}>
         {/* Decorative top border */}
         {topBorder && (
           <div className="mb-6">
@@ -295,7 +314,7 @@ export default function EventDetailsTileSSR({
                   Location
                 </div>
                 <div
-                  className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2"
+                  className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`}
                   style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
                 >
                   <span>{settings.location}</span>
@@ -399,31 +418,20 @@ export default function EventDetailsTileSSR({
         )}
       
         {/* Save the Date Button - SSR version with direct link to ICS */}
-        <div className="relative mt-4">
+        <style dangerouslySetInnerHTML={{ __html: BUTTON_CSS }} />
+        <div className="relative mt-4 flex" style={{ justifyContent: buttonJustifyStyle }}>
           {eventSlug ? (
             <a
               href={`/api/ics?slug=${eventSlug}`}
-              className="inline-block px-8 py-3 rounded-sm font-light text-sm tracking-widest uppercase border-2 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all"
-              style={{
-                minHeight: '44px',
-                letterSpacing: '0.15em',
-                borderColor: buttonColor,
-                color: buttonColor,
-                backgroundColor: 'transparent',
-              }}
+              className={`inline-block px-8 py-3 focus:outline-none focus:ring-2 focus:ring-offset-2 ${btnExtraClass}`}
+              style={{ ...btnStyle, minHeight: '44px' }}
             >
               Save the Date
             </a>
           ) : (
             <button
-              className="px-8 py-3 rounded-sm font-light text-sm tracking-widest uppercase border-2 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all"
-              style={{
-                minHeight: '44px',
-                letterSpacing: '0.15em',
-                borderColor: buttonColor,
-                color: buttonColor,
-                backgroundColor: 'transparent',
-              }}
+              className={`px-8 py-3 focus:outline-none focus:ring-2 focus:ring-offset-2 ${btnExtraClass}`}
+              style={{ ...btnStyle, minHeight: '44px' }}
             >
               Save the Date
             </button>
