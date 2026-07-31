@@ -12,14 +12,42 @@
   --accent: #218085;
 }
 
-html, body {
+html,
+body {
   overflow-x: hidden;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
 
-*, *::before, *::after {
+/* Slim, theme-colored scrollbar so the native OS scrollbar (often a wide,
+   stark gray track) doesn't clash with the app's beige/green palette. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #C8B8A2 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #C8B8A2;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #0B3D2E;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -35,11 +63,11 @@ body {
   .pt-safe {
     padding-top: max(env(safe-area-inset-top), 1rem);
   }
-  
+
   .pb-safe {
     padding-bottom: max(env(safe-area-inset-bottom), 1rem);
   }
-  
+
   .px-safe {
     padding-left: max(env(safe-area-inset-left), 1rem);
     padding-right: max(env(safe-area-inset-right), 1rem);
@@ -47,6 +75,7 @@ body {
 }
 
 @layer base {
+
   /* Fix for text-size-adjust compatibility - ensure standard property is present */
   html,
   :host {
@@ -58,7 +87,7 @@ body {
   .text-balance {
     text-wrap: balance;
   }
-  
+
   /* Fix for backdrop-filter Safari compatibility */
   /* Tailwind generates backdrop-filter with CSS variables, but Safari needs -webkit-backdrop-filter */
   /* This adds the webkit prefix for all backdrop-blur utilities to support Safari */
@@ -66,24 +95,31 @@ body {
   [class*="backdrop-blur-sm"] {
     -webkit-backdrop-filter: blur(4px);
   }
+
   [class*="backdrop-blur-md"] {
     -webkit-backdrop-filter: blur(12px);
   }
+
   [class*="backdrop-blur-lg"] {
     -webkit-backdrop-filter: blur(16px);
   }
+
   [class*="backdrop-blur-xl"] {
     -webkit-backdrop-filter: blur(24px);
   }
+
   [class*="backdrop-blur-2xl"] {
     -webkit-backdrop-filter: blur(40px);
   }
+
   [class*="backdrop-blur-3xl"] {
     -webkit-backdrop-filter: blur(64px);
   }
+
   /* Fallback for any other backdrop-blur classes */
   [class*="backdrop-blur"]:not([class*="backdrop-blur-sm"]):not([class*="backdrop-blur-md"]):not([class*="backdrop-blur-lg"]):not([class*="backdrop-blur-xl"]):not([class*="backdrop-blur-2xl"]):not([class*="backdrop-blur-3xl"]) {
-    -webkit-backdrop-filter: blur(12px); /* Default to md value */
+    -webkit-backdrop-filter: blur(12px);
+    /* Default to md value */
   }
 }
 
@@ -91,6 +127,7 @@ body {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -212,4 +249,22 @@ input[type="range"].slider:focus::-moz-range-thumb {
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;              /* Chrome, Safari, Edge */
+}
+
+/* Chrome, Edge, Safari */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.public-site,
+.public-site * {
+  cursor: url('/cursor-fern.svg') 2 21, auto;
 }

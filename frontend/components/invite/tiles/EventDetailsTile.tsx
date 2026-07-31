@@ -5,8 +5,9 @@ import { MapPin, ChevronDown, Calendar, Download } from 'lucide-react'
 import { EventDetailsTileSettings } from '@/lib/invite/schema'
 import { getTimezoneLabel } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
-import { getAutomaticLabelColor, hexToRgb, getBrightnessPercentage } from '@/lib/invite/colorUtils'
+import { getAutomaticLabelColor } from '@/lib/invite/colorUtils'
 import { isValidMapUrl, getEmbedUrl, canShowMap, generateMapUrlFromLocation, generateMapUrlFromCoordinates } from '@/lib/invite/mapUtils'
+import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 
 export interface EventDetailsTileProps {
   settings: EventDetailsTileSettings
@@ -161,12 +162,12 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   const [showCalendarMenu, setShowCalendarMenu] = useState(false)
   const tz = eventTimezone || 'Asia/Kolkata'
   
-  // Calculate button colors based on settings.buttonColor
-  const buttonColor = settings.buttonColor || '#1F2937'
-  const rgb = hexToRgb(buttonColor)
-  const brightness = rgb ? getBrightnessPercentage(rgb.r, rgb.g, rgb.b) : 0
-  const textColor = brightness < 50 ? '#FFFFFF' : '#1F2937'
-  const hoverTextColor = brightness < 50 ? '#1F2937' : '#FFFFFF'
+  // Save the Date button styling — shares the same variant system as FeatureButtonsTile
+  // so every layout's CTAs look consistent instead of a fixed hardcoded outline.
+  const buttonColor = settings.buttonColor || 'var(--theme-primary, #1F2937)'
+  const buttonVariant = settings.buttonVariant ?? 'classic'
+  const buttonRadius = settings.buttonRadius ?? 'round'
+  const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
   const formatDate = (dateString: string) => {
     try {
       let date: Date
@@ -284,24 +285,44 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   if (preview) {
     // Get border settings with defaults
     const borderStyle = settings.borderStyle || 'elegant'
-    const borderColor = settings.borderColor || '#D1D5DB'
+    const borderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
     const borderWidth = settings.borderWidth || 1
     const decorativeSymbol = settings.decorativeSymbol
     const backgroundColor = settings.backgroundColor
     const borderRadius = settings.borderRadius ?? 0
-    
-    const topBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
-    const bottomBorder = renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
-    
-    return (
-      <div 
-        className="w-full py-12 px-6 text-center"
-        style={{
+    const textAlign = settings.textAlign || 'center'
+    const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
+    const marginClass = textAlign === 'left' ? 'mr-auto' : textAlign === 'right' ? 'ml-auto' : 'mx-auto'
+    const justifyClass = textAlign === 'left' ? 'justify-start' : textAlign === 'right' ? 'justify-end' : 'justify-center'
+    const dropdownPositionClass = textAlign === 'left' ? 'left-0' : textAlign === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'
+
+    const isGlass = borderStyle === 'glass'
+    const topBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+    const bottomBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+
+    const wrapperStyle: React.CSSProperties = isGlass
+      ? {
+          backgroundColor: 'rgba(255,255,255,0.12)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.28)',
+          boxShadow: '0 0 120px 40px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
+          borderRadius: `${borderRadius || 24}px`,
+          maxWidth: '420px',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+        }
+      : {
           backgroundColor: backgroundColor || 'transparent',
           borderRadius: `${borderRadius}px`,
-        }}
+        }
+
+    return (
+      <div
+        className={`w-full py-12 px-6 ${textAlignClass}`}
+        style={wrapperStyle}
       >
-        <div className="max-w-2xl mx-auto">
+        <div className={`max-w-2xl ${marginClass}`}>
           {/* Decorative top border */}
           {topBorder && (
             <div className="mb-8">
@@ -311,7 +332,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
           {(() => {
             const labelColor = getAutomaticLabelColor(settings.fontColor)
-            const fontColor = settings.fontColor || '#1F2937'
+            const fontColor = settings.fontColor || 'var(--theme-fg, #1F2937)'
             const dateLayout = settings.dateLayout || 'single-line'
 
             if (dateLayout === 'day-prominent' && settings.date) {
@@ -339,7 +360,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                       const canDisplay = canShowMap(settings)
                       return (
                         <div className="space-y-2">
-                          <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: fontColor }}>
+                          <div className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`} style={{ color: fontColor }}>
                             <span>{settings.location}</span>
                             {canDisplay && mapUrl && (
                               <a
@@ -356,7 +377,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                           {canDisplay && settings.showMap && mapUrl && isValidMapUrl(mapUrl) && (() => {
                             const embedUrl = getEmbedUrl(mapUrl, settings.coordinates, settings.mapZoom)
                             if (embedUrl) {
-                              const mapBorderColor = settings.borderColor || '#D1D5DB'
+                              const mapBorderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
                               const mapBorderWidth = settings.borderWidth || 1
                               const mapBackgroundColor = settings.backgroundColor || '#FFFFFF'
                               const mapBorderRadius = settings.borderRadius ?? 8
@@ -436,7 +457,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                       Location
                     </div>
-                    <div className="text-xl md:text-2xl font-normal leading-relaxed flex items-center justify-center gap-2" style={{ color: settings.fontColor || '#1F2937' }}>
+                    <div className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`} style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
                       <span>{settings.location}</span>
                         {canDisplay && mapUrl && (
                         <a
@@ -457,7 +478,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                         
                         if (embedUrl) {
                           // Get border settings to match tile styling
-                          const mapBorderColor = settings.borderColor || '#D1D5DB'
+                          const mapBorderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
                           const mapBorderWidth = settings.borderWidth || 1
                           const mapBackgroundColor = settings.backgroundColor || '#FFFFFF'
                           const mapBorderRadius = settings.borderRadius ?? 8
@@ -519,7 +540,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     <div className="text-xs uppercase tracking-widest font-light italic mb-3" style={{ color: labelColor }}>
                       Dress Code
                     </div>
-                    <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || '#1F2937' }}>
+                    <div className="text-xl md:text-2xl font-normal leading-relaxed italic" style={{ color: settings.fontColor || 'var(--theme-fg, #1F2937)' }}>
                       {settings.dressCode}
                     </div>
                 </div>
@@ -536,25 +557,13 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           )}
         
           {/* Save the Date Button */}
-          <div className="relative mt-8">
+          <style dangerouslySetInnerHTML={{ __html: BUTTON_CSS }} />
+          <div className="relative mt-8 flex" style={{ justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center' }}>
             <button
               type="button"
               onClick={handleSaveTheDate}
-              className="px-8 py-3 rounded-sm font-light text-sm tracking-widest uppercase border-2 focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all mx-auto"
-              style={{
-                minHeight: '44px',
-                letterSpacing: '0.15em',
-                borderColor: buttonColor,
-                color: buttonColor,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = buttonColor
-                e.currentTarget.style.color = hoverTextColor
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-                e.currentTarget.style.color = buttonColor
-              }}
+              className={`px-8 py-3 focus:outline-none focus:ring-2 focus:ring-offset-2 ${btnExtraClass}`}
+              style={{ ...btnStyle, minHeight: '44px' }}
               aria-expanded={showCalendarMenu}
               aria-haspopup="true"
             >
@@ -571,7 +580,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   onClick={() => setShowCalendarMenu(false)}
                 />
                 <div
-                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-20 rounded-sm overflow-hidden shadow-xl backdrop-blur-md min-w-[200px] border border-gray-200"
+                  className={`absolute top-full ${dropdownPositionClass} mt-2 z-20 rounded-sm overflow-hidden shadow-xl backdrop-blur-md min-w-[200px] border border-gray-200`}
                   style={{
                     backgroundColor: `rgba(255, 255, 255, 0.95)`,
                   }}
@@ -601,12 +610,12 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     )
   }
 
-  const fontColor = settings.fontColor || '#374151' // Default to gray-700 equivalent
+  const fontColor = settings.fontColor || 'var(--theme-fg, #374151)' // Default to gray-700 equivalent
   const labelColor = getAutomaticLabelColor(settings.fontColor)
-  
+
   // Get border settings with defaults for non-preview mode
   const borderStyle = settings.borderStyle || 'elegant'
-  const borderColor = settings.borderColor || '#E5E7EB'
+  const borderColor = settings.borderColor || 'var(--theme-muted, #E5E7EB)'
   const borderWidth = settings.borderWidth || 1
   const borderRadius = settings.borderRadius ?? 4
   const backgroundColor = settings.backgroundColor || '#F9FAFB'

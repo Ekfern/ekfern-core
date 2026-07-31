@@ -3,28 +3,41 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import Logo from '@/components/Logo'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 
 const C = {
-  dark:  '#0B3D2E',
+  dark: '#0B3D2E',
   parch: '#E8D8C3',
   earth: '#8B5E3C',
-  teal:  '#218085',
+  teal: '#218085',
 } as const
 
 const NAV_LINKS = [
-  { href: '/',           label: 'Home' },
-  { href: '/features',   label: 'Features' },
-  { href: '/use-cases',  label: 'Use Cases' },
-  { href: '/about',      label: 'About' },
-  { href: '/contact',    label: 'Contact' },
+  { href: '/', label: 'Home' },
+  { href: '/features', label: 'Features' },
+  { href: '/use-cases', label: 'Use Cases' },
+  { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' },
 ] as const
 
 type NavPage = typeof NAV_LINKS[number]['href']
 
 export default function SiteNav({ activePage }: { activePage?: NavPage }) {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
+
+  // Chrome caches the last-painted custom cursor and won't repaint it after a
+  // client-side route change until a genuine new pointer-move event occurs.
+  // Toggling body cursor forces a style/paint pass that re-evaluates it.
+  useEffect(() => {
+    document.body.style.cursor = 'none'
+    const raf = requestAnimationFrame(() => {
+      document.body.style.cursor = ''
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [pathname])
 
   return (
     <>
@@ -34,7 +47,7 @@ export default function SiteNav({ activePage }: { activePage?: NavPage }) {
           background: 'rgba(232,216,195,0.88)',
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',
-          borderBottom: '1px solid rgba(139,94,60,0.12)',
+          borderBottom: '1px solid rgba(73, 61, 52, 0.12)',
         }}
       >
         <div className="max-w-6xl mx-auto px-6 py-5 flex justify-between items-center">
@@ -52,11 +65,13 @@ export default function SiteNav({ activePage }: { activePage?: NavPage }) {
                   style={{
                     color: activePage === href ? C.dark : C.earth,
                     fontWeight: activePage === href ? 600 : 400,
+                    cursor: `url('/cursor-fern.svg') 2 21, auto`,
                   }}
                 >
                   {label}
                 </Link>
               ))}
+          
             </div>
 
             {/* Divider */}

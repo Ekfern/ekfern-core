@@ -104,7 +104,7 @@ export default function TimerTile({ settings, preview = false, eventDate, eventT
 
   if (preview) {
     // Determine circle color and text color
-    const circleColor = settings.circleColor || '#E55A9E'
+    const circleColor = settings.circleColor || 'var(--theme-primary, #E55A9E)'
     const isTransparent = circleColor === 'transparent'
     const backgroundColor = isTransparent ? 'transparent' : circleColor
     // Use custom text color if provided, otherwise use default (black for transparent, white for colored)

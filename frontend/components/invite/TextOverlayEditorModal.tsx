@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from "react-dom";
 import type { TextOverlay } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
-
+import { Plus, Minus } from "lucide-react"
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -24,6 +25,11 @@ interface TextBox {
   strikethrough: boolean
   textAlign: 'left' | 'center' | 'right'
   verticalAlign: 'top' | 'middle' | 'bottom'
+  shadowX: number
+  shadowY: number
+  shadowBlur: number
+  shadowOpacity: number
+  shadowColor: string,
 }
 
 type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
@@ -38,6 +44,7 @@ interface DragState {
   startBoxY: number
   startBoxWidth: number
   startBoxHeight: number
+  startFontSize: number
 }
 
 export interface Props {
@@ -68,6 +75,11 @@ function overlayToTextBox(overlay: TextOverlay): TextBox {
     ...overlay,
     height: null,
     verticalAlign: overlay.verticalAlign ?? 'middle',
+    shadowX: overlay.shadowX ?? 0,
+    shadowY: overlay.shadowY ?? 1,
+    shadowBlur: overlay.shadowBlur ?? 4,
+    shadowOpacity: overlay.shadowOpacity ?? 0.8,
+    shadowColor: overlay.shadowColor ?? '#000000',
   }
 }
 
@@ -84,17 +96,72 @@ export default function TextOverlayEditorModal({
   onClose,
 }: Props): React.ReactElement | null {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const fontPickerRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<DragState | null>(null)
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const fontButtonRef = useRef<HTMLButtonElement>(null)
+  const holdTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+  const effectsButtonRef = useRef<HTMLButtonElement>(null)
+  const effectsRef = useRef<HTMLDivElement>(null)
 
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fontSizeInput, setFontSizeInput] = useState<string>('')
+  const [showFontPicker, setShowFontPicker] = useState(false)
+  const [fontPickerPosition, setFontPickerPosition] = useState({
+    top: 0,
+    left: 0,
+  })
+  const [showEffects, setShowEffects] = useState(false)
+  const [effectsPosition, setEffectsPosition] = useState({
+    top: 0,
+    left: 0,
+  })
+  const selectedBox = textBoxes.find((b) => b.id === selectedId) ?? null
+  const changeFontSize = (newSize: number) => {
+    if (!selectedBox) return
+
+    const size = clamp(newSize, 12, 200)
+
+    updateBox(selectedBox.id, "fontSize", size)
+    setFontSizeInput(String(size))
+  }
+  const startChangingFontSize = (direction: 1 | -1) => {
+    if (!selectedBox) return
+
+    // Start repeating only after 400ms
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(() => {
+        const current = textBoxesRef.current.find(
+          box => box.id === selectedBox.id
+        )
+
+        if (!current) return
+
+        changeFontSize(current.fontSize + direction)
+      }, 80)
+    }, 400)
+  }
+
+  const stopChangingFontSize = () => {
+    if (holdTimeout.current) {
+      clearTimeout(holdTimeout.current)
+      holdTimeout.current = null
+    }
+
+    if (holdInterval.current) {
+      clearInterval(holdInterval.current)
+      holdInterval.current = null
+    }
+  }
 
   // Keep a ref in sync so pointer-move callbacks always see the latest boxes
   const textBoxesRef = useRef<TextBox[]>([])
   useEffect(() => { textBoxesRef.current = textBoxes }, [textBoxes])
+
+
 
   // Reset state when the modal opens
   useEffect(() => {
@@ -102,6 +169,7 @@ export default function TextOverlayEditorModal({
     setTextBoxes(initialOverlays.map(overlayToTextBox))
     setSelectedId(null)
     setEditingId(null)
+    setShowEffects(false)
   }, [open]) // intentionally only depends on `open` — we only reset on open
 
   // Auto-focus contentEditable when editing starts
@@ -119,7 +187,31 @@ export default function TextOverlayEditorModal({
     window.getSelection()?.addRange(range)
   }, [editingId])
 
-  const selectedBox = textBoxes.find((b) => b.id === selectedId) ?? null
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        fontPickerRef.current &&
+        !fontPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowFontPicker(false)
+      }
+
+      if (
+        effectsRef.current &&
+        !effectsRef.current.contains(event.target as Node) &&
+        effectsButtonRef.current &&
+        !effectsButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowEffects(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   // ------------------------------------------------------------------
   // Box mutation helpers
@@ -143,13 +235,25 @@ export default function TextOverlayEditorModal({
     const newBox: TextBox = {
       id: makeId(),
       text: 'Placeholder text',
-      x: 10, y: 20, width: 80, height: null,
-      fontFamily: "'Playfair Display', serif",
+      x: 10,
+      y: 20,
+      width: 80,
+      height: null,
+
+      fontFamily: '"Playfair Display", serif',
       fontSize: 32,
       color: '#ffffff',
-      bold: false, italic: false, underline: false, strikethrough: false,
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
       textAlign: 'center',
       verticalAlign: 'middle',
+      shadowX: 0,
+      shadowY: 1,
+      shadowBlur: 4,
+      shadowOpacity: 0.8,
+      shadowColor: "#000000",
     }
     setTextBoxes((prev) => [...prev, newBox])
     setSelectedId(newBox.id)
@@ -158,45 +262,45 @@ export default function TextOverlayEditorModal({
   // ------------------------------------------------------------------
   // Drag / resize
   // ------------------------------------------------------------------
-
+ 
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
     const {
       mode, resizeHandle, boxId,
       startPointerX, startPointerY,
-      startBoxX, startBoxY, startBoxWidth, startBoxHeight,
+      startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize
     } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
+
+    const dragDistance = Math.hypot(
+      e.clientX - startPointerX,
+      e.clientY - startPointerY
+    )
+
+    const MIN_FONT_SIZE = 12
+    const MAX_FONT_SIZE = 200
 
     if (mode === 'resize') {
       setTextBoxes((prev) =>
         prev.map((b) => {
           if (b.id !== boxId) return b
-          let newX = startBoxX, newY = startBoxY, newW = startBoxWidth, newH = startBoxHeight
-          if (resizeHandle === 'se') {
-            newW = clamp(startBoxWidth + dx, 10, 100 - startBoxX)
-            newH = clamp(startBoxHeight + dy, 5, 100 - startBoxY)
-          } else if (resizeHandle === 'sw') {
-            const dw = -dx
-            newW = clamp(startBoxWidth + dw, 10, startBoxX + startBoxWidth)
-            newX = startBoxX + startBoxWidth - newW
-            newH = clamp(startBoxHeight + dy, 5, 100 - startBoxY)
-          } else if (resizeHandle === 'ne') {
-            newW = clamp(startBoxWidth + dx, 10, 100 - startBoxX)
-            const dh = -dy
-            newH = clamp(startBoxHeight + dh, 5, startBoxY + startBoxHeight)
-            newY = startBoxY + startBoxHeight - newH
-          } else if (resizeHandle === 'nw') {
-            const dw = -dx
-            newW = clamp(startBoxWidth + dw, 10, startBoxX + startBoxWidth)
-            newX = startBoxX + startBoxWidth - newW
-            const dh = -dy
-            newH = clamp(startBoxHeight + dh, 5, startBoxY + startBoxHeight)
-            newY = startBoxY + startBoxHeight - newH
+
+          const direction =
+            (e.clientX - startPointerX) + (e.clientY - startPointerY) >= 0 ? 1 : -1
+
+          const fontSize = clamp(
+            Math.round(startFontSize + direction * dragDistance * 0.08),
+            MIN_FONT_SIZE,
+            MAX_FONT_SIZE
+          )
+
+
+          return {
+            ...b,
+            fontSize,
           }
-          return { ...b, x: newX, y: newY, width: newW, height: newH }
         })
       )
     } else {
@@ -231,7 +335,7 @@ export default function TextOverlayEditorModal({
   return (
     <>
       {/* Google Fonts — same set as greeting card studio */}
-      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&display=swap');` }} />
+      <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
 
       {/* Backdrop */}
       <div
@@ -269,31 +373,137 @@ export default function TextOverlayEditorModal({
 
             <div className={`flex items-center gap-2 flex-wrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
               {/* Font family */}
-              <select
-                value={selectedBox?.fontFamily ?? FONT_OPTIONS[0]!.family}
-                onChange={(e) => selectedBox && updateBox(selectedBox.id, 'fontFamily', e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white max-w-[130px]"
-              >
-                {FONT_OPTIONS.map((f) => (
-                  <option key={f.id} value={f.family}>{f.name}</option>
-                ))}
-              </select>
+              <div ref={fontPickerRef} className="relative w-48">
+                <button
+                  ref={fontButtonRef}
+                  type="button"
+                  onClick={() => {
+                    if (!showFontPicker && fontButtonRef.current) {
+                      const rect = fontButtonRef.current.getBoundingClientRect()
 
-              {/* Font size */}
-              <div className="flex items-center gap-1">
+                      setFontPickerPosition({
+                        top: rect.bottom + 6,
+                        left: rect.left,
+                      })
+                    }
+
+                    setShowFontPicker((prev) => !prev)
+                  }}
+                  className="w-full flex items-center justify-between rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm shadow-sm hover:border-blue-400 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className="text-gray-500 font-semibold">Aa</span>
+
+                    <span
+                      style={{ fontFamily: selectedBox?.fontFamily }}
+                      className="truncate text-xs font-medium"
+                    >
+                      {FONT_OPTIONS.find(
+                        (f) => f.family === selectedBox?.fontFamily
+                      )?.name ?? "Select Font"}
+                    </span>
+                  </div>
+
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showFontPicker ? "rotate-180" : ""
+                      }`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+
+              </div>
+
+
+              {/* Font Size */}
+              <div className="flex items-center h-9 rounded-lg border border-gray-300 bg-white shadow-sm overflow-hidden">
+
+                {/* Decrease */}
+                <button
+                  type="button"
+                  className="w-9 h-9 flex items-center justify-center border-r border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                  onMouseDown={() => startChangingFontSize(-1)}
+                  onMouseUp={stopChangingFontSize}
+                  onMouseLeave={stopChangingFontSize}
+                  onClick={() => {
+                    if (holdInterval.current) return
+                    if (!selectedBox) return
+                    changeFontSize(selectedBox.fontSize - 1)
+                  }}
+                >
+                  <Minus size={14} />
+                </button>
+
+                {/* Input */}
                 <input
-                  type="number" min={8} max={200}
-                  value={fontSizeInput !== '' ? fontSizeInput : (selectedBox?.fontSize ?? 32)}
-                  onFocus={() => setFontSizeInput(String(selectedBox?.fontSize ?? 32))}
-                  onChange={(e) => setFontSizeInput(e.target.value)}
+                  type="number"
+                  inputMode="numeric"
+                  value={
+                    fontSizeInput !== ""
+                      ? fontSizeInput
+                      : (selectedBox?.fontSize ?? 32)
+                  }
+                  onFocus={() =>
+                    setFontSizeInput(String(selectedBox?.fontSize ?? 32))
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setFontSizeInput(value)
+
+                    const v = parseInt(value, 10)
+
+                    if (!isNaN(v) && selectedBox) {
+                      changeFontSize(v)
+                    }
+                  }}
+                  onWheel={(e) => {
+                    e.preventDefault()
+
+                    if (!selectedBox) return
+
+                    const delta = e.deltaY < 0 ? 1 : -1
+
+                    changeFontSize(selectedBox.fontSize + delta)
+                  }}
                   onBlur={() => {
                     const v = parseInt(fontSizeInput, 10)
-                    if (!isNaN(v) && selectedBox) updateBox(selectedBox.id, 'fontSize', clamp(v, 8, 200))
-                    setFontSizeInput('')
+
+                    if (!isNaN(v)) {
+                      changeFontSize(v)
+                    }
+
+                    setFontSizeInput("")
                   }}
-                  className="w-16 text-sm border border-gray-300 rounded px-2 py-1 text-center"
+                  className="w-12 text-center text-sm font-medium outline-none border-0 bg-transparent"
                 />
-                <span className="text-xs text-gray-500">px</span>
+
+                <span className="text-xs text-gray-500 pr-2">
+                  px
+                </span>
+
+                {/* Increase */}
+                <button
+                  type="button"
+                  className="w-9 h-9 flex items-center justify-center border-l border-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                  onMouseDown={() => startChangingFontSize(1)}
+                  onMouseUp={stopChangingFontSize}
+                  onMouseLeave={stopChangingFontSize}
+                  onClick={() => {
+                    if (holdInterval.current) return
+                    if (!selectedBox) return
+                    changeFontSize(selectedBox.fontSize + 1)
+                  }}
+                >
+                  <Plus size={14} />
+                </button>
+
               </div>
 
               <div className="w-px h-5 bg-gray-200 flex-none" />
@@ -382,6 +592,43 @@ export default function TextOverlayEditorModal({
 
               <div className="w-px h-5 bg-gray-200 flex-none" />
 
+              <div className="relative">
+                <button
+                  ref={effectsButtonRef}
+                  type="button"
+                  onClick={() => {
+                    if (!showEffects && effectsButtonRef.current) {
+                      const rect = effectsButtonRef.current.getBoundingClientRect()
+
+                      setEffectsPosition({
+                        top: rect.bottom + 6,
+                        left: rect.left,
+                      })
+                    }
+
+                    setShowEffects((prev) => !prev)
+                  }}
+                  className="flex items-center gap-2 px-3 py-1 rounded text-sm border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
+                >
+                  <span>✨ Effects</span>
+
+
+                  <svg
+                    className={`w-4 h-4 transition-transform duration-200 ${showEffects ? "rotate-180" : ""
+                      }`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+              </div>
+
               {/* Delete */}
               <button
                 type="button"
@@ -391,8 +638,136 @@ export default function TextOverlayEditorModal({
               >
                 Delete
               </button>
+
+
+
             </div>
           </div>
+          {showFontPicker &&
+            createPortal(
+              <div
+                ref={fontPickerRef}
+                style={{
+                  position: "fixed",
+                  top: fontPickerPosition.top,
+                  left: fontPickerPosition.left,
+                  width: 288,
+                }}
+                className="rounded-xl border border-gray-200 bg-white shadow-2xl z-[9999]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="max-h-80 overflow-y-auto py-2">
+                  {FONT_OPTIONS.map((font) => (
+                    <button
+                      key={font.id}
+                      type="button"
+                      onClick={() => {
+                        if (selectedBox) {
+                          updateBox(selectedBox.id, "fontFamily", font.family)
+                        }
+                        setShowFontPicker(false)
+                      }}
+                      className="w-full text-left px-5 py-3 hover:bg-gray-100 transition-colors"
+                    >
+                      <span
+                        style={{ fontFamily: font.family }}
+                        className="text-lg"
+                      >
+                        {font.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>,
+              document.body
+            )}
+
+          {showEffects &&
+            createPortal(
+              <div
+                ref={effectsRef}
+                style={{
+                  position: "fixed",
+                  top: effectsPosition.top,
+                  left: effectsPosition.left,
+                  width: 288,
+                }}
+                className="rounded-xl border border-gray-200 bg-white shadow-2xl z-[9999]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-4">
+                  <h3 className="font-semibold text-gray-800">
+                    Text Effects
+                  </h3>
+
+                  <div className="p-4 space-y-5">
+
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="font-medium text-gray-700">
+                          Shadow
+                        </span>
+
+                        <span className="text-gray-500">
+                          {selectedBox?.shadowBlur ?? 4}px
+                        </span>
+                      </div>
+
+                      <input
+                        type="range"
+                        min="0"
+                        max="20"
+                        value={selectedBox?.shadowBlur ?? 4}
+                        onChange={(e) => {
+                          if (!selectedBox) return
+
+                          const blur = Number(e.target.value)
+
+                          updateBox(selectedBox.id, "shadowBlur", blur)
+                          updateBox(selectedBox.id, "shadowOpacity", blur === 0 ? 0 : 0.8)
+                        }}
+                        className="w-full accent-blue-600"
+                      />
+
+                      <p className="text-xs text-gray-400 mt-1">
+                        0 = No Shadow
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Shadow Color
+                      </label>
+
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={selectedBox?.shadowColor ?? "#000000"}
+                          onChange={(e) => {
+                            if (!selectedBox) return
+                            updateBox(selectedBox.id, "shadowColor", e.target.value)
+                          }}
+                          className="w-10 h-10 rounded border border-gray-300 cursor-pointer p-0.5"
+                        />
+
+                        <input
+                          type="text"
+                          value={selectedBox?.shadowColor ?? "#000000"}
+                          onChange={(e) => {
+                            if (!selectedBox) return
+                            updateBox(selectedBox.id, "shadowColor", e.target.value)
+                          }}
+                          className="flex-1 text-xs border border-gray-300 rounded px-2 py-2 font-mono"
+                          placeholder="#000000"
+                          maxLength={7}
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
 
           {/* Canvas area */}
           <div className="flex-1 flex flex-col items-center justify-start px-4 py-6 bg-gray-100 overflow-auto min-h-0">
@@ -429,8 +804,8 @@ export default function TextOverlayEditorModal({
                     const isEditing = editingId === box.id
                     const justifyContent =
                       box.verticalAlign === 'top' ? 'flex-start' :
-                      box.verticalAlign === 'bottom' ? 'flex-end' :
-                      'center'
+                        box.verticalAlign === 'bottom' ? 'flex-end' :
+                          'center'
                     const textDecoration =
                       [box.underline ? 'underline' : '', box.strikethrough ? 'line-through' : '']
                         .filter(Boolean)
@@ -443,10 +818,10 @@ export default function TextOverlayEditorModal({
                           position: 'absolute',
                           left: `${box.x}%`,
                           top: `${box.y}%`,
-                          width: `${box.width}%`,
-                          ...(box.height != null
-                            ? { height: `${box.height}%`, overflow: 'hidden' }
-                            : { minHeight: `${box.fontSize * 1.6}px` }),
+                          width: "fit-content",
+                          height: "auto",
+                          minHeight: `${box.fontSize * 1.6}px`,
+                          overflow: "visible",
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent,
@@ -474,6 +849,7 @@ export default function TextOverlayEditorModal({
                             startBoxY: box.y,
                             startBoxWidth: box.width,
                             startBoxHeight: 0,
+                            startFontSize: box.fontSize,
                           }
                         }}
                         onPointerMove={handleCanvasPointerMove}
@@ -502,10 +878,17 @@ export default function TextOverlayEditorModal({
                             textAlign: box.textAlign,
                             lineHeight: 1.3,
                             whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
+                            wordBreak: 'normal',
+                            overflowWrap: 'normal',
                             outline: 'none',
                             padding: '2px 4px',
-                            textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                            textShadow:
+                              (box.shadowBlur ?? 0) === 0
+                                ? "none"
+                                : `0px 1px ${box.shadowBlur}px ${box.shadowColor ?? "#000000"
+                                }${Math.round((box.shadowOpacity ?? 0.8) * 255)
+                                  .toString(16)
+                                  .padStart(2, "0")}`,
                             minWidth: '1em',
                           }}
                           onKeyDown={(e) => { if (e.key === 'Escape') setEditingId(null) }}
@@ -519,7 +902,7 @@ export default function TextOverlayEditorModal({
 
                         {/* Corner resize handles — only when selected and not editing */}
                         {isSelected && !isEditing && (
-                          (['nw', 'ne', 'sw', 'se'] as ResizeHandle[]).map((handle) => {
+                          (['se'] as ResizeHandle[]).map((handle) => {
                             const isTop = handle.startsWith('n')
                             const isLeft = handle.endsWith('w')
                             const cursor =
@@ -559,6 +942,7 @@ export default function TextOverlayEditorModal({
                                     startBoxY: box.y,
                                     startBoxWidth: box.width,
                                     startBoxHeight: box.height ?? renderedHeightPct,
+                                    startFontSize: box.fontSize,
                                   }
                                 }}
                                 onPointerMove={handleCanvasPointerMove}

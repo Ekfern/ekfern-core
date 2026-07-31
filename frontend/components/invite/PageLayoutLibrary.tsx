@@ -1,13 +1,14 @@
 'use client'
 
 import React, { useMemo, useState, useRef, useEffect, Component, type ReactNode } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Eye } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { fuzzyFilter } from '@/lib/fuzzyFilter'
 import PageLayoutCardPreview from '@/components/invite/PageLayoutCardPreview'
+import LayoutPreviewModal from '@/components/invite/LayoutPreviewModal'
 
 class PreviewErrorBoundary extends Component<
   { children: ReactNode; fallback: ReactNode; onError: () => void },
@@ -165,6 +166,7 @@ export default function PageLayoutLibrary({
   const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({})
   const [failedPreviewIds, setFailedPreviewIds] = useState<Record<string, boolean>>({})
   const [searchQuery, setSearchQuery] = useState('')
+  const [previewLayout, setPreviewLayout] = useState<InvitePageLayout | null>(null)
 
   const imageFallbackLabel = useMemo(
     () => 'Page layout preview unavailable',
@@ -238,11 +240,24 @@ export default function PageLayoutLibrary({
             <p className="text-xs text-gray-500 mt-1.5">By {layout.createdByName}</p>
           )}
         </CardHeader>
-        <CardContent className="pt-0 pb-5">
+        <CardContent className="pt-0 pb-5 flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={`Preview ${layout.name} in full screen`}
+            className="shrink-0 rounded-lg py-2 px-3 border-2 border-gray-300 text-gray-600 hover:border-eco-green hover:text-eco-green"
+            onClick={(e) => {
+              e.stopPropagation()
+              setPreviewLayout(layout)
+            }}
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
           <Button
             type="button"
             size="sm"
-            className={`w-full font-medium rounded-lg py-2 transition-colors ${
+            className={`flex-1 font-medium rounded-lg py-2 transition-colors ${
               selectedId === layout.id
                 ? 'bg-eco-green text-white border-2 border-eco-green'
                 : 'border-2 border-eco-green text-eco-green bg-white hover:bg-eco-green hover:text-white'
@@ -351,6 +366,16 @@ export default function PageLayoutLibrary({
           </Button>
         </div>
       )}
+      <LayoutPreviewModal
+        isOpen={!!previewLayout}
+        onClose={() => setPreviewLayout(null)}
+        layout={previewLayout}
+        isSelected={!!previewLayout && selectedId === previewLayout.id}
+        onSelect={(layoutId) => {
+          onSelect(layoutId)
+          setPreviewLayout(null)
+        }}
+      />
     </div>
   )
 }
