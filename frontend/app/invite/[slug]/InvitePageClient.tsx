@@ -113,7 +113,7 @@ export default function InvitePageClient({
     }
   }, [initialConfig])
   
-  // Always show animation on initial load (EnvelopeAnimation component will check sessionStorage)
+  // Always show animation on initial load (EnvelopeAnimation checks per-slug localStorage to skip repeats)
   // Animation should be the FIRST thing users see
   const [showEnvelopeAnimation, setShowEnvelopeAnimation] = useState(true)
   
@@ -563,9 +563,10 @@ export default function InvitePageClient({
     const animationEnabled = initialConfig?.animations?.envelope !== false
     
     return (
-      <EnvelopeAnimation 
+      <EnvelopeAnimation
         showAnimation={true}
         enabled={animationEnabled}
+        slug={slug}
         onAnimationComplete={handleAnimationComplete}
       >
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -733,9 +734,10 @@ export default function InvitePageClient({
   const hasBorder = config?.pageBorder?.enabled
 
   return (
-    <EnvelopeAnimation 
+    <EnvelopeAnimation
       showAnimation={showEnvelopeAnimation}
       enabled={animationEnabled}
+      slug={slug}
       onAnimationComplete={handleAnimationComplete}
     >
       {hasBorder ? (
