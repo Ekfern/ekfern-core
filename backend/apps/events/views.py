@@ -3263,17 +3263,21 @@ class SubEventViewSet(viewsets.ModelViewSet):
             raise ValidationError("event_id is required")
         
         event = get_object_or_404(Event, id=event_id, host=self.request.user)
-        
-        # Upgrade event to ENVELOPE if needed
-        event.upgrade_to_envelope_if_needed()
-        
+
         sub_event = serializer.save(event=event)
-        
+
+        # Upgrade AFTER the sub-event exists so it is actually counted. The
+        # cached total_sub_events_count is bumped by a post_save signal, so
+        # re-read it before evaluating the upgrade condition — otherwise the
+        # very first sub-event (count still 0 at check time) never upgrades.
+        event.refresh_from_db(fields=['total_sub_events_count', 'event_structure'])
+        event.upgrade_to_envelope_if_needed()
+
         # If rsvp_mode is PER_SUBEVENT, ensure event is ENVELOPE
-        if event.rsvp_mode == 'PER_SUBEVENT':
+        if event.rsvp_mode == 'PER_SUBEVENT' and event.event_structure != 'ENVELOPE':
             event.event_structure = 'ENVELOPE'
             event.save(update_fields=['event_structure', 'updated_at'])
-        
+
         return sub_event
     
     def create(self, request, *args, **kwargs):

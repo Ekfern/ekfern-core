@@ -2,42 +2,62 @@
  * WizardProgress — horizontal step indicator for the invitation creation wizard.
  *
  * Steps:
- *   1. Event Details  (/host/events/new to create; /host/events/[eventId]/details to edit)
- *   2. Layout         (/host/events/[eventId]/layout)
- *   3. Design         (/host/events/[eventId]/design)
- *   4. Page Editor    (/host/events/[eventId]/page-editor)
+ *   Event Details  (/host/events/new to create; /host/events/[eventId]/details to edit)
+ *   Sub-events     (/host/events/[eventId]/sub-events-setup) — only for multi-sub-event (ENVELOPE) events
+ *   Layout         (/host/events/[eventId]/layout)
+ *   Design         (/host/events/[eventId]/design)
+ *   Page Editor    (/host/events/[eventId]/page-editor)
  *
- * Completed steps are clickable (navigate) when eventId is provided.
+ * The Sub-events step is inserted only when `includeSubEvents` is set (i.e. the
+ * host chose "multiple sub-events" and the event is/became ENVELOPE). Step
+ * numbers are derived from position so the same component renders both the
+ * 4-step and 5-step journeys. Completed steps are clickable when eventId is set.
  */
 
 import React from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 
+export type WizardStepKey = 'details' | 'sub-events' | 'layout' | 'design' | 'page-editor'
+
 export interface WizardProgressProps {
-  currentStep: 1 | 2 | 3 | 4
-  /** Required for steps 2–4 nav links and completed-step navigation. */
+  currentStep: WizardStepKey
+  /** Required for step nav links and completed-step navigation. */
   eventId?: number
+  /** Insert the Sub-events step between Event Details and Layout (ENVELOPE events). */
+  includeSubEvents?: boolean
 }
 
 interface StepDefinition {
-  number: 1 | 2 | 3 | 4
+  key: WizardStepKey
   label: string
   href: (id: number) => string
 }
 
-const STEPS: StepDefinition[] = [
-  { number: 1, label: 'Event Details', href: (id) => `/host/events/${id}/details` },
-  { number: 2, label: 'Layout', href: (id) => `/host/events/${id}/layout` },
-  { number: 3, label: 'Design', href: (id) => `/host/events/${id}/design` },
-  { number: 4, label: 'Page Editor', href: (id) => `/host/events/${id}/page-editor` },
+const BASE_STEPS: StepDefinition[] = [
+  { key: 'details', label: 'Event Details', href: (id) => `/host/events/${id}/details` },
+  { key: 'layout', label: 'Layout', href: (id) => `/host/events/${id}/layout` },
+  { key: 'design', label: 'Design', href: (id) => `/host/events/${id}/design` },
+  { key: 'page-editor', label: 'Page Editor', href: (id) => `/host/events/${id}/page-editor` },
 ]
+
+const SUB_EVENTS_STEP: StepDefinition = {
+  key: 'sub-events',
+  label: 'Sub-events',
+  href: (id) => `/host/events/${id}/sub-events-setup`,
+}
+
+/** Build the visible step sequence, inserting Sub-events after Event Details when needed. */
+function buildSteps(includeSubEvents: boolean): StepDefinition[] {
+  if (!includeSubEvents) return BASE_STEPS
+  return [BASE_STEPS[0], SUB_EVENTS_STEP, ...BASE_STEPS.slice(1)]
+}
 
 type StepState = 'completed' | 'active' | 'future'
 
-function stepState(stepNumber: number, currentStep: number): StepState {
-  if (stepNumber < currentStep) return 'completed'
-  if (stepNumber === currentStep) return 'active'
+function stepState(stepIndex: number, currentIndex: number): StepState {
+  if (stepIndex < currentIndex) return 'completed'
+  if (stepIndex === currentIndex) return 'active'
   return 'future'
 }
 
@@ -105,12 +125,13 @@ function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
 interface StepNodeProps {
   step: StepDefinition
   state: StepState
+  displayNumber: number
   eventId?: number
 }
 
-function StepNode({ step, state, eventId }: StepNodeProps): React.ReactElement {
+function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React.ReactElement {
   const isClickable = state === 'completed' && eventId != null
-  const circle = <StepCircle state={state} number={step.number} />
+  const circle = <StepCircle state={state} number={displayNumber} />
 
   const labelClasses =
     state === 'active'
@@ -134,7 +155,7 @@ function StepNode({ step, state, eventId }: StepNodeProps): React.ReactElement {
       <Link
         href={step.href(eventId!)}
         className="flex flex-col items-center gap-1.5 group focus:outline-none"
-        aria-label={`Go to step ${step.number}: ${step.label}`}
+        aria-label={`Go to step ${displayNumber}: ${step.label}`}
       >
         <motion.span
           whileHover={{ scale: 1.1 }}
@@ -166,7 +187,14 @@ function Connector({ leftState }: { leftState: StepState }): React.ReactElement 
 export default function WizardProgress({
   currentStep,
   eventId,
+  includeSubEvents = false,
 }: WizardProgressProps): React.ReactElement {
+  // The Sub-events step must appear when we're standing on it, even if the caller
+  // didn't pass includeSubEvents.
+  const effectiveInclude = includeSubEvents || currentStep === 'sub-events'
+  const steps = buildSteps(effectiveInclude)
+  const currentIndex = steps.findIndex((s) => s.key === currentStep)
+
   return (
     <nav
       aria-label="Invitation creation wizard progress"
@@ -174,13 +202,13 @@ export default function WizardProgress({
     >
       <div className="max-w-2xl mx-auto">
         <ol className="flex items-center w-full" role="list">
-          {STEPS.map((step, index) => {
-            const state = stepState(step.number, currentStep)
-            const isLast = index === STEPS.length - 1
+          {steps.map((step, index) => {
+            const state = stepState(index, currentIndex)
+            const isLast = index === steps.length - 1
             return (
-              <React.Fragment key={step.number}>
+              <React.Fragment key={step.key}>
                 <li className="flex items-center justify-center">
-                  <StepNode step={step} state={state} eventId={eventId} />
+                  <StepNode step={step} state={state} displayNumber={index + 1} eventId={eventId} />
                 </li>
                 {!isLast && <Connector leftState={state} />}
               </React.Fragment>
