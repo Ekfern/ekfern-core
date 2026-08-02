@@ -189,8 +189,13 @@ REST_FRAMEWORK = {
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    # Short-lived access token: it's the credential sent on every request and
+    # can't be revoked once issued, so keep the stolen/lingering-token window
+    # small. The frontend's 401->refresh interceptor renews it silently, so
+    # this is invisible to users.
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    # Refresh token controls how long before a user must actually log in again.
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
     'ROTATE_REFRESH_TOKENS': True,
 }
 
