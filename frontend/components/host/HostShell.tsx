@@ -72,11 +72,28 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
   } | null>(null)
   const [allEvents, setAllEvents] = useState<{ id: number; title: string }[]>([])
   const [isStaff, setIsStaff] = useState(false)
+  // Bumped to force an eventSettings refetch when a child page changes the
+  // event's features (RSVP/Catalog enable-disable) so the tab bar updates
+  // instantly instead of only after a full reload.
+  const [settingsRefreshTick, setSettingsRefreshTick] = useState(0)
 
   const isAuthRoute = AUTH_ROUTES.has(pathname)
   const eventId = getEventIdFromPath(pathname)
 
   useEffect(() => { setMounted(true) }, [])
+
+  // Listen for feature-toggle signals from child pages (e.g. the overview
+  // page's RSVP/Host Catalog switches) and refetch this event's settings.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { eventId?: string | number } | undefined
+      if (eventId && detail && String(detail.eventId) === String(eventId)) {
+        setSettingsRefreshTick((t) => t + 1)
+      }
+    }
+    window.addEventListener('host-event-settings-changed', handler)
+    return () => window.removeEventListener('host-event-settings-changed', handler)
+  }, [eventId])
 
   useEffect(() => {
     if (isAuthRoute) return
@@ -103,7 +120,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
       }
     }).catch(() => { if (!isCancelled) setEventSettings(null) })
     return () => { isCancelled = true }
-  }, [eventId])
+  }, [eventId, settingsRefreshTick])
 
   // Close switcher on outside click
   useEffect(() => {

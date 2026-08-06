@@ -28,7 +28,7 @@ from .tasks import dispatch_campaign
 logger = logging.getLogger(__name__)
 from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota
 from .serializers import (
-    EventSerializer, EventCreateSerializer,
+    EventSerializer, EventCreateSerializer, EventListSerializer,
     RSVPSerializer, RSVPCreateSerializer,
     GuestSerializer, GuestCreateSerializer,
     InvitePageSerializer, InvitePageCreateSerializer, InvitePageUpdateSerializer,
@@ -268,6 +268,11 @@ class EventViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return EventCreateSerializer
+        # The list endpoint is fetched on every host page load; use a slim
+        # serializer that omits page_config and the unused per-event method
+        # fields (see EventListSerializer). Detail/update keep the full one.
+        if self.action == 'list':
+            return EventListSerializer
         return EventSerializer
 
     def perform_create(self, serializer):
