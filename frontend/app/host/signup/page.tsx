@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/components/ui/toast'
 import { PasswordRequirements } from '@/components/ui/PasswordRequirements'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
-import { signup, verifyOtp, setPassword, storeAuthTokens, otpCodeSchema, newPasswordSchema } from '@/lib/auth/api'
+import { signup, verifyOtp, setPassword, storeAuthTokens, getCurrentUser, otpCodeSchema, newPasswordSchema } from '@/lib/auth/api'
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -41,6 +41,28 @@ function SignupForm() {
   const [step, setStep] = useState<'signup' | 'verify' | 'set-password'>('signup')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+  // Send an already-authenticated visitor to the dashboard instead of showing
+  // the signup form (tokens live in localStorage, shared across tabs).
+  const [checkingSession, setCheckingSession] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    if (!token) {
+      setCheckingSession(false)
+      return
+    }
+    getCurrentUser()
+      .then(() => {
+        if (!cancelled) router.replace('/host/dashboard')
+      })
+      .catch(() => {
+        if (!cancelled) setCheckingSession(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [router])
 
   const {
     register: registerSignup,
@@ -122,6 +144,14 @@ function SignupForm() {
 
   const onSkipPassword = () => {
     router.push('/host/dashboard')
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-eco-beige flex items-center justify-center p-4">
+        <p className="text-gray-600">Loading…</p>
+      </div>
+    )
   }
 
   return (

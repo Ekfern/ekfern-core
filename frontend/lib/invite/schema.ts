@@ -302,44 +302,50 @@ export interface InviteConfig {
     primaryColor?: string // Overrides theme.palette.primary
     mutedColor?: string // Overrides theme.palette.muted
   }
+  // `| null` here (and on the visual fields below) is meaningful, not just
+  // plain omission: applyLayout() and the Page Editor send explicit null for
+  // visual fields a layout recipe doesn't define, so that switching layouts /
+  // clearing a setting actually removes a leftover value from a previous
+  // layout/Page Editor session instead of the backend's save-merge (see
+  // update_design) preserving it by mistake.
   customFonts?: {
     titleFont?: string // Overrides theme.fonts.title
     bodyFont?: string // Overrides theme.fonts.body
-  }
+  } | null
   // Background texture (CSS-based)
-  texture?: TextureSettings
-  // Page border settings
+  texture?: TextureSettings | null
+  // Page border settings.
   pageBorder?: {
     enabled?: boolean // Enable/disable page border (default: false)
     style?: 'solid' | 'dotted' | 'dashed' | 'double' | 'groove' | 'ridge' | 'inset' | 'outset' | 'intaglio' // Border style
     color?: string // Hex color for border (default: '#D1D5DB')
     width?: number // Border width in pixels (default: 2)
-  }
+  } | null
   // Full-page frame image (ornate border/frame overlay, e.g. SVG or PNG with transparency)
   pageFrame?: {
     imageUrl?: string
-  }
+  } | null
   // Corner decoration image URLs (optional flourishes in each corner)
   cornerDecorations?: {
     topLeft?: string
     topRight?: string
     bottomLeft?: string
     bottomRight?: string
-  }
+  } | null
   // Animation settings
   animations?: {
     envelope?: boolean // Enable/disable envelope opening animation (default: true)
-  }
+  } | null
   // Link preview metadata (Open Graph, Twitter Cards, WhatsApp)
-  linkMetadata?: LinkMetadata
+  linkMetadata?: LinkMetadata | null
   // RSVP form configuration (host-managed)
-  rsvpForm?: RsvpFormConfig
+  rsvpForm?: RsvpFormConfig | null
   // New tile-based structure
   tiles?: Tile[]
   // When true, design page must not merge in missing tile types (preserves template-defined tile set)
   tileSetComplete?: boolean
   // Global spacing between tiles
-  spacing?: 'tight' | 'normal' | 'spacious'
+  spacing?: 'tight' | 'normal' | 'spacious' | null
   // Legacy structure (for backward compatibility)
   hero?: {
     background?: BackgroundImage | {

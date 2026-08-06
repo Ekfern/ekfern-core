@@ -457,6 +457,198 @@ class PublicInviteViewSetTestCase(TestCase):
         self.assertEqual(guest_resp.data.get('status'), 'coming_soon')
 
 
+class UpdateDesignMergeTestCase(TestCase):
+    """
+    update_design shallow-merges the incoming page_config onto the existing
+    draft instead of replacing it wholesale, so a caller that doesn't know
+    about a given field (e.g. Page Editor saving without appliedLayoutId,
+    which only the Layout step sets) doesn't silently delete it. A field
+    explicitly present in the payload -- including null -- still always wins.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='host@test.com', name='Test Host')
+        self.event = Event.objects.create(
+            host=self.host,
+            slug='test-event',
+            title='Test Event',
+            is_public=True,
+        )
+        self.client.force_authenticate(user=self.host)
+
+    def test_field_absent_from_payload_is_preserved(self):
+        """A save that never mentions a field (e.g. Page Editor omitting appliedLayoutId) doesn't delete it."""
+        first = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'appliedLayoutId': '95'}},
+            format='json',
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        second = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [{'id': 't1', 'type': 'title'}]}},
+            format='json',
+        )
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.page_config['appliedLayoutId'], '95')
+        self.assertEqual(len(self.event.page_config['tiles']), 1)
+
+        invite_page = InvitePage.objects.get(event=self.event)
+        self.assertEqual(invite_page.config['appliedLayoutId'], '95')
+
+    def test_explicit_null_clears_a_field(self):
+        """A field explicitly sent as null overwrites the stored value instead of being ignored."""
+        self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customColors': {'backgroundColor': '#ff00ff'}}},
+            format='json',
+        )
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.page_config['customColors']['backgroundColor'], '#ff00ff')
+
+        cleared = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customColors': None}},
+            format='json',
+        )
+        self.assertEqual(cleared.status_code, status.HTTP_200_OK)
+        self.event.refresh_from_db()
+        self.assertIsNone(self.event.page_config['customColors'])
+
+    def test_first_save_auto_creates_invite_page_with_merged_config(self):
+        """The very first save for an event (no InvitePage yet) still merges onto any pre-existing event.page_config."""
+        self.event.page_config = {'themeId': 'classic-noir', 'appliedLayoutId': '4'}
+        self.event.save(update_fields=['page_config'])
+        self.assertFalse(InvitePage.objects.filter(event=self.event).exists())
+
+        resp = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'modern-minimal', 'tiles': []}},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertTrue(resp.data.get('invite_page_created'))
+
+        invite_page = InvitePage.objects.get(event=self.event)
+        self.assertEqual(invite_page.config['themeId'], 'modern-minimal')
+        self.assertEqual(invite_page.config['appliedLayoutId'], '4')
+
+    def test_merged_draft_save_does_not_touch_published_snapshot(self):
+        """A merge-preserved field in the draft must not leak into published_config until an explicit publish."""
+        invite_page = InvitePage.objects.create(
+            event=self.event,
+            slug=self.event.slug.lower(),
+            is_published=False,
+            config={'themeId': 'classic-noir', 'tiles': [], 'appliedLayoutId': '95'},
+        )
+        self.client.post(
+            f'/api/events/invite/{invite_page.slug}/publish/',
+            {'is_published': True},
+            format='json',
+        )
+        invite_page.refresh_from_db()
+        self.assertEqual(invite_page.published_config['appliedLayoutId'], '95')
+
+        # Draft save that switches layout (appliedLayoutId changes, doesn't mention it being cleared)
+        self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'emerald-mist', 'tiles': [], 'appliedLayoutId': '4'}},
+            format='json',
+        )
+        invite_page.refresh_from_db()
+        self.assertEqual(invite_page.config['appliedLayoutId'], '4')
+        # Published snapshot is untouched by the draft save
+        self.assertEqual(invite_page.published_config['appliedLayoutId'], '95')
+        self.assertEqual(invite_page.published_config['themeId'], 'classic-noir')
+
+    def test_layout_switch_clears_visual_fields_but_preserves_host_content(self):
+        """
+        Regression for the layout-switch bleed-through bug.
+
+        applyLayout() (frontend) produces a save payload that, for a layout
+        recipe which doesn't define them, sends the purely-visual fields
+        (customFonts, texture, spacing, pageBorder, ...) as explicit null so
+        they don't bleed a previous layout's values through the save-merge,
+        while OMITTING host content (rsvpForm, linkMetadata) so the merge
+        preserves it. This asserts the backend honors that contract.
+        """
+        # Previous-layout draft: visual look-and-feel + host-entered content.
+        first = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {
+                'themeId': 'classic-noir',
+                'tiles': [{'id': 't1', 'type': 'title'}],
+                'appliedLayoutId': '95',
+                'customFonts': {'titleFont': 'Playfair Display'},
+                'texture': {'type': 'paper'},
+                'spacing': 'spacious',
+                'rsvpForm': {'version': 1, 'fields': [{'q': 'Meal preference?'}]},
+                'linkMetadata': {'title': 'Our Wedding'},
+            }},
+            format='json',
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        # Switch to a Minimal-style layout: visuals explicitly null (applyLayout
+        # resetFields), host content omitted entirely.
+        switch = self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {
+                'themeId': 'modern-minimal',
+                'tiles': [{'id': 't2', 'type': 'title'}],
+                'appliedLayoutId': '4',
+                'tileSetComplete': True,
+                'customColors': {},
+                'customFonts': None,
+                'texture': None,
+                'spacing': None,
+                'pageBorder': None,
+                'pageFrame': None,
+                'cornerDecorations': None,
+                'animations': None,
+            }},
+            format='json',
+        )
+        self.assertEqual(switch.status_code, status.HTTP_200_OK)
+
+        self.event.refresh_from_db()
+        cfg = self.event.page_config
+        # Visual fields from the old layout must NOT bleed through.
+        self.assertIsNone(cfg['customFonts'])
+        self.assertIsNone(cfg['texture'])
+        self.assertIsNone(cfg['spacing'])
+        # New layout applied.
+        self.assertEqual(cfg['appliedLayoutId'], '4')
+        self.assertEqual(cfg['themeId'], 'modern-minimal')
+        # Host content is omitted by the switch payload, so the merge keeps it.
+        self.assertEqual(cfg['rsvpForm']['fields'][0]['q'], 'Meal preference?')
+        self.assertEqual(cfg['linkMetadata']['title'], 'Our Wedding')
+
+        invite_page = InvitePage.objects.get(event=self.event)
+        self.assertIsNone(invite_page.config['customFonts'])
+        self.assertEqual(invite_page.config['rsvpForm']['fields'][0]['q'], 'Meal preference?')
+
+    def test_layout_switch_to_recipe_defining_a_visual_field_overwrites_it(self):
+        """A layout that DOES define a visual field overwrites the previous value (present key wins)."""
+        self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customFonts': {'titleFont': 'Playfair Display'}}},
+            format='json',
+        )
+        self.client.put(
+            f'/api/events/{self.event.id}/design/',
+            {'page_config': {'themeId': 'garden-soiree', 'tiles': [], 'customFonts': {'titleFont': 'Cormorant'}}},
+            format='json',
+        )
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.page_config['customFonts']['titleFont'], 'Cormorant')
+
+
 class CreateRSVPEnvelopeTestCase(TestCase):
     """Test fix E: create_rsvp() ENVELOPE returns 201 if any new RSVP created, else 200"""
     
