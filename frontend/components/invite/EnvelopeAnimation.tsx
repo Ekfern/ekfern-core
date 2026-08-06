@@ -8,16 +8,53 @@ interface EnvelopeAnimationProps {
   onAnimationComplete?: () => void
   showAnimation?: boolean
   enabled?: boolean // Config option to enable/disable
+  slug?: string // Per-invite key so "already seen" is scoped to this invite
 }
 
-const ANIMATION_STORAGE_KEY = 'envelope_animation_shown'
+const ANIMATION_STORAGE_KEY_BASE = 'envelope_animation_shown'
 
-export default function EnvelopeAnimation({ 
-  children, 
+// The envelope plays once per device per invite, then is skipped on every later
+// visit — so the "seen" flag lives in localStorage (survives tab close / a new
+// session), keyed per slug so viewing one invite doesn't suppress the animation
+// on a different one. localStorage can throw (private mode, storage disabled);
+// every access is wrapped so a failure just replays the animation, never crashes.
+function animationSeenKey(slug?: string): string {
+  return slug ? `${ANIMATION_STORAGE_KEY_BASE}:${slug}` : ANIMATION_STORAGE_KEY_BASE
+}
+
+function hasSeenAnimation(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function markAnimationSeen(key: string): void {
+  try {
+    localStorage.setItem(key, 'true')
+  } catch {
+    // Storage unavailable (private mode / quota) — non-fatal; the animation
+    // simply won't be suppressed on the next visit.
+  }
+}
+
+function clearAnimationSeen(key: string): void {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // ignore
+  }
+}
+
+export default function EnvelopeAnimation({
+  children,
   onAnimationComplete,
   showAnimation = true,
-  enabled = true
+  enabled = true,
+  slug
 }: EnvelopeAnimationProps) {
+  const storageKey = animationSeenKey(slug)
   const [animationStage, setAnimationStage] = useState<'envelope' | 'extracting' | 'splitting' | 'revealing' | 'complete'>('envelope')
   const [showContent, setShowContent] = useState(false)
   // Start with shouldShow as false to match server render (prevents hydration mismatch)
@@ -90,7 +127,7 @@ export default function EnvelopeAnimation({
     }
   }, [])
 
-  // Check if animation should be shown (respects sessionStorage and preferences)
+  // Check if animation should be shown (respects the per-slug localStorage flag and preferences)
   // This runs AFTER hydration to prevent hydration mismatch
   useEffect(() => {
     if (!isHydrated) return // Wait for hydration
@@ -115,8 +152,8 @@ export default function EnvelopeAnimation({
     const forceAnimation = urlParams.get('showAnimation') === 'true'
     
     if (forceAnimation) {
-      // Force show animation, clear sessionStorage
-      sessionStorage.removeItem(ANIMATION_STORAGE_KEY)
+      // Force show animation, clear the persisted "seen" flag
+      clearAnimationSeen(storageKey)
       setShouldShow(true)
       setIsComplete(false)
       return
@@ -131,8 +168,8 @@ export default function EnvelopeAnimation({
       return
     }
 
-    // Check if animation has been shown this session
-    const hasBeenShown = sessionStorage.getItem(ANIMATION_STORAGE_KEY) === 'true'
+    // Check if animation has already been shown on this device for this invite
+    const hasBeenShown = hasSeenAnimation(storageKey)
     if (hasBeenShown) {
       setShouldShow(false)
       setShowContent(true)
@@ -195,8 +232,8 @@ export default function EnvelopeAnimation({
     const timer3 = setTimeout(() => {
       setAnimationStage('complete')
       setIsComplete(true)
-      // Mark as shown in session storage
-      sessionStorage.setItem(ANIMATION_STORAGE_KEY, 'true')
+      // Persist so the animation is skipped on later visits to this invite
+      markAnimationSeen(storageKey)
       // Use ref to always call latest callback
       onAnimationCompleteRef.current?.()
     }, 4000) // Complete at 4s total (0.5s envelope + 1s splitting before overlap + 2.5s overlap/revealing)
@@ -219,7 +256,7 @@ export default function EnvelopeAnimation({
     setShowContent(true)
     setAnimationStage('complete')
     setIsComplete(true)
-    sessionStorage.setItem(ANIMATION_STORAGE_KEY, 'true')
+    markAnimationSeen(storageKey)
     // Use ref for consistency
     onAnimationCompleteRef.current?.()
   }

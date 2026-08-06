@@ -17,12 +17,22 @@ export default function NewEventPage() {
   const onSubmit = async (data: EventDetailsFormData) => {
     setLoading(true)
     try {
-      const response = await api.post('/api/events/', data)
+      // is_multi_sub_event is a UI-only routing flag — keep it out of the API payload.
+      const { is_multi_sub_event, ...eventPayload } = data
+      const response = await api.post('/api/events/', eventPayload)
       const eventId = response.data.id
       if (!eventId) {
         logError('Event ID not found in response:', response.data)
         showToast('Event created but ID not found. Please refresh the dashboard.', 'error')
         router.push('/host/dashboard')
+        return
+      }
+      if (is_multi_sub_event) {
+        logDebug('Event created, navigating to sub-events step:', eventId)
+        showToast('Event created! Now add your sub-events.', 'success')
+        setTimeout(() => {
+          router.push(`/host/events/${eventId}/sub-events-setup`)
+        }, 100)
         return
       }
       logDebug('Event created successfully, navigating to layout step:', eventId)
@@ -40,7 +50,7 @@ export default function NewEventPage() {
 
   return (
     <div className="min-h-screen bg-eco-beige">
-      <WizardProgress currentStep={1} />
+      <WizardProgress currentStep="details" />
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <h1 className="text-4xl font-bold mb-2 text-eco-green">Create Your Event</h1>
         <p className="text-lg text-gray-700 mb-8">Start with your basic details — you can add RSVP or a host catalog anytime.</p>
@@ -54,6 +64,7 @@ export default function NewEventPage() {
               submitLabel="Next: Choose Layout"
               loading={loading}
               onCancel={() => router.back()}
+              showStructureChoice
             />
             <p className="text-sm text-center text-gray-600 mt-4">
               You can enable RSVP or Registry later from your Dashboard.

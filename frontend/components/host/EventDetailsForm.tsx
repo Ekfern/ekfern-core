@@ -19,6 +19,10 @@ export const eventDetailsSchema = z.object({
   is_public: z.boolean().default(true),
   has_rsvp: z.boolean().default(true),
   has_registry: z.boolean().default(true),
+  // UI-only wizard routing flag — decides whether creation continues into the
+  // Sub-events step. Not sent to the backend; ENVELOPE structure is derived
+  // there once sub-events are actually created.
+  is_multi_sub_event: z.boolean().default(false),
 })
 
 export type EventDetailsFormData = z.infer<typeof eventDetailsSchema>
@@ -33,6 +37,7 @@ const BASE_DEFAULTS: EventDetailsFormData = {
   is_public: true,
   has_rsvp: true,
   has_registry: true,
+  is_multi_sub_event: false,
 }
 
 interface EventDetailsFormProps {
@@ -42,6 +47,8 @@ interface EventDetailsFormProps {
   loading?: boolean
   onCancel?: () => void
   cancelLabel?: string
+  /** Show the single-event vs multiple-sub-events fork (creation flow only). */
+  showStructureChoice?: boolean
 }
 
 export default function EventDetailsForm({
@@ -51,16 +58,23 @@ export default function EventDetailsForm({
   loading = false,
   onCancel,
   cancelLabel = 'Cancel',
+  showStructureChoice = false,
 }: EventDetailsFormProps) {
   const {
     register,
     control,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<EventDetailsFormData>({
     resolver: zodResolver(eventDetailsSchema),
     defaultValues: { ...BASE_DEFAULTS, ...defaultValues },
   })
+
+  const isMultiSubEvent = watch('is_multi_sub_event')
+  // When the host picks multiple sub-events, the next step is Sub-events, not Layout.
+  const effectiveSubmitLabel =
+    showStructureChoice && isMultiSubEvent ? 'Next: Add Sub-events' : submitLabel
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -144,6 +158,60 @@ export default function EventDetailsForm({
         </p>
       </div>
 
+      {showStructureChoice && (
+        <Controller
+          name="is_multi_sub_event"
+          control={control}
+          render={({ field }) => (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Is this one event, or a few events together?
+              </label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label
+                  className={`rounded-md border p-3 cursor-pointer ${
+                    !field.value ? 'border-eco-green bg-eco-green-light/40' : 'border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="event_structure_choice"
+                      checked={!field.value}
+                      onChange={() => field.onChange(false)}
+                      className="text-eco-green"
+                    />
+                    <span className="font-medium text-sm">Just one event</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600">
+                    A single gathering at one time and place.
+                  </p>
+                </label>
+                <label
+                  className={`rounded-md border p-3 cursor-pointer ${
+                    field.value ? 'border-eco-green bg-eco-green-light/40' : 'border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="event_structure_choice"
+                      checked={!!field.value}
+                      onChange={() => field.onChange(true)}
+                      className="text-eco-green"
+                    />
+                    <span className="font-medium text-sm">Several events together</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600">
+                    A few separate gatherings under one invitation, across one or more days.
+                  </p>
+                </label>
+              </div>
+            </div>
+          )}
+        />
+      )}
+
       <div>
         <label className="flex items-center gap-2">
           <input
@@ -209,7 +277,7 @@ export default function EventDetailsForm({
           disabled={loading}
           className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
         >
-          {loading ? 'Saving...' : submitLabel}
+          {loading ? 'Saving...' : effectiveSubmitLabel}
         </Button>
       </div>
     </form>

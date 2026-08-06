@@ -1561,7 +1561,11 @@ export default function DesignInvitationPage(): JSX.Element {
   return (
     <div className="min-h-screen bg-eco-beige w-full overflow-x-hidden">
       {/* Wizard progress bar */}
-      <WizardProgress currentStep={4} eventId={eventId} />
+      <WizardProgress
+        currentStep="page-editor"
+        eventId={eventId}
+        includeSubEvents={event?.event_structure === 'ENVELOPE'}
+      />
       {/* Header */}
       <div className="sticky top-0 z-30 bg-white border-b w-full overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 w-full overflow-x-hidden">
