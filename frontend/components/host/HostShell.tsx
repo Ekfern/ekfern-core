@@ -488,7 +488,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
           </AnimatePresence>
         </main>
         {/* Mobile Bottom Navigation */}
-        {mounted && eventId && eventTabItems.length > 0 && (
+        {mounted && eventId && eventTabItems.length > 0 && !isMobileDrawerOpen && (
           <div className="fixed left-1/2 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 -translate-x-1/2 lg:hidden">
             <div className="flex items-center gap-1 rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-xl">
               {eventTabItems.map((item) => {
