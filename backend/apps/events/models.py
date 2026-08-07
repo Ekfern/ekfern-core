@@ -95,6 +95,8 @@ class Event(models.Model):
     host = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events')
     slug = models.SlugField(unique=True, max_length=100)
     title = models.CharField(max_length=255)
+    # Data residency region for this event's data (see settings.DEFAULT_DATA_REGION).
+    data_region = models.CharField(max_length=8, default='in')
     event_type = models.CharField(max_length=50, choices=EVENT_TYPE_CHOICES, default='wedding')
     date = models.DateField(null=True, blank=True)
     event_end_date = models.DateField(null=True, blank=True, help_text="End date for multi-day events (optional)")

@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.events',
     'apps.catalog',
+    'apps.privacy',
     'apps.notifications',
     'apps.common',
 ]
@@ -159,6 +160,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
+
+# Data residency: the region an account's personal data is stored/processed in.
+# Single-region today; the per-record `data_region` column makes going
+# multi-region a routing change rather than a schema migration.
+DEFAULT_DATA_REGION = os.environ.get('DATA_REGION', 'in')
 
 # REST Framework
 REST_FRAMEWORK = {

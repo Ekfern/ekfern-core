@@ -51,6 +51,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     # Email verification
     email_verified = models.BooleanField(default=False)
+    # Data residency region for this account's data (see settings.DEFAULT_DATA_REGION).
+    data_region = models.CharField(max_length=8, default='in')
     
     # OTP fields
     otp_code = models.CharField(max_length=255, blank=True, null=True)
