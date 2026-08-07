@@ -13,7 +13,7 @@ from django.http import HttpResponse, Http404, HttpResponseRedirect
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import F, Sum, Q
+from django.db.models import F, Sum, Q, Count
 import csv
 import re
 import os
@@ -3232,8 +3232,16 @@ class SubEventViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Hosts can only see sub-events for their own events"""
-        queryset = SubEvent.objects.filter(event__host=self.request.user, is_removed=False)
-        
+        queryset = SubEvent.objects.filter(event__host=self.request.user, is_removed=False).annotate(
+            # Non-removed guests assigned to each sub-event, so the host list can
+            # show "N guests assigned" and flag private sub-events nobody can see.
+            assigned_guests_count=Count(
+                'guest_invites',
+                filter=Q(guest_invites__guest__is_removed=False),
+                distinct=True,
+            )
+        )
+
         # Filter by event_id if provided in URL kwargs (for /envelopes/<event_id>/sub-events/ endpoint)
         event_id = self.kwargs.get('event_id')
         if event_id:
