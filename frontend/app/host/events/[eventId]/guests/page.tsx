@@ -20,7 +20,7 @@ import { WhatsAppTemplate, incrementWhatsAppTemplateUsage } from '@/lib/api'
 import { isContactPickerSupported, selectContactsAsGuestRows } from '@/lib/contactPickerImport'
 import { isLikelyIOS } from '@/lib/contactImportUi'
 import dynamic from 'next/dynamic'
-import { Columns2, Filter } from 'lucide-react'
+import { Columns2, Filter, AlertTriangle } from 'lucide-react'
 
 const TemplateSelector = dynamic(
   () => import('@/components/communications/TemplateSelector'),
@@ -597,6 +597,16 @@ export default function GuestsPage() {
   const getAssignedSubEventIds = (guest: Guest): number[] => {
     const ids = guestSubEventAssignments[guest.id] ?? guest.sub_event_invites ?? []
     return Array.isArray(ids) ? ids : []
+  }
+
+  // How many sub-events a guest will actually see = their assigned (private)
+  // sub-events PLUS every public one (public sub-events are shown to everyone,
+  // so they count toward each guest's total). A guest sees nothing only when
+  // there are no public sub-events AND they're assigned to none.
+  const getVisibleSubEventCount = (guest: Guest): number => {
+    if (subEvents.length === 0) return 0
+    const assigned = new Set(getAssignedSubEventIds(guest))
+    return subEvents.filter((s) => s.is_public_visible || assigned.has(s.id)).length
   }
 
   const getRsvpSortValue = (guest: Guest): number => {
@@ -3496,9 +3506,20 @@ export default function GuestsPage() {
                                    }
                                    setShowSubEventAssignment(guest.id)
                                  }}
-                                className="text-xs border-purple-300 text-purple-600 hover:bg-purple-50"
+                                className={`text-xs shrink-0 ${
+                                  getVisibleSubEventCount(guest) === 0
+                                    ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                                    : 'border-purple-300 text-purple-600 hover:bg-purple-50'
+                                }`}
+                                title="Sub-events this guest will see (the ones assigned to them plus any public sub-events). Click to assign."
                               >
-                                {guestSubEventAssignments[guest.id]?.length || 0} assigned
+                                {getVisibleSubEventCount(guest) === 0 ? (
+                                  <span className="flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3" /> Won&apos;t see any
+                                  </span>
+                                ) : (
+                                  `${getVisibleSubEventCount(guest)} shown`
+                                )}
                               </Button>
                             </td>
                           )}
