@@ -15,6 +15,12 @@ load_dotenv(BASE_DIR / '.env')
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-change-me-in-production')
 
+# Dedicated secret for deriving privacy pseudonyms. In production set
+# PRIVACY_PEPPER to its own value (NOT derived from SECRET_KEY) so pseudonyms
+# survive SECRET_KEY rotation and aren't tied to session-signing material.
+# Falls back to SECRET_KEY only for local/dev convenience.
+PRIVACY_PEPPER = os.environ.get('PRIVACY_PEPPER', SECRET_KEY)
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
@@ -41,6 +47,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.events',
     'apps.catalog',
+    'apps.privacy',
     'apps.notifications',
     'apps.common',
 ]
@@ -159,6 +166,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
+
+# Data residency: the region an account's personal data is stored/processed in.
+# Single-region today; the per-record `data_region` column makes going
+# multi-region a routing change rather than a schema migration.
+DEFAULT_DATA_REGION = os.environ.get('DATA_REGION', 'in')
 
 # REST Framework
 REST_FRAMEWORK = {
