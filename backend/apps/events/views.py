@@ -13,7 +13,7 @@ from django.http import HttpResponse, Http404, HttpResponseRedirect
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import F, Sum, Q
+from django.db.models import F, Sum, Q, Count
 import csv
 import re
 import os
@@ -1934,14 +1934,18 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                         is_removed=False
                     )
 
-                    # Get allowed sub-events via join table with optimized query
+                    # Token guests see the sub-events assigned to them PLUS any
+                    # marked publicly-visible, so "public" sub-events reach invited
+                    # guests too — not only anonymous base-link visitors. Private
+                    # (non-public) sub-events remain strictly assignment-gated.
                     allowed_sub_events = SubEvent.objects.filter(
-                        guest_invites__guest=guest,
+                        Q(guest_invites__guest=guest) | Q(is_public_visible=True),
+                        event=event,
                         is_removed=False
                     ).only(
                         'id', 'title', 'start_at', 'end_at', 'location',
                         'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible'
-                    ).order_by('start_at')
+                    ).distinct().order_by('start_at')
 
                 except Guest.DoesNotExist:
                     allowed_sub_events = SubEvent.objects.none()
@@ -2890,8 +2894,12 @@ def create_rsvp(request, event_id):
                         GuestSubEventInvite.objects.filter(guest=guest)
                         .values_list('sub_event_id', flat=True)
                     )
-                    # If no assignments, guest can still RSVP for MAIN event, but has no sub-events available
-                    allowed_sub_events = eligible_sub_events.filter(id__in=assigned_ids) if assigned_ids else SubEvent.objects.none()
+                    # Assigned (private) sub-events PLUS public-visible ones —
+                    # public sub-events are RSVP-able by everyone, invited guests
+                    # included. With no assignments this yields just the public set.
+                    allowed_sub_events = eligible_sub_events.filter(
+                        Q(id__in=assigned_ids) | Q(is_public_visible=True)
+                    )
                 else:
                     # Open link: session catalog is public-visible RSVP-enabled sub-events only.
                     allowed_sub_events = eligible_sub_events.filter(is_public_visible=True)
@@ -3232,8 +3240,16 @@ class SubEventViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Hosts can only see sub-events for their own events"""
-        queryset = SubEvent.objects.filter(event__host=self.request.user, is_removed=False)
-        
+        queryset = SubEvent.objects.filter(event__host=self.request.user, is_removed=False).annotate(
+            # Non-removed guests assigned to each sub-event, so the host list can
+            # show "N guests assigned" and flag private sub-events nobody can see.
+            assigned_guests_count=Count(
+                'guest_invites',
+                filter=Q(guest_invites__guest__is_removed=False),
+                distinct=True,
+            )
+        )
+
         # Filter by event_id if provided in URL kwargs (for /envelopes/<event_id>/sub-events/ endpoint)
         event_id = self.kwargs.get('event_id')
         if event_id:
@@ -4925,10 +4941,11 @@ def public_rsvp_sub_events(request, slug):
         ).first()
         if not guest:
             return Response({'results': []})
-        assigned_ids = GuestSubEventInvite.objects.filter(guest=guest).values_list(
+        assigned_ids = list(GuestSubEventInvite.objects.filter(guest=guest).values_list(
             'sub_event_id', flat=True
-        )
-        queryset = eligible.filter(id__in=assigned_ids) if assigned_ids else SubEvent.objects.none()
+        ))
+        # Assigned (private) sub-events plus public-visible ones.
+        queryset = eligible.filter(Q(id__in=assigned_ids) | Q(is_public_visible=True))
     else:
         queryset = eligible.filter(is_public_visible=True)
 

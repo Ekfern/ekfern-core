@@ -946,11 +946,20 @@ class GuestCreateSerializer(serializers.Serializer):
 
 class SubEventSerializer(serializers.ModelSerializer):
     """Serializer for SubEvent - full CRUD"""
-    
+
+    # Number of non-removed guests assigned to this sub-event. Populated only
+    # when the queryset is annotated (the host sub-events list); returns null
+    # elsewhere so public/guest responses run no per-row queries and don't
+    # expose it.
+    assigned_guests_count = serializers.SerializerMethodField()
+
     class Meta:
         model = SubEvent
-        fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'is_removed', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'event', 'created_at', 'updated_at')
+        fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'event', 'assigned_guests_count', 'created_at', 'updated_at')
+
+    def get_assigned_guests_count(self, obj):
+        return getattr(obj, 'assigned_guests_count', None)
     
     def validate(self, data):
         """Validate that end_at is after start_at if both are provided"""
