@@ -99,7 +99,7 @@ export default function SubEventsSetupPage() {
   // Persists whatever is currently in the form as a new sub-event.
   // Returns true only if the save succeeded, so callers can decide whether to
   // proceed (e.g. navigating to the next step).
-  const savePendingForm = async (): Promise<boolean> => {
+  const savePendingForm = async (refreshAfter = true): Promise<boolean> => {
     if (!form.title.trim() || !form.start_at) {
       showToast('A name and start time are required for each sub-event.', 'error')
       return false
@@ -115,7 +115,8 @@ export default function SubEventsSetupPage() {
       await api.post(`/api/events/envelopes/${eventId}/sub-events/`, payload)
       showToast('Sub-event added', 'success')
       setForm(EMPTY_FORM)
-      await refreshSubEvents()
+      // Skip the list refetch when the caller is about to navigate away.
+      if (refreshAfter) await refreshSubEvents()
       return true
     } catch (error: any) {
       logError('Failed to add sub-event:', error)
@@ -175,7 +176,7 @@ export default function SubEventsSetupPage() {
         )
         return
       }
-      const saved = await savePendingForm()
+      const saved = await savePendingForm(false)
       if (!saved) return
     }
     router.push(`/host/events/${eventId}/layout`)
