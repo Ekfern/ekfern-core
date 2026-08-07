@@ -41,14 +41,14 @@ export default function SubEventsPage() {
   const router = useRouter()
   const eventId = params.eventId ? parseInt(params.eventId as string) : 0
   const { showToast } = useToast()
-  
+
   const [event, setEvent] = useState<Event | null>(null)
   const [subEvents, setSubEvents] = useState<SubEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingSubEvent, setEditingSubEvent] = useState<SubEvent | null>(null)
-  
-  
+
+
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -131,7 +131,39 @@ export default function SubEventsPage() {
           minute: Number(get('minute')),
         }
       }
+      const handleVisibilityToggle = async (subEvent: SubEvent) => {
+        const updatedVisibility = !subEvent.is_public_visible;
 
+        const payload = {
+          ...subEvent,
+          is_public_visible: updatedVisibility,
+          description: subEvent.description || null,
+          image_url: subEvent.image_url || null,
+          background_color: subEvent.background_color || null,
+        };
+
+        try {
+          await api.put(`/api/events/sub-events/${subEvent.id}/`, payload);
+
+          setSubEvents((prev) =>
+            prev.map((item) =>
+              item.id === subEvent.id
+                ? { ...item, is_public_visible: updatedVisibility }
+                : item
+            )
+          );
+
+          showToast(
+            updatedVisibility
+              ? "Sub-event is now Public."
+              : "Sub-event is now Private.",
+            "success"
+          );
+        } catch (error: any) {
+          logError("Failed to update event visibility:", error);
+          showToast(getErrorMessage(error), "error");
+        }
+      };
       const desiredMs = Date.UTC(y, mo - 1, d, h, min, 0)
       for (let i = 0; i < 2; i++) {
         const tzp = getTzParts(utc)
@@ -183,6 +215,28 @@ export default function SubEventsPage() {
       setLoading(false)
     }
   }
+  const handleVisibilityToggle = async (subEvent: SubEvent) => {
+    const updatedVisibility = !subEvent.is_public_visible;
+
+    const payload = {
+      ...subEvent,
+      is_public_visible: updatedVisibility,
+      description: subEvent.description || null,
+      image_url: subEvent.image_url || null,
+      background_color: subEvent.background_color || null,
+    };
+
+    try {
+      await api.put(`/api/events/sub-events/${subEvent.id}/`, payload);
+
+      showToast("Event visibility updated successfully", "success");
+
+      fetchSubEvents();
+    } catch (error: any) {
+      logError("Failed to update event visibility:", error);
+      showToast(getErrorMessage(error), "error");
+    }
+  };
 
   const handleCreate = (e?: React.MouseEvent) => {
     setEditingSubEvent(null)
@@ -230,6 +284,33 @@ export default function SubEventsPage() {
       showToast(getErrorMessage(error), 'error')
     }
   }
+  const handleRsvpToggle = async (subEvent: SubEvent) => {
+    const updatedRsvp = !subEvent.rsvp_enabled;
+
+    const payload = {
+      ...subEvent,
+      rsvp_enabled: updatedRsvp,
+      description: subEvent.description || null,
+      image_url: subEvent.image_url || null,
+      background_color: subEvent.background_color || null,
+    };
+
+    try {
+      await api.put(`/api/events/sub-events/${subEvent.id}/`, payload);
+
+      showToast(
+        updatedRsvp
+          ? "RSVP enabled successfully"
+          : "RSVP disabled successfully",
+        "success"
+      );
+
+      fetchSubEvents();
+    } catch (error: any) {
+      logError("Failed to update RSVP:", error);
+      showToast(getErrorMessage(error), "error");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -343,20 +424,20 @@ export default function SubEventsPage() {
               <p className="text-gray-600 mb-4">
                 Create your first sub-event to automatically upgrade this event to ENVELOPE mode.
               </p>
-                <button
-                  onClick={handleCreate}
-                  className="bg-eco-green hover:bg-eco-green-dark text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2 cursor-pointer"
-                  type="button"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create First Sub-Event
-                </button>
+              <button
+                onClick={handleCreate}
+                className="bg-eco-green hover:bg-eco-green-dark text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2 cursor-pointer"
+                type="button"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create First Sub-Event
+              </button>
             </CardContent>
           </Card>
 
           {/* Create/Edit Modal - for SIMPLE events */}
           {showCreateModal && (
-            <div 
+            <div
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
               style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
               onClick={(e) => {
@@ -365,7 +446,7 @@ export default function SubEventsPage() {
                 }
               }}
             >
-              <Card 
+              <Card
                 className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -532,7 +613,7 @@ export default function SubEventsPage() {
                                 // Update UI immediately with uploaded image
                                 setFormData({ ...formData, image_url: imageUrl })
                                 showToast('Image uploaded successfully', 'success')
-                                
+
                                 // Extract dominant color for background asynchronously (non-blocking)
                                 extractDominantColors(imageUrl, 3)
                                   .then((colors) => {
@@ -588,7 +669,7 @@ export default function SubEventsPage() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-6">
+                    <div className="space-y-4">
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -598,21 +679,43 @@ export default function SubEventsPage() {
                         />
                         <span className="text-sm text-gray-700">RSVP Enabled</span>
                       </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.is_public_visible}
-                          onChange={(e) => setFormData({ ...formData, is_public_visible: e.target.checked })}
-                          className="w-4 h-4 text-eco-green border-gray-300 rounded focus:ring-eco-green"
-                        />
-                        <span className="text-sm text-gray-700">Publicly Visible</span>
-                      </label>
+                      <div>
+                        <span className="block text-sm font-medium text-gray-700 mb-1.5">Who can see this sub-event?</span>
+                        <div className="space-y-2">
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="subevent-visibility-a"
+                              checked={formData.is_public_visible}
+                              onChange={() => setFormData({ ...formData, is_public_visible: true })}
+                              className="mt-1 text-eco-green focus:ring-eco-green"
+                            />
+                            <span className="text-sm text-gray-700">
+                              <span className="font-medium">Everyone with the invite link</span>
+                              <span className="block text-xs text-gray-500">Shown to anyone who opens the invite.</span>
+                            </span>
+                          </label>
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="subevent-visibility-a"
+                              checked={!formData.is_public_visible}
+                              onChange={() => setFormData({ ...formData, is_public_visible: false })}
+                              className="mt-1 text-eco-green focus:ring-eco-green"
+                            />
+                            <span className="text-sm text-gray-700">
+                              <span className="font-medium">Only guests I assign</span>
+                              <span className="block text-xs text-gray-500">Hidden from everyone else — assign guests on the Guests page so they can see it.</span>
+                            </span>
+                          </label>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex justify-end gap-2 mt-6">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         onClick={() => setShowCreateModal(false)}
                         disabled={saving}
                       >
@@ -639,11 +742,11 @@ export default function SubEventsPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
-            <Link href={`/host/events/${eventId}`}>
+              <Link href={`/host/events/${eventId}`}>
                 <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
                   Back to Event
                 </Button>
-            </Link>
+              </Link>
               <Link href={`/host/events/${eventId}/page-editor`}>
                 <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
                   Design
@@ -744,16 +847,16 @@ export default function SubEventsPage() {
                         : subEvent.description
                           ? String(subEvent.description)
                           : ''
-                      
+
                       if (!description) return null
-                      
+
                       const isHTML = /<[a-z][\s\S]*>/i.test(description)
                       // Check if description is long enough to need truncation
-                      const textContent = isHTML 
+                      const textContent = isHTML
                         ? description.replace(/<[^>]*>/g, '').trim()
                         : description.trim()
                       const needsTruncation = textContent.length > 150 // Approximate 2 lines
-                      
+
                       const truncationStyle = !isExpanded && needsTruncation ? {
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
@@ -761,17 +864,17 @@ export default function SubEventsPage() {
                         lineHeight: '1.5',
                         overflow: 'hidden' as const,
                       } : undefined
-                      
+
                       return (
                         <div>
                           {isHTML ? (
-                            <div 
+                            <div
                               className="text-sm text-gray-700 prose prose-sm max-w-none break-words"
                               style={truncationStyle}
                               dangerouslySetInnerHTML={{ __html: description }}
                             />
                           ) : (
-                            <div 
+                            <div
                               className="text-sm text-gray-700 prose prose-sm max-w-none break-words"
                               style={truncationStyle}
                             >
@@ -794,22 +897,50 @@ export default function SubEventsPage() {
                               {isExpanded ? 'View less' : 'View more'}
                             </button>
                           )}
+
                         </div>
                       )
                     })()}
-                    <div className="flex gap-2 pt-2 border-t">
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        subEvent.rsvp_enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        RSVP {subEvent.rsvp_enabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
-                        subEvent.is_public_visible ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {subEvent.is_public_visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                        {subEvent.is_public_visible ? 'Public' : 'Private'}
-                      </span>
+                    <div className="flex items-center justify-between gap-6 pt-2 border-t">
+                      {/* RSVP */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          RSVP {subEvent.rsvp_enabled ? "Enabled" : "Disabled"}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRsvpToggle(subEvent)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${subEvent.rsvp_enabled ? "bg-eco-green" : "bg-gray-300"
+                            }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${subEvent.rsvp_enabled ? "translate-x-5" : "translate-x-1"
+                              }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Public / Private */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {subEvent.is_public_visible ? "Public Event" : "Private Event"}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => handleVisibilityToggle(subEvent)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${subEvent.is_public_visible ? "bg-eco-green" : "bg-gray-300"
+                            }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${subEvent.is_public_visible ? "translate-x-5" : "translate-x-1"
+                              }`}
+                          />
+                        </button>
+                      </div>
                     </div>
+
                   </div>
                 </CardContent>
               </Card>
@@ -819,7 +950,7 @@ export default function SubEventsPage() {
 
         {/* Create/Edit Modal */}
         {showCreateModal && (
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
             onClick={(e) => {
@@ -829,7 +960,7 @@ export default function SubEventsPage() {
               }
             }}
           >
-            <Card 
+            <Card
               className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
@@ -997,7 +1128,7 @@ export default function SubEventsPage() {
                               // Update UI immediately with uploaded image
                               setFormData({ ...formData, image_url: imageUrl })
                               showToast('Image uploaded successfully', 'success')
-                              
+
                               // Extract dominant color for background asynchronously (non-blocking)
                               extractDominantColors(imageUrl, 3)
                                 .then((colors) => {
@@ -1051,25 +1182,61 @@ export default function SubEventsPage() {
                     </div>
                   )}
 
-                  <div className="flex gap-4">
+                  <div className="space-y-4">
                     <label className="flex items-center">
                       <input
                         type="checkbox"
                         checked={formData.rsvp_enabled}
-                        onChange={(e) => setFormData({ ...formData, rsvp_enabled: e.target.checked })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            rsvp_enabled: e.target.checked,
+                          })
+                        }
                         className="mr-2"
                       />
                       <span className="text-sm text-gray-700">RSVP Enabled</span>
                     </label>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_public_visible}
-                        onChange={(e) => setFormData({ ...formData, is_public_visible: e.target.checked })}
-                        className="mr-2"
-                      />
-                      <span className="text-sm text-gray-700">Publicly Visible</span>
-                    </label>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Event Visibility
+                      </label>
+
+                      <div className="flex items-center justify-between rounded-lg border border-gray-200 p-3">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {formData.is_public_visible ? "Public Event" : "Private Event"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formData.is_public_visible
+                              ? "Visible to all guests."
+                              : "Visible only to assigned guests."}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              is_public_visible: !formData.is_public_visible,
+                            })
+                          }
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.is_public_visible
+                            ? "bg-eco-green"
+                            : "bg-gray-300"
+                            }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${formData.is_public_visible
+                              ? "translate-x-5"
+                              : "translate-x-1"
+                              }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex gap-3 pt-4">

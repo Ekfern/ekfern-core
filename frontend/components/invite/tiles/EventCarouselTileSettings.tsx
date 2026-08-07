@@ -71,8 +71,17 @@ export default function EventCarouselTileSettingsComponent({
   }
 
   return (
+
     <div className="space-y-4">
       {/* Sub-Event Management Link */}
+      <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 p-3">
+        <p className="text-sm text-blue-900 font-medium">
+          Public & Private Events
+        </p>
+        <p className="mt-1 text-xs text-blue-700">
+          Public events are visible to all guests. Private events are visible only to guests assigned to that sub-event.
+        </p>
+      </div>
       <div>
         <a
           href={`/host/events/${eventId}/sub-events`}
