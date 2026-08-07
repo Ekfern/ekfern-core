@@ -4,6 +4,11 @@ from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password, identify_hasher
 
 
+def _default_data_region():
+    from django.conf import settings
+    return getattr(settings, 'DEFAULT_DATA_REGION', 'in')
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email, name=None, password=None):
         if not email:
@@ -52,7 +57,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Email verification
     email_verified = models.BooleanField(default=False)
     # Data residency region for this account's data (see settings.DEFAULT_DATA_REGION).
-    data_region = models.CharField(max_length=8, default='in')
+    data_region = models.CharField(max_length=8, default=_default_data_region)
     
     # OTP fields
     otp_code = models.CharField(max_length=255, blank=True, null=True)

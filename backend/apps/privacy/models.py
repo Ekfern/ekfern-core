@@ -28,9 +28,9 @@ class ConsentEvent(models.Model):
     basis = models.CharField(max_length=32, choices=Basis.choices)
     policy_version = models.CharField(max_length=32, blank=True)
     source = models.CharField(max_length=32)                # "signup" | "rsvp_submit" | "import"
-    event = models.ForeignKey(
-        "events.Event", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
-    )
+    # Plain integer, NOT a ForeignKey: deleting an Event must never mutate an
+    # immutable ledger row (a SET_NULL cascade would be a write on delete).
+    event_id = models.BigIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)    # append-only: no updated_at
 
     class Meta:
@@ -39,6 +39,14 @@ class ConsentEvent(models.Model):
 
     def __str__(self):
         return f"{self.subject_type}#{self.subject_id} {self.purpose} ({self.basis})"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise RuntimeError("ConsentEvent is append-only; updates are not allowed")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError("ConsentEvent is append-only; deletes are not allowed")
 
 
 class AuditEvent(models.Model):
@@ -71,3 +79,11 @@ class AuditEvent(models.Model):
 
     def __str__(self):
         return f"{self.action} by {self.actor} @ {self.created_at:%Y-%m-%d %H:%M}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise RuntimeError("AuditEvent is append-only; updates are not allowed")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError("AuditEvent is append-only; deletes are not allowed")

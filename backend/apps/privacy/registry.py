@@ -20,6 +20,7 @@ class Category(str, Enum):
 class Retention(str, Enum):
     CONTACT = "contact"          # purge soon after the event's useful life
     CONTENT = "content"
+    BEHAVIORAL = "behavioral"    # tracking/analytics rows — purge with the event
     FINANCIAL = "financial"      # keep for tax/accounting — pseudonymize, never hard-delete
     OPERATIONAL = "operational"  # account-level, tied to the account's life
 

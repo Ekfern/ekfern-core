@@ -8,7 +8,11 @@ from .models import ConsentEvent, AuditEvent
 
 def record_consent(subject_type, subject_id, purpose, basis, *,
                    policy_version="", source="", event=None):
-    """Append one consent record. Never updates an existing row."""
+    """Append one consent record. Never updates an existing row.
+
+    ``event`` may be an Event instance or None; only its id is stored (the
+    ledger keeps a plain integer, not a FK, so Event deletion can't mutate it).
+    """
     return ConsentEvent.objects.create(
         subject_type=subject_type,
         subject_id=subject_id,
@@ -16,12 +20,15 @@ def record_consent(subject_type, subject_id, purpose, basis, *,
         basis=basis,
         policy_version=policy_version,
         source=source,
-        event=event,
+        event_id=event.id if event is not None else None,
     )
 
 
-def audit(actor, action, *, target=None, subject_ref="", ip=None, **metadata):
-    """Append one audit record for a sensitive action."""
+def audit(actor, action, *, target=None, subject_ref="", ip=None, metadata=None):
+    """Append one audit record for a sensitive action.
+
+    ``metadata`` is stored flat in ``AuditEvent.metadata`` (not double-nested).
+    """
     return AuditEvent.objects.create(
         actor=str(actor),
         action=action,
@@ -29,5 +36,5 @@ def audit(actor, action, *, target=None, subject_ref="", ip=None, **metadata):
         target_id=str(getattr(target, "id", "")) if target is not None else "",
         subject_ref=subject_ref,
         ip=ip,
-        metadata=metadata,
+        metadata=metadata or {},
     )

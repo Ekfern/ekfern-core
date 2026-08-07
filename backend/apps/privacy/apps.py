@@ -10,3 +10,11 @@ class PrivacyConfig(AppConfig):
         # Populate the PII registry once all app models are loaded.
         from .pii import load_registry
         load_registry()
+
+        # Validate the registry's declared field paths at `manage.py check`
+        # time, so a field rename fails the boot check instead of throwing at
+        # export/erase time in production.
+        from django.core.checks import register
+        from .checks import check_pii_registry, check_unregistered_pii
+        register(check_pii_registry)
+        register(check_unregistered_pii)
