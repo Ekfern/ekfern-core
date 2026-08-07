@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
-import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Eye, EyeOff, Maximize2 } from 'lucide-react'
+import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Eye, EyeOff, Maximize2, Users, AlertTriangle } from 'lucide-react'
 import { extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import RichTextEditor from '@/components/invite/RichTextEditor'
@@ -34,6 +34,7 @@ interface SubEvent {
   background_color?: string | null
   rsvp_enabled: boolean
   is_public_visible: boolean
+  assigned_guests_count?: number | null
 }
 
 export default function SubEventsPage() {
@@ -588,7 +589,7 @@ export default function SubEventsPage() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-6">
+                    <div className="space-y-4">
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -598,15 +599,37 @@ export default function SubEventsPage() {
                         />
                         <span className="text-sm text-gray-700">RSVP Enabled</span>
                       </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.is_public_visible}
-                          onChange={(e) => setFormData({ ...formData, is_public_visible: e.target.checked })}
-                          className="w-4 h-4 text-eco-green border-gray-300 rounded focus:ring-eco-green"
-                        />
-                        <span className="text-sm text-gray-700">Publicly Visible</span>
-                      </label>
+                      <div>
+                        <span className="block text-sm font-medium text-gray-700 mb-1.5">Who can see this sub-event?</span>
+                        <div className="space-y-2">
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="subevent-visibility-a"
+                              checked={formData.is_public_visible}
+                              onChange={() => setFormData({ ...formData, is_public_visible: true })}
+                              className="mt-1 text-eco-green focus:ring-eco-green"
+                            />
+                            <span className="text-sm text-gray-700">
+                              <span className="font-medium">Everyone with the invite link</span>
+                              <span className="block text-xs text-gray-500">Shown to anyone who opens the invite.</span>
+                            </span>
+                          </label>
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="subevent-visibility-a"
+                              checked={!formData.is_public_visible}
+                              onChange={() => setFormData({ ...formData, is_public_visible: false })}
+                              className="mt-1 text-eco-green focus:ring-eco-green"
+                            />
+                            <span className="text-sm text-gray-700">
+                              <span className="font-medium">Only guests I assign</span>
+                              <span className="block text-xs text-gray-500">Hidden from everyone else — assign guests on the Guests page so they can see it.</span>
+                            </span>
+                          </label>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex justify-end gap-2 mt-6">
@@ -797,7 +820,7 @@ export default function SubEventsPage() {
                         </div>
                       )
                     })()}
-                    <div className="flex gap-2 pt-2 border-t">
+                    <div className="flex flex-wrap gap-2 pt-2 border-t">
                       <span className={`text-xs px-2 py-1 rounded ${
                         subEvent.rsvp_enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
                       }`}>
@@ -809,7 +832,33 @@ export default function SubEventsPage() {
                         {subEvent.is_public_visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                         {subEvent.is_public_visible ? 'Public' : 'Private'}
                       </span>
+                      {/* Private sub-events depend on guest assignment — surface it so a
+                          private sub-event with nobody assigned (visible to no one) is obvious. */}
+                      {!subEvent.is_public_visible && typeof subEvent.assigned_guests_count === 'number' && (
+                        subEvent.assigned_guests_count > 0 ? (
+                          <span className="text-xs px-2 py-1 rounded flex items-center gap-1 bg-gray-100 text-gray-600">
+                            <Users className="w-3 h-3" />
+                            {subEvent.assigned_guests_count} guest{subEvent.assigned_guests_count === 1 ? '' : 's'} assigned
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-1 rounded flex items-center gap-1 bg-amber-100 text-amber-800">
+                            <AlertTriangle className="w-3 h-3" />
+                            No one can see this yet
+                          </span>
+                        )
+                      )}
                     </div>
+                    {!subEvent.is_public_visible && subEvent.assigned_guests_count === 0 && (
+                      <p className="text-xs text-amber-700 mt-2">
+                        Private sub-events are only shown to guests you assign.{' '}
+                        <a
+                          href={`/host/events/${eventId}/guests`}
+                          className="font-medium underline hover:no-underline"
+                        >
+                          Assign guests →
+                        </a>
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1051,7 +1100,7 @@ export default function SubEventsPage() {
                     </div>
                   )}
 
-                  <div className="flex gap-4">
+                  <div className="space-y-4">
                     <label className="flex items-center">
                       <input
                         type="checkbox"
@@ -1061,15 +1110,37 @@ export default function SubEventsPage() {
                       />
                       <span className="text-sm text-gray-700">RSVP Enabled</span>
                     </label>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_public_visible}
-                        onChange={(e) => setFormData({ ...formData, is_public_visible: e.target.checked })}
-                        className="mr-2"
-                      />
-                      <span className="text-sm text-gray-700">Publicly Visible</span>
-                    </label>
+                    <div>
+                      <span className="block text-sm font-medium text-gray-700 mb-1.5">Who can see this sub-event?</span>
+                      <div className="space-y-2">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="subevent-visibility-b"
+                            checked={formData.is_public_visible}
+                            onChange={() => setFormData({ ...formData, is_public_visible: true })}
+                            className="mt-1 text-eco-green focus:ring-eco-green"
+                          />
+                          <span className="text-sm text-gray-700">
+                            <span className="font-medium">Everyone with the invite link</span>
+                            <span className="block text-xs text-gray-500">Shown to anyone who opens the invite.</span>
+                          </span>
+                        </label>
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="subevent-visibility-b"
+                            checked={!formData.is_public_visible}
+                            onChange={() => setFormData({ ...formData, is_public_visible: false })}
+                            className="mt-1 text-eco-green focus:ring-eco-green"
+                          />
+                          <span className="text-sm text-gray-700">
+                            <span className="font-medium">Only guests I assign</span>
+                            <span className="block text-xs text-gray-500">Hidden from everyone else — assign guests on the Guests page so they can see it.</span>
+                          </span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex gap-3 pt-4">
