@@ -96,11 +96,13 @@ export default function SubEventsSetupPage() {
     }
   }
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Persists whatever is currently in the form as a new sub-event.
+  // Returns true only if the save succeeded, so callers can decide whether to
+  // proceed (e.g. navigating to the next step).
+  const savePendingForm = async (refreshAfter = true): Promise<boolean> => {
     if (!form.title.trim() || !form.start_at) {
       showToast('A name and start time are required for each sub-event.', 'error')
-      return
+      return false
     }
     setSaving(true)
     try {
@@ -113,13 +115,21 @@ export default function SubEventsSetupPage() {
       await api.post(`/api/events/envelopes/${eventId}/sub-events/`, payload)
       showToast('Sub-event added', 'success')
       setForm(EMPTY_FORM)
-      await refreshSubEvents()
+      // Skip the list refetch when the caller is about to navigate away.
+      if (refreshAfter) await refreshSubEvents()
+      return true
     } catch (error: any) {
       logError('Failed to add sub-event:', error)
       showToast(getErrorMessage(error), 'error')
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await savePendingForm()
   }
 
   const handleDelete = async (subEventId: number) => {
@@ -150,7 +160,27 @@ export default function SubEventsSetupPage() {
     }
   }
 
-  const goToLayout = () => router.push(`/host/events/${eventId}/layout`)
+  // The form represents a sub-event the host has started typing but not yet added.
+  const formHasContent =
+    form.title.trim() !== '' || form.start_at !== '' || form.end_at !== '' || form.location.trim() !== ''
+  const formIsComplete = form.title.trim() !== '' && form.start_at !== ''
+
+  // Continuing should save any in-progress sub-event, so the last (or only) one
+  // doesn't get silently lost when the host skips the "+ Add sub-event" button.
+  const handleNext = async () => {
+    if (formHasContent) {
+      if (!formIsComplete) {
+        showToast(
+          'Finish the sub-event you started (a name and start time are required) or clear those fields before continuing.',
+          'error',
+        )
+        return
+      }
+      const saved = await savePendingForm(false)
+      if (!saved) return
+    }
+    router.push(`/host/events/${eventId}/layout`)
+  }
 
   if (loading) {
     return (
@@ -282,14 +312,14 @@ export default function SubEventsSetupPage() {
           </Button>
           <Button
             type="button"
-            onClick={goToLayout}
-            disabled={subEvents.length === 0}
+            onClick={handleNext}
+            disabled={saving || (subEvents.length === 0 && !formHasContent)}
             className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
           >
-            Next: Choose Layout
+            {saving ? 'Saving…' : 'Next: Choose Layout'}
           </Button>
         </div>
-        {subEvents.length === 0 && (
+        {subEvents.length === 0 && !formHasContent && (
           <p className="text-xs text-center text-gray-500 mt-2">
             Add at least one sub-event to continue.
           </p>
