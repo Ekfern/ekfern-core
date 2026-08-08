@@ -2585,6 +2585,12 @@ def _notify_host_rsvp(event, rsvp):
     Notify the event host of a new/updated RSVP, respecting their notification preferences.
     Also sends a confirmation email to the guest if they provided an email address.
     """
+    # Record the guest's consent to have their data processed for this event.
+    # This is the single post-persist hook every RSVP success path calls, so it
+    # covers all RSVP modes without touching each return. Self-guarding.
+    from apps.privacy.helpers import record_rsvp_consent
+    record_rsvp_consent(event, getattr(rsvp, 'guest_id', None))
+
     # --- Guest confirmation (always sent if email provided) ---
     if rsvp.email:
         guest_name = rsvp.name or 'Guest'
