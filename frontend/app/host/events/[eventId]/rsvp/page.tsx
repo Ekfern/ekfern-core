@@ -10,7 +10,10 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import type { InviteConfig, RsvpFormConfig } from '@/lib/invite/schema'
+
 import RsvpFormEditor from '@/components/rsvp/RsvpFormEditor'
+import CustomFieldsModal from "@/components/custom-fields/CustomFieldsModal";
+
 
 interface Event {
   id: number
@@ -40,6 +43,7 @@ export default function HostRsvpSettingsPage() {
   const router = useRouter()
   const { showToast } = useToast()
 
+
   const eventId = params.eventId ? parseInt(params.eventId as string) : 0
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -54,6 +58,7 @@ export default function HostRsvpSettingsPage() {
   const [requireSubEventSelection, setRequireSubEventSelection] = useState(false)
   const [capacitySectionOpen, setCapacitySectionOpen] = useState(false)
   const [saveError, setSaveError] = useState<string>('')
+  const [showCustomFieldsModal, setShowCustomFieldsModal] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -76,7 +81,7 @@ export default function HostRsvpSettingsPage() {
         setRequireSubEventSelection(Boolean(e.rsvp_require_sub_event_selection))
         setCapacitySectionOpen(
           (e.rsvp_total_capacity != null && e.rsvp_total_capacity > 0) ||
-            Boolean(e.rsvp_block_on_full_capacity),
+          Boolean(e.rsvp_block_on_full_capacity),
         )
 
         const pc: InviteConfig | null = (e.page_config as any) || null
@@ -371,11 +376,10 @@ export default function HostRsvpSettingsPage() {
             )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label
-                className={`rounded-md border p-3 ${
-                  modeSwitchLocked && persistedMode !== 'standard'
-                    ? 'cursor-not-allowed opacity-60'
-                    : 'cursor-pointer'
-                } ${activeMode === 'standard' ? 'border-eco-green bg-eco-green-light/40' : ''}`}
+                className={`rounded-md border p-3 ${modeSwitchLocked && persistedMode !== 'standard'
+                  ? 'cursor-not-allowed opacity-60'
+                  : 'cursor-pointer'
+                  } ${activeMode === 'standard' ? 'border-eco-green bg-eco-green-light/40' : ''}`}
               >
                 <div className="flex items-center gap-2">
                   <input
@@ -391,11 +395,10 @@ export default function HostRsvpSettingsPage() {
                 <p className="mt-1 text-[11px] font-medium text-gray-700">{activeMode === 'standard' ? 'Selected' : 'Not selected'}</p>
               </label>
               <label
-                className={`rounded-md border p-3 ${
-                  modeSwitchLocked && persistedMode !== 'sub_event'
-                    ? 'cursor-not-allowed opacity-60'
-                    : 'cursor-pointer'
-                } ${activeMode === 'sub_event' ? 'border-eco-green bg-eco-green-light/40' : ''}`}
+                className={`rounded-md border p-3 ${modeSwitchLocked && persistedMode !== 'sub_event'
+                  ? 'cursor-not-allowed opacity-60'
+                  : 'cursor-pointer'
+                  } ${activeMode === 'sub_event' ? 'border-eco-green bg-eco-green-light/40' : ''}`}
               >
                 <div className="flex items-center gap-2">
                   <input
@@ -411,11 +414,10 @@ export default function HostRsvpSettingsPage() {
                 <p className="mt-1 text-[11px] font-medium text-gray-700">{activeMode === 'sub_event' ? 'Selected' : 'Not selected'}</p>
               </label>
               <label
-                className={`rounded-md border p-3 ${
-                  modeSwitchLocked && persistedMode !== 'slot_based'
-                    ? 'cursor-not-allowed opacity-60'
-                    : 'cursor-pointer'
-                } ${activeMode === 'slot_based' ? 'border-eco-green bg-eco-green-light/40' : ''}`}
+                className={`rounded-md border p-3 ${modeSwitchLocked && persistedMode !== 'slot_based'
+                  ? 'cursor-not-allowed opacity-60'
+                  : 'cursor-pointer'
+                  } ${activeMode === 'slot_based' ? 'border-eco-green bg-eco-green-light/40' : ''}`}
               >
                 <div className="flex items-center gap-2">
                   <input
@@ -431,11 +433,10 @@ export default function HostRsvpSettingsPage() {
                 <p className="mt-1 text-[11px] font-medium text-gray-700">{activeMode === 'slot_based' ? 'Selected' : 'Not selected'}</p>
               </label>
               <label
-                className={`rounded-md border p-3 ${
-                  modeSwitchLocked && persistedMode !== 'auto_confirm'
-                    ? 'cursor-not-allowed opacity-60'
-                    : 'cursor-pointer'
-                } ${activeMode === 'auto_confirm' ? 'border-eco-green bg-eco-green-light/40' : ''}`}
+                className={`rounded-md border p-3 ${modeSwitchLocked && persistedMode !== 'auto_confirm'
+                  ? 'cursor-not-allowed opacity-60'
+                  : 'cursor-pointer'
+                  } ${activeMode === 'auto_confirm' ? 'border-eco-green bg-eco-green-light/40' : ''}`}
               >
                 <div className="flex items-center gap-2">
                   <input
@@ -613,9 +614,8 @@ export default function HostRsvpSettingsPage() {
                     />
                   </div>
                   <label
-                    className={`flex items-start gap-2 pb-2 text-sm ${
-                      rsvpTotalCapacity.trim() ? 'cursor-pointer text-gray-700' : 'cursor-not-allowed text-gray-400'
-                    }`}
+                    className={`flex items-start gap-2 pb-2 text-sm ${rsvpTotalCapacity.trim() ? 'cursor-pointer text-gray-700' : 'cursor-not-allowed text-gray-400'
+                      }`}
                   >
                     <input
                       type="checkbox"
@@ -642,9 +642,27 @@ export default function HostRsvpSettingsPage() {
               onChange={setRsvpForm}
               customFieldsMetadata={metadata}
               activeMode={activeMode}
+              onCustomFields={() => setShowCustomFieldsModal(true)}
             />
           </CardContent>
         </Card>
+        <CustomFieldsModal
+          eventId={eventId}
+          open={showCustomFieldsModal}
+          title="Additional Questions"
+          description="Create and manage reusable custom fields for your RSVP form."
+          onClose={() => setShowCustomFieldsModal(false)}
+          onUpdated={(metadata) => {
+            setEvent((prev) =>
+              prev
+                ? {
+                  ...prev,
+                  custom_fields_metadata: metadata,
+                }
+                : prev
+            )
+          }}
+        />
       </div>
     </div>
   )
