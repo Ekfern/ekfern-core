@@ -284,7 +284,10 @@ def erase_subject(*, phone=None, email=None, hard=False, actor="system", reason=
     matched = sum(qs.count() for qs in collected.values())
     # Resolve affected public pages BEFORE mutating (hard-deleted rows vanish).
     affected_slugs = _affected_event_slugs(collected)
-    retention_days = getattr(settings, "BACKUP_RETENTION_DAYS", 35)
+    # Retention window is admin-configurable (DB singleton), falling back to the
+    # BACKUP_RETENTION_DAYS setting and then 35.
+    from .models import PrivacySettings
+    retention_days = PrivacySettings.backup_retention()
     backup_clear_at = (timezone.now() + timedelta(days=retention_days)).isoformat()
 
     # Pre-audit BEFORE mutating: a crash part-way through still leaves a record.

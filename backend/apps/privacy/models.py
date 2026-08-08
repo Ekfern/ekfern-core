@@ -87,3 +87,67 @@ class AuditEvent(models.Model):
 
     def delete(self, *args, **kwargs):
         raise RuntimeError("AuditEvent is append-only; deletes are not allowed")
+
+
+class PrivacySettings(models.Model):
+    """Singleton (pk=1) — operationally-tunable privacy knobs edited by
+    super-admins in Django admin. Unlike the ledgers above this is mutable
+    config, not an append-only record. When no row exists, ``get_config``
+    falls back to ``django.conf.settings`` (environment), matching the
+    WhatsAppSettings / LLMPlatformSettings pattern used elsewhere.
+    """
+
+    backup_retention_days = models.PositiveIntegerField(
+        default=35,
+        help_text=(
+            "Point-in-time backup / read-replica retention window, in days. "
+            "Erasure clears the primary DB and CDN immediately, but backups keep "
+            "the pre-erase copy until this many days pass — so this is the TRUE "
+            "erasure SLA reported to data subjects. MUST match the actual "
+            "RDS/PITR retention configured in infrastructure."
+        ),
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        "users.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        db_table = "privacy_settings"
+        verbose_name = "Privacy Settings"
+        verbose_name_plural = "Privacy Settings"
+
+    def __str__(self):
+        return f"Privacy Settings (backup retention {self.backup_retention_days}d)"
+
+    def save(self, *args, **kwargs):
+        from django.core.cache import cache
+        self.pk = 1  # Singleton — always pk=1
+        super().save(*args, **kwargs)
+        cache.delete("privacy_settings")
+
+    @classmethod
+    def get_config(cls) -> dict:
+        """Cached config dict from DB, or settings fallback. Never raises."""
+        from django.conf import settings as dj_settings
+        from django.core.cache import cache
+
+        cached = cache.get("privacy_settings")
+        if cached is not None:
+            return cached
+        try:
+            obj = cls.objects.get(pk=1)
+            config = {"backup_retention_days": int(obj.backup_retention_days)}
+        except cls.DoesNotExist:
+            config = {
+                "backup_retention_days": int(
+                    getattr(dj_settings, "BACKUP_RETENTION_DAYS", 35)
+                )
+            }
+        cache.set("privacy_settings", config, 60)
+        return config
+
+    @classmethod
+    def backup_retention(cls) -> int:
+        """Effective backup-retention window in days (DB → settings → 35)."""
+        return cls.get_config()["backup_retention_days"]
