@@ -38,3 +38,44 @@ def audit(actor, action, *, target=None, subject_ref="", ip=None, metadata=None)
         ip=ip,
         metadata=metadata or {},
     )
+
+
+# --- Touch-point wiring -----------------------------------------------------
+# Thin, self-guarding wrappers the real flows (signup / login / RSVP) call so a
+# ledger write can never break the user-facing action. Each swallows its own
+# errors: an audit/consent failure must not fail a login or an RSVP.
+
+def record_signup_consent(user, *, source="signup", policy_version=""):
+    """A host agreed to Terms + Privacy when they created their account."""
+    try:
+        for purpose in (ConsentEvent.Purpose.TERMS, ConsentEvent.Purpose.PRIVACY):
+            record_consent(
+                "host", user.id, purpose, ConsentEvent.Basis.CONSENT,
+                policy_version=policy_version, source=source,
+            )
+    except Exception:
+        pass
+
+
+def record_login(user, *, ip=None):
+    """A successful authentication. subject_ref is the internal user id (never
+    the raw email), so the ledger holds no PII."""
+    try:
+        audit(f"user:{user.id}", AuditEvent.Action.LOGIN,
+              subject_ref=f"user:{user.id}", ip=ip)
+    except Exception:
+        pass
+
+
+def record_rsvp_consent(event, guest_id, *, source="rsvp_submit"):
+    """A guest submitted an RSVP, consenting to their data being processed to
+    run the event. Keyed to the Guest row; a no-op if there is no guest id."""
+    if not guest_id:
+        return
+    try:
+        record_consent(
+            "guest", guest_id, ConsentEvent.Purpose.EVENT_PROCESSING,
+            ConsentEvent.Basis.CONSENT, source=source, event=event,
+        )
+    except Exception:
+        pass
