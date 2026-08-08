@@ -90,8 +90,12 @@ class Command(BaseCommand):
                 actor=actor, reason=reason,
             )
             self.stdout.write("privacy erase summary")
-            self.stdout.write(f"  mode:    {'hard' if opts['hard'] else 'anonymize'}")
-            self.stdout.write(f"  actor:   {actor}")
-            self.stdout.write(f"  reason:  {reason}")
-            self.stdout.write(f"  time:    {timestamp}")
+            self.stdout.write(f"  mode:         {'hard' if opts['hard'] else 'anonymize'}")
+            self.stdout.write(f"  actor:        {actor}")
+            self.stdout.write(f"  reason:       {reason}")
+            self.stdout.write(f"  time:         {timestamp}")
+            self.stdout.write(f"  matched:      {result.get('_matched')}")
+            self.stdout.write(f"  caches busted:{result.get('_caches_invalidated')}")
+            # The DB + cache are cleared now; backups/replicas clear by this date.
+            self.stdout.write(f"  fully erased by (backups clear): {result.get('_backup_clear_at')}")
             self.stdout.write(json.dumps(result, indent=2, default=str))

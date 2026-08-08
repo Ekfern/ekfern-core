@@ -17,10 +17,12 @@ Data-subject and tenant operations, driven entirely by the PII registry:
 ``pseudonymize_instance``.
 """
 import hashlib
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models as dj_models
 from django.db import transaction
+from django.utils import timezone
 
 from .registry import REGISTRY, Retention, Scrub
 from .helpers import audit
@@ -167,6 +169,49 @@ def collect_for_subject(*, phone=None, email=None):
     return out
 
 
+def _affected_event_slugs(collected) -> set:
+    """Event slugs whose PUBLIC invite page could still be serving data about
+    this subject (e.g. a public contributor/guest name). Gathered BEFORE any
+    mutation so hard-deleted rows still resolve. Per-guest tokened views bypass
+    the cache, so the only cached surface at risk is the event-level page — we
+    therefore only look at models with a direct ``event`` FK."""
+    from apps.events.models import Event
+    slugs = set()
+    for model, qs in collected.items():
+        try:
+            field = model._meta.get_field("event")
+        except Exception:
+            continue
+        if not getattr(field, "is_relation", False) or field.related_model is not Event:
+            continue
+        slugs |= set(
+            qs.exclude(event__isnull=True).values_list("event__slug", flat=True)
+        )
+    return {s for s in slugs if s}
+
+
+def _invalidate_caches(slugs) -> list:
+    """Bust the Django cache + CloudFront edge for each affected event's invite
+    page. Cache invalidation must never break an erasure — the DB write is the
+    source of truth and a stale edge entry expires on its own TTL — so every
+    call is guarded. Returns the slugs actually invalidated."""
+    if not slugs:
+        return []
+    from apps.events.views import (
+        invalidate_invite_page_cache,
+        invalidate_cloudfront_cache_immediate,
+    )
+    done = []
+    for slug in slugs:
+        try:
+            invalidate_invite_page_cache(slug)
+            invalidate_cloudfront_cache_immediate(slug)
+            done.append(slug)
+        except Exception:
+            pass
+    return done
+
+
 def collect_for_owner(host):
     """{Model: queryset} of every record a host OWNS (they're the controller)."""
     out = {}
@@ -226,10 +271,21 @@ def erase_subject(*, phone=None, email=None, hard=False, actor="system", reason=
     records: a 'start' audit written BEFORE any change (so a mid-loop crash
     still leaves a trace) and a 'complete' audit after. ``_matched`` reports the
     total rows found so a caller can detect a zero-match (typo'd) request. The
-    ledger stores only a pseudonym of the identifier, never raw PII."""
+    ledger stores only a pseudonym of the identifier, never raw PII.
+
+    Erasure clears the primary DB immediately AND busts the CDN/app cache of any
+    affected public invite page. It CANNOT reach point-in-time backups and read
+    replicas — those retain the pre-erase copy until the backup-retention window
+    (``settings.BACKUP_RETENTION_DAYS``) elapses. ``_backup_clear_at`` records
+    the date after which no copy survives; that date is the true erasure SLA to
+    state in the privacy policy."""
     subject_ref = _pseudonym(phone or email or "")
     collected = collect_for_subject(phone=phone, email=email)
     matched = sum(qs.count() for qs in collected.values())
+    # Resolve affected public pages BEFORE mutating (hard-deleted rows vanish).
+    affected_slugs = _affected_event_slugs(collected)
+    retention_days = getattr(settings, "BACKUP_RETENTION_DAYS", 35)
+    backup_clear_at = (timezone.now() + timedelta(days=retention_days)).isoformat()
 
     # Pre-audit BEFORE mutating: a crash part-way through still leaves a record.
     audit(
@@ -258,12 +314,25 @@ def erase_subject(*, phone=None, email=None, hard=False, actor="system", reason=
                 "count": count,
                 "mode": "deleted" if will_delete else "pseudonymized",
             }
+    # After the DB commit, bust the cache/CDN for affected public pages so PII
+    # doesn't linger at the edge. Best-effort; never rolls back the erase.
+    invalidated = _invalidate_caches(affected_slugs)
+
     result["_matched"] = matched
+    result["_backup_clear_at"] = backup_clear_at
+    result["_caches_invalidated"] = invalidated
 
     audit(
         actor,
         "erase",
         subject_ref=subject_ref,
-        metadata={"phase": "complete", "hard": hard, "reason": reason, "result": result},
+        metadata={
+            "phase": "complete",
+            "hard": hard,
+            "reason": reason,
+            "backup_clear_at": backup_clear_at,
+            "caches_invalidated": invalidated,
+            "result": result,
+        },
     )
     return result

@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -185,3 +186,39 @@ class AttributionTests(TestCase):
         for a in erase_audits:
             self.assertNotIn("+910000000050", a.subject_ref)
             self.assertTrue(a.subject_ref.startswith("anon_"))
+
+
+class BackupAndCacheTests(TestCase):
+    """Finding #17: erasure must bust the CDN/app cache of affected public
+    pages and record the backup-clearance horizon (the true erasure SLA)."""
+
+    def test_affected_event_slugs_from_guest(self):
+        from apps.privacy.services import _affected_event_slugs
+        g = _make_guest(phone="+910000000060")
+        collected = collect_for_subject(phone="+910000000060")
+        self.assertIn(g.event.slug, _affected_event_slugs(collected))
+
+    def test_erase_invalidates_cache_and_reports_backup_sla(self):
+        g = _make_guest(phone="+910000000061")
+        slug = g.event.slug
+        with patch("apps.events.views.invalidate_invite_page_cache") as inv, \
+             patch("apps.events.views.invalidate_cloudfront_cache_immediate") as cf:
+            result = erase_subject(phone="+910000000061", actor="ops", reason="T-1")
+        # Affected public page busted in both Django cache and CloudFront.
+        inv.assert_any_call(slug)
+        cf.assert_any_call(slug)
+        self.assertIn(slug, result["_caches_invalidated"])
+        # Backup-clearance horizon is a real future timestamp.
+        clear_at = datetime.fromisoformat(result["_backup_clear_at"])
+        self.assertGreater(clear_at, datetime.now(clear_at.tzinfo))
+
+    def test_cache_failure_never_breaks_erase(self):
+        _make_guest(phone="+910000000062")
+        with patch("apps.events.views.invalidate_invite_page_cache",
+                   side_effect=RuntimeError("edge down")), \
+             patch("apps.events.views.invalidate_cloudfront_cache_immediate"):
+            # Must still complete and pseudonymize the row despite cache errors.
+            result = erase_subject(phone="+910000000062", actor="ops", reason="T-2")
+        self.assertEqual(result["_caches_invalidated"], [])
+        from apps.events.models import Guest
+        self.assertFalse(Guest.objects.filter(phone="+910000000062").exists())

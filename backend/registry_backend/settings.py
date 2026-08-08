@@ -172,6 +172,13 @@ AUTH_USER_MODEL = 'users.User'
 # multi-region a routing change rather than a schema migration.
 DEFAULT_DATA_REGION = os.environ.get('DATA_REGION', 'in')
 
+# Backup/PITR retention window (days). Erasure clears the primary DB and the
+# CDN/app cache immediately, but point-in-time backups and read replicas retain
+# the pre-erase copy until this window elapses. This value is the TRUE erasure
+# SLA to publish in the privacy policy; keep it in sync with the actual RDS/PITR
+# retention configured in infrastructure.
+BACKUP_RETENTION_DAYS = int(os.environ.get('BACKUP_RETENTION_DAYS', '35'))
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
