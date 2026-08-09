@@ -66,6 +66,7 @@ export default function SubEventsPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false)
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set())
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set())
 
   const eventTimezone = event?.timezone || 'Asia/Kolkata'
 
@@ -132,39 +133,6 @@ export default function SubEventsPage() {
           minute: Number(get('minute')),
         }
       }
-      const handleVisibilityToggle = async (subEvent: SubEvent) => {
-        const updatedVisibility = !subEvent.is_public_visible;
-
-        const payload = {
-          ...subEvent,
-          is_public_visible: updatedVisibility,
-          description: subEvent.description || null,
-          image_url: subEvent.image_url || null,
-          background_color: subEvent.background_color || null,
-        };
-
-        try {
-          await api.put(`/api/events/sub-events/${subEvent.id}/`, payload);
-
-          setSubEvents((prev) =>
-            prev.map((item) =>
-              item.id === subEvent.id
-                ? { ...item, is_public_visible: updatedVisibility }
-                : item
-            )
-          );
-
-          showToast(
-            updatedVisibility
-              ? "Sub-event is now Public."
-              : "Sub-event is now Private.",
-            "success"
-          );
-        } catch (error: any) {
-          logError("Failed to update event visibility:", error);
-          showToast(getErrorMessage(error), "error");
-        }
-      };
       const desiredMs = Date.UTC(y, mo - 1, d, h, min, 0)
       for (let i = 0; i < 2; i++) {
         const tzp = getTzParts(utc)
@@ -216,28 +184,58 @@ export default function SubEventsPage() {
       setLoading(false)
     }
   }
-  const handleVisibilityToggle = async (subEvent: SubEvent) => {
-    const updatedVisibility = !subEvent.is_public_visible;
+  // Toggles PATCH a single field so they can't clobber a concurrent edit to the
+  // rest of the sub-event -- a full-object PUT rewrote title/start_at/description
+  // from whatever stale snapshot the list happened to hold. State updates
+  // optimistically and rolls back on failure; `togglingIds` blocks a second click
+  // while the first is in flight, since both handlers derive the next value from
+  // the current row.
+  const patchSubEvent = async (
+    subEvent: SubEvent,
+    patch: Partial<SubEvent>,
+    successMessage: string,
+  ) => {
+    if (togglingIds.has(subEvent.id)) return
 
-    const payload = {
-      ...subEvent,
-      is_public_visible: updatedVisibility,
-      description: subEvent.description || null,
-      image_url: subEvent.image_url || null,
-      background_color: subEvent.background_color || null,
-    };
+    setTogglingIds(prev => new Set(prev).add(subEvent.id))
+    const previous = subEvents
+    setSubEvents(prev => prev.map(item => (item.id === subEvent.id ? { ...item, ...patch } : item)))
 
     try {
-      await api.put(`/api/events/sub-events/${subEvent.id}/`, payload);
-
-      showToast("Event visibility updated successfully", "success");
-
-      fetchSubEvents();
+      await api.patch(`/api/events/sub-events/${subEvent.id}/`, patch)
+      showToast(successMessage, 'success')
     } catch (error: any) {
-      logError("Failed to update event visibility:", error);
-      showToast(getErrorMessage(error), "error");
+      setSubEvents(previous)
+      logError('Failed to update sub-event:', error)
+      showToast(getErrorMessage(error), 'error')
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev)
+        next.delete(subEvent.id)
+        return next
+      })
     }
-  };
+  }
+
+  const handleVisibilityToggle = async (subEvent: SubEvent) => {
+    const nextVisible = !subEvent.is_public_visible
+
+    // Only confirm the direction that exposes data: making a sub-event public
+    // puts it on the tokenless invite link for anyone who opens it.
+    if (nextVisible) {
+      const confirmed = confirm(
+        `Make "${subEvent.title}" visible to anyone with the invite link? ` +
+        `Guests you haven't assigned will be able to see it.`
+      )
+      if (!confirmed) return
+    }
+
+    await patchSubEvent(
+      subEvent,
+      { is_public_visible: nextVisible },
+      nextVisible ? 'Sub-event is now Public.' : 'Sub-event is now Private.',
+    )
+  }
 
   const handleCreate = (e?: React.MouseEvent) => {
     setEditingSubEvent(null)
@@ -286,32 +284,13 @@ export default function SubEventsPage() {
     }
   }
   const handleRsvpToggle = async (subEvent: SubEvent) => {
-    const updatedRsvp = !subEvent.rsvp_enabled;
-
-    const payload = {
-      ...subEvent,
-      rsvp_enabled: updatedRsvp,
-      description: subEvent.description || null,
-      image_url: subEvent.image_url || null,
-      background_color: subEvent.background_color || null,
-    };
-
-    try {
-      await api.put(`/api/events/sub-events/${subEvent.id}/`, payload);
-
-      showToast(
-        updatedRsvp
-          ? "RSVP enabled successfully"
-          : "RSVP disabled successfully",
-        "success"
-      );
-
-      fetchSubEvents();
-    } catch (error: any) {
-      logError("Failed to update RSVP:", error);
-      showToast(getErrorMessage(error), "error");
-    }
-  };
+    const nextEnabled = !subEvent.rsvp_enabled
+    await patchSubEvent(
+      subEvent,
+      { rsvp_enabled: nextEnabled },
+      nextEnabled ? 'RSVP enabled successfully' : 'RSVP disabled successfully',
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -915,8 +894,12 @@ export default function SubEventsPage() {
 
                         <button
                           type="button"
+                          role="switch"
+                          aria-checked={subEvent.rsvp_enabled}
+                          aria-label={`RSVP for ${subEvent.title}`}
+                          disabled={togglingIds.has(subEvent.id)}
                           onClick={() => handleRsvpToggle(subEvent)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${subEvent.rsvp_enabled ? "bg-eco-green" : "bg-gray-300"
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${subEvent.rsvp_enabled ? "bg-eco-green" : "bg-gray-300"
                             }`}
                         >
                           <span
@@ -934,8 +917,12 @@ export default function SubEventsPage() {
 
                         <button
                           type="button"
+                          role="switch"
+                          aria-checked={subEvent.is_public_visible}
+                          aria-label={`Public visibility for ${subEvent.title}`}
+                          disabled={togglingIds.has(subEvent.id)}
                           onClick={() => handleVisibilityToggle(subEvent)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${subEvent.is_public_visible ? "bg-eco-green" : "bg-gray-300"
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${subEvent.is_public_visible ? "bg-eco-green" : "bg-gray-300"
                             }`}
                         >
                           <span
