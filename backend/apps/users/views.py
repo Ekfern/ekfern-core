@@ -18,8 +18,16 @@ from .serializers import (
 )
 from apps.notifications.models import NotificationLog
 from apps.common.email_backend import send_email
+from apps.privacy.helpers import record_signup_consent, record_login
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.decorators import throttle_classes
+
+
+def _client_ip(request):
+    """Best-effort client IP for audit records (first X-Forwarded-For hop)."""
+    fwd = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    ip = (fwd.split(',')[0].strip() if fwd else request.META.get('REMOTE_ADDR')) or None
+    return ip
 
 
 @api_view(['POST'])
@@ -49,6 +57,9 @@ def signup(request):
 
     # Create new user
     user = User.objects.create_user(email=email, name=name or email.split('@')[0])
+
+    # Record the host's consent to Terms + Privacy at account creation.
+    record_signup_consent(user)
 
     # Generate and send OTP
     return _send_otp(user)
@@ -249,7 +260,9 @@ def otp_verify(request):
     
     # Generate JWT tokens
     refresh = RefreshToken.for_user(user)
-    
+
+    record_login(user, ip=_client_ip(request))
+
     return Response({
         'access': str(refresh.access_token),
         'refresh': str(refresh),
@@ -339,7 +352,9 @@ def password_login(request):
     
     # Generate JWT tokens
     refresh = RefreshToken.for_user(user)
-    
+
+    record_login(user, ip=_client_ip(request))
+
     return Response({
         'access': str(refresh.access_token),
         'refresh': str(refresh),

@@ -15,6 +15,12 @@ load_dotenv(BASE_DIR / '.env')
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-change-me-in-production')
 
+# Dedicated secret for deriving privacy pseudonyms. In production set
+# PRIVACY_PEPPER to its own value (NOT derived from SECRET_KEY) so pseudonyms
+# survive SECRET_KEY rotation and aren't tied to session-signing material.
+# Falls back to SECRET_KEY only for local/dev convenience.
+PRIVACY_PEPPER = os.environ.get('PRIVACY_PEPPER', SECRET_KEY)
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
@@ -41,6 +47,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.events',
     'apps.catalog',
+    'apps.privacy',
     'apps.notifications',
     'apps.common',
 ]
@@ -160,6 +167,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
+# Data residency: the region an account's personal data is stored/processed in.
+# Single-region today; the per-record `data_region` column makes going
+# multi-region a routing change rather than a schema migration.
+DEFAULT_DATA_REGION = os.environ.get('DATA_REGION', 'in')
+
+# Backup/PITR retention window (days). Erasure clears the primary DB and the
+# CDN/app cache immediately, but point-in-time backups and read replicas retain
+# the pre-erase copy until this window elapses. This value is the TRUE erasure
+# SLA to publish in the privacy policy; keep it in sync with the actual RDS/PITR
+# retention configured in infrastructure.
+BACKUP_RETENTION_DAYS = int(os.environ.get('BACKUP_RETENTION_DAYS', '35'))
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -189,8 +208,13 @@ REST_FRAMEWORK = {
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    # Short-lived access token: it's the credential sent on every request and
+    # can't be revoked once issued, so keep the stolen/lingering-token window
+    # small. The frontend's 401->refresh interceptor renews it silently, so
+    # this is invisible to users.
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    # Refresh token controls how long before a user must actually log in again.
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
     'ROTATE_REFRESH_TOKENS': True,
 }
 

@@ -26,6 +26,7 @@ backend/media/
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 *.pem
 .env.local
 .env*.local

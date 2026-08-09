@@ -15,6 +15,7 @@ import type { EventDetailsTileSettings, InviteConfig, Tile } from '@/lib/invite/
 
 interface EventRecord extends EventDetailsFormData {
   id: number
+  event_structure?: 'SIMPLE' | 'ENVELOPE'
 }
 
 function normalizeListResponse(payload: unknown): Array<{ will_attend?: string }> {
@@ -88,15 +89,20 @@ export default function EventDetailsEditPage() {
   async function saveChanges(data: EventDetailsFormData): Promise<void> {
     setLoading(true)
     try {
-      await api.patch(`/api/events/${eventId}/`, data)
+      // is_multi_sub_event is a create-flow-only routing flag; not persisted here.
+      const { is_multi_sub_event, ...eventPayload } = data
+      await api.patch(`/api/events/${eventId}/`, eventPayload)
       if (data.date !== event?.date || data.city !== event?.city) {
         await resyncEventDetailsTile(data.date, data.city)
       }
       showToast('Event details updated.', 'success')
-      // This page has exactly one entry point app-wide: the wizard stepper's
-      // step-1 link. So saving should always continue the wizard, same as
-      // /host/events/new does — never dead-end the user at the dashboard.
-      router.push(`/host/events/${eventId}/layout`)
+      // Continue the wizard the same way the create flow does: a multi-sub-event
+      // event goes to the Sub-events step; a single event goes straight to Layout.
+      router.push(
+        is_multi_sub_event
+          ? `/host/events/${eventId}/sub-events-setup`
+          : `/host/events/${eventId}/layout`,
+      )
     } catch (err: unknown) {
       logError('EventDetailsEditPage: save failed', err)
       showToast(getErrorMessage(err), 'error')
@@ -134,7 +140,11 @@ export default function EventDetailsEditPage() {
 
   return (
     <div className="min-h-screen bg-eco-beige">
-      <WizardProgress currentStep={1} eventId={eventId} />
+      <WizardProgress
+        currentStep="details"
+        eventId={eventId}
+        includeSubEvents={event?.event_structure === 'ENVELOPE'}
+      />
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <h1 className="text-4xl font-bold mb-2 text-eco-green">Edit Event Details</h1>
         <p className="text-lg text-gray-700 mb-8">Update your event&apos;s basic details.</p>
@@ -145,11 +155,18 @@ export default function EventDetailsEditPage() {
           <CardContent>
             {event && (
               <EventDetailsForm
-                defaultValues={event}
+                defaultValues={{
+                  ...event,
+                  // Seed the fork from the event's current structure so a
+                  // multi-sub-event (ENVELOPE) event shows "multiple sub-events"
+                  // selected instead of defaulting to single.
+                  is_multi_sub_event: event.event_structure === 'ENVELOPE',
+                }}
                 onSubmit={handleSubmit}
                 submitLabel="Save changes"
                 loading={loading}
                 onCancel={() => router.back()}
+                showStructureChoice
               />
             )}
           </CardContent>

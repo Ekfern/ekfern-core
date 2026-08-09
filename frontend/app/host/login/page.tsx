@@ -17,6 +17,7 @@ import {
   passwordLogin,
   checkPasswordEnabled,
   storeAuthTokens,
+  getCurrentUser,
   otpCodeSchema,
   requiredPasswordSchema,
   type AuthTokens,
@@ -49,6 +50,33 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [hasPassword, setHasPassword] = useState(false)
   const [loginMethod, setLoginMethod] = useState<'password' | 'otp' | null>(null)
+  // Gate the form behind an already-authenticated check so a logged-in user who
+  // opens /host/login (e.g. in a second tab) is sent to the dashboard instead of
+  // being asked to log in again. Tokens live in localStorage, shared across tabs.
+  const [checkingSession, setCheckingSession] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    if (!token) {
+      // No session — show the login form.
+      setCheckingSession(false)
+      return
+    }
+    // Validate the token before redirecting so a stale/expired token falls through
+    // to the form rather than bouncing off the dashboard. The api interceptor
+    // handles refresh/clear on 401.
+    getCurrentUser()
+      .then(() => {
+        if (!cancelled) router.replace('/host/dashboard')
+      })
+      .catch(() => {
+        if (!cancelled) setCheckingSession(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [router])
 
   useEffect(() => {
     // Check if coming from email link
@@ -250,6 +278,16 @@ function LoginForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // While confirming an existing session, avoid flashing the login form before
+  // a redirect to the dashboard resolves.
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-eco-beige flex items-center justify-center p-4">
+        <p className="text-gray-600">Loading…</p>
+      </div>
+    )
   }
 
   return (

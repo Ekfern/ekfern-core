@@ -217,8 +217,8 @@ export default function ImageTileSSR({ settings, hasTitleOverlay = false }: Imag
         maxHeight: '100vh',
       }}
     >
-      <img 
-        src={settings.src} 
+      <img
+        src={convertToCloudFrontUrl(settings.src)}
         alt="Event"
         loading="eager"
         decoding="async"

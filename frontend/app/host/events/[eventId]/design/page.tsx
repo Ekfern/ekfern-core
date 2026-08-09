@@ -378,7 +378,7 @@ export default function DesignPage(): React.ReactElement {
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // State
-  const [event, setEvent] = useState<{ title: string; event_type: string } | null>(null)
+  const [event, setEvent] = useState<{ title: string; event_type: string; event_structure?: 'SIMPLE' | 'ENVELOPE' } | null>(null)
   const [bgUrl, setBgUrl] = useState<string | null>(null)
   const [bgGradient, setBgGradient] = useState<string>(GRADIENT_PRESETS[0]!.value)
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
@@ -456,7 +456,7 @@ export default function DesignPage(): React.ReactElement {
   useEffect(() => {
     if (!eventId || isNaN(eventId)) return
     Promise.all([
-      api.get<{ id: number; title: string; event_type: string }>(`/api/events/${eventId}/`),
+      api.get<{ id: number; title: string; event_type: string; event_structure?: 'SIMPLE' | 'ENVELOPE' }>(`/api/events/${eventId}/`),
       getInvitePage(eventId).catch(() => null),
     ]).then(([eventRes, page]) => {
       const data = eventRes.data
@@ -1025,7 +1025,11 @@ export default function DesignPage(): React.ReactElement {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
-        <WizardProgress currentStep={3} eventId={eventId} />
+        <WizardProgress
+          currentStep="design"
+          eventId={eventId}
+          includeSubEvents={event?.event_structure === 'ENVELOPE'}
+        />
 
         <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
@@ -1180,7 +1184,11 @@ export default function DesignPage(): React.ReactElement {
       {/* Google Fonts */}
       <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
 
-      <WizardProgress currentStep={3} eventId={eventId} />
+      <WizardProgress
+        currentStep="design"
+        eventId={eventId}
+        includeSubEvents={event?.event_structure === 'ENVELOPE'}
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Sticky header: background bar + always-visible text toolbar         */}

@@ -979,6 +979,8 @@ export default function EventDetailPage() {
                                 })
                                 showToast('RSVP setting updated', 'success')
                                 fetchEvent()
+                                // Tell the persistent shell to refresh its tabs immediately.
+                                window.dispatchEvent(new CustomEvent('host-event-settings-changed', { detail: { eventId } }))
                               } catch (error: any) {
                                 showToast('Failed to update RSVP setting', 'error')
                               }
@@ -1012,6 +1014,8 @@ export default function EventDetailPage() {
                                 await updateCatalog(parseInt(eventId, 10), { is_enabled: e.target.checked })
                                 showToast('Host Catalog setting updated', 'success')
                                 fetchEvent()
+                                // Tell the persistent shell to refresh its tabs immediately.
+                                window.dispatchEvent(new CustomEvent('host-event-settings-changed', { detail: { eventId } }))
                               } catch (error: any) {
                                 showToast('Failed to update Host Catalog setting', 'error')
                               }

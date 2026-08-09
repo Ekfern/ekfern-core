@@ -72,6 +72,36 @@ class InvitePageSummarySerializer(serializers.ModelSerializer):
         fields = ('is_published', 'config')
 
 
+class EventListSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for the event LIST endpoint.
+
+    The list is fetched on every host page load — dashboard cards and the event
+    switcher in HostShell — but the full EventSerializer is far too heavy for
+    that: it ships each event's `page_config` AND a second copy of the invite
+    config via `invite_page_summary`, plus several per-event
+    SerializerMethodFields (rsvp_mode_readiness, mode_switch_*, catalog_*) that
+    the list never reads. Together that made GET /api/events/ ~7MB.
+
+    This trims the list to the cheap scalar fields the dashboard cards use plus
+    `invite_page_summary` (which drives the card preview). `page_config` is
+    dropped entirely (no list consumer reads it), and the unused method fields
+    are gone, removing their per-event queries. Detail (retrieve) still returns
+    the full EventSerializer.
+    """
+    is_expired = serializers.BooleanField(read_only=True)
+    invite_page_summary = InvitePageSummarySerializer(source='invite_page', read_only=True)
+
+    class Meta:
+        model = Event
+        fields = (
+            'id', 'slug', 'title', 'event_type', 'date', 'event_end_date',
+            'city', 'country', 'timezone', 'is_public', 'has_rsvp', 'has_registry',
+            'event_structure', 'expiry_date', 'is_expired', 'created_at',
+            'invite_page_summary',
+        )
+
+
 class EventSerializer(serializers.ModelSerializer):
     # Only include minimal host info for privacy (name only, no email)
     host_name = serializers.CharField(source='host.name', read_only=True, allow_null=True)
@@ -916,11 +946,20 @@ class GuestCreateSerializer(serializers.Serializer):
 
 class SubEventSerializer(serializers.ModelSerializer):
     """Serializer for SubEvent - full CRUD"""
-    
+
+    # Number of non-removed guests assigned to this sub-event. Populated only
+    # when the queryset is annotated (the host sub-events list); returns null
+    # elsewhere so public/guest responses run no per-row queries and don't
+    # expose it.
+    assigned_guests_count = serializers.SerializerMethodField()
+
     class Meta:
         model = SubEvent
-        fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'is_removed', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'event', 'created_at', 'updated_at')
+        fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'event', 'assigned_guests_count', 'created_at', 'updated_at')
+
+    def get_assigned_guests_count(self, obj):
+        return getattr(obj, 'assigned_guests_count', None)
     
     def validate(self, data):
         """Validate that end_at is after start_at if both are provided"""

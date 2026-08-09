@@ -28,6 +28,7 @@ interface EventData {
   title: string
   date?: string
   city?: string
+  event_structure?: 'SIMPLE' | 'ENVELOPE'
 }
 
 // ---------------------------------------------------------------------------
@@ -199,7 +200,12 @@ export default function LayoutSelectPage(): React.ReactElement {
 
   return (
     <div className="min-h-screen bg-eco-beige pb-24">
-      <WizardProgress currentStep={2} eventId={eventId} />
+      {/* Show the Sub-events step in the stepper for multi-sub-event (ENVELOPE) events. */}
+      <WizardProgress
+        currentStep="layout"
+        eventId={eventId}
+        includeSubEvents={event?.event_structure === 'ENVELOPE'}
+      />
 
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Back link */}
