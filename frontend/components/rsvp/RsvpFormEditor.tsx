@@ -211,7 +211,7 @@ export default function RsvpFormEditor({
         </div>
         {!keys.length ? (
           <p className="text-xs text-gray-500">
-            No guest custom fields found. Add custom columns in Guest Management first (CSV import/custom fields metadata), then you can map them into the RSVP form.
+            No guest custom fields yet. Use <span className="font-medium">Custom Fields</span> above to add one (or import columns via CSV in Guest Management), then map it into the RSVP form here.
           </p>
         ) : (
           <div className="space-y-3">

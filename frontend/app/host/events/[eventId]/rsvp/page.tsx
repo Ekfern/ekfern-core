@@ -649,8 +649,9 @@ export default function HostRsvpSettingsPage() {
         <CustomFieldsModal
           eventId={eventId}
           open={showCustomFieldsModal}
-          title="Additional Questions"
-          description="Create and manage reusable custom fields for your RSVP form."
+          title="Custom Fields"
+          description="These are your event's guest fields, shared with Guest Management. Adding one here also adds the column to your guest list."
+          initialMetadata={metadata}
           onClose={() => setShowCustomFieldsModal(false)}
           onUpdated={(metadata) => {
             setEvent((prev) =>
