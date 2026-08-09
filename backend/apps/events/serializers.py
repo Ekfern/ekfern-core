@@ -956,7 +956,10 @@ class SubEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubEvent
         fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'event', 'assigned_guests_count', 'created_at', 'updated_at')
+        # is_removed is read-only: soft delete goes through perform_destroy, never
+        # a client write. Leaving it writable let any update that spreads the whole
+        # object carry a soft delete along with it.
+        read_only_fields = ('id', 'event', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
 
     def get_assigned_guests_count(self, obj):
         return getattr(obj, 'assigned_guests_count', None)

@@ -72,6 +72,16 @@ export default function EventCarouselTileSettingsComponent({
 
   return (
     <div className="space-y-4">
+      {/* Visibility explainer */}
+      <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 p-3">
+        <p className="text-sm text-blue-900 font-medium">
+          Public &amp; Private Sub-Events
+        </p>
+        <p className="mt-1 text-xs text-blue-700">
+          Public sub-events are visible to anyone with the invite link. Private sub-events are visible only to guests assigned to them.
+        </p>
+      </div>
+
       {/* Sub-Event Management Link */}
       <div>
         <a

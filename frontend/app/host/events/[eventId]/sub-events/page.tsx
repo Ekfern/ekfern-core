@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
-import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Eye, EyeOff, Maximize2, Users, AlertTriangle } from 'lucide-react'
+import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Maximize2, Users, AlertTriangle } from 'lucide-react'
 import { extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import RichTextEditor from '@/components/invite/RichTextEditor'
@@ -42,14 +42,14 @@ export default function SubEventsPage() {
   const router = useRouter()
   const eventId = params.eventId ? parseInt(params.eventId as string) : 0
   const { showToast } = useToast()
-  
+
   const [event, setEvent] = useState<Event | null>(null)
   const [subEvents, setSubEvents] = useState<SubEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingSubEvent, setEditingSubEvent] = useState<SubEvent | null>(null)
-  
-  
+
+
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -66,6 +66,7 @@ export default function SubEventsPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false)
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set())
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set())
 
   const eventTimezone = event?.timezone || 'Asia/Kolkata'
 
@@ -132,7 +133,6 @@ export default function SubEventsPage() {
           minute: Number(get('minute')),
         }
       }
-
       const desiredMs = Date.UTC(y, mo - 1, d, h, min, 0)
       for (let i = 0; i < 2; i++) {
         const tzp = getTzParts(utc)
@@ -184,6 +184,58 @@ export default function SubEventsPage() {
       setLoading(false)
     }
   }
+  // Toggles PATCH a single field so they can't clobber a concurrent edit to the
+  // rest of the sub-event -- a full-object PUT rewrote title/start_at/description
+  // from whatever stale snapshot the list happened to hold. State updates
+  // optimistically and rolls back on failure; `togglingIds` blocks a second click
+  // while the first is in flight, since both handlers derive the next value from
+  // the current row.
+  const patchSubEvent = async (
+    subEvent: SubEvent,
+    patch: Partial<SubEvent>,
+    successMessage: string,
+  ) => {
+    if (togglingIds.has(subEvent.id)) return
+
+    setTogglingIds(prev => new Set(prev).add(subEvent.id))
+    const previous = subEvents
+    setSubEvents(prev => prev.map(item => (item.id === subEvent.id ? { ...item, ...patch } : item)))
+
+    try {
+      await api.patch(`/api/events/sub-events/${subEvent.id}/`, patch)
+      showToast(successMessage, 'success')
+    } catch (error: any) {
+      setSubEvents(previous)
+      logError('Failed to update sub-event:', error)
+      showToast(getErrorMessage(error), 'error')
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev)
+        next.delete(subEvent.id)
+        return next
+      })
+    }
+  }
+
+  const handleVisibilityToggle = async (subEvent: SubEvent) => {
+    const nextVisible = !subEvent.is_public_visible
+
+    // Only confirm the direction that exposes data: making a sub-event public
+    // puts it on the tokenless invite link for anyone who opens it.
+    if (nextVisible) {
+      const confirmed = confirm(
+        `Make "${subEvent.title}" visible to anyone with the invite link? ` +
+        `Guests you haven't assigned will be able to see it.`
+      )
+      if (!confirmed) return
+    }
+
+    await patchSubEvent(
+      subEvent,
+      { is_public_visible: nextVisible },
+      nextVisible ? 'Sub-event is now Public.' : 'Sub-event is now Private.',
+    )
+  }
 
   const handleCreate = (e?: React.MouseEvent) => {
     setEditingSubEvent(null)
@@ -230,6 +282,14 @@ export default function SubEventsPage() {
       logError('Failed to delete sub-event:', error)
       showToast(getErrorMessage(error), 'error')
     }
+  }
+  const handleRsvpToggle = async (subEvent: SubEvent) => {
+    const nextEnabled = !subEvent.rsvp_enabled
+    await patchSubEvent(
+      subEvent,
+      { rsvp_enabled: nextEnabled },
+      nextEnabled ? 'RSVP enabled successfully' : 'RSVP disabled successfully',
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -344,20 +404,20 @@ export default function SubEventsPage() {
               <p className="text-gray-600 mb-4">
                 Create your first sub-event to automatically upgrade this event to ENVELOPE mode.
               </p>
-                <button
-                  onClick={handleCreate}
-                  className="bg-eco-green hover:bg-eco-green-dark text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2 cursor-pointer"
-                  type="button"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create First Sub-Event
-                </button>
+              <button
+                onClick={handleCreate}
+                className="bg-eco-green hover:bg-eco-green-dark text-white inline-flex items-center justify-center rounded-md font-medium transition-colors px-4 py-2 cursor-pointer"
+                type="button"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create First Sub-Event
+              </button>
             </CardContent>
           </Card>
 
           {/* Create/Edit Modal - for SIMPLE events */}
           {showCreateModal && (
-            <div 
+            <div
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
               style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
               onClick={(e) => {
@@ -366,7 +426,7 @@ export default function SubEventsPage() {
                 }
               }}
             >
-              <Card 
+              <Card
                 className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -533,7 +593,7 @@ export default function SubEventsPage() {
                                 // Update UI immediately with uploaded image
                                 setFormData({ ...formData, image_url: imageUrl })
                                 showToast('Image uploaded successfully', 'success')
-                                
+
                                 // Extract dominant color for background asynchronously (non-blocking)
                                 extractDominantColors(imageUrl, 3)
                                   .then((colors) => {
@@ -633,9 +693,9 @@ export default function SubEventsPage() {
                     </div>
 
                     <div className="flex justify-end gap-2 mt-6">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         onClick={() => setShowCreateModal(false)}
                         disabled={saving}
                       >
@@ -662,11 +722,11 @@ export default function SubEventsPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
-            <Link href={`/host/events/${eventId}`}>
+              <Link href={`/host/events/${eventId}`}>
                 <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
                   Back to Event
                 </Button>
-            </Link>
+              </Link>
               <Link href={`/host/events/${eventId}/page-editor`}>
                 <Button variant="outline" size="sm" className="border-eco-green text-eco-green hover:bg-eco-green-light">
                   Design
@@ -767,16 +827,16 @@ export default function SubEventsPage() {
                         : subEvent.description
                           ? String(subEvent.description)
                           : ''
-                      
+
                       if (!description) return null
-                      
+
                       const isHTML = /<[a-z][\s\S]*>/i.test(description)
                       // Check if description is long enough to need truncation
-                      const textContent = isHTML 
+                      const textContent = isHTML
                         ? description.replace(/<[^>]*>/g, '').trim()
                         : description.trim()
                       const needsTruncation = textContent.length > 150 // Approximate 2 lines
-                      
+
                       const truncationStyle = !isExpanded && needsTruncation ? {
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
@@ -784,17 +844,17 @@ export default function SubEventsPage() {
                         lineHeight: '1.5',
                         overflow: 'hidden' as const,
                       } : undefined
-                      
+
                       return (
                         <div>
                           {isHTML ? (
-                            <div 
+                            <div
                               className="text-sm text-gray-700 prose prose-sm max-w-none break-words"
                               style={truncationStyle}
                               dangerouslySetInnerHTML={{ __html: description }}
                             />
                           ) : (
-                            <div 
+                            <div
                               className="text-sm text-gray-700 prose prose-sm max-w-none break-words"
                               style={truncationStyle}
                             >
@@ -817,25 +877,67 @@ export default function SubEventsPage() {
                               {isExpanded ? 'View less' : 'View more'}
                             </button>
                           )}
+
                         </div>
                       )
                     })()}
-                    <div className="flex flex-wrap gap-2 pt-2 border-t">
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        subEvent.rsvp_enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        RSVP {subEvent.rsvp_enabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
-                        subEvent.is_public_visible ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {subEvent.is_public_visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                        {subEvent.is_public_visible ? 'Public' : 'Private'}
-                      </span>
-                      {/* Private sub-events depend on guest assignment — surface it so a
-                          private sub-event with nobody assigned (visible to no one) is obvious. */}
-                      {!subEvent.is_public_visible && typeof subEvent.assigned_guests_count === 'number' && (
-                        subEvent.assigned_guests_count > 0 ? (
+                    {/* Toggles come from this branch; the assignment-status badge and
+                        warning below come from staging's visibility-clarity work. Both
+                        are kept: the toggles change state, the badge explains what that
+                        state means for guests. */}
+                    <div className="flex items-center justify-between gap-6 pt-2 border-t">
+                      {/* RSVP */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          RSVP {subEvent.rsvp_enabled ? "Enabled" : "Disabled"}
+                        </span>
+
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={subEvent.rsvp_enabled}
+                          aria-label={`RSVP for ${subEvent.title}`}
+                          disabled={togglingIds.has(subEvent.id)}
+                          onClick={() => handleRsvpToggle(subEvent)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${subEvent.rsvp_enabled ? "bg-eco-green" : "bg-gray-300"
+                            }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${subEvent.rsvp_enabled ? "translate-x-5" : "translate-x-1"
+                              }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Public / Private */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {subEvent.is_public_visible ? "Public" : "Private"}
+                        </span>
+
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={subEvent.is_public_visible}
+                          aria-label={`Public visibility for ${subEvent.title}`}
+                          disabled={togglingIds.has(subEvent.id)}
+                          onClick={() => handleVisibilityToggle(subEvent)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${subEvent.is_public_visible ? "bg-eco-green" : "bg-gray-300"
+                            }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${subEvent.is_public_visible ? "translate-x-5" : "translate-x-1"
+                              }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Private sub-events depend on guest assignment -- surface it so a
+                        private sub-event with nobody assigned (visible to no one) is obvious. */}
+                    {!subEvent.is_public_visible && typeof subEvent.assigned_guests_count === 'number' && (
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {subEvent.assigned_guests_count > 0 ? (
                           <span className="text-xs px-2 py-1 rounded flex items-center gap-1 bg-gray-100 text-gray-600">
                             <Users className="w-3 h-3" />
                             {subEvent.assigned_guests_count} guest{subEvent.assigned_guests_count === 1 ? '' : 's'} assigned
@@ -845,9 +947,9 @@ export default function SubEventsPage() {
                             <AlertTriangle className="w-3 h-3" />
                             No one can see this yet
                           </span>
-                        )
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                     {!subEvent.is_public_visible && subEvent.assigned_guests_count === 0 && (
                       <p className="text-xs text-amber-700 mt-2">
                         Private sub-events are only shown to guests you assign.{' '}
@@ -868,7 +970,7 @@ export default function SubEventsPage() {
 
         {/* Create/Edit Modal */}
         {showCreateModal && (
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
             onClick={(e) => {
@@ -878,7 +980,7 @@ export default function SubEventsPage() {
               }
             }}
           >
-            <Card 
+            <Card
               className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
@@ -1046,7 +1148,7 @@ export default function SubEventsPage() {
                               // Update UI immediately with uploaded image
                               setFormData({ ...formData, image_url: imageUrl })
                               showToast('Image uploaded successfully', 'success')
-                              
+
                               // Extract dominant color for background asynchronously (non-blocking)
                               extractDominantColors(imageUrl, 3)
                                 .then((colors) => {
@@ -1105,7 +1207,12 @@ export default function SubEventsPage() {
                       <input
                         type="checkbox"
                         checked={formData.rsvp_enabled}
-                        onChange={(e) => setFormData({ ...formData, rsvp_enabled: e.target.checked })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            rsvp_enabled: e.target.checked,
+                          })
+                        }
                         className="mr-2"
                       />
                       <span className="text-sm text-gray-700">RSVP Enabled</span>
