@@ -258,6 +258,10 @@ export default function DesignInvitationPage(): JSX.Element {
     tiles: DEFAULT_TILES,
     texture: { type: 'parchment', intensity: 20 },
   })
+  // Undo / redo history
+  const undoStack = useRef<InviteConfig[]>([])
+  const redoStack = useRef<InviteConfig[]>([])
+  const configRef = useRef<InviteConfig>(config)
   // Preview order state - tracks real-time order for mobile preview (not saved to backend)
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   // Fix 2: Add state for InvitePage and publish modal
@@ -277,6 +281,64 @@ export default function DesignInvitationPage(): JSX.Element {
       .then(setApiLayouts)
       .catch(() => setApiLayouts([]))
       .finally(() => setLayoutsLoading(false))
+  }, [])
+  useEffect(() => {
+    configRef.current = config
+  }, [config])
+  const pushHistory = useCallback(() => {
+    undoStack.current = [
+      ...undoStack.current,
+      structuredClone(configRef.current),
+    ].slice(-50)
+
+    redoStack.current = []
+  }, [])
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+
+      // Don't interfere with typing in inputs/textareas/contenteditable
+      if (
+        target.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      ) {
+        return
+      }
+
+      // Undo: Ctrl+Z / Cmd+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+
+        const previous = undoStack.current.pop()
+
+        if (previous) {
+          redoStack.current.push(structuredClone(configRef.current))
+          setConfig(previous)
+        }
+      }
+
+      // Redo: Ctrl+Y / Cmd+Y OR Ctrl+Shift+Z / Cmd+Shift+Z
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === 'y' ||
+          (e.key.toLowerCase() === 'z' && e.shiftKey))
+      ) {
+        e.preventDefault()
+
+        const next = redoStack.current.pop()
+
+        if (next) {
+          undoStack.current.push(structuredClone(configRef.current))
+          setConfig(next)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
   }, [])
 
   // Measure header height for sticky positioning
@@ -1213,6 +1275,7 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
   const handleAddTile = async (type: TileType) => {
+    pushHistory()
     // For design tiles, restore saved work from the card studio.
     // Priority: backend saved tile (device-independent) > localStorage > defaults.
     let savedDesignSettings: { src?: string; backgroundGradient?: string; textOverlays: unknown[] } | null = null
@@ -1295,6 +1358,7 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
   const handleRemoveTile = (tileId: string) => {
+    pushHistory()
     setConfig(prev => ({
       ...prev,
       tiles: prev.tiles?.filter(t => t.id !== tileId) ?? [],
@@ -1303,6 +1367,7 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
   const handleTileUpdate = (updatedTile: Tile) => {
+    pushHistory()
     setConfig(prev => ({
       ...prev,
       tiles: prev.tiles?.map(t => t.id === updatedTile.id ? updatedTile : t) || [],
@@ -1327,6 +1392,7 @@ export default function DesignInvitationPage(): JSX.Element {
       }
       // If valid image exists, allow disabling title tile
     }
+    pushHistory()
 
     setConfig(prev => ({
       ...prev,
@@ -1335,6 +1401,7 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
   const handleTileReorder = (reorderedTiles: Tile[]) => {
+    pushHistory()
     // CRITICAL: Calculate previewOrder for ALL tiles based on their position in the reordered array
     // This ensures every tile has a previewOrder that reflects its actual position, not just moved tiles
     const newPreviewOrder = new Map<string, number>()
