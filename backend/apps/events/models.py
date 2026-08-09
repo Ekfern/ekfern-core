@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from django.db import models, IntegrityError
@@ -181,8 +182,14 @@ class Event(models.Model):
         help_text="Host user who enabled attribution insights visibility."
     )
     
-    # Custom fields from CSV imports
-    custom_fields_metadata = models.JSONField(default=dict, blank=True, help_text="Metadata for custom CSV columns: normalized key -> display label mapping")
+    # Denormalized read cache of this event's CustomField rows, in the shape
+    # {key: {display_label, example, active}}. The CustomField table is the
+    # source of truth; this is rebuilt from it (see CustomField.rebuild_event_cache)
+    # inside the same transaction as any write. It exists so the many read sites
+    # -- description personalization, WhatsApp variables, the RSVP form editor,
+    # guest-list columns and filters -- keep working without a query each.
+    # Never assign to it directly; write CustomField rows and rebuild.
+    custom_fields_metadata = models.JSONField(default=dict, blank=True, help_text="Read cache of CustomField rows: key -> {display_label, example, active}. Source of truth is the CustomField table.")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -608,6 +615,109 @@ class SubEvent(models.Model):
     
     def __str__(self):
         return f"{self.title} - {self.event.title}"
+
+
+class CustomField(models.Model):
+    """
+    An event's custom guest field ("Allergies", "Table Number").
+
+    `key` is a system-generated slug, minted once from the first label and then
+    immutable. Everything that points at a custom field points at this key:
+    RSVP form config (page_config.rsvpForm.customFields[].key), invite
+    description and WhatsApp template variables ([allergies]), saved guest-list
+    filters (cf:allergies), and each guest's answers (Guest.custom_fields).
+    None of those references are maintained by anything, so the key must never
+    change -- renaming it silently orphans guest answers and breaks the RSVP
+    form. Hosts rename the `label`, which nothing references.
+
+    To retire a field set active=False. Keys are never reused after that: a
+    recycled key would silently rebind old templates and filters to a different
+    field's data, which is worse than a dangling reference because it resolves.
+    """
+
+    KEY_MAX_LENGTH = 50
+    LABEL_MAX_LENGTH = 80
+    EXAMPLE_MAX_LENGTH = 120
+    MAX_PER_EVENT = 50
+
+    # Keys the guest importer and serializers already use for built-in columns.
+    RESERVED_KEYS = frozenset({
+        'name', 'phone', 'email', 'relationship', 'notes',
+        'country_code', 'country_iso',
+    })
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='custom_fields')
+    key = models.CharField(
+        max_length=KEY_MAX_LENGTH,
+        help_text="Immutable system-generated slug. Referenced by RSVP form config, template variables, and guest answers.",
+    )
+    label = models.CharField(max_length=LABEL_MAX_LENGTH, help_text="Host-facing name. Freely editable.")
+    example = models.CharField(max_length=EXAMPLE_MAX_LENGTH, blank=True, default='')
+    active = models.BooleanField(default=True, help_text="Inactive fields stay in the data but are hidden from pickers.")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'event_custom_fields'
+        ordering = ['label']
+        constraints = [
+            # Identity is enforced here rather than by a read-then-check in the
+            # view, which races between parallel clients.
+            models.UniqueConstraint(fields=['event', 'key'], name='uniq_custom_field_per_event'),
+        ]
+
+    def __str__(self):
+        return f"{self.label} ({self.key}) - {self.event_id}"
+
+    @staticmethod
+    def normalize_key(raw):
+        """
+        Mint a key from arbitrary text. Must stay in step with
+        normalize_csv_header() in utils.py, which is what CSV import uses --
+        if the two disagree, the same column header yields two different keys
+        depending on where it was entered.
+        """
+        s = str(raw or '').strip().lower()
+        s = re.sub(r'[\s\-]+', '_', s)
+        s = re.sub(r'[^a-z0-9_]', '', s)
+        return s[:CustomField.KEY_MAX_LENGTH]
+
+    @classmethod
+    def mint_key(cls, label, taken):
+        """Key from `label`, suffixed if `taken` already holds it."""
+        base = cls.normalize_key(label)
+        if not base:
+            return ''
+        if base not in taken and base not in cls.RESERVED_KEYS:
+            return base
+        # Reserved or colliding: allergies -> allergies_2, allergies_3, ...
+        for n in range(2, 1000):
+            suffix = f'_{n}'
+            candidate = base[:cls.KEY_MAX_LENGTH - len(suffix)] + suffix
+            if candidate not in taken and candidate not in cls.RESERVED_KEYS:
+                return candidate
+        return ''
+
+    @classmethod
+    def rebuild_event_cache(cls, event):
+        """
+        Recompute Event.custom_fields_metadata from this event's rows.
+
+        Call inside the same transaction as any CustomField write so the cache
+        can never be observed out of step with the table.
+        """
+        meta = {
+            f.key: {
+                'display_label': f.label,
+                'example': f.example or '',
+                'active': f.active,
+            }
+            for f in cls.objects.filter(event=event)
+        }
+        event.custom_fields_metadata = meta
+        event.save(update_fields=['custom_fields_metadata', 'updated_at'])
+        return meta
 
 
 class AttributionLink(models.Model):

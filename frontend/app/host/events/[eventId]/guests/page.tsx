@@ -111,14 +111,6 @@ interface Event {
   has_registry?: boolean
 }
 
-type CustomFieldMeta = {
-  id: string
-  key: string
-  display_label: string
-  active: boolean
-  originalKey?: string
-}
-
 interface SubEvent {
   id: number
   title: string
@@ -211,7 +203,6 @@ export default function GuestsPage() {
   const [saveGroupType, setSaveGroupType] = useState<'fixed' | 'dynamic'>('fixed')
   const [savingGroup, setSavingGroup] = useState(false)
   const [showCustomFieldsManager, setShowCustomFieldsManager] = useState(false)
-  const [customFieldsDraft, setCustomFieldsDraft] = useState<CustomFieldMeta[]>([])
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [showAnalyticsSummary, setShowAnalyticsSummary] = useState(true)
   const [nameSearch, setNameSearch] = useState('')
@@ -222,14 +213,6 @@ export default function GuestsPage() {
   const hasInitializedFiltersRef = useRef(false)
   const contactPickerSupported = useMemo(() => isContactPickerSupported(), [])
   const isSlotBasedEvent = event?.rsvp_experience_mode === 'slot_based'
-
-  const makeDraftId = () => {
-    try {
-      return globalThis.crypto?.randomUUID?.() || `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    } catch {
-      return `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    }
-  }
 
   const {
     register,
@@ -918,21 +901,6 @@ export default function GuestsPage() {
     try {
       const response = await api.get(`/api/events/${eventId}/`)
       setEvent(response.data)
-      // Initialize custom fields draft from event metadata (if present)
-      const meta = response.data?.custom_fields_metadata || {}
-      const rows: CustomFieldMeta[] = Object.entries(meta).map(([key, value]: any) => {
-        if (typeof value === 'string') {
-          return { id: key, key, originalKey: key, display_label: value, active: true }
-        }
-        return {
-          id: key,
-          key,
-          originalKey: key,
-          display_label: value?.display_label || key,
-          active: value?.active !== false,
-        }
-      })
-      setCustomFieldsDraft(rows.sort((a, b) => a.display_label.localeCompare(b.display_label)))
     } catch (error: any) {
       if (error.response?.status === 401) {
         router.push('/host/login')
@@ -990,66 +958,6 @@ export default function GuestsPage() {
       setCategoryValue('all')
     }
   }, [categorySource, categoryValue, categoryValueOptions])
-
-  const normalizeCustomFieldKey = (raw: string) => {
-    return raw
-      .toLowerCase()
-      .trim()
-      .replace(/[\s\-]+/g, '_')
-      .replace(/[^a-z0-9_]/g, '')
-      .slice(0, 50)
-  }
-
-  const handleSaveCustomFields = async () => {
-    try {
-      const MAX_FIELDS = 50
-      if (customFieldsDraft.length > MAX_FIELDS) {
-        showToast(`Too many custom fields (max ${MAX_FIELDS})`, 'error')
-        return
-      }
-
-      const upsert: any[] = []
-      const rename: any[] = []
-
-      customFieldsDraft.forEach((row) => {
-        const key = normalizeCustomFieldKey(row.key)
-        if (!key) return
-        const display_label = (row.display_label || key).slice(0, 80)
-        const active = row.active !== false
-
-        if (row.originalKey && row.originalKey !== key) {
-          rename.push({ from: row.originalKey, to: key, display_label })
-          upsert.push({ key, display_label, active })
-        } else {
-          upsert.push({ key, display_label, active })
-        }
-      })
-
-      const resp = await api.patch(`/api/events/${eventId}/custom-fields/`, { upsert, rename })
-      setEvent((prev) => (prev ? { ...prev, custom_fields_metadata: resp.data.custom_fields_metadata } : prev))
-
-      // Refresh draft from canonical metadata
-      const meta = resp.data.custom_fields_metadata || {}
-      const rows: CustomFieldMeta[] = Object.entries(meta).map(([key, value]: any) => {
-        if (typeof value === 'string') {
-          return { id: key, key, originalKey: key, display_label: value, active: true }
-        }
-        return {
-          id: key,
-          key,
-          originalKey: key,
-          display_label: value?.display_label || key,
-          active: value?.active !== false,
-        }
-      })
-      setCustomFieldsDraft(rows.sort((a, b) => a.display_label.localeCompare(b.display_label)))
-      showToast('Custom fields updated', 'success')
-      setShowCustomFieldsManager(false)
-    } catch (error: any) {
-      const msg = error.response?.data?.error || 'Failed to update custom fields'
-      showToast(msg, 'error')
-    }
-  }
 
   const [analyticsData, setAnalyticsData] = useState<Record<number, GuestAnalytics>>({})
   const analyticsDataRef = useRef<Record<number, GuestAnalytics>>({})
@@ -2018,20 +1926,17 @@ export default function GuestsPage() {
           </Card>
         )}
 
-        {showCustomFieldsManager && (
-          <CustomFieldsModal
-            eventId={Number(eventId)}
-            open={showCustomFieldsManager}
-            title="Custom Fields"
-            description="Define additional guest information for this event (used in communications and personalized invite descriptions)."
-            onClose={() => setShowCustomFieldsManager(false)}
-            onUpdated={(metadata) =>
-              setEvent((prev) =>
-                prev ? { ...prev, custom_fields_metadata: metadata } : prev
-              )
-            }
-          />
-        )}
+        <CustomFieldsModal
+          eventId={Number(eventId)}
+          open={showCustomFieldsManager}
+          title="Custom Fields"
+          description="Define additional guest information for this event (used in communications and personalized invite descriptions)."
+          initialMetadata={event?.custom_fields_metadata}
+          onClose={() => setShowCustomFieldsManager(false)}
+          onUpdated={(metadata) =>
+            setEvent((prev) => (prev ? { ...prev, custom_fields_metadata: metadata } : prev))
+          }
+        />
         {showForm && (
           <Card className="mb-8 bg-white border-2 border-eco-green-light">
             <CardHeader>

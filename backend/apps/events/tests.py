@@ -9,7 +9,7 @@ from django.utils import timezone
 from datetime import timedelta
 from rest_framework.test import APIClient
 from rest_framework import status
-from apps.events.models import Event, Guest, RSVP, InvitePage, MessageTemplate, SubEvent, GuestSubEventInvite, BookingSchedule, BookingSlot, SlotBooking, GreetingCardSample, InvitePageLayout
+from apps.events.models import Event, Guest, RSVP, InvitePage, MessageTemplate, SubEvent, GuestSubEventInvite, BookingSchedule, BookingSlot, SlotBooking, GreetingCardSample, InvitePageLayout, CustomField
 from django.core.cache import cache
 from apps.events.serializers import GuestSerializer
 
@@ -1918,3 +1918,140 @@ class DesignCodeLayoutFilterTestCase(TestCase):
         response = self.client.get('/api/events/invite-page-layouts/')
         self.assertEqual(len(response.json()), 4)
 
+
+
+class CustomFieldRegistryTests(TestCase):
+    """
+    Custom fields live in the CustomField table; Event.custom_fields_metadata is
+    a cache rebuilt from it. The regressions guarded here are the ones that
+    silently destroyed guest data before the table existed.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='cf-host@test.com', name='CF Host')
+        self.client.force_authenticate(user=self.host)
+        self.event = Event.objects.create(
+            host=self.host, title='CF Event', slug='cf-event',
+            event_type='wedding', date=timezone.now().date() + timedelta(days=30),
+        )
+        self.url = f'/api/events/{self.event.id}/custom-fields/'
+
+    def _add(self, label):
+        return self.client.patch(self.url, {'upsert': [{'label': label}]}, format='json')
+
+    def test_creating_a_field_mints_key_from_label(self):
+        resp = self._add('Dietary Requirements')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        field = CustomField.objects.get(event=self.event)
+        self.assertEqual(field.key, 'dietary_requirements')
+        self.assertEqual(field.label, 'Dietary Requirements')
+
+    def test_editing_label_leaves_key_untouched(self):
+        """The whole point of the table: labels move, keys never do."""
+        self._add('Allergies')
+        field = CustomField.objects.get(event=self.event)
+        self.assertEqual(field.key, 'allergies')
+
+        resp = self.client.patch(
+            self.url,
+            {'upsert': [{'key': 'allergies', 'label': 'Dietary Requirements'}]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        field.refresh_from_db()
+        self.assertEqual(field.key, 'allergies')
+        self.assertEqual(field.label, 'Dietary Requirements')
+
+    def test_rename_is_rejected(self):
+        self._add('Allergies')
+        resp = self.client.patch(
+            self.url,
+            {'rename': [{'from': 'allergies', 'to': 'dietary'}], 'upsert': []},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(CustomField.objects.filter(event=self.event, key='allergies').exists())
+
+    def test_failed_save_rolls_back_completely(self):
+        """
+        Regression: a rejected save used to commit whatever it had already
+        written, because `return Response(400)` inside atomic() does not roll
+        back. Guest answers were migrated while the registry was not, orphaning
+        the answers. Every rejection now raises, so nothing is kept.
+        """
+        self._add('Allergies')
+        guest = Guest.objects.create(
+            event=self.event, name='Aakash', phone='+919000000001',
+            custom_fields={'allergies': 'peanuts'},
+        )
+
+        # Valid label edit alongside a field count blow-out: the whole call must fail.
+        CustomField.objects.bulk_create([
+            CustomField(event=self.event, key=f'filler_{i}', label=f'Filler {i}')
+            for i in range(CustomField.MAX_PER_EVENT)
+        ])
+        resp = self.client.patch(
+            self.url,
+            {'upsert': [
+                {'key': 'allergies', 'label': 'Renamed Label'},
+                {'label': 'One Too Many'},
+            ]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Nothing partially applied, and the guest's answer is still reachable.
+        self.assertEqual(CustomField.objects.get(event=self.event, key='allergies').label, 'Allergies')
+        guest.refresh_from_db()
+        self.assertEqual(guest.custom_fields, {'allergies': 'peanuts'})
+        self.event.refresh_from_db()
+        self.assertIn('allergies', self.event.custom_fields_metadata)
+
+    def test_duplicate_key_is_impossible(self):
+        from django.db import IntegrityError as DBIntegrityError
+        self._add('Allergies')
+        with self.assertRaises(DBIntegrityError):
+            CustomField.objects.create(event=self.event, key='allergies', label='Other')
+
+    def test_same_key_allowed_across_events(self):
+        other = Event.objects.create(
+            host=self.host, title='Other', slug='cf-other',
+            event_type='wedding', date=timezone.now().date() + timedelta(days=30),
+        )
+        self._add('Allergies')
+        CustomField.objects.create(event=other, key='allergies', label='Allergies')
+        self.assertEqual(CustomField.objects.filter(key='allergies').count(), 2)
+
+    def test_duplicate_label_gets_suffixed_key(self):
+        self._add('Allergies')
+        self._add('Allergies')
+        keys = sorted(CustomField.objects.filter(event=self.event).values_list('key', flat=True))
+        self.assertEqual(keys, ['allergies', 'allergies_2'])
+
+    def test_reserved_label_does_not_collide_with_builtin_column(self):
+        """'Email' must not mint the key 'email', which the guest importer owns."""
+        resp = self._add('Email')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        key = CustomField.objects.get(event=self.event).key
+        self.assertNotIn(key, CustomField.RESERVED_KEYS)
+
+    def test_cache_matches_table_after_writes(self):
+        self._add('Allergies')
+        self._add('Table Number')
+        self.client.patch(self.url, {'disable': ['allergies']}, format='json')
+
+        self.event.refresh_from_db()
+        expected = {
+            f.key: {'display_label': f.label, 'example': f.example or '', 'active': f.active}
+            for f in CustomField.objects.filter(event=self.event)
+        }
+        self.assertEqual(self.event.custom_fields_metadata, expected)
+        self.assertFalse(self.event.custom_fields_metadata['allergies']['active'])
+
+    def test_other_host_cannot_touch_fields(self):
+        intruder = User.objects.create_user(email='cf-intruder@test.com', name='Intruder')
+        self.client.force_authenticate(user=intruder)
+        resp = self._add('Sneaky')
+        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(CustomField.objects.filter(event=self.event).count(), 0)
