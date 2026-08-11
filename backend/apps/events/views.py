@@ -2621,7 +2621,22 @@ def create_rsvp(request, event_id):
         if phone and not phone.startswith('+'):
             country_code = request.data.get('country_code') or event_country_code
             phone = format_phone_with_country_code(phone, country_code)
-        
+
+        # When a credential identifies the guest, that identity decides whose
+        # RSVP this is - the submitted number cannot reassign it to someone
+        # else on the guest list. The form locks the field for exactly these
+        # visitors, and this is what makes the lock real rather than cosmetic:
+        # a removed attribute or a direct API call changes nothing.
+        from . import membership
+
+        credential_guest = membership.resolve_guest(
+            event,
+            guest_token=(request.query_params.get('g') or '').strip(),
+            access_pass=(request.query_params.get('p') or '').strip(),
+        )
+        if credential_guest and credential_guest.phone:
+            phone = credential_guest.phone
+
         # Check if RSVP already exists for this phone FIRST (grandfather clause)
         existing_rsvp = RSVP.objects.filter(event=event, phone=phone, is_removed=False).first()
         
@@ -2688,6 +2703,11 @@ def create_rsvp(request, event_id):
                     guest = Guest.objects.filter(event=event, phone=phone, is_removed=False).first()
                     if not guest:
                         guest = Guest.objects.filter(event=event, name__iexact=name, is_removed=False).first()
+
+        # A credential outranks whatever the phone matching concluded, including
+        # the legacy case of an RSVP row with no guest link.
+        if credential_guest:
+            guest = credential_guest
 
         # Guest context for eligibility logic (invited guest match only).
         # For public direct responders we may create/link a Guest record later for host visibility.
