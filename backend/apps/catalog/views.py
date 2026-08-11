@@ -93,6 +93,20 @@ def _check_catalog_access(catalog, guest, event):
     return True, None, None
 
 
+def _renewed_pass(event, guest, guest_token):
+    """
+    Mint a fresh pass for a guest who got in without one.
+
+    Skipped when the visitor holds an invite token (they need no pass) or when
+    no guest resolved (a public event browsed anonymously).
+    """
+    if guest is None or guest_token:
+        return None
+    from apps.events import membership
+
+    return membership.issue_pass(event, guest)
+
+
 def _catalog_access_denied_response(error_msg, code):
     return Response(
         {'error': error_msg, 'code': code},
@@ -100,20 +114,31 @@ def _catalog_access_denied_response(error_msg, code):
     )
 
 
-def _check_event_access(event, guest_token):
+def _check_event_access(event, guest_token, access_pass=None):
     """
     Enforce event privacy. Returns (guest_or_none, error_response_or_none).
+
     Public events: always allowed, guest may be None.
-    Private events: require a valid guest_token resolving to a Guest.
+    Private events: require guest-list membership, proven by either credential
+    apps.events.membership accepts - the invite token, or a pass minted after a
+    phone match. RSVP has always accepted a phone match; accepting it here too
+    is what stops a verified guest being turned away at the registry.
     """
+    from apps.events import membership
+
+    guest = membership.resolve_guest(event, guest_token=guest_token, access_pass=access_pass)
+
     if event.is_public:
-        guest = _resolve_guest_from_token(guest_token, event)
         return guest, None
 
-    guest = _resolve_guest_from_token(guest_token, event)
     if guest is None:
         return None, Response(
-            {'error': 'This is a private event. Use your invite link to access.'},
+            {
+                'error': 'This is a private event. Use your invite link to access.',
+                # The code lets the frontend offer phone verification instead of
+                # a dead end.
+                'code': 'private_event',
+            },
             status=status.HTTP_403_FORBIDDEN,
         )
     return guest, None
@@ -281,7 +306,8 @@ class PublicCatalogView(APIView):
         event = get_object_or_404(Event, slug=slug)
 
         guest_token = request.query_params.get('g', '').strip()
-        guest, err = _check_event_access(event, guest_token)
+        access_pass = request.query_params.get('p', '').strip()
+        guest, err = _check_event_access(event, guest_token, access_pass)
         if err:
             return err
 
@@ -298,7 +324,7 @@ class PublicCatalogView(APIView):
             return _catalog_access_denied_response(error_msg, code)
 
         items = CatalogItem.objects.filter(catalog=catalog, status='published')
-        return Response({
+        response = Response({
             'catalog': HostCatalogSerializer(catalog).data,
             'items': PublicCatalogItemSerializer(items, many=True).data,
             'event': {
@@ -307,7 +333,13 @@ class PublicCatalogView(APIView):
                 'slug': event.slug,
                 'is_public': event.is_public,
             },
+            # Sliding window: browsing a gift list easily outlasts the pass, and
+            # being bounced mid-decision is exactly the failure this design set
+            # out to avoid. Every accepted request buys another 15 minutes.
+            'access_pass': _renewed_pass(event, guest, guest_token),
         })
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        return response
 
 
 class CatalogRespondView(APIView):
@@ -319,7 +351,8 @@ class CatalogRespondView(APIView):
         event = get_object_or_404(Event, slug=slug)
 
         guest_token = request.query_params.get('g', '').strip()
-        guest, err = _check_event_access(event, guest_token)
+        access_pass = request.query_params.get('p', '').strip()
+        guest, err = _check_event_access(event, guest_token, access_pass)
         if err:
             return err
 
@@ -392,6 +425,10 @@ class CatalogRespondView(APIView):
         send_catalog_response_notification(response_obj)
 
         return Response(
-            {'message': 'Response recorded.', 'id': response_obj.id},
+            {
+                'message': 'Response recorded.',
+                'id': response_obj.id,
+                'access_pass': _renewed_pass(event, guest, guest_token),
+            },
             status=status.HTTP_201_CREATED,
         )

@@ -26,7 +26,7 @@ from apps.common.whatsapp_backend import verify_webhook_signature
 from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
-from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota
+from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, CustomField
 from .serializers import (
     EventSerializer, EventCreateSerializer, EventListSerializer,
     RSVPSerializer, RSVPCreateSerializer,
@@ -296,143 +296,101 @@ class EventViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['patch'], url_path='custom-fields')
     def custom_fields(self, request, id=None):
         """
-        Manage event-level custom fields schema (host-only).
+        Manage this event's custom guest fields (host-only).
 
-        Payload supports:
-        - upsert: [{ key, display_label?, active? }]
-        - rename: [{ from, to, display_label? }]
+        Payload:
+        - upsert:  [{ key?, label|display_label?, active? }]
+                   No key -> create a field, minting an immutable key from the
+                   label. With a key -> update that field's label/active.
         - disable: [key]
+
+        There is deliberately no rename operation. The key is referenced by RSVP
+        form config, template variables, saved filters, and every guest's stored
+        answers, and nothing maintains those references -- renaming orphaned
+        guest answers. Hosts rename the label instead. To retire a field, set
+        active=False; its key is never reused.
+
+        Every rejection raises ValidationError rather than returning a 400
+        Response, because a bare return commits whatever the transaction has
+        already written (Django only rolls back on an exception).
         """
+        from rest_framework.exceptions import ValidationError
+
         event = self.get_object()
         self._verify_event_ownership(event)
 
-        CUSTOM_FIELDS_MAX = 50
-        KEY_RE = re.compile(r'^[a-z0-9_]{1,50}$')
-        VALUE_LABEL_MAX = 80
-        reserved_keys = {'name', 'phone', 'email', 'relationship', 'notes', 'country_code', 'country_iso'}
-
-        def normalize_meta(meta):
-            if not isinstance(meta, dict):
-                return {}
-            out = {}
-            for k, v in meta.items():
-                if isinstance(v, dict):
-                    out[k] = {
-                        'display_label': str(v.get('display_label') or k)[:VALUE_LABEL_MAX],
-                        'example': str(v.get('example') or '')[:120],
-                        'active': bool(v.get('active', True)),
-                    }
-                else:
-                    out[k] = {
-                        'display_label': str(v)[:VALUE_LABEL_MAX] if v else str(k)[:VALUE_LABEL_MAX],
-                        'example': '',
-                        'active': True,
-                    }
-            return out
-
-        def normalize_key(raw):
-            k = normalize_csv_header(str(raw or ''))
-            return k
-
         data = request.data if isinstance(request.data, dict) else {}
         upsert = data.get('upsert', []) or []
-        rename = data.get('rename', []) or []
         disable = data.get('disable', []) or []
 
-        if not isinstance(upsert, list) or not isinstance(rename, list) or not isinstance(disable, list):
-            return Response(
-                {'error': 'Invalid payload format (upsert/rename/disable must be lists).'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if not isinstance(upsert, list) or not isinstance(disable, list):
+            raise ValidationError({'error': 'Invalid payload format (upsert/disable must be lists).'})
 
-        meta = normalize_meta(event.custom_fields_metadata or {})
-        changed = False
+        if any(isinstance(item, dict) and item.get('rename') for item in upsert) or data.get('rename'):
+            raise ValidationError({
+                'error': 'Renaming a custom field key is not supported. Edit the label instead.'
+            })
 
-        # Disable fields
-        for raw_key in disable:
-            key = normalize_key(raw_key)
-            if not key:
-                continue
-            if key in meta and meta[key].get('active', True) is True:
-                meta[key]['active'] = False
-                changed = True
-
-        # Rename keys (and migrate guest custom_fields JSON)
         with transaction.atomic():
-            for item in rename:
-                if not isinstance(item, dict):
-                    continue
-                from_key = normalize_key(item.get('from'))
-                to_key = normalize_key(item.get('to'))
-                if not from_key or not to_key:
-                    return Response({'error': 'rename entries require from/to'}, status=status.HTTP_400_BAD_REQUEST)
-                if from_key == to_key:
-                    continue
-                if from_key not in meta:
-                    return Response({'error': f'Cannot rename missing field: {from_key}'}, status=status.HTTP_400_BAD_REQUEST)
-                if to_key in reserved_keys:
-                    return Response({'error': f'Invalid target key (reserved): {to_key}'}, status=status.HTTP_400_BAD_REQUEST)
-                if not KEY_RE.match(to_key):
-                    return Response({'error': f'Invalid target key: {to_key}'}, status=status.HTTP_400_BAD_REQUEST)
-                if to_key in meta:
-                    return Response({'error': f'Target key already exists: {to_key}'}, status=status.HTTP_400_BAD_REQUEST)
+            # Serialize concurrent edits to this event's field set. Without it two
+            # clients adding a field at the same time race on the key check below.
+            Event.objects.select_for_update().get(pk=event.pk)
 
-                # Move metadata
-                moved = meta.pop(from_key)
-                moved_label = item.get('display_label')
-                if moved_label:
-                    moved['display_label'] = str(moved_label)[:VALUE_LABEL_MAX]
-                meta[to_key] = moved
-                changed = True
+            existing = {f.key: f for f in CustomField.objects.filter(event=event)}
 
-                # Migrate guest values (best-effort, non-destructive)
-                guests_qs = Guest.objects.filter(event=event)
-                for g in guests_qs.iterator():
-                    cf = g.custom_fields if isinstance(g.custom_fields, dict) else {}
-                    if from_key in cf and to_key not in cf:
-                        cf[to_key] = cf[from_key]
-                        cf.pop(from_key, None)
-                        g.custom_fields = cf
-                        g.save(update_fields=['custom_fields', 'updated_at'])
+            for raw_key in disable:
+                field = existing.get(CustomField.normalize_key(raw_key))
+                if field and field.active:
+                    field.active = False
+                    field.save(update_fields=['active', 'updated_at'])
 
-            # Upsert fields
             for item in upsert:
                 if not isinstance(item, dict):
                     continue
-                key = normalize_key(item.get('key'))
-                if not key:
+
+                raw_label = item.get('label', item.get('display_label'))
+                label = str(raw_label or '').strip()[:CustomField.LABEL_MAX_LENGTH]
+                active = bool(item.get('active', True))
+                key = CustomField.normalize_key(item.get('key')) if item.get('key') else ''
+
+                if key:
+                    field = existing.get(key)
+                    if field is None:
+                        # A key the client made up, or one retired by someone else.
+                        raise ValidationError({'error': f'Unknown custom field: {key}'})
+                    updates = []
+                    if label and field.label != label:
+                        field.label = label
+                        updates.append('label')
+                    if field.active != active:
+                        field.active = active
+                        updates.append('active')
+                    if updates:
+                        field.save(update_fields=updates + ['updated_at'])
                     continue
-                if key in reserved_keys:
-                    return Response({'error': f'Invalid key (reserved): {key}'}, status=status.HTTP_400_BAD_REQUEST)
-                if not KEY_RE.match(key):
-                    return Response({'error': f'Invalid key: {key}'}, status=status.HTTP_400_BAD_REQUEST)
 
-                display_label = item.get('display_label')
-                active = item.get('active', True)
-                if key not in meta and len(meta) >= CUSTOM_FIELDS_MAX:
-                    return Response(
-                        {'error': f'Max custom fields per event exceeded ({CUSTOM_FIELDS_MAX}).'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                # No key -> new field.
+                if not label:
+                    continue
+                if len(existing) >= CustomField.MAX_PER_EVENT:
+                    raise ValidationError({
+                        'error': f'Max custom fields per event exceeded ({CustomField.MAX_PER_EVENT}).'
+                    })
 
-                if key not in meta:
-                    meta[key] = {'display_label': str(display_label or key)[:VALUE_LABEL_MAX], 'example': '', 'active': bool(active)}
-                    changed = True
-                else:
-                    if display_label is not None:
-                        new_label = str(display_label)[:VALUE_LABEL_MAX]
-                        if meta[key].get('display_label') != new_label:
-                            meta[key]['display_label'] = new_label
-                            changed = True
-                    if active is not None and meta[key].get('active', True) != bool(active):
-                        meta[key]['active'] = bool(active)
-                        changed = True
+                new_key = CustomField.mint_key(label, taken=set(existing.keys()))
+                if not new_key:
+                    raise ValidationError({
+                        'error': f'Could not derive a field key from label: {label!r}'
+                    })
 
-            if changed:
-                event.custom_fields_metadata = meta
-                event.save(update_fields=['custom_fields_metadata', 'updated_at'])
+                field = CustomField.objects.create(
+                    event=event, key=new_key, label=label, active=active,
+                )
+                existing[new_key] = field
 
-        return Response({'custom_fields_metadata': event.custom_fields_metadata}, status=status.HTTP_200_OK)
+            meta = CustomField.rebuild_event_cache(event)
+
+        return Response({'custom_fields_metadata': meta}, status=status.HTTP_200_OK)
 
     # -------------------------
     # ORDERS
@@ -900,25 +858,6 @@ class EventViewSet(viewsets.ModelViewSet):
             s = re.sub(r'\s+', ' ', s).strip()
             return s.title()[:80]
 
-        def _normalize_custom_fields_metadata(meta):
-            if not isinstance(meta, dict):
-                return {}
-            normalized = {}
-            for k, v in meta.items():
-                if isinstance(v, dict):
-                    normalized[k] = {
-                        'display_label': str(v.get('display_label') or k)[:80],
-                        'example': str(v.get('example') or '')[:120],
-                        'active': bool(v.get('active', True)),
-                    }
-                else:
-                    normalized[k] = {
-                        'display_label': str(v)[:80] if v else str(k)[:80],
-                        'example': '',
-                        'active': True,
-                    }
-            return normalized
-
         try:
             if file_extension in ('vcf', 'vcard'):
                 raw_bytes = upload.read()
@@ -986,30 +925,38 @@ class EventViewSet(viewsets.ModelViewSet):
                 )
 
             if custom_headers_to_upsert:
-                meta = _normalize_custom_fields_metadata(getattr(event, 'custom_fields_metadata', {}) or {})
-                changed = False
-                existing_count = len(meta)
-                for normalized_key, display_label in custom_headers_to_upsert:
-                    if normalized_key in meta:
-                        continue
-                    if existing_count >= CUSTOM_FIELDS_MAX:
-                        if not any('Too many custom fields' in e for e in errors):
-                            errors.append(
-                                f'Too many custom columns detected. Max allowed is {CUSTOM_FIELDS_MAX}. '
-                                f'Extra custom columns will be ignored.'
-                            )
-                        break
-                    meta[normalized_key] = {
-                        'display_label': display_label[:80],
-                        'example': '',
-                        'active': True,
-                    }
-                    existing_count += 1
-                    changed = True
+                # A header whose normalized key already exists reuses that field
+                # rather than creating a second one, so re-importing the same
+                # sheet is idempotent. Header keys are minted by
+                # normalize_csv_header(), which CustomField.normalize_key()
+                # mirrors -- keep the two in step.
+                with transaction.atomic():
+                    Event.objects.select_for_update().get(pk=event.pk)
+                    existing_keys = set(
+                        CustomField.objects.filter(event=event).values_list('key', flat=True)
+                    )
+                    changed = False
+                    for normalized_key, display_label in custom_headers_to_upsert:
+                        if normalized_key in existing_keys:
+                            continue
+                        if len(existing_keys) >= CustomField.MAX_PER_EVENT:
+                            if not any('Too many custom fields' in e for e in errors):
+                                errors.append(
+                                    f'Too many custom columns detected. Max allowed is {CustomField.MAX_PER_EVENT}. '
+                                    f'Extra custom columns will be ignored.'
+                                )
+                            break
+                        CustomField.objects.create(
+                            event=event,
+                            key=normalized_key,
+                            label=display_label[:CustomField.LABEL_MAX_LENGTH],
+                            active=True,
+                        )
+                        existing_keys.add(normalized_key)
+                        changed = True
 
-                if changed:
-                    event.custom_fields_metadata = meta
-                    event.save(update_fields=['custom_fields_metadata', 'updated_at'])
+                    if changed:
+                        CustomField.rebuild_event_cache(event)
 
             labeled_rows: list = []
             for idx, row in enumerate(rows, start=2):
@@ -1814,7 +1761,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 'event_id', 'created_at', 'updated_at',
                 'event__id', 'event__slug', 'event__event_structure',
                 'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__public_sub_events_count',
-                'event__total_sub_events_count', 'event__host_id'  # host_id needed for editor check
+                'event__total_sub_events_count', 'event__host_id',  # host_id needed for editor check
+                # Serialized fields - loaded here rather than as deferred-field queries
+                'event__country', 'event__title', 'event__host__name'
             ).get(slug=slug, is_published=True)
             event = invite_page.event
             query_time = time.time() - query_start
@@ -1830,7 +1779,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             query_start = time.time()
             logger.info(f"[PublicInviteViewSet.retrieve] Step 2: Looking for unpublished invite page with slug: '{slug}'")
             try:
-                invite_page = InvitePage.objects.select_related('event').prefetch_related(
+                invite_page = InvitePage.objects.select_related('event', 'event__host').prefetch_related(
                     'event__sub_events'
                 ).only(
                     'id', 'slug', 'background_url', 'config', 'published_config',
@@ -1838,7 +1787,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                     'event_id', 'created_at', 'updated_at',
                     'event__id', 'event__slug', 'event__title', 'event__show_branding',
                     'event__event_structure',
-                    'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__host_id'  # host_id needed for auth check
+                    'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__host_id',  # host_id needed for auth check
+                    # Serialized fields - loaded here rather than as deferred-field queries
+                    'event__country', 'event__host__name'
                 ).get(slug=slug)
                 event = invite_page.event
                 query_time = time.time() - query_start
@@ -2333,19 +2284,13 @@ def check_phone_for_rsvp(request, event_id):
     if not phone:
         return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Format phone with country code
-    from .utils import format_phone_with_country_code, get_country_code, parse_phone_number
-    event_country_code = get_country_code(event.country)
-    
-    if phone and not phone.startswith('+'):
-        if country_code:
-            phone = format_phone_with_country_code(phone, country_code)
-        else:
-            phone = format_phone_with_country_code(phone, event_country_code)
-    
-    phone_digits_only = re.sub(r'\D', '', phone)
-    provided_country_code = country_code or event_country_code
-    
+    # One membership check for every guest-facing surface - see apps.events.membership
+    from . import membership
+
+    phone, _phone_digits_only, _provided_country_code = membership.normalize_phone(
+        event, phone, country_code
+    )
+
     existing_rsvp = event.find_main_rsvp_by_phone(phone, country_code)
     
     # If existing RSVP found (grandfather clause), return RSVP data
@@ -2362,6 +2307,11 @@ def check_phone_for_rsvp(request, event_id):
         rsvp_data = RSVPSerializer(existing_rsvp).data
         rsvp_data['found_in'] = 'rsvp'
         rsvp_data['phone_verified'] = True
+        # An RSVP can predate its guest link, so fall back to matching the
+        # number against the guest list - otherwise a returning guest would
+        # verify successfully and still be handed nothing to carry onward.
+        pass_guest = existing_rsvp.guest or membership.prove_by_phone(event, phone, country_code)
+        rsvp_data['access_pass'] = membership.issue_pass(event, pass_guest)
         rsvp_data.update(_rsvp_capacity_response_fields(event, existing_rsvp))
         return Response(rsvp_data, status=status.HTTP_200_OK)
     
@@ -2375,42 +2325,28 @@ def check_phone_for_rsvp(request, event_id):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # If no existing RSVP, check guest list (exclude removed guests)
-    guest = None
-    # First try exact phone match
-    guest = Guest.objects.filter(event=event, phone=phone, is_removed=False).first()
-    
-    # If not found, try matching by digits only
-    if not guest:
-        all_guests = Guest.objects.filter(event=event, is_removed=False)
-        for g in all_guests:
-            guest_phone_digits = re.sub(r'\D', '', g.phone)
-            if guest_phone_digits == phone_digits_only:
-                guest = g
-                break
-            
-            # Try matching last 10 digits with country code verification
-            if len(phone_digits_only) >= 10 and len(guest_phone_digits) >= 10:
-                local_number = phone_digits_only[-10:]
-                if guest_phone_digits.endswith(local_number):
-                    stored_country_code, _ = parse_phone_number(g.phone)
-                    if stored_country_code == provided_country_code:
-                        guest = g
-                        break
-    
+    # If no existing RSVP, check the guest list (excludes removed guests)
+    guest = membership.prove_by_phone(event, phone, country_code)
+
     if not guest:
         return Response(
-            {'error': 'Phone number not found. Please try a different number or contact the host.'},
+            {'error': membership.GUEST_NOT_FOUND_MESSAGE},
             status=status.HTTP_404_NOT_FOUND
         )
-    
+
     # Return guest data for pre-filling form
     from .serializers import GuestSerializer
     guest_data = GuestSerializer(guest).data
+    # The permanent invite token must not leave the server here: matching a
+    # phone number is momentary proof, and handing back a forwardable key would
+    # turn it into standing access for anyone the key is passed to. The pass
+    # below covers every case the token was covering, and expires.
+    guest_data.pop('guest_token', None)
     guest_data['found_in'] = 'guest_list'
     guest_data['phone_verified'] = True
+    guest_data['access_pass'] = membership.issue_pass(event, guest)
     guest_data.update(_rsvp_capacity_response_fields(event, None))
-    
+
     return Response(guest_data, status=status.HTTP_200_OK)
 
 
@@ -2585,6 +2521,12 @@ def _notify_host_rsvp(event, rsvp):
     Notify the event host of a new/updated RSVP, respecting their notification preferences.
     Also sends a confirmation email to the guest if they provided an email address.
     """
+    # Record the guest's consent to have their data processed for this event.
+    # This is the single post-persist hook every RSVP success path calls, so it
+    # covers all RSVP modes without touching each return. Self-guarding.
+    from apps.privacy.helpers import record_rsvp_consent
+    record_rsvp_consent(event, getattr(rsvp, 'guest_id', None))
+
     # --- Guest confirmation (always sent if email provided) ---
     if rsvp.email:
         guest_name = rsvp.name or 'Guest'
@@ -4950,6 +4892,92 @@ def public_rsvp_sub_events(request, slug):
         queryset = eligible.filter(is_public_visible=True)
 
     return Response({'results': SubEventSerializer(queryset, many=True).data})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def public_verify_phone(request, slug):
+    """
+    Prove guest-list membership from a phone number, for any guest-facing surface.
+
+    Deliberately leaner than the RSVP phone check: it returns a pass and a name,
+    not the guest's record. The catalog needs to know *that* someone is on the
+    list, not everything about them.
+    """
+    from . import membership
+
+    event = get_object_or_404(Event, slug=slug.lower())
+
+    phone = (request.data.get('phone') or '').strip()
+    country_code = request.data.get('country_code', '')
+    if not phone:
+        return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    guest = membership.prove_by_phone(event, phone, country_code)
+    if guest is None:
+        return Response(
+            {'error': membership.GUEST_NOT_FOUND_MESSAGE},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    response = Response({
+        'access_pass': membership.issue_pass(event, guest),
+        'name': guest.name,
+    })
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_rsvp_config(request, slug):
+    """
+    Guest-facing RSVP gates and form definition - deliberately NOT cached.
+
+    The public invite payload (/api/events/invite/{slug}/) is served with
+    s-maxage/stale-while-revalidate, so a guest's browser can render it up to an
+    hour stale. That is correct for presentation and wrong for anything that
+    decides what the guest is asked to do: a host flipping an event to private,
+    hitting capacity, or editing the RSVP form must take effect immediately.
+
+    Those fields live here instead, behind no-store. See
+    InvitePageSerializer for the cacheable half of this split.
+    """
+    from .utils import get_country_code
+
+    event = get_object_or_404(Event, slug=slug.lower())
+
+    payload = {
+        'event_id': event.id,
+        'slug': event.slug,
+        'has_rsvp': event.has_rsvp,
+        'is_public': event.is_public,
+        'country_code': get_country_code(event.country or 'IN'),
+        'rsvp_mode': event.rsvp_mode,
+        'rsvp_experience_mode': event.get_canonical_rsvp_mode(),
+        # Whether capacity limiting is switched on - deliberately a boolean, so the
+        # guest learns that a limit applies without the raw headcount leaving the
+        # server. is_rsvp_registration_full() answers the only other question the
+        # page needs.
+        'rsvp_capacity_enabled': bool(
+            event.rsvp_block_on_full_capacity and event.rsvp_total_capacity
+        ),
+        'rsvp_require_sub_event_selection': event.rsvp_require_sub_event_selection,
+        'rsvp_registration_full': event.is_rsvp_registration_full(),
+        # Live COUNT over another table: it changes without anything on the invite
+        # page changing, so no version key can invalidate it. The cached payload
+        # carries a copy as an instant-paint seed; this is the truthful one.
+        'rsvp_count': event.rsvps.filter(will_attend='yes', is_removed=False).count(),
+        'rsvp_form_config': (
+            event.page_config.get('rsvpForm') if isinstance(event.page_config, dict) else None
+        ),
+    }
+
+    response = Response(payload)
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 @api_view(['GET'])

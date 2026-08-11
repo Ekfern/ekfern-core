@@ -262,6 +262,18 @@ class InvitePageSerializer(serializers.ModelSerializer):
     has_rsvp = serializers.BooleanField(source='event.has_rsvp', read_only=True)
     has_registry = serializers.BooleanField(source='event.has_registry', read_only=True)
     show_branding = serializers.BooleanField(source='event.show_branding', read_only=True)
+    # This payload is served with s-maxage/stale-while-revalidate, so a guest's
+    # browser may render it up to an hour stale. Only add fields that are
+    # harmless when stale - gates, live counts and the RSVP form definition
+    # belong on the no-store public_rsvp_config endpoint instead. The allowlist
+    # in PublicInvitePayloadFieldContractTestCase enforces this.
+    #
+    # Note that `id` here is the InvitePage PK - callers hitting event-scoped
+    # endpoints must use `event`, not `id`.
+    country_code = serializers.SerializerMethodField()
+    # Presentation, and effectively immutable - the cacheable side of the split.
+    title = serializers.CharField(source='event.title', read_only=True)
+    host_name = serializers.CharField(source='event.host.name', read_only=True, allow_null=True)
     state = serializers.SerializerMethodField()  # Expose state property using method field
     rsvp_count = serializers.SerializerMethodField()
     catalog_show_on_event_page = serializers.SerializerMethodField()
@@ -271,8 +283,8 @@ class InvitePageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = InvitePage
-        fields = ('id', 'event', 'event_slug', 'event_country', 'event_timezone', 'slug', 'background_url', 'config', 'published_config', 'is_published', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'event_slug', 'event_country', 'event_timezone', 'published_config', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+        fields = ('id', 'event', 'event_slug', 'event_country', 'event_timezone', 'slug', 'title', 'host_name', 'background_url', 'config', 'published_config', 'is_published', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'country_code', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'event_slug', 'event_country', 'event_timezone', 'title', 'host_name', 'published_config', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'country_code', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
 
     def get_catalog_show_on_event_page(self, obj):
         return _catalog_show_on_event_page(obj.event)
@@ -306,6 +318,15 @@ class InvitePageSerializer(serializers.ModelSerializer):
     def get_rsvp_count(self, obj):
         """Count of confirmed (will_attend=yes) RSVPs for the event"""
         return obj.event.rsvps.filter(will_attend='yes', is_removed=False).count()
+
+    def get_country_code(self, obj):
+        """
+        Phone country code (e.g. '+91') derived from the event's country.
+
+        Stale-safe: an event's country does not meaningfully change, so this one
+        is fine on the cached side of the split.
+        """
+        return get_country_code(obj.event.country or 'IN')
 
     def validate_config(self, value):
         """Validate config structure"""
@@ -956,7 +977,10 @@ class SubEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubEvent
         fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'event', 'assigned_guests_count', 'created_at', 'updated_at')
+        # is_removed is read-only: soft delete goes through perform_destroy, never
+        # a client write. Leaving it writable let any update that spreads the whole
+        # object carry a soft delete along with it.
+        read_only_fields = ('id', 'event', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
 
     def get_assigned_guests_count(self, obj):
         return getattr(obj, 'assigned_guests_count', None)

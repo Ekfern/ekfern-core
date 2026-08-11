@@ -9,7 +9,7 @@ from django.utils import timezone
 from datetime import timedelta
 from rest_framework.test import APIClient
 from rest_framework import status
-from apps.events.models import Event, Guest, RSVP, InvitePage, MessageTemplate, SubEvent, GuestSubEventInvite, BookingSchedule, BookingSlot, SlotBooking, GreetingCardSample, InvitePageLayout
+from apps.events.models import Event, Guest, RSVP, InvitePage, MessageTemplate, SubEvent, GuestSubEventInvite, BookingSchedule, BookingSlot, SlotBooking, GreetingCardSample, InvitePageLayout, CustomField
 from django.core.cache import cache
 from apps.events.serializers import GuestSerializer
 
@@ -455,6 +455,307 @@ class PublicInviteViewSetTestCase(TestCase):
         guest_resp = guest_client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(guest_resp.status_code, status.HTTP_200_OK)
         self.assertEqual(guest_resp.data.get('status'), 'coming_soon')
+
+
+class GuestRsvpPayloadTestCaseBase(TestCase):
+    """Shared fixture: a published invite page whose PK cannot match its event's PK."""
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='payload-host@test.com', name='Payload Host')
+        # Burn a few Event PKs so the Event id and the InvitePage id cannot
+        # coincidentally match - otherwise the id/event assertions below pass
+        # vacuously on a fresh test database.
+        for i in range(3):
+            Event.objects.create(host=self.host, slug=f'filler-{i}', title=f'Filler {i}')
+        self.event = Event.objects.create(
+            host=self.host,
+            slug='payload-event',
+            title='Payload Event',
+            is_public=True,
+            has_rsvp=True,
+            country='IN',
+        )
+        self.invite_page = InvitePage.objects.create(
+            event=self.event,
+            slug=self.event.slug,
+            is_published=True,
+            config={'themeId': 'classic-noir', 'tiles': []},
+        )
+        # PK sequences survive transaction rollback, so an unrelated Event from an
+        # earlier test class can occupy this InvitePage's PK. Clear it, otherwise
+        # the "wrong id" assertions would hit a coincidental neighbour instead of
+        # the reported failure.
+        Event.objects.filter(id=self.invite_page.id).exclude(id=self.event.id).delete()
+        self.assertNotEqual(self.invite_page.id, self.event.id)
+        self.assertFalse(Event.objects.filter(id=self.invite_page.id).exists())
+
+    def _invite(self):
+        response = self.client.get(f'/api/events/invite/{self.invite_page.slug}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response
+
+    def _config(self):
+        response = self.client.get(f'/api/events/invite/{self.invite_page.slug}/rsvp-config/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response
+
+
+class PublicInviteEventIdContractTestCase(GuestRsvpPayloadTestCaseBase):
+    """
+    `id` on the invite payload is the InvitePage PK, not the Event PK.
+
+    Regression guard: the RSVP page used `id` to build event-scoped URLs, which
+    404'd on /rsvp/check/phone/ as "The requested item was not found" and blocked
+    every guest at the phone step.
+    """
+
+    def test_serialized_event_fields_do_not_fire_deferred_queries(self):
+        """Fields added to the payload must be in .only(), not fetched one query each."""
+        cache.clear()
+        with CaptureQueriesContext(connection) as ctx:
+            self.client.get(f'/api/events/invite/{self.invite_page.slug}/')
+
+        watched = (
+            (Event._meta.db_table, ('title', 'country')),
+            (User._meta.db_table, ('name',)),
+        )
+        offenders = []
+        for query in ctx.captured_queries:
+            sql = query['sql']
+            for table, fields in watched:
+                if (
+                    f'FROM "{table}"' in sql
+                    and f'WHERE "{table}"."id" =' in sql
+                    and any(f'"{table}"."{field}"' in sql for field in fields)
+                ):
+                    offenders.append(sql)
+        self.assertEqual(offenders, [], f'deferred-field queries fired: {offenders}')
+
+    def test_cached_payload_carries_presentation_fields_the_rsvp_page_renders(self):
+        """Title and host name are stale-safe presentation - the cached side of the split."""
+        payload = self._invite().data
+        self.assertEqual(payload['title'], 'Payload Event')
+        self.assertEqual(payload['host_name'], 'Payload Host')
+
+    def test_payload_exposes_event_pk_separately_from_invite_page_pk(self):
+        payload = self._invite().data
+        self.assertEqual(payload['id'], self.invite_page.id)
+        self.assertEqual(payload['event'], self.event.id)
+        self.assertNotEqual(payload['id'], payload['event'])
+        # The InvitePage PK must not resolve as an event id - this is the 404.
+        self.assertFalse(Event.objects.filter(id=payload['id']).exists())
+
+    def test_rsvp_config_reports_the_event_pk_the_rsvp_page_must_use(self):
+        """The RSVP page takes its event id from rsvp-config, so it must be the Event PK."""
+        self.assertEqual(self._config().data['event_id'], self.event.id)
+
+    def test_event_scoped_rsvp_endpoint_accepts_the_event_pk_not_the_invite_page_pk(self):
+        payload = self._invite().data
+        body = {'name': 'Asha', 'phone': '+919876543210', 'will_attend': 'yes', 'guests_count': 1}
+
+        ok = self.client.post(f'/api/events/{payload["event"]}/rsvp/', body, format='json')
+        self.assertIn(ok.status_code, (status.HTTP_200_OK, status.HTTP_201_CREATED))
+        self.assertTrue(RSVP.objects.filter(event=self.event, name='Asha').exists())
+
+        wrong = self.client.post(
+            f'/api/events/{payload["id"]}/rsvp/',
+            {**body, 'name': 'Bhavna'},
+            format='json',
+        )
+        self.assertEqual(wrong.status_code, status.HTTP_404_NOT_FOUND)
+        # Belt and braces: whatever that id resolves to, the RSVP must not land here.
+        self.assertFalse(RSVP.objects.filter(event=self.event, name='Bhavna').exists())
+
+    def test_private_event_phone_check_resolves_with_the_event_pk(self):
+        """The exact reported flow: phone verification on a private event returns the guest."""
+        self.event.is_public = False
+        self.event.save(update_fields=['is_public'])
+        Guest.objects.create(event=self.event, name='Ravi', phone='+919812345678')
+
+        event_id = self._config().data['event_id']
+        response = self.client.post(
+            f'/api/events/{event_id}/rsvp/check/phone/',
+            {'phone': '9812345678', 'country_code': '+91'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['found_in'], 'guest_list')
+        self.assertTrue(response.data['phone_verified'])
+
+        # Same request against the InvitePage PK is the reported failure: a 404
+        # whose body carries `detail`, not the view's friendly `error` message.
+        wrong = self.client.post(
+            f'/api/events/{self.invite_page.id}/rsvp/check/phone/',
+            {'phone': '9812345678', 'country_code': '+91'},
+            format='json',
+        )
+        self.assertEqual(wrong.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertNotIn('error', wrong.data)
+
+
+class PublicRsvpConfigEndpointTestCase(GuestRsvpPayloadTestCaseBase):
+    """
+    The uncached half of the invite payload: gates, live capacity, form definition.
+
+    These decide what the guest is asked to do, so they must never be served from
+    a cache. A host flipping an event to private has to take effect immediately.
+    """
+
+    def test_response_forbids_caching(self):
+        response = self._config()
+        self.assertIn('no-store', response['Cache-Control'])
+        self.assertIn('no-cache', response['Cache-Control'])
+
+    def test_gates_are_absent_from_the_cacheable_invite_payload(self):
+        """
+        The whole point of the split: these fields must not be reachable through
+        the CDN-cached payload, or a stale copy can re-introduce the bug.
+        """
+        payload = self._invite().data
+        for field in (
+            'is_public', 'rsvp_registration_full', 'rsvp_form_config',
+            'rsvp_total_capacity', 'rsvp_block_on_full_capacity',
+            'rsvp_require_sub_event_selection', 'page_config',
+        ):
+            self.assertNotIn(field, payload, f'{field} must not ride the cached invite payload')
+
+    def test_is_public_change_is_visible_immediately_even_after_the_invite_is_cached(self):
+        """Reported bug: flipping public -> private did not reach the RSVP form."""
+        self._invite()  # warm the invite cache while the event is still public
+        self.assertIs(self._config().data['is_public'], True)
+
+        self.event.is_public = False
+        self.event.save(update_fields=['is_public'])
+
+        # No cache.clear() here on purpose - the gate must be fresh regardless of
+        # whatever the invite payload cache is still holding.
+        self.assertIs(self._config().data['is_public'], False)
+
+    def test_country_code_is_derived_from_the_event_country(self):
+        self.assertEqual(self._config().data['country_code'], '+91')
+
+        self.event.country = 'US'
+        self.event.save(update_fields=['country'])
+        self.assertEqual(self._config().data['country_code'], '+1')
+
+    def test_rsvp_form_config_exposes_only_the_rsvp_form_slice(self):
+        """Custom fields reach the guest; the rest of page_config (host content) does not."""
+        self.event.page_config = {
+            'rsvpForm': {
+                'customFields': [{'key': 'meal', 'label': 'Meal preference', 'enabled': True}],
+            },
+            'linkMetadata': {'ogTitle': 'host only'},
+            'tiles': [{'id': 't1', 'type': 'title'}],
+        }
+        self.event.save(update_fields=['page_config'])
+
+        payload = self._config().data
+        self.assertEqual(payload['rsvp_form_config']['customFields'][0]['key'], 'meal')
+        self.assertNotIn('linkMetadata', payload['rsvp_form_config'])
+        self.assertNotIn('page_config', payload)
+
+    def test_rsvp_form_config_is_null_when_the_event_has_none(self):
+        self.assertIsNone(self._config().data['rsvp_form_config'])
+
+    def test_capacity_is_reported_as_a_flag_not_a_headcount(self):
+        """The guest learns that a limit applies, never how big it is."""
+        payload = self._config().data
+        self.assertIs(payload['rsvp_capacity_enabled'], False)
+        self.assertIs(payload['rsvp_require_sub_event_selection'], False)
+        self.assertIs(payload['rsvp_registration_full'], False)
+        self.assertNotIn('rsvp_total_capacity', payload)
+
+    def test_capacity_headcount_is_never_exposed_even_when_configured(self):
+        self.event.rsvp_total_capacity = 200
+        self.event.rsvp_block_on_full_capacity = True
+        self.event.save(update_fields=['rsvp_total_capacity', 'rsvp_block_on_full_capacity'])
+
+        payload = self._config().data
+        self.assertIs(payload['rsvp_capacity_enabled'], True)
+        self.assertNotIn('rsvp_total_capacity', payload)
+        self.assertNotIn(200, payload.values())
+
+    def test_registration_full_flips_as_soon_as_capacity_is_reached(self):
+        """A guest must not be walked through the form for an event that just filled up."""
+        self.event.rsvp_total_capacity = 1
+        self.event.rsvp_block_on_full_capacity = True
+        self.event.save(update_fields=['rsvp_total_capacity', 'rsvp_block_on_full_capacity'])
+        self.assertIs(self._config().data['rsvp_registration_full'], False)
+
+        RSVP.objects.create(event=self.event, name='Asha', phone='+919876543210', will_attend='yes', guests_count=1)
+        self.assertIs(self._config().data['rsvp_registration_full'], True)
+
+    def test_rsvp_count_is_served_live(self):
+        """The count changes without the invite page changing, so this is the truthful copy."""
+        self.assertEqual(self._config().data['rsvp_count'], 0)
+        RSVP.objects.create(event=self.event, name='Asha', phone='+919876543210', will_attend='yes', guests_count=1)
+        self.assertEqual(self._config().data['rsvp_count'], 1)
+
+    def test_missing_slug_returns_404(self):
+        response = self.client.get('/api/events/invite/no-such-slug/rsvp-config/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_route_is_not_swallowed_by_the_invite_detail_route(self):
+        """rsvp-config must resolve to its own view, not to the invite page for slug 'x'."""
+        response = self._config()
+        self.assertIn('event_id', response.data)
+        self.assertNotIn('config', response.data)
+
+
+class PublicInvitePayloadFieldContractTestCase(TestCase):
+    """
+    Pins which fields may ride the CDN-cached invite payload.
+
+    That payload is served with s-maxage/stale-while-revalidate, so a guest's
+    browser can render it up to an hour stale. Anything that gates behaviour
+    (is_public), reflects live state (capacity), or defines the RSVP form must
+    live on the no-store public_rsvp_config endpoint instead - a stale gate walks
+    the guest through a form the server will then refuse.
+
+    If this test fails you added a field to InvitePageSerializer. Decide which
+    side it belongs on before adding it to the allowlist.
+    """
+
+    # Every field here must be harmless when an hour stale.
+    CACHEABLE_INVITE_FIELDS = frozenset({
+        # Identity and routing
+        'id', 'event', 'event_slug', 'slug',
+        # Presentation - the reason this payload is cached at all
+        'title', 'host_name',
+        'background_url', 'config', 'published_config', 'state',
+        'is_published', 'published_at', 'created_at', 'updated_at',
+        'show_branding', 'allowed_sub_events', 'guest_context',
+        # Event attributes that do not meaningfully change
+        'event_country', 'event_timezone', 'event_structure', 'country_code',
+        # Feature toggles - stale only mis-renders a button; the server still
+        # enforces the real check on submit
+        'has_rsvp', 'has_registry', 'rsvp_mode', 'rsvp_experience_mode',
+        'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation',
+        'catalog_title', 'catalog_purpose',
+        # A live COUNT() over another table, so no version key can invalidate it.
+        # It stays here as an instant-paint seed only: InvitePageClient always
+        # refetches on mount with a _ts cache-buster, and public_rsvp_config
+        # serves the authoritative value. Safe because it renders as a label, not
+        # a decision - move it if that ever stops being true.
+        'rsvp_count',
+    })
+
+    def test_cached_invite_payload_field_set_is_pinned(self):
+        from apps.events.serializers import InvitePageSerializer
+
+        actual = set(InvitePageSerializer().fields.keys())
+        added = actual - self.CACHEABLE_INVITE_FIELDS
+        removed = self.CACHEABLE_INVITE_FIELDS - actual
+        self.assertEqual(
+            actual,
+            set(self.CACHEABLE_INVITE_FIELDS),
+            'InvitePageSerializer fields changed. '
+            f'Added: {sorted(added)}. Removed: {sorted(removed)}. '
+            'This payload is CDN-cached and may be an hour stale in a guest browser - '
+            'gates, live counts and form definitions belong on public_rsvp_config instead.',
+        )
 
 
 class UpdateDesignMergeTestCase(TestCase):
@@ -1918,3 +2219,140 @@ class DesignCodeLayoutFilterTestCase(TestCase):
         response = self.client.get('/api/events/invite-page-layouts/')
         self.assertEqual(len(response.json()), 4)
 
+
+
+class CustomFieldRegistryTests(TestCase):
+    """
+    Custom fields live in the CustomField table; Event.custom_fields_metadata is
+    a cache rebuilt from it. The regressions guarded here are the ones that
+    silently destroyed guest data before the table existed.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='cf-host@test.com', name='CF Host')
+        self.client.force_authenticate(user=self.host)
+        self.event = Event.objects.create(
+            host=self.host, title='CF Event', slug='cf-event',
+            event_type='wedding', date=timezone.now().date() + timedelta(days=30),
+        )
+        self.url = f'/api/events/{self.event.id}/custom-fields/'
+
+    def _add(self, label):
+        return self.client.patch(self.url, {'upsert': [{'label': label}]}, format='json')
+
+    def test_creating_a_field_mints_key_from_label(self):
+        resp = self._add('Dietary Requirements')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        field = CustomField.objects.get(event=self.event)
+        self.assertEqual(field.key, 'dietary_requirements')
+        self.assertEqual(field.label, 'Dietary Requirements')
+
+    def test_editing_label_leaves_key_untouched(self):
+        """The whole point of the table: labels move, keys never do."""
+        self._add('Allergies')
+        field = CustomField.objects.get(event=self.event)
+        self.assertEqual(field.key, 'allergies')
+
+        resp = self.client.patch(
+            self.url,
+            {'upsert': [{'key': 'allergies', 'label': 'Dietary Requirements'}]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        field.refresh_from_db()
+        self.assertEqual(field.key, 'allergies')
+        self.assertEqual(field.label, 'Dietary Requirements')
+
+    def test_rename_is_rejected(self):
+        self._add('Allergies')
+        resp = self.client.patch(
+            self.url,
+            {'rename': [{'from': 'allergies', 'to': 'dietary'}], 'upsert': []},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(CustomField.objects.filter(event=self.event, key='allergies').exists())
+
+    def test_failed_save_rolls_back_completely(self):
+        """
+        Regression: a rejected save used to commit whatever it had already
+        written, because `return Response(400)` inside atomic() does not roll
+        back. Guest answers were migrated while the registry was not, orphaning
+        the answers. Every rejection now raises, so nothing is kept.
+        """
+        self._add('Allergies')
+        guest = Guest.objects.create(
+            event=self.event, name='Aakash', phone='+919000000001',
+            custom_fields={'allergies': 'peanuts'},
+        )
+
+        # Valid label edit alongside a field count blow-out: the whole call must fail.
+        CustomField.objects.bulk_create([
+            CustomField(event=self.event, key=f'filler_{i}', label=f'Filler {i}')
+            for i in range(CustomField.MAX_PER_EVENT)
+        ])
+        resp = self.client.patch(
+            self.url,
+            {'upsert': [
+                {'key': 'allergies', 'label': 'Renamed Label'},
+                {'label': 'One Too Many'},
+            ]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Nothing partially applied, and the guest's answer is still reachable.
+        self.assertEqual(CustomField.objects.get(event=self.event, key='allergies').label, 'Allergies')
+        guest.refresh_from_db()
+        self.assertEqual(guest.custom_fields, {'allergies': 'peanuts'})
+        self.event.refresh_from_db()
+        self.assertIn('allergies', self.event.custom_fields_metadata)
+
+    def test_duplicate_key_is_impossible(self):
+        from django.db import IntegrityError as DBIntegrityError
+        self._add('Allergies')
+        with self.assertRaises(DBIntegrityError):
+            CustomField.objects.create(event=self.event, key='allergies', label='Other')
+
+    def test_same_key_allowed_across_events(self):
+        other = Event.objects.create(
+            host=self.host, title='Other', slug='cf-other',
+            event_type='wedding', date=timezone.now().date() + timedelta(days=30),
+        )
+        self._add('Allergies')
+        CustomField.objects.create(event=other, key='allergies', label='Allergies')
+        self.assertEqual(CustomField.objects.filter(key='allergies').count(), 2)
+
+    def test_duplicate_label_gets_suffixed_key(self):
+        self._add('Allergies')
+        self._add('Allergies')
+        keys = sorted(CustomField.objects.filter(event=self.event).values_list('key', flat=True))
+        self.assertEqual(keys, ['allergies', 'allergies_2'])
+
+    def test_reserved_label_does_not_collide_with_builtin_column(self):
+        """'Email' must not mint the key 'email', which the guest importer owns."""
+        resp = self._add('Email')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        key = CustomField.objects.get(event=self.event).key
+        self.assertNotIn(key, CustomField.RESERVED_KEYS)
+
+    def test_cache_matches_table_after_writes(self):
+        self._add('Allergies')
+        self._add('Table Number')
+        self.client.patch(self.url, {'disable': ['allergies']}, format='json')
+
+        self.event.refresh_from_db()
+        expected = {
+            f.key: {'display_label': f.label, 'example': f.example or '', 'active': f.active}
+            for f in CustomField.objects.filter(event=self.event)
+        }
+        self.assertEqual(self.event.custom_fields_metadata, expected)
+        self.assertFalse(self.event.custom_fields_metadata['allergies']['active'])
+
+    def test_other_host_cannot_touch_fields(self):
+        intruder = User.objects.create_user(email='cf-intruder@test.com', name='Intruder')
+        self.client.force_authenticate(user=intruder)
+        resp = self._add('Sneaky')
+        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(CustomField.objects.filter(event=self.event).count(), 0)

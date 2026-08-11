@@ -19,6 +19,7 @@ import { getSiteUrl } from '@/lib/site-url'
 import { WhatsAppTemplate, incrementWhatsAppTemplateUsage } from '@/lib/api'
 import { isContactPickerSupported, selectContactsAsGuestRows } from '@/lib/contactPickerImport'
 import { isLikelyIOS } from '@/lib/contactImportUi'
+import CustomFieldsModal from "@/components/custom-fields/CustomFieldsModal";
 import dynamic from 'next/dynamic'
 import { Columns2, Filter, AlertTriangle } from 'lucide-react'
 
@@ -110,14 +111,6 @@ interface Event {
   has_registry?: boolean
 }
 
-type CustomFieldMeta = {
-  id: string
-  key: string
-  display_label: string
-  active: boolean
-  originalKey?: string
-}
-
 interface SubEvent {
   id: number
   title: string
@@ -146,7 +139,7 @@ export default function GuestsPage() {
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null)
   const [uploading, setUploading] = useState(false)
   const [importErrors, setImportErrors] = useState<string[] | null>(null)
-  const [importSummary, setImportSummary] = useState<{created: number, errors: number} | null>(null)
+  const [importSummary, setImportSummary] = useState<{ created: number, errors: number } | null>(null)
   const [sharingWhatsApp, setSharingWhatsApp] = useState<number | null>(null)
   const [showTemplateSelector, setShowTemplateSelector] = useState(false)
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null)
@@ -210,7 +203,6 @@ export default function GuestsPage() {
   const [saveGroupType, setSaveGroupType] = useState<'fixed' | 'dynamic'>('fixed')
   const [savingGroup, setSavingGroup] = useState(false)
   const [showCustomFieldsManager, setShowCustomFieldsManager] = useState(false)
-  const [customFieldsDraft, setCustomFieldsDraft] = useState<CustomFieldMeta[]>([])
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [showAnalyticsSummary, setShowAnalyticsSummary] = useState(true)
   const [nameSearch, setNameSearch] = useState('')
@@ -221,14 +213,6 @@ export default function GuestsPage() {
   const hasInitializedFiltersRef = useRef(false)
   const contactPickerSupported = useMemo(() => isContactPickerSupported(), [])
   const isSlotBasedEvent = event?.rsvp_experience_mode === 'slot_based'
-
-  const makeDraftId = () => {
-    try {
-      return globalThis.crypto?.randomUUID?.() || `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    } catch {
-      return `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    }
-  }
 
   const {
     register,
@@ -285,34 +269,34 @@ export default function GuestsPage() {
         // Poll analytics endpoint directly - it already filters by event and returns guest IDs
         const analyticsResponse = await getGuestsAnalytics(parseInt(eventId))
         const polledGuests = normalizeAnalyticsGuests(analyticsResponse)
-        
+
         // Compare with current analytics data (from ref) to detect changes
         const currentAnalyticsData = analyticsDataRef.current
         let hasChanges = false
-        
+
         // Check each guest for changes
         polledGuests.forEach((guest: GuestAnalytics) => {
           const prevGuest = currentAnalyticsData[guest.id]
-          
+
           // Check if view counts or timestamps changed
-          if (!prevGuest || 
-              prevGuest.invite_views_count !== guest.invite_views_count ||
-              prevGuest.rsvp_views_count !== guest.rsvp_views_count ||
-              prevGuest.last_invite_view !== guest.last_invite_view ||
-              prevGuest.last_rsvp_view !== guest.last_rsvp_view ||
-              prevGuest.has_viewed_invite !== guest.has_viewed_invite ||
-              prevGuest.has_viewed_rsvp !== guest.has_viewed_rsvp) {
+          if (!prevGuest ||
+            prevGuest.invite_views_count !== guest.invite_views_count ||
+            prevGuest.rsvp_views_count !== guest.rsvp_views_count ||
+            prevGuest.last_invite_view !== guest.last_invite_view ||
+            prevGuest.last_rsvp_view !== guest.last_rsvp_view ||
+            prevGuest.has_viewed_invite !== guest.has_viewed_invite ||
+            prevGuest.has_viewed_rsvp !== guest.has_viewed_rsvp) {
             hasChanges = true
           }
         })
-        
+
         // Also check if any guests were removed (had analytics before but not now)
         Object.keys(currentAnalyticsData).forEach(guestId => {
           if (!polledGuests.find(g => g.id === parseInt(guestId))) {
             hasChanges = true
           }
         })
-        
+
         // If changes detected, refresh analytics (which will update state and merge into guests)
         if (hasChanges) {
           console.log('[Analytics] Detected changes in analytics data, refreshing UI...', {
@@ -329,7 +313,7 @@ export default function GuestsPage() {
 
     // Poll every 10 seconds to detect new views after batch processing
     const interval = setInterval(pollAnalytics, 10000)
-    
+
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
@@ -662,7 +646,7 @@ export default function GuestsPage() {
         }
         return false
       }
-      
+
       if (rsvpFilterMode === 'include') {
         list = list.filter(matchesRsvp)
       } else {
@@ -680,7 +664,7 @@ export default function GuestsPage() {
           return (g.custom_fields?.[key] || '').trim() === categoryValue
         }
       }
-      
+
       if (categoryFilterMode === 'include') {
         list = list.filter(matchesCategory)
       } else {
@@ -698,7 +682,7 @@ export default function GuestsPage() {
         }
         return false
       }
-      
+
       if (inviteSentFilterMode === 'include') {
         list = list.filter(matchesInviteSent)
       } else {
@@ -712,7 +696,7 @@ export default function GuestsPage() {
         const assigned = getAssignedSubEventIds(g)
         return assigned.some(id => selectedSubEventFilterIds.has(id))
       }
-      
+
       if (subEventFilterMode === 'include') {
         list = list.filter(matchesSubEvent)
       } else {
@@ -912,26 +896,11 @@ export default function GuestsPage() {
     (event?.event_structure === 'ENVELOPE' ? 1 : 0) + // sub-events assigned
     1 // actions
 
-  
+
   const fetchEvent = async () => {
     try {
       const response = await api.get(`/api/events/${eventId}/`)
       setEvent(response.data)
-      // Initialize custom fields draft from event metadata (if present)
-      const meta = response.data?.custom_fields_metadata || {}
-      const rows: CustomFieldMeta[] = Object.entries(meta).map(([key, value]: any) => {
-        if (typeof value === 'string') {
-          return { id: key, key, originalKey: key, display_label: value, active: true }
-        }
-        return {
-          id: key,
-          key,
-          originalKey: key,
-          display_label: value?.display_label || key,
-          active: value?.active !== false,
-        }
-      })
-      setCustomFieldsDraft(rows.sort((a, b) => a.display_label.localeCompare(b.display_label)))
     } catch (error: any) {
       if (error.response?.status === 401) {
         router.push('/host/login')
@@ -990,66 +959,6 @@ export default function GuestsPage() {
     }
   }, [categorySource, categoryValue, categoryValueOptions])
 
-  const normalizeCustomFieldKey = (raw: string) => {
-    return raw
-      .toLowerCase()
-      .trim()
-      .replace(/[\s\-]+/g, '_')
-      .replace(/[^a-z0-9_]/g, '')
-      .slice(0, 50)
-  }
-
-  const handleSaveCustomFields = async () => {
-    try {
-      const MAX_FIELDS = 50
-      if (customFieldsDraft.length > MAX_FIELDS) {
-        showToast(`Too many custom fields (max ${MAX_FIELDS})`, 'error')
-        return
-      }
-
-      const upsert: any[] = []
-      const rename: any[] = []
-
-      customFieldsDraft.forEach((row) => {
-        const key = normalizeCustomFieldKey(row.key)
-        if (!key) return
-        const display_label = (row.display_label || key).slice(0, 80)
-        const active = row.active !== false
-
-        if (row.originalKey && row.originalKey !== key) {
-          rename.push({ from: row.originalKey, to: key, display_label })
-          upsert.push({ key, display_label, active })
-        } else {
-          upsert.push({ key, display_label, active })
-        }
-      })
-
-      const resp = await api.patch(`/api/events/${eventId}/custom-fields/`, { upsert, rename })
-      setEvent((prev) => (prev ? { ...prev, custom_fields_metadata: resp.data.custom_fields_metadata } : prev))
-
-      // Refresh draft from canonical metadata
-      const meta = resp.data.custom_fields_metadata || {}
-      const rows: CustomFieldMeta[] = Object.entries(meta).map(([key, value]: any) => {
-        if (typeof value === 'string') {
-          return { id: key, key, originalKey: key, display_label: value, active: true }
-        }
-        return {
-          id: key,
-          key,
-          originalKey: key,
-          display_label: value?.display_label || key,
-          active: value?.active !== false,
-        }
-      })
-      setCustomFieldsDraft(rows.sort((a, b) => a.display_label.localeCompare(b.display_label)))
-      showToast('Custom fields updated', 'success')
-      setShowCustomFieldsManager(false)
-    } catch (error: any) {
-      const msg = error.response?.data?.error || 'Failed to update custom fields'
-      showToast(msg, 'error')
-    }
-  }
-
   const [analyticsData, setAnalyticsData] = useState<Record<number, GuestAnalytics>>({})
   const analyticsDataRef = useRef<Record<number, GuestAnalytics>>({})
   const [analyticsSummary, setAnalyticsSummary] = useState<EventAnalyticsSummary | null>(null)
@@ -1072,7 +981,7 @@ export default function GuestsPage() {
         getEventAnalyticsSummary(parseInt(eventId))
       ])
       const analyticsGuests = normalizeAnalyticsGuests(analyticsResponse)
-      
+
       // Create a map of guest ID to analytics data
       const analyticsMap: Record<number, GuestAnalytics> = {}
       analyticsGuests.forEach((guest: GuestAnalytics) => {
@@ -1081,7 +990,7 @@ export default function GuestsPage() {
       setAnalyticsData(analyticsMap)
       analyticsDataRef.current = analyticsMap // Keep ref in sync
       setAnalyticsSummary(summaryResponse)
-      
+
       // Debug: Log analytics data
       if (process.env.NODE_ENV === 'development' && !silent) {
         console.log('[Analytics] Fetched analytics for', Object.keys(analyticsMap).length, 'guests')
@@ -1098,7 +1007,7 @@ export default function GuestsPage() {
           })
         }
       }
-      
+
       // Merge analytics data into existing guests
       setGuests(prevGuests => {
         if (prevGuests.length === 0) {
@@ -1162,7 +1071,7 @@ export default function GuestsPage() {
         setRemovedGuestsList(response.data.removed_guests_list || [])
         setRemovedGuests(response.data.removed_guests || [])
       }
-      
+
       // Initialize sub-event assignments from guest data if available
       // Always initialize from guest data (backend serializer includes sub_event_invites)
       // Don't wait for event to load - use guest data directly
@@ -1176,9 +1085,9 @@ export default function GuestsPage() {
           assignments[guest.id] = []
         }
       })
-      
+
       setGuestSubEventAssignments(assignments)
-      
+
       // Merge analytics data if it's already been fetched
       if (Object.keys(analyticsData).length > 0) {
         allGuests = allGuests.map((guest: Guest) => {
@@ -1204,9 +1113,9 @@ export default function GuestsPage() {
           }
         })
       }
-      
+
       setGuests(allGuests)
-      
+
       // Fetch RSVPs for all guests (only for PER_SUBEVENT mode)
       // Check event structure after it's loaded
       if (event?.event_structure === 'ENVELOPE' && event?.rsvp_mode === 'PER_SUBEVENT') {
@@ -1246,7 +1155,7 @@ export default function GuestsPage() {
       const response = await api.get(`/api/events/envelopes/${eventId}/guests/`)
       const guestsData = Array.isArray(response.data) ? response.data : []
       const guestData = guestsData.find((g: any) => g.guest?.id === guestId)
-      
+
       if (guestData && guestData.sub_event_ids) {
         setGuestSubEventAssignments(prev => ({ ...prev, [guestId]: guestData.sub_event_ids }))
       } else {
@@ -1264,15 +1173,15 @@ export default function GuestsPage() {
     try {
       // Fetch all RSVPs for this event and filter by guest_id
       const response = await api.get(`/api/events/${eventId}/rsvps/`)
-      const allRsvps = Array.isArray(response.data) 
-        ? response.data 
+      const allRsvps = Array.isArray(response.data)
+        ? response.data
         : (response.data.results || [])
-      
+
       // Filter RSVPs for this guest where will_attend is 'yes'
-      const guestRsvps = allRsvps.filter((rsvp: any) => 
+      const guestRsvps = allRsvps.filter((rsvp: any) =>
         rsvp.guest_id === guestId && rsvp.will_attend === 'yes'
       )
-      
+
       setGuestRSVPs(prev => ({ ...prev, [guestId]: guestRsvps }))
     } catch (error: any) {
       logError('Failed to fetch guest RSVPs:', error)
@@ -1284,14 +1193,14 @@ export default function GuestsPage() {
     if (event?.event_structure !== 'ENVELOPE' || event?.rsvp_mode !== 'PER_SUBEVENT') {
       return
     }
-    
+
     try {
       // Fetch all RSVPs for this event
       const response = await api.get(`/api/events/${eventId}/rsvps/`)
-      const allRsvps = Array.isArray(response.data) 
-        ? response.data 
+      const allRsvps = Array.isArray(response.data)
+        ? response.data
         : (response.data.results || [])
-      
+
       // Group RSVPs by guest_id
       const rsvpsByGuest: Record<number, any[]> = {}
       allRsvps.forEach((rsvp: any) => {
@@ -1302,7 +1211,7 @@ export default function GuestsPage() {
           rsvpsByGuest[rsvp.guest_id].push(rsvp)
         }
       })
-      
+
       setGuestRSVPs(rsvpsByGuest)
     } catch (error: any) {
       logError('Failed to fetch all guest RSVPs:', error)
@@ -1312,14 +1221,14 @@ export default function GuestsPage() {
   const handleSaveSubEventAssignments = async (guestId: number) => {
     try {
       const subEventIds = guestSubEventAssignments[guestId] || []
-      
+
       const response = await api.put(`/api/events/guests/${guestId}/invites/`, {
         sub_event_ids: subEventIds
       })
-      
+
       showToast('Sub-event assignments updated', 'success')
       setShowSubEventAssignment(null)
-      
+
       // Refresh guests to get updated guest_token and assignments
       await fetchGuests()
     } catch (error: any) {
@@ -1386,7 +1295,7 @@ export default function GuestsPage() {
       setSelectedGuestIds(new Set())
       setBulkSelectedSubEventIds(new Set())
       setShowBulkSubEventAssignment(false)
-      
+
       // Refresh guests to get updated assignments
       await fetchGuests()
     } catch (error: any) {
@@ -1408,9 +1317,9 @@ export default function GuestsPage() {
       showToast('Guest token not available yet. Please refresh and try again.', 'error')
       return
     }
-    
+
     const guestLink = `${window.location.origin}/invite/${event.slug}?g=${guest.guest_token}`
-    
+
     try {
       await navigator.clipboard.writeText(guestLink)
       setCopiedGuestId(guest.id)
@@ -1435,7 +1344,7 @@ export default function GuestsPage() {
       // Format phone with country code
       const countryCode = data.country_code || event?.country_code || '+91'
       const formattedPhone = formatPhoneWithCountryCode(data.phone, countryCode)
-      
+
       if (editingGuest) {
         // Update existing guest
         // Use PATCH because backend treats PUT as a full update (would require fields like `event`)
@@ -1457,7 +1366,7 @@ export default function GuestsPage() {
             custom_fields: data.custom_fields || {},
           }],
         })
-        
+
         // Check if there were errors (duplicate phone, etc.)
         if (response.data.errors && response.data.errors.length > 0) {
           showToast(response.data.errors[0], 'error')
@@ -1465,7 +1374,7 @@ export default function GuestsPage() {
         }
         showToast('Guest added successfully', 'success')
       }
-      
+
       reset()
       setShowForm(false)
       // Wait a moment for backend to process, then fetch fresh data
@@ -1473,8 +1382,8 @@ export default function GuestsPage() {
       await fetchGuests()
       await fetchAnalytics()
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || 
-                      (error.response?.data?.errors ? error.response.data.errors[0] : 'Failed to save guest')
+      const errorMsg = error.response?.data?.error ||
+        (error.response?.data?.errors ? error.response.data.errors[0] : 'Failed to save guest')
       showToast(errorMsg, 'error')
     }
   }
@@ -1484,13 +1393,13 @@ export default function GuestsPage() {
     // Pre-populate form with guest data
     // Use local_number if available, otherwise extract from phone
     let localPhone = guest.local_number || ''
-    
+
     // If local_number is not available, extract from phone
     if (!localPhone && guest.phone) {
       const phoneDigits = guest.phone.replace(/\D/g, '')
       const countryCode = guest.country_code || event?.country_code || '+91'
       const codeDigits = countryCode.replace('+', '')
-      
+
       // Remove country code from phone if present
       if (phoneDigits.startsWith(codeDigits)) {
         localPhone = phoneDigits.slice(codeDigits.length)
@@ -1499,11 +1408,11 @@ export default function GuestsPage() {
         localPhone = phoneDigits
       }
     }
-    
+
     // Determine country code and ISO for the form
     const countryCode = guest.country_code || event?.country_code || '+91'
     const countryIso = guest.country_iso || ''
-    
+
     reset({
       name: guest.name,
       phone: localPhone,
@@ -1657,11 +1566,11 @@ export default function GuestsPage() {
   const handleDelete = async (guestId: number) => {
     const guest = guests.find(g => g.id === guestId)
     const hasRSVP = guest?.rsvp_status !== null
-    
+
     const message = hasRSVP
       ? 'Are you sure you want to remove this guest? They will not be able to update their RSVP, but the record will be preserved.'
       : 'Are you sure you want to delete this guest from the list?'
-    
+
     if (!confirm(message)) {
       return
     }
@@ -1741,14 +1650,14 @@ export default function GuestsPage() {
       const updateData: any = {
         invitation_sent: newValue,
       }
-      
+
       // If checking, set timestamp; if unchecking, clear timestamp
       if (newValue) {
         updateData.invitation_sent_at = new Date().toISOString()
       } else {
         updateData.invitation_sent_at = null
       }
-      
+
       await api.patch(`/api/events/${eventId}/guests/${guestId}/`, updateData)
       showToast(`Invitation status updated`, 'success')
       // Wait a moment for backend to process, then fetch fresh data
@@ -1772,17 +1681,17 @@ export default function GuestsPage() {
 
   const handleTemplateSelected = async (template: WhatsAppTemplate | null) => {
     if (!event || !selectedGuest) return
-    
+
     setShowTemplateSelector(false)
     setSharingWhatsApp(selectedGuest.id)
-    
+
     try {
       // Generate guest-specific event URL with token if available
       const guestParam = selectedGuest.guest_token ? `&g=${selectedGuest.guest_token}` : ''
       const eventUrl = `${getSiteUrl()}/invite/${event.slug || eventId}?source=link${guestParam}`
-      
+
       let message: string
-      
+
       if (template) {
         // Use selected template
         let mapDirection: string | undefined
@@ -1790,7 +1699,7 @@ export default function GuestsPage() {
           const encodedLocation = encodeURIComponent(event.city)
           mapDirection = `https://maps.google.com/?q=${encodedLocation}`
         }
-        
+
         const result = replaceTemplateVariables(template.template_text, {
           name: selectedGuest.name,
           event_title: event.title || 'Event',
@@ -1802,7 +1711,7 @@ export default function GuestsPage() {
           custom_fields: (selectedGuest as any).custom_fields || {},
         })
         message = result
-        
+
         // Increment usage count
         try {
           await incrementWhatsAppTemplateUsage(template.id)
@@ -1822,11 +1731,11 @@ export default function GuestsPage() {
           (event as any).whatsapp_message_template // Custom template
         )
       }
-      
+
       const whatsappUrl = generateWhatsAppLink(selectedGuest.phone, message)
       openWhatsApp(whatsappUrl)
       showToast(`Opening WhatsApp to ${selectedGuest.name}...`, 'success')
-      
+
       // Auto-check invitation_sent after WhatsApp opens
       try {
         await api.patch(`/api/events/${eventId}/guests/${selectedGuest.id}/`, {
@@ -1945,7 +1854,7 @@ export default function GuestsPage() {
                   </div>
                 )}
               </div>
-              
+
               {/* Hidden file input */}
               <input
                 ref={fileInputRef}
@@ -2017,89 +1926,17 @@ export default function GuestsPage() {
           </Card>
         )}
 
-        {showCustomFieldsManager && (
-          <Card className="mb-8 bg-white border-2 border-eco-green-light">
-            <CardHeader>
-              <CardTitle className="text-eco-green">Custom Fields</CardTitle>
-              <CardDescription>
-                Define additional guest information for this event (used in communications and personalized invite descriptions).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                {customFieldsDraft.length === 0 ? (
-                  <p className="text-sm text-gray-600">No custom fields yet. Add one below.</p>
-                ) : (
-                  customFieldsDraft.map((row, idx) => (
-                    <div key={row.id} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-4">
-                        <label className="block text-xs text-gray-500 mb-1">Key</label>
-                        <Input
-                          value={row.key}
-                          onChange={(e) => {
-                            const next = [...customFieldsDraft]
-                            next[idx] = { ...row, key: e.target.value }
-                            setCustomFieldsDraft(next)
-                          }}
-                          placeholder="e.g. allergies"
-                        />
-                      </div>
-                      <div className="col-span-6">
-                        <label className="block text-xs text-gray-500 mb-1">Label</label>
-                        <Input
-                          value={row.display_label}
-                          onChange={(e) => {
-                            const next = [...customFieldsDraft]
-                            next[idx] = { ...row, display_label: e.target.value }
-                            setCustomFieldsDraft(next)
-                          }}
-                          placeholder="e.g. Allergies"
-                        />
-                      </div>
-                      <div className="col-span-2 flex items-end gap-2">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={row.active !== false}
-                            onChange={(e) => {
-                              const next = [...customFieldsDraft]
-                              next[idx] = { ...row, active: e.target.checked }
-                              setCustomFieldsDraft(next)
-                            }}
-                          />
-                          Active
-                        </label>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    setCustomFieldsDraft((prev) => [
-                      ...prev,
-                      { id: makeDraftId(), key: '', display_label: '', active: true },
-                    ])
-                  }
-                >
-                  + Add Field
-                </Button>
-                <div className="flex-1" />
-                <Button type="button" variant="outline" onClick={() => setShowCustomFieldsManager(false)}>
-                  Close
-                </Button>
-                <Button type="button" className="bg-eco-green hover:bg-eco-green-dark text-white" onClick={handleSaveCustomFields}>
-                  Save
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
+        <CustomFieldsModal
+          eventId={Number(eventId)}
+          open={showCustomFieldsManager}
+          title="Custom Fields"
+          description="Define additional guest information for this event (used in communications and personalized invite descriptions)."
+          initialMetadata={event?.custom_fields_metadata}
+          onClose={() => setShowCustomFieldsManager(false)}
+          onUpdated={(metadata) =>
+            setEvent((prev) => (prev ? { ...prev, custom_fields_metadata: metadata } : prev))
+          }
+        />
         {showForm && (
           <Card className="mb-8 bg-white border-2 border-eco-green-light">
             <CardHeader>
@@ -2383,11 +2220,10 @@ export default function GuestsPage() {
                         setGuestTab('all')
                         setRsvpFilter('all')
                       }}
-                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${
-                        guestTab === 'all'
-                          ? 'bg-eco-green text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      }`}
+                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${guestTab === 'all'
+                        ? 'bg-eco-green text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
                     >
                       All ({guests.filter(g => !g.is_removed).length})
                     </button>
@@ -2397,11 +2233,10 @@ export default function GuestsPage() {
                         setGuestTab('invited')
                         setRsvpFilter('all')
                       }}
-                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${
-                        guestTab === 'invited'
-                          ? 'bg-eco-green text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      }`}
+                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${guestTab === 'invited'
+                        ? 'bg-eco-green text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
                     >
                       Invited ({guests.filter(g => !g.is_removed && g.source !== 'form_submission').length})
                     </button>
@@ -2411,11 +2246,10 @@ export default function GuestsPage() {
                         setGuestTab('direct')
                         setRsvpFilter('all')
                       }}
-                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${
-                        guestTab === 'direct'
-                          ? 'bg-eco-green text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      }`}
+                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${guestTab === 'direct'
+                        ? 'bg-eco-green text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
                     >
                       Direct ({guests.filter(g => !g.is_removed && g.source === 'form_submission').length})
                     </button>
@@ -2425,11 +2259,10 @@ export default function GuestsPage() {
                         setGuestTab('attending')
                         setRsvpFilter('all')
                       }}
-                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${
-                        guestTab === 'attending'
-                          ? 'bg-eco-green text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      }`}
+                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${guestTab === 'attending'
+                        ? 'bg-eco-green text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
                     >
                       Attending ({guests.filter(g => !g.is_removed && (g.rsvp_status === 'yes' || g.rsvp_will_attend === 'yes')).length})
                     </button>
@@ -2439,11 +2272,10 @@ export default function GuestsPage() {
                         setGuestTab('declined')
                         setRsvpFilter('all')
                       }}
-                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${
-                        guestTab === 'declined'
-                          ? 'bg-eco-green text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      }`}
+                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${guestTab === 'declined'
+                        ? 'bg-eco-green text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
                     >
                       Declined ({guests.filter(g => !g.is_removed && (g.rsvp_status === 'no' || g.rsvp_will_attend === 'no')).length})
                     </button>
@@ -2454,11 +2286,10 @@ export default function GuestsPage() {
                         setGuestTab('slot_booked')
                         setRsvpFilter('all')
                       }}
-                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${
-                        guestTab === 'slot_booked'
-                          ? 'bg-eco-green text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      } ${!isSlotBasedEvent ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${guestTab === 'slot_booked'
+                        ? 'bg-eco-green text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        } ${!isSlotBasedEvent ? 'opacity-50 cursor-not-allowed' : ''}`}
                       title={isSlotBasedEvent ? 'Show confirmed slot bookings' : 'Only available for slot-based RSVP events'}
                     >
                       Slot booked ({guests.filter(g => !g.is_removed && g.slot_booking_status === 'confirmed').length})
@@ -2469,11 +2300,10 @@ export default function GuestsPage() {
                         setGuestTab('no_response')
                         setRsvpFilter('all')
                       }}
-                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${
-                        guestTab === 'no_response'
-                          ? 'bg-eco-green text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                      }`}
+                      className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-medium transition-colors ${guestTab === 'no_response'
+                        ? 'bg-eco-green text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
                     >
                       No response ({guests.filter(g => !g.is_removed && !g.rsvp_status && !g.rsvp_will_attend).length})
                     </button>
@@ -2552,22 +2382,20 @@ export default function GuestsPage() {
                                   <button
                                     type="button"
                                     onClick={() => setCategoryFilterMode('include')}
-                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                                      categoryFilterMode === 'include'
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
+                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${categoryFilterMode === 'include'
+                                      ? 'bg-blue-500 text-white'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                      }`}
                                   >
                                     Include
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setCategoryFilterMode('exclude')}
-                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                                      categoryFilterMode === 'exclude'
-                                        ? 'bg-red-500 text-white'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
+                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${categoryFilterMode === 'exclude'
+                                      ? 'bg-red-500 text-white'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                      }`}
                                   >
                                     Exclude
                                   </button>
@@ -2591,22 +2419,20 @@ export default function GuestsPage() {
                                 <button
                                   type="button"
                                   onClick={() => setInviteSentFilterMode('include')}
-                                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                                    inviteSentFilterMode === 'include'
-                                      ? 'bg-blue-500 text-white'
-                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                  }`}
+                                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${inviteSentFilterMode === 'include'
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
                                 >
                                   Include
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setInviteSentFilterMode('exclude')}
-                                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                                    inviteSentFilterMode === 'exclude'
-                                      ? 'bg-red-500 text-white'
-                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                  }`}
+                                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${inviteSentFilterMode === 'exclude'
+                                    ? 'bg-red-500 text-white'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
                                 >
                                   Exclude
                                 </button>
@@ -2655,22 +2481,20 @@ export default function GuestsPage() {
                                   <button
                                     type="button"
                                     onClick={() => setSubEventFilterMode('include')}
-                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                                      subEventFilterMode === 'include'
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
+                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${subEventFilterMode === 'include'
+                                      ? 'bg-blue-500 text-white'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                      }`}
                                   >
                                     Include
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setSubEventFilterMode('exclude')}
-                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                                      subEventFilterMode === 'exclude'
-                                        ? 'bg-red-500 text-white'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
+                                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${subEventFilterMode === 'exclude'
+                                      ? 'bg-red-500 text-white'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                      }`}
                                   >
                                     Exclude
                                   </button>
@@ -2699,22 +2523,20 @@ export default function GuestsPage() {
                                     <button
                                       type="button"
                                       onClick={() => setRsvpFilterMode('include')}
-                                      className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                                        rsvpFilterMode === 'include'
-                                          ? 'bg-blue-500 text-white'
-                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                      }`}
+                                      className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${rsvpFilterMode === 'include'
+                                        ? 'bg-blue-500 text-white'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                        }`}
                                     >
                                       Include
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => setRsvpFilterMode('exclude')}
-                                      className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                                        rsvpFilterMode === 'exclude'
-                                          ? 'bg-red-500 text-white'
-                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                      }`}
+                                      className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${rsvpFilterMode === 'exclude'
+                                        ? 'bg-red-500 text-white'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                        }`}
                                     >
                                       Exclude
                                     </button>
@@ -2888,867 +2710,866 @@ export default function GuestsPage() {
                 inviteSentFilter !== 'all' ||
                 selectedSubEventFilterIds.size > 0 ||
                 (guestTab === 'all' && rsvpFilter !== 'all')) && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {nameSearch.trim() ? (
-                    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-800">
-                      <span className="truncate">Search: &quot;{nameSearch.trim()}&quot;</span>
-                      <button
-                        type="button"
-                        onClick={() => setNameSearch('')}
-                        className="shrink-0 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
-                        aria-label="Clear search"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ) : null}
-                  {categorySource !== 'relationship' || categoryValue !== 'all' ? (
-                    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-800">
-                      <span className="truncate">
-                        {categorySourceOptions.find((o) => o.value === categorySource)?.label ?? 'Category'}
-                        {categoryValue !== 'all' ? `: ${categoryValue}` : ''}
-                        {categoryValue !== 'all' && categoryFilterMode === 'exclude' ? ' · exclude' : ''}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {nameSearch.trim() ? (
+                      <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-800">
+                        <span className="truncate">Search: &quot;{nameSearch.trim()}&quot;</span>
+                        <button
+                          type="button"
+                          onClick={() => setNameSearch('')}
+                          className="shrink-0 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
+                          aria-label="Clear search"
+                        >
+                          ×
+                        </button>
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCategorySource('relationship')
-                          setCategoryValue('all')
-                          setCategoryFilterMode('include')
-                        }}
-                        className="shrink-0 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
-                        aria-label="Clear category filter"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ) : null}
-                  {inviteSentFilter !== 'all' ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-800">
-                      <span>
-                        Invite: {inviteSentFilter === 'sent' ? 'Sent' : 'Not sent'}
-                        {inviteSentFilterMode === 'exclude' ? ' · exclude' : ''}
+                    ) : null}
+                    {categorySource !== 'relationship' || categoryValue !== 'all' ? (
+                      <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-800">
+                        <span className="truncate">
+                          {categorySourceOptions.find((o) => o.value === categorySource)?.label ?? 'Category'}
+                          {categoryValue !== 'all' ? `: ${categoryValue}` : ''}
+                          {categoryValue !== 'all' && categoryFilterMode === 'exclude' ? ' · exclude' : ''}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCategorySource('relationship')
+                            setCategoryValue('all')
+                            setCategoryFilterMode('include')
+                          }}
+                          className="shrink-0 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
+                          aria-label="Clear category filter"
+                        >
+                          ×
+                        </button>
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInviteSentFilter('all')
-                          setInviteSentFilterMode('include')
-                        }}
-                        className="shrink-0 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
-                        aria-label="Clear invite filter"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ) : null}
-                  {selectedSubEventFilterIds.size > 0 ? (
-                    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs text-purple-900">
-                      <span className="truncate">
-                        Sub-events ({selectedSubEventFilterIds.size})
-                        {subEventFilterMode === 'exclude' ? ' · exclude' : ''}
+                    ) : null}
+                    {inviteSentFilter !== 'all' ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-800">
+                        <span>
+                          Invite: {inviteSentFilter === 'sent' ? 'Sent' : 'Not sent'}
+                          {inviteSentFilterMode === 'exclude' ? ' · exclude' : ''}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInviteSentFilter('all')
+                            setInviteSentFilterMode('include')
+                          }}
+                          className="shrink-0 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
+                          aria-label="Clear invite filter"
+                        >
+                          ×
+                        </button>
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedSubEventFilterIds(new Set())
-                          setSubEventFilterMode('include')
-                        }}
-                        className="shrink-0 rounded-full p-0.5 text-purple-600 hover:bg-purple-100 hover:text-purple-950"
-                        aria-label="Clear sub-event filter"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ) : null}
-                  {guestTab === 'all' && rsvpFilter !== 'all' ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-800">
-                      <span>
-                        RSVP:{' '}
-                        {rsvpFilter === 'unconfirmed'
-                          ? 'Unconfirmed'
-                          : rsvpFilter === 'confirmed'
-                            ? 'Attending'
-                            : 'Declined'}
-                        {rsvpFilterMode === 'exclude' ? ' · exclude' : ''}
+                    ) : null}
+                    {selectedSubEventFilterIds.size > 0 ? (
+                      <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs text-purple-900">
+                        <span className="truncate">
+                          Sub-events ({selectedSubEventFilterIds.size})
+                          {subEventFilterMode === 'exclude' ? ' · exclude' : ''}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSubEventFilterIds(new Set())
+                            setSubEventFilterMode('include')
+                          }}
+                          className="shrink-0 rounded-full p-0.5 text-purple-600 hover:bg-purple-100 hover:text-purple-950"
+                          aria-label="Clear sub-event filter"
+                        >
+                          ×
+                        </button>
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRsvpFilter('all')
-                          setRsvpFilterMode('include')
-                        }}
-                        className="shrink-0 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
-                        aria-label="Clear RSVP filter"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ) : null}
-                </div>
-              )}
+                    ) : null}
+                    {guestTab === 'all' && rsvpFilter !== 'all' ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-800">
+                        <span>
+                          RSVP:{' '}
+                          {rsvpFilter === 'unconfirmed'
+                            ? 'Unconfirmed'
+                            : rsvpFilter === 'confirmed'
+                              ? 'Attending'
+                              : 'Declined'}
+                          {rsvpFilterMode === 'exclude' ? ' · exclude' : ''}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRsvpFilter('all')
+                            setRsvpFilterMode('include')
+                          }}
+                          className="shrink-0 rounded-full p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
+                          aria-label="Clear RSVP filter"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ) : null}
+                  </div>
+                )}
               <p className="text-xs text-gray-500">
                 Search, segment chips, and filters narrow the same guest list.
               </p>
             </div>
 
             <div className="border-t border-gray-200 pt-4 mt-4">
-            {guests.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-5xl mb-4">👥</div>
-                <p className="text-gray-600 mb-4">No guests added yet</p>
-                <p className="text-sm text-gray-500 mb-6">
-                  Add guests manually or import from CSV/Excel to track RSVPs and gifts
-                </p>
-                <Button
-                  onClick={() => {
-                    setEditingGuest(null)
-                    reset()
-                    setShowForm(true)
-                  }}
-                  className="bg-eco-green hover:bg-eco-green-dark text-white"
-                >
-                  Add First Guest
-                </Button>
-              </div>
-            ) : (
-              <>
-                {/* Keep bulk bar outside horizontal scroll so the scrollbar sits under the table only */}
-                {selectedGuestIds.size > 0 && (
-                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm font-medium text-blue-900">
-                        {selectedGuestIds.size} guest(s) selected
-                      </span>
-                      {event?.event_structure === 'ENVELOPE' && subEvents.length > 0 && (
+              {guests.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-5xl mb-4">👥</div>
+                  <p className="text-gray-600 mb-4">No guests added yet</p>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Add guests manually or import from CSV/Excel to track RSVPs and gifts
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setEditingGuest(null)
+                      reset()
+                      setShowForm(true)
+                    }}
+                    className="bg-eco-green hover:bg-eco-green-dark text-white"
+                  >
+                    Add First Guest
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {/* Keep bulk bar outside horizontal scroll so the scrollbar sits under the table only */}
+                  {selectedGuestIds.size > 0 && (
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm font-medium text-blue-900">
+                          {selectedGuestIds.size} guest(s) selected
+                        </span>
+                        {event?.event_structure === 'ENVELOPE' && subEvents.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowBulkSubEventAssignment(true)}
+                            className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                          >
+                            Assign/Deassign Sub-Events
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setShowBulkSubEventAssignment(true)}
+                          onClick={() => { setSaveGroupType('fixed'); setSaveGroupName(''); setShowSaveGroupModal(true) }}
                           className="border-blue-300 text-blue-700 hover:bg-blue-100"
                         >
-                          Assign/Deassign Sub-Events
+                          Save as Group
                         </Button>
-                      )}
+                      </div>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => { setSaveGroupType('fixed'); setSaveGroupName(''); setShowSaveGroupModal(true) }}
-                        className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                        onClick={() => setSelectedGuestIds(new Set())}
+                        className="text-blue-700 hover:text-blue-900"
                       >
-                        Save as Group
+                        Clear Selection
                       </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedGuestIds(new Set())}
-                      className="text-blue-700 hover:text-blue-900"
-                    >
-                      Clear Selection
-                    </Button>
-                  </div>
-                )}
-                <div className="overflow-x-auto pb-2">
-                <table className="w-full min-w-[56rem]">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2 w-12 align-top text-sm font-medium text-gray-700">
-                        {(() => {
-                          const allSelected =
-                            visibleGuests.length > 0 && visibleGuests.every(g => selectedGuestIds.has(g.id))
-                          const someSelected = visibleGuests.some(g => selectedGuestIds.has(g.id))
-                          
-                          return (
-                            <input
-                              type="checkbox"
-                              checked={allSelected}
-                              ref={(el) => {
-                                if (el) el.indeterminate = someSelected && !allSelected
-                              }}
-                              onChange={(e) => handleSelectAllGuests(e.target.checked, visibleGuests)}
-                              className="cursor-pointer"
-                            />
-                          )
-                        })()}
-                      </th>
-                      <th className="text-left p-2 w-44 sm:w-52 align-top box-border overflow-hidden text-sm font-medium text-gray-700">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort('name')}
-                          className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                          title="Sort by name"
-                        >
-                          Name{sortArrow('name')}
-                        </button>
-                      </th>
-                      <th className="text-left p-2 min-w-[11rem] whitespace-nowrap align-top text-sm font-medium text-gray-700">
-                        Phone
-                      </th>
+                  )}
+                  <div className="overflow-x-auto pb-2">
+                    <table className="w-full min-w-[56rem]">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2 w-12 align-top text-sm font-medium text-gray-700">
+                            {(() => {
+                              const allSelected =
+                                visibleGuests.length > 0 && visibleGuests.every(g => selectedGuestIds.has(g.id))
+                              const someSelected = visibleGuests.some(g => selectedGuestIds.has(g.id))
 
-                      {middleColumnsToRender.map((col) => {
-                        if (col === 'email') {
-                          return (
-                            <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                              <button
-                                type="button"
-                                onClick={() => toggleSort('email')}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                                title="Sort by email"
-                              >
-                                Email{sortArrow('email')}
-                              </button>
-                            </th>
-                          )
-                        }
-                        if (col === 'relationship') {
-                          return (
-                            <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                              <button
-                                type="button"
-                                onClick={() => toggleSort('category')}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                                title="Sort by relationship"
-                              >
-                                Relationship{sortArrow('category')}
-                              </button>
-                            </th>
-                          )
-                        }
-                        if (col === 'guests_count') {
-                          return (
-                            <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                              <button
-                                type="button"
-                                onClick={() => toggleSort('guests_count')}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                                title="Sort by guests count"
-                              >
-                                Guests Count{sortArrow('guests_count')}
-                              </button>
-                            </th>
-                          )
-                        }
-                        if (col === 'notes') {
-                          return (
-                            <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                              <button
-                                type="button"
-                                onClick={() => toggleSort('notes')}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                                title="Sort by notes"
-                              >
-                                Notes{sortArrow('notes')}
-                              </button>
-                            </th>
-                          )
-                        }
-                        if (col === 'sub_events_attending') {
-                          return (
-                            <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                              <button
-                                type="button"
-                                onClick={() => toggleSort('sub_events_attending')}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                                title="Sort by sub-events attending"
-                              >
-                                {getMiddleColumnLabel(col)}
-                                {sortArrow('sub_events_attending')}
-                              </button>
-                            </th>
-                          )
-                        }
-
-                        return (
-                          <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                            {getMiddleColumnLabel(col)}
+                              return (
+                                <input
+                                  type="checkbox"
+                                  checked={allSelected}
+                                  ref={(el) => {
+                                    if (el) el.indeterminate = someSelected && !allSelected
+                                  }}
+                                  onChange={(e) => handleSelectAllGuests(e.target.checked, visibleGuests)}
+                                  className="cursor-pointer"
+                                />
+                              )
+                            })()}
                           </th>
-                        )
-                      })}
-
-                      <th className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort('rsvp_status')}
-                          className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                          title="Sort by RSVP status"
-                        >
-                          RSVP Status{sortArrow('rsvp_status')}
-                        </button>
-                      </th>
-
-                      <th className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                        <div
-                          className="flex flex-col gap-0.5 leading-snug"
-                          title="Tracks how many times the guest viewed their invite page and RSVP page"
-                        >
-                          <span>Page views</span>
-                          <span className="text-gray-500 font-normal">Invite · RSVP</span>
-                        </div>
-                      </th>
-
-                      <th className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort('invite_sent')}
-                          className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                          title="Sort by invite sent"
-                        >
-                          Invitation Sent{sortArrow('invite_sent')}
-                        </button>
-                      </th>
-
-                      {event?.event_structure === 'ENVELOPE' && (
-                        <th className="text-left p-2 align-top text-sm font-medium text-gray-700">
-                          <button
-                            type="button"
-                            onClick={() => toggleSort('sub_events_assigned')}
-                            className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
-                            title="Sort by sub-events assigned"
-                          >
-                            Sub-Events{sortArrow('sub_events_assigned')}
-                          </button>
-                        </th>
-                      )}
-                      <th className="text-left p-2 align-top text-sm font-medium text-gray-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      if (visibleGuests.length === 0) {
-                        return (
-                          <tr>
-                            <td colSpan={tableColSpan} className="p-8 text-center text-gray-500">
-                              {guestTab === 'no_response' && 'No guests without a response'}
-                              {guestTab === 'attending' && 'No attending guests'}
-                              {guestTab === 'declined' && 'No declined guests'}
-                              {guestTab === 'slot_booked' && 'No confirmed slot bookings'}
-                              {guestTab === 'invited' && 'No invited guests'}
-                              {guestTab === 'direct' && 'No direct guests'}
-                              {guestTab === 'all' && 'No guests yet'}
-                            </td>
-                          </tr>
-                        )
-                      }
-                      
-                      return visibleGuests.map((guest) => {
-                        // Get analytics data - prefer from guest object, fallback to analyticsData state
-                        const analytics = analyticsData[guest.id] || {}
-                        const inviteViewsCount = guest.invite_views_count ?? analytics.invite_views_count ?? 0
-                        const rsvpViewsCount = guest.rsvp_views_count ?? analytics.rsvp_views_count ?? 0
-                        const lastInviteView = guest.last_invite_view ?? analytics.last_invite_view ?? null
-                        const lastRsvpView = guest.last_rsvp_view ?? analytics.last_rsvp_view ?? null
-                        const hasViewedInvite = guest.has_viewed_invite ?? analytics.has_viewed_invite ?? false
-                        const hasViewedRsvp = guest.has_viewed_rsvp ?? analytics.has_viewed_rsvp ?? false
-                        
-                        const getRsvpStatusBadge = (status: string | null) => {
-                        if (!status) {
-                          return (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                              Pending
-                            </span>
-                          )
-                        }
-                        const statusConfig = {
-                          yes: { label: 'Yes', className: 'bg-green-100 text-green-700' },
-                          no: { label: 'No', className: 'bg-red-100 text-red-700' },
-                          maybe: { label: 'Maybe', className: 'bg-yellow-100 text-yellow-700' },
-                        }
-                        const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.yes
-                        return (
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.className}`}>
-                            {config.label}
-                          </span>
-                        )
-                      }
-                      
-                        const getSourceBadge = (source?: Guest['source']): JSX.Element => {
-                          const normalized = source || 'manual'
-                          const sourceConfig = {
-                            manual: { label: 'manual', className: 'bg-gray-100 text-gray-700' },
-                            file_import: { label: 'file_import', className: 'bg-blue-100 text-blue-700' },
-                            contact_import: { label: 'contact_import', className: 'bg-indigo-100 text-indigo-700' },
-                            api_import: { label: 'api_import', className: 'bg-purple-100 text-purple-700' },
-                            form_submission: { label: 'form_submission', className: 'bg-green-100 text-green-700' },
-                          } as const
-                          const config = (sourceConfig as any)[normalized] || sourceConfig.manual
-                          return (
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.className}`}>
-                              {config.label}
-                            </span>
-                          )
-                        }
-                        
-                      return (
-                        <tr key={guest.id} className="border-b hover:bg-gray-50 group">
-                          <td className="p-2 w-12 align-top">
-                            <input
-                              type="checkbox"
-                              checked={selectedGuestIds.has(guest.id)}
-                              onChange={() => handleToggleGuestSelection(guest.id)}
-                              className="cursor-pointer"
-                            />
-                          </td>
-                          <td className="p-2 font-medium w-44 sm:w-52 align-top box-border overflow-hidden">
-                            <div className="flex flex-col gap-1 items-start min-w-0 w-full sm:flex-row sm:items-center sm:gap-2">
-                              <span className="truncate max-w-full" title={guest.name}>
-                                {guest.name}
-                              </span>
-                              <span className="shrink-0 max-w-full">{getSourceBadge(guest.source)}</span>
-                            </div>
-                          </td>
-                          <td className="p-2 text-sm text-gray-600 font-mono min-w-[11rem] whitespace-nowrap align-top">
-                            {getDisplayPhone(guest)}
-                          </td>
+                          <th className="text-left p-2 w-44 sm:w-52 align-top box-border overflow-hidden text-sm font-medium text-gray-700">
+                            <button
+                              type="button"
+                              onClick={() => toggleSort('name')}
+                              className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                              title="Sort by name"
+                            >
+                              Name{sortArrow('name')}
+                            </button>
+                          </th>
+                          <th className="text-left p-2 min-w-[11rem] whitespace-nowrap align-top text-sm font-medium text-gray-700">
+                            Phone
+                          </th>
 
                           {middleColumnsToRender.map((col) => {
                             if (col === 'email') {
                               return (
-                                <td key={col} className="p-2 text-sm text-gray-600 max-w-[10rem] sm:max-w-[14rem]">
-                                  {guest.email ? (
-                                    <span className="block truncate" title={guest.email}>
-                                      {guest.email}
-                                    </span>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </td>
+                                <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSort('email')}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                                    title="Sort by email"
+                                  >
+                                    Email{sortArrow('email')}
+                                  </button>
+                                </th>
                               )
                             }
                             if (col === 'relationship') {
                               return (
-                                <td key={col} className="p-2 text-sm text-gray-600">
-                                  {guest.relationship || '-'}
-                                </td>
+                                <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSort('category')}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                                    title="Sort by relationship"
+                                  >
+                                    Relationship{sortArrow('category')}
+                                  </button>
+                                </th>
                               )
                             }
                             if (col === 'guests_count') {
                               return (
-                                <td key={col} className="p-2 text-sm text-gray-600">
-                                  {guest.rsvp_guests_count !== null && guest.rsvp_guests_count !== undefined
-                                    ? guest.rsvp_guests_count
-                                    : '-'}
-                                </td>
-                              )
-                            }
-                            if (col === 'slot_selected') {
-                              const slotTitle =
-                                guest.slot_booking_selected_slot_label?.trim() || ''
-                              const slotDate = guest.slot_booking_slot_date
-                              const hasSlotRow =
-                                guest.slot_booking_status === 'confirmed' ||
-                                !!slotTitle ||
-                                !!slotDate
-                              const primary = slotTitle || 'Slot confirmed'
-                              const oneLine =
-                                hasSlotRow && slotDate
-                                  ? `${primary} · ${slotDate}`
-                                  : hasSlotRow
-                                    ? primary
-                                    : ''
-                              return (
-                                <td key={col} className="p-2 text-sm text-gray-600">
-                                  {hasSlotRow ? (
-                                    <span
-                                      className="inline-flex max-w-[14rem] truncate text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded whitespace-nowrap"
-                                      title={oneLine}
-                                    >
-                                      {oneLine}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-gray-400">-</span>
-                                  )}
-                                </td>
+                                <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSort('guests_count')}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                                    title="Sort by guests count"
+                                  >
+                                    Guests Count{sortArrow('guests_count')}
+                                  </button>
+                                </th>
                               )
                             }
                             if (col === 'notes') {
-                              const noteText =
-                                (guest.notes && guest.notes.trim()) ||
-                                (guest.rsvp_notes && guest.rsvp_notes.trim()) ||
-                                ''
                               return (
-                                <td key={col} className="p-2 text-sm text-gray-600 max-w-[12rem]">
-                                  {noteText ? (
-                                    <span className="line-clamp-2 break-words" title={noteText}>
-                                      {noteText}
-                                    </span>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </td>
+                                <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSort('notes')}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                                    title="Sort by notes"
+                                  >
+                                    Notes{sortArrow('notes')}
+                                  </button>
+                                </th>
                               )
                             }
                             if (col === 'sub_events_attending') {
-                              const rsvps = guestRSVPs[guest.id] || []
-                              const attendingSubEvents = rsvps
-                                .filter((r: any) => r.will_attend === 'yes' && r.sub_event_title)
-                                .map((r: any) => r.sub_event_title)
+                              return (
+                                <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSort('sub_events_attending')}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                                    title="Sort by sub-events attending"
+                                  >
+                                    {getMiddleColumnLabel(col)}
+                                    {sortArrow('sub_events_attending')}
+                                  </button>
+                                </th>
+                              )
+                            }
 
-                              return (
-                                <td key={col} className="p-2">
-                                  {attendingSubEvents.length === 0 ? (
-                                    <span className="text-xs text-gray-400">-</span>
-                                  ) : (
-                                    <div className="flex flex-wrap gap-1">
-                                      {attendingSubEvents.map((title: string, idx: number) => (
-                                        <span key={idx} className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded">
-                                          {title}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </td>
-                              )
-                            }
-                            if (col.startsWith('cf:')) {
-                              const key = col.slice(3)
-                              return (
-                                <td key={col} className="p-2 text-sm text-gray-600">
-                                  {guest.custom_fields?.[key] || '-'}
-                                </td>
-                              )
-                            }
                             return (
-                              <td key={col} className="p-2 text-sm text-gray-600">
-                                -
-                              </td>
+                              <th key={col} className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                                {getMiddleColumnLabel(col)}
+                              </th>
                             )
                           })}
 
-                          <td className="p-2">{getRsvpStatusBadge(guest.rsvp_status || guest.rsvp_will_attend)}</td>
-
-                          <td className="p-2">
-                            <div className="flex flex-col gap-2 text-xs">
-                              <div 
-                                className="flex items-center gap-2 group relative cursor-help"
-                                title={`Invite Page Views: ${inviteViewsCount}${lastInviteView ? `\nLast Viewed: ${new Date(lastInviteView).toLocaleString()}` : '\nNever viewed'}`}
-                              >
-                                <div className={`flex items-center gap-1 min-w-[60px] ${hasViewedInvite ? 'text-blue-600 font-semibold' : 'text-gray-400'}`}>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                  </svg>
-                                  <span className="font-medium">{inviteViewsCount}</span>
-                                </div>
-                                <span className="text-gray-600 text-[10px]">Invite</span>
-                                {lastInviteView && (
-                                  <span 
-                                    className="text-gray-400 text-[10px]"
-                                    title={`Last viewed: ${new Date(lastInviteView).toLocaleString()}`}
-                                  >
-                                    {new Date(lastInviteView).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                  </span>
-                                )}
-                              </div>
-                              <div 
-                                className="flex items-center gap-2 group relative cursor-help"
-                                title={`RSVP Page Views: ${rsvpViewsCount}${lastRsvpView ? `\nLast Viewed: ${new Date(lastRsvpView).toLocaleString()}` : '\nNever viewed'}`}
-                              >
-                                <div className={`flex items-center gap-1 min-w-[60px] ${hasViewedRsvp ? 'text-purple-600 font-semibold' : 'text-gray-400'}`}>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  <span className="font-medium">{rsvpViewsCount}</span>
-                                </div>
-                                <span className="text-gray-600 text-[10px]">RSVP</span>
-                                {lastRsvpView && (
-                                  <span 
-                                    className="text-gray-400 text-[10px]"
-                                    title={`Last viewed: ${new Date(lastRsvpView).toLocaleString()}`}
-                                  >
-                                    {new Date(lastRsvpView).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="p-2">
-                            <div className="flex flex-col items-start gap-1">
-                              <input
-                                type="checkbox"
-                                checked={guest.invitation_sent || false}
-                                onChange={() => handleToggleInvitationSent(guest.id, !guest.invitation_sent)}
-                                className="cursor-pointer"
-                                disabled={sharingWhatsApp === guest.id}
-                              />
-                              {guest.invitation_sent_at && (
-                                <span className="text-xs text-gray-500">
-                                  {new Date(guest.invitation_sent_at).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          {event?.event_structure === 'ENVELOPE' && (
-                            <td className="p-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                 onClick={async () => {
-                                   // Ensure assignments are loaded before opening modal
-                                   if (guestSubEventAssignments[guest.id] === undefined) {
-                                     // If guest has sub_event_invites from fetchGuests, use that
-                                     if (guest.sub_event_invites && Array.isArray(guest.sub_event_invites)) {
-                                       setGuestSubEventAssignments(prev => ({
-                                         ...prev,
-                                         [guest.id]: guest.sub_event_invites!
-                                       }))
-                                     } else {
-                                       // Otherwise fetch from API
-                                       await fetchGuestSubEventAssignments(guest.id)
-                                     }
-                                   }
-                                   setShowSubEventAssignment(guest.id)
-                                 }}
-                                className={`text-xs shrink-0 ${
-                                  getVisibleSubEventCount(guest) === 0
-                                    ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
-                                    : 'border-purple-300 text-purple-600 hover:bg-purple-50'
-                                }`}
-                                title="Sub-events this guest will see (the ones assigned to them plus any public sub-events). Click to assign."
-                              >
-                                {getVisibleSubEventCount(guest) === 0 ? (
-                                  <span className="flex items-center gap-1">
-                                    <AlertTriangle className="w-3 h-3" /> Won&apos;t see any
-                                  </span>
-                                ) : (
-                                  `${getVisibleSubEventCount(guest)} shown`
-                                )}
-                              </Button>
-                            </td>
-                          )}
-                          <td className="p-2 w-[1%] whitespace-nowrap">
-                            <div
-                              className="flex items-center gap-1"
-                              data-row-actions-root
-                              data-guest-id={guest.id}
+                          <th className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                            <button
+                              type="button"
+                              onClick={() => toggleSort('rsvp_status')}
+                              className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                              title="Sort by RSVP status"
                             >
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(guest)}
-                                className="text-xs border-blue-300 text-blue-600 hover:bg-blue-50 shrink-0"
+                              RSVP Status{sortArrow('rsvp_status')}
+                            </button>
+                          </th>
+
+                          <th className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                            <div
+                              className="flex flex-col gap-0.5 leading-snug"
+                              title="Tracks how many times the guest viewed their invite page and RSVP page"
+                            >
+                              <span>Page views</span>
+                              <span className="text-gray-500 font-normal">Invite · RSVP</span>
+                            </div>
+                          </th>
+
+                          <th className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                            <button
+                              type="button"
+                              onClick={() => toggleSort('invite_sent')}
+                              className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                              title="Sort by invite sent"
+                            >
+                              Invitation Sent{sortArrow('invite_sent')}
+                            </button>
+                          </th>
+
+                          {event?.event_structure === 'ENVELOPE' && (
+                            <th className="text-left p-2 align-top text-sm font-medium text-gray-700">
+                              <button
+                                type="button"
+                                onClick={() => toggleSort('sub_events_assigned')}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900 p-0 h-auto bg-transparent border-0 cursor-pointer rounded-sm text-left shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-eco-green/30"
+                                title="Sort by sub-events assigned"
                               >
-                                Edit
-                              </Button>
-                              <div className="relative shrink-0">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  type="button"
-                                  aria-expanded={openRowActionsGuestId === guest.id}
-                                  aria-haspopup="menu"
-                                  onClick={() =>
-                                    setOpenRowActionsGuestId(
-                                      openRowActionsGuestId === guest.id ? null : guest.id
+                                Sub-Events{sortArrow('sub_events_assigned')}
+                              </button>
+                            </th>
+                          )}
+                          <th className="text-left p-2 align-top text-sm font-medium text-gray-700">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          if (visibleGuests.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan={tableColSpan} className="p-8 text-center text-gray-500">
+                                  {guestTab === 'no_response' && 'No guests without a response'}
+                                  {guestTab === 'attending' && 'No attending guests'}
+                                  {guestTab === 'declined' && 'No declined guests'}
+                                  {guestTab === 'slot_booked' && 'No confirmed slot bookings'}
+                                  {guestTab === 'invited' && 'No invited guests'}
+                                  {guestTab === 'direct' && 'No direct guests'}
+                                  {guestTab === 'all' && 'No guests yet'}
+                                </td>
+                              </tr>
+                            )
+                          }
+
+                          return visibleGuests.map((guest) => {
+                            // Get analytics data - prefer from guest object, fallback to analyticsData state
+                            const analytics = analyticsData[guest.id] || {}
+                            const inviteViewsCount = guest.invite_views_count ?? analytics.invite_views_count ?? 0
+                            const rsvpViewsCount = guest.rsvp_views_count ?? analytics.rsvp_views_count ?? 0
+                            const lastInviteView = guest.last_invite_view ?? analytics.last_invite_view ?? null
+                            const lastRsvpView = guest.last_rsvp_view ?? analytics.last_rsvp_view ?? null
+                            const hasViewedInvite = guest.has_viewed_invite ?? analytics.has_viewed_invite ?? false
+                            const hasViewedRsvp = guest.has_viewed_rsvp ?? analytics.has_viewed_rsvp ?? false
+
+                            const getRsvpStatusBadge = (status: string | null) => {
+                              if (!status) {
+                                return (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                    Pending
+                                  </span>
+                                )
+                              }
+                              const statusConfig = {
+                                yes: { label: 'Yes', className: 'bg-green-100 text-green-700' },
+                                no: { label: 'No', className: 'bg-red-100 text-red-700' },
+                                maybe: { label: 'Maybe', className: 'bg-yellow-100 text-yellow-700' },
+                              }
+                              const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.yes
+                              return (
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.className}`}>
+                                  {config.label}
+                                </span>
+                              )
+                            }
+
+                            const getSourceBadge = (source?: Guest['source']): JSX.Element => {
+                              const normalized = source || 'manual'
+                              const sourceConfig = {
+                                manual: { label: 'manual', className: 'bg-gray-100 text-gray-700' },
+                                file_import: { label: 'file_import', className: 'bg-blue-100 text-blue-700' },
+                                contact_import: { label: 'contact_import', className: 'bg-indigo-100 text-indigo-700' },
+                                api_import: { label: 'api_import', className: 'bg-purple-100 text-purple-700' },
+                                form_submission: { label: 'form_submission', className: 'bg-green-100 text-green-700' },
+                              } as const
+                              const config = (sourceConfig as any)[normalized] || sourceConfig.manual
+                              return (
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.className}`}>
+                                  {config.label}
+                                </span>
+                              )
+                            }
+
+                            return (
+                              <tr key={guest.id} className="border-b hover:bg-gray-50 group">
+                                <td className="p-2 w-12 align-top">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedGuestIds.has(guest.id)}
+                                    onChange={() => handleToggleGuestSelection(guest.id)}
+                                    className="cursor-pointer"
+                                  />
+                                </td>
+                                <td className="p-2 font-medium w-44 sm:w-52 align-top box-border overflow-hidden">
+                                  <div className="flex flex-col gap-1 items-start min-w-0 w-full sm:flex-row sm:items-center sm:gap-2">
+                                    <span className="truncate max-w-full" title={guest.name}>
+                                      {guest.name}
+                                    </span>
+                                    <span className="shrink-0 max-w-full">{getSourceBadge(guest.source)}</span>
+                                  </div>
+                                </td>
+                                <td className="p-2 text-sm text-gray-600 font-mono min-w-[11rem] whitespace-nowrap align-top">
+                                  {getDisplayPhone(guest)}
+                                </td>
+
+                                {middleColumnsToRender.map((col) => {
+                                  if (col === 'email') {
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-600 max-w-[10rem] sm:max-w-[14rem]">
+                                        {guest.email ? (
+                                          <span className="block truncate" title={guest.email}>
+                                            {guest.email}
+                                          </span>
+                                        ) : (
+                                          '-'
+                                        )}
+                                      </td>
                                     )
                                   }
-                                  className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
-                                >
-                                  More
-                                </Button>
-                                {openRowActionsGuestId === guest.id && (
-                                  <div
-                                    className="absolute right-0 top-full mt-1 z-50 min-w-[11rem] rounded-md border border-gray-200 bg-white shadow-lg py-1"
-                                    role="menu"
-                                  >
-                                    {guest.guest_token && (
-                                      <button
-                                        type="button"
-                                        role="menuitem"
-                                        className="w-full text-left px-3 py-2 text-xs text-indigo-700 hover:bg-indigo-50"
-                                        onClick={() => {
-                                          handleCopyGuestLink(guest)
-                                          setOpenRowActionsGuestId(null)
-                                        }}
-                                      >
-                                        {copiedGuestId === guest.id ? '✓ Copied' : 'Copy Link'}
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      className="w-full text-left px-3 py-2 text-xs text-green-700 hover:bg-eco-green-light flex items-center gap-2"
-                                      disabled={sharingWhatsApp === guest.id}
-                                      onClick={() => {
-                                        handleShareWhatsApp(guest)
-                                        setOpenRowActionsGuestId(null)
-                                      }}
-                                    >
-                                      <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-                                      </svg>
-                                      {sharingWhatsApp === guest.id ? 'Opening...' : 'WhatsApp'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      className="w-full text-left px-3 py-2 text-xs text-red-700 hover:bg-red-50"
-                                      onClick={() => {
-                                        setOpenRowActionsGuestId(null)
-                                        handleDelete(guest.id)
-                                      }}
-                                    >
-                                      {guest.rsvp_status || guest.rsvp_will_attend ? 'Remove' : 'Delete'}
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })
-                    })()}
-                    {/* Removed Guests at Bottom */}
-                    {removedGuestsList.length > 0 && (
-                      <>
-                        {removedGuestsList.map((guest) => (
-                          <tr key={guest.id} className="border-b bg-gray-50 opacity-60 group">
-                            <td className="p-2 w-12 align-top" />
-                            <td className="p-2 font-medium text-gray-500 w-44 sm:w-52 align-top box-border overflow-hidden">
-                              <span className="truncate block" title={`${guest.name} (Removed)`}>
-                                {guest.name}
-                              </span>{' '}
-                              <span className="text-xs text-gray-400">(Removed)</span>
-                            </td>
-                            <td className="p-2 text-sm text-gray-500 font-mono min-w-[11rem] whitespace-nowrap align-top">
-                              {getDisplayPhone(guest)}
-                            </td>
-
-                            {middleColumnsToRender.map((col) => {
-                              if (col === 'email') {
-                                return (
-                                  <td key={col} className="p-2 text-sm text-gray-500">
-                                    {guest.email || '-'}
-                                  </td>
-                                )
-                              }
-                              if (col === 'relationship') {
-                                return (
-                                  <td key={col} className="p-2 text-sm text-gray-500">
-                                    {guest.relationship || '-'}
-                                  </td>
-                                )
-                              }
-                              if (col === 'guests_count') {
-                                return (
-                                  <td key={col} className="p-2 text-sm text-gray-500">
-                                    {guest.rsvp_guests_count !== null && guest.rsvp_guests_count !== undefined
-                                      ? guest.rsvp_guests_count
-                                      : '-'}
-                                  </td>
-                                )
-                              }
-                              if (col === 'notes') {
-                                return (
-                                  <td key={col} className="p-2 text-sm text-gray-500">
-                                    {guest.notes || '-'}
-                                  </td>
-                                )
-                              }
-                              if (col === 'sub_events_attending') {
-                                const rsvps = guestRSVPs[guest.id] || []
-                                const attendingSubEvents = rsvps
-                                  .filter((r: any) => r.will_attend === 'yes' && r.sub_event_title)
-                                  .map((r: any) => r.sub_event_title)
-                                return (
-                                  <td key={col} className="p-2">
-                                    {attendingSubEvents.length === 0 ? (
-                                      <span className="text-xs text-gray-400">-</span>
-                                    ) : (
-                                      <div className="flex flex-wrap gap-1">
-                                        {attendingSubEvents.map((title: string, idx: number) => (
-                                          <span key={idx} className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded">
-                                            {title}
+                                  if (col === 'relationship') {
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-600">
+                                        {guest.relationship || '-'}
+                                      </td>
+                                    )
+                                  }
+                                  if (col === 'guests_count') {
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-600">
+                                        {guest.rsvp_guests_count !== null && guest.rsvp_guests_count !== undefined
+                                          ? guest.rsvp_guests_count
+                                          : '-'}
+                                      </td>
+                                    )
+                                  }
+                                  if (col === 'slot_selected') {
+                                    const slotTitle =
+                                      guest.slot_booking_selected_slot_label?.trim() || ''
+                                    const slotDate = guest.slot_booking_slot_date
+                                    const hasSlotRow =
+                                      guest.slot_booking_status === 'confirmed' ||
+                                      !!slotTitle ||
+                                      !!slotDate
+                                    const primary = slotTitle || 'Slot confirmed'
+                                    const oneLine =
+                                      hasSlotRow && slotDate
+                                        ? `${primary} · ${slotDate}`
+                                        : hasSlotRow
+                                          ? primary
+                                          : ''
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-600">
+                                        {hasSlotRow ? (
+                                          <span
+                                            className="inline-flex max-w-[14rem] truncate text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded whitespace-nowrap"
+                                            title={oneLine}
+                                          >
+                                            {oneLine}
                                           </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </td>
-                                )
-                              }
-                              if (col.startsWith('cf:')) {
-                                const key = col.slice(3)
-                                return (
-                                  <td key={col} className="p-2 text-sm text-gray-500">
-                                    {guest.custom_fields?.[key] || '-'}
-                                  </td>
-                                )
-                              }
-                              return (
-                                <td key={col} className="p-2 text-sm text-gray-500">
-                                  -
-                                </td>
-                              )
-                            })}
+                                        ) : (
+                                          <span className="text-xs text-gray-400">-</span>
+                                        )}
+                                      </td>
+                                    )
+                                  }
+                                  if (col === 'notes') {
+                                    const noteText =
+                                      (guest.notes && guest.notes.trim()) ||
+                                      (guest.rsvp_notes && guest.rsvp_notes.trim()) ||
+                                      ''
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-600 max-w-[12rem]">
+                                        {noteText ? (
+                                          <span className="line-clamp-2 break-words" title={noteText}>
+                                            {noteText}
+                                          </span>
+                                        ) : (
+                                          '-'
+                                        )}
+                                      </td>
+                                    )
+                                  }
+                                  if (col === 'sub_events_attending') {
+                                    const rsvps = guestRSVPs[guest.id] || []
+                                    const attendingSubEvents = rsvps
+                                      .filter((r: any) => r.will_attend === 'yes' && r.sub_event_title)
+                                      .map((r: any) => r.sub_event_title)
 
-                            <td className="p-2">
-                              {guest.rsvp_status || guest.rsvp_will_attend ? (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
-                                  {guest.rsvp_status || guest.rsvp_will_attend}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="p-2 text-sm text-gray-500">
-                              <div className="flex flex-col items-start gap-1">
-                                <input
-                                  type="checkbox"
-                                  checked={guest.invitation_sent || false}
-                                  onChange={() => handleToggleInvitationSent(guest.id, !guest.invitation_sent)}
-                                  className="cursor-pointer opacity-60"
-                                />
-                                {guest.invitation_sent_at && (
-                                  <span className="text-xs text-gray-400">
-                                    {new Date(guest.invitation_sent_at).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                    })}
-                                  </span>
+                                    return (
+                                      <td key={col} className="p-2">
+                                        {attendingSubEvents.length === 0 ? (
+                                          <span className="text-xs text-gray-400">-</span>
+                                        ) : (
+                                          <div className="flex flex-wrap gap-1">
+                                            {attendingSubEvents.map((title: string, idx: number) => (
+                                              <span key={idx} className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded">
+                                                {title}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </td>
+                                    )
+                                  }
+                                  if (col.startsWith('cf:')) {
+                                    const key = col.slice(3)
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-600">
+                                        {guest.custom_fields?.[key] || '-'}
+                                      </td>
+                                    )
+                                  }
+                                  return (
+                                    <td key={col} className="p-2 text-sm text-gray-600">
+                                      -
+                                    </td>
+                                  )
+                                })}
+
+                                <td className="p-2">{getRsvpStatusBadge(guest.rsvp_status || guest.rsvp_will_attend)}</td>
+
+                                <td className="p-2">
+                                  <div className="flex flex-col gap-2 text-xs">
+                                    <div
+                                      className="flex items-center gap-2 group relative cursor-help"
+                                      title={`Invite Page Views: ${inviteViewsCount}${lastInviteView ? `\nLast Viewed: ${new Date(lastInviteView).toLocaleString()}` : '\nNever viewed'}`}
+                                    >
+                                      <div className={`flex items-center gap-1 min-w-[60px] ${hasViewedInvite ? 'text-blue-600 font-semibold' : 'text-gray-400'}`}>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        <span className="font-medium">{inviteViewsCount}</span>
+                                      </div>
+                                      <span className="text-gray-600 text-[10px]">Invite</span>
+                                      {lastInviteView && (
+                                        <span
+                                          className="text-gray-400 text-[10px]"
+                                          title={`Last viewed: ${new Date(lastInviteView).toLocaleString()}`}
+                                        >
+                                          {new Date(lastInviteView).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div
+                                      className="flex items-center gap-2 group relative cursor-help"
+                                      title={`RSVP Page Views: ${rsvpViewsCount}${lastRsvpView ? `\nLast Viewed: ${new Date(lastRsvpView).toLocaleString()}` : '\nNever viewed'}`}
+                                    >
+                                      <div className={`flex items-center gap-1 min-w-[60px] ${hasViewedRsvp ? 'text-purple-600 font-semibold' : 'text-gray-400'}`}>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span className="font-medium">{rsvpViewsCount}</span>
+                                      </div>
+                                      <span className="text-gray-600 text-[10px]">RSVP</span>
+                                      {lastRsvpView && (
+                                        <span
+                                          className="text-gray-400 text-[10px]"
+                                          title={`Last viewed: ${new Date(lastRsvpView).toLocaleString()}`}
+                                        >
+                                          {new Date(lastRsvpView).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="p-2">
+                                  <div className="flex flex-col items-start gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={guest.invitation_sent || false}
+                                      onChange={() => handleToggleInvitationSent(guest.id, !guest.invitation_sent)}
+                                      className="cursor-pointer"
+                                      disabled={sharingWhatsApp === guest.id}
+                                    />
+                                    {guest.invitation_sent_at && (
+                                      <span className="text-xs text-gray-500">
+                                        {new Date(guest.invitation_sent_at).toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          year: 'numeric',
+                                          hour: 'numeric',
+                                          minute: '2-digit',
+                                        })}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                {event?.event_structure === 'ENVELOPE' && (
+                                  <td className="p-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={async () => {
+                                        // Ensure assignments are loaded before opening modal
+                                        if (guestSubEventAssignments[guest.id] === undefined) {
+                                          // If guest has sub_event_invites from fetchGuests, use that
+                                          if (guest.sub_event_invites && Array.isArray(guest.sub_event_invites)) {
+                                            setGuestSubEventAssignments(prev => ({
+                                              ...prev,
+                                              [guest.id]: guest.sub_event_invites!
+                                            }))
+                                          } else {
+                                            // Otherwise fetch from API
+                                            await fetchGuestSubEventAssignments(guest.id)
+                                          }
+                                        }
+                                        setShowSubEventAssignment(guest.id)
+                                      }}
+                                      className={`text-xs shrink-0 ${getVisibleSubEventCount(guest) === 0
+                                        ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                                        : 'border-purple-300 text-purple-600 hover:bg-purple-50'
+                                        }`}
+                                      title="Sub-events this guest will see (the ones assigned to them plus any public sub-events). Click to assign."
+                                    >
+                                      {getVisibleSubEventCount(guest) === 0 ? (
+                                        <span className="flex items-center gap-1">
+                                          <AlertTriangle className="w-3 h-3" /> Won&apos;t see any
+                                        </span>
+                                      ) : (
+                                        `${getVisibleSubEventCount(guest)} shown`
+                                      )}
+                                    </Button>
+                                  </td>
                                 )}
-                              </div>
-                            </td>
-                            {event?.event_structure === 'ENVELOPE' && (
-                              <td className="p-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled
-                                  className="text-xs border-purple-300 text-purple-600 hover:bg-purple-50 opacity-60"
-                                >
-                                  {getAssignedSubEventIds(guest).length} assigned
-                                </Button>
-                              </td>
-                            )}
-                            <td className="p-2">
-                              <Button
-                                variant="outline"
-                                onClick={() => handleReinstateGuest(guest.id)}
-                                className="border-green-300 text-green-600 hover:bg-eco-green-light text-xs"
-                              >
-                                Include
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </>
-                    )}
-                  </tbody>
-                </table>
-                </div>
-              </>
-            )}
+                                <td className="p-2 w-[1%] whitespace-nowrap">
+                                  <div
+                                    className="flex items-center gap-1"
+                                    data-row-actions-root
+                                    data-guest-id={guest.id}
+                                  >
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleEdit(guest)}
+                                      className="text-xs border-blue-300 text-blue-600 hover:bg-blue-50 shrink-0"
+                                    >
+                                      Edit
+                                    </Button>
+                                    <div className="relative shrink-0">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        type="button"
+                                        aria-expanded={openRowActionsGuestId === guest.id}
+                                        aria-haspopup="menu"
+                                        onClick={() =>
+                                          setOpenRowActionsGuestId(
+                                            openRowActionsGuestId === guest.id ? null : guest.id
+                                          )
+                                        }
+                                        className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                                      >
+                                        More
+                                      </Button>
+                                      {openRowActionsGuestId === guest.id && (
+                                        <div
+                                          className="absolute right-0 top-full mt-1 z-50 min-w-[11rem] rounded-md border border-gray-200 bg-white shadow-lg py-1"
+                                          role="menu"
+                                        >
+                                          {guest.guest_token && (
+                                            <button
+                                              type="button"
+                                              role="menuitem"
+                                              className="w-full text-left px-3 py-2 text-xs text-indigo-700 hover:bg-indigo-50"
+                                              onClick={() => {
+                                                handleCopyGuestLink(guest)
+                                                setOpenRowActionsGuestId(null)
+                                              }}
+                                            >
+                                              {copiedGuestId === guest.id ? '✓ Copied' : 'Copy Link'}
+                                            </button>
+                                          )}
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="w-full text-left px-3 py-2 text-xs text-green-700 hover:bg-eco-green-light flex items-center gap-2"
+                                            disabled={sharingWhatsApp === guest.id}
+                                            onClick={() => {
+                                              handleShareWhatsApp(guest)
+                                              setOpenRowActionsGuestId(null)
+                                            }}
+                                          >
+                                            <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                                            </svg>
+                                            {sharingWhatsApp === guest.id ? 'Opening...' : 'WhatsApp'}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            role="menuitem"
+                                            className="w-full text-left px-3 py-2 text-xs text-red-700 hover:bg-red-50"
+                                            onClick={() => {
+                                              setOpenRowActionsGuestId(null)
+                                              handleDelete(guest.id)
+                                            }}
+                                          >
+                                            {guest.rsvp_status || guest.rsvp_will_attend ? 'Remove' : 'Delete'}
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        })()}
+                        {/* Removed Guests at Bottom */}
+                        {removedGuestsList.length > 0 && (
+                          <>
+                            {removedGuestsList.map((guest) => (
+                              <tr key={guest.id} className="border-b bg-gray-50 opacity-60 group">
+                                <td className="p-2 w-12 align-top" />
+                                <td className="p-2 font-medium text-gray-500 w-44 sm:w-52 align-top box-border overflow-hidden">
+                                  <span className="truncate block" title={`${guest.name} (Removed)`}>
+                                    {guest.name}
+                                  </span>{' '}
+                                  <span className="text-xs text-gray-400">(Removed)</span>
+                                </td>
+                                <td className="p-2 text-sm text-gray-500 font-mono min-w-[11rem] whitespace-nowrap align-top">
+                                  {getDisplayPhone(guest)}
+                                </td>
+
+                                {middleColumnsToRender.map((col) => {
+                                  if (col === 'email') {
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-500">
+                                        {guest.email || '-'}
+                                      </td>
+                                    )
+                                  }
+                                  if (col === 'relationship') {
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-500">
+                                        {guest.relationship || '-'}
+                                      </td>
+                                    )
+                                  }
+                                  if (col === 'guests_count') {
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-500">
+                                        {guest.rsvp_guests_count !== null && guest.rsvp_guests_count !== undefined
+                                          ? guest.rsvp_guests_count
+                                          : '-'}
+                                      </td>
+                                    )
+                                  }
+                                  if (col === 'notes') {
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-500">
+                                        {guest.notes || '-'}
+                                      </td>
+                                    )
+                                  }
+                                  if (col === 'sub_events_attending') {
+                                    const rsvps = guestRSVPs[guest.id] || []
+                                    const attendingSubEvents = rsvps
+                                      .filter((r: any) => r.will_attend === 'yes' && r.sub_event_title)
+                                      .map((r: any) => r.sub_event_title)
+                                    return (
+                                      <td key={col} className="p-2">
+                                        {attendingSubEvents.length === 0 ? (
+                                          <span className="text-xs text-gray-400">-</span>
+                                        ) : (
+                                          <div className="flex flex-wrap gap-1">
+                                            {attendingSubEvents.map((title: string, idx: number) => (
+                                              <span key={idx} className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded">
+                                                {title}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </td>
+                                    )
+                                  }
+                                  if (col.startsWith('cf:')) {
+                                    const key = col.slice(3)
+                                    return (
+                                      <td key={col} className="p-2 text-sm text-gray-500">
+                                        {guest.custom_fields?.[key] || '-'}
+                                      </td>
+                                    )
+                                  }
+                                  return (
+                                    <td key={col} className="p-2 text-sm text-gray-500">
+                                      -
+                                    </td>
+                                  )
+                                })}
+
+                                <td className="p-2">
+                                  {guest.rsvp_status || guest.rsvp_will_attend ? (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
+                                      {guest.rsvp_status || guest.rsvp_will_attend}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                                <td className="p-2 text-sm text-gray-500">
+                                  <div className="flex flex-col items-start gap-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={guest.invitation_sent || false}
+                                      onChange={() => handleToggleInvitationSent(guest.id, !guest.invitation_sent)}
+                                      className="cursor-pointer opacity-60"
+                                    />
+                                    {guest.invitation_sent_at && (
+                                      <span className="text-xs text-gray-400">
+                                        {new Date(guest.invitation_sent_at).toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          year: 'numeric',
+                                          hour: 'numeric',
+                                          minute: '2-digit',
+                                        })}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                {event?.event_structure === 'ENVELOPE' && (
+                                  <td className="p-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled
+                                      className="text-xs border-purple-300 text-purple-600 hover:bg-purple-50 opacity-60"
+                                    >
+                                      {getAssignedSubEventIds(guest).length} assigned
+                                    </Button>
+                                  </td>
+                                )}
+                                <td className="p-2">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => handleReinstateGuest(guest.id)}
+                                    className="border-green-300 text-green-600 hover:bg-eco-green-light text-xs"
+                                  >
+                                    Include
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -3807,7 +3628,7 @@ export default function GuestsPage() {
                           </span>
                         )
                       }
-                      
+
                       const getSourceBadge = (source: string) => {
                         const sourceConfig = {
                           qr: { label: 'QR Code', className: 'bg-purple-100 text-purple-700' },
@@ -3821,7 +3642,7 @@ export default function GuestsPage() {
                           </span>
                         )
                       }
-                      
+
                       return (
                         <tr key={guest.id} className="border-b hover:bg-gray-50 group">
                           <td className="p-2 font-medium w-40 sm:w-48 box-border overflow-hidden">
@@ -3927,7 +3748,7 @@ export default function GuestsPage() {
               <CardHeader>
                 <CardTitle className="text-eco-green">Import Summary</CardTitle>
                 <CardDescription>
-                  {importSummary.created > 0 
+                  {importSummary.created > 0
                     ? `${importSummary.created} guest(s) imported successfully`
                     : 'No guests were imported'}
                 </CardDescription>
@@ -3945,7 +3766,7 @@ export default function GuestsPage() {
                     </div>
                   </div>
                 </div>
-                
+
                 {importErrors.length > 0 && (
                   <div>
                     <h3 className="font-semibold mb-2 text-gray-700">Errors ({importErrors.length}):</h3>
@@ -3958,7 +3779,7 @@ export default function GuestsPage() {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="mt-6 flex justify-end">
                   <Button
                     onClick={() => {
@@ -4015,17 +3836,17 @@ export default function GuestsPage() {
                       const filter_config = saveGroupType === 'fixed'
                         ? { guest_ids: Array.from(selectedGuestIds) }
                         : {
-                            rsvp_filter: rsvpFilter,
-                            rsvp_filter_mode: rsvpFilterMode,
-                            guest_tab: guestTab,
-                            category_source: categorySource,
-                            category_value: categoryValue,
-                            category_filter_mode: categoryFilterMode,
-                            invite_sent_filter: inviteSentFilter,
-                            invite_sent_filter_mode: inviteSentFilterMode,
-                            sub_event_filter_ids: Array.from(selectedSubEventFilterIds),
-                            sub_event_filter_mode: subEventFilterMode,
-                          }
+                          rsvp_filter: rsvpFilter,
+                          rsvp_filter_mode: rsvpFilterMode,
+                          guest_tab: guestTab,
+                          category_source: categorySource,
+                          category_value: categoryValue,
+                          category_filter_mode: categoryFilterMode,
+                          invite_sent_filter: inviteSentFilter,
+                          invite_sent_filter_mode: inviteSentFilterMode,
+                          sub_event_filter_ids: Array.from(selectedSubEventFilterIds),
+                          sub_event_filter_mode: subEventFilterMode,
+                        }
                       await createGuestSegment(Number(eventId), {
                         name: saveGroupName.trim(),
                         segment_type: saveGroupType,
@@ -4051,7 +3872,7 @@ export default function GuestsPage() {
 
         {/* Bulk Sub-Event Assignment Modal */}
         {showBulkSubEventAssignment && event?.event_structure === 'ENVELOPE' && (
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) {
@@ -4152,7 +3973,7 @@ export default function GuestsPage() {
 
         {/* Sub-Event Assignment Modal */}
         {showSubEventAssignment && event?.event_structure === 'ENVELOPE' && (
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) {

@@ -24,6 +24,7 @@ import {
 import { CatalogExternalLinkModal } from '@/components/catalog/guest/CatalogExternalLinkModal'
 import { CatalogUnavailable } from '@/components/catalog/guest/CatalogUnavailable'
 import { CatalogGate, type CatalogGateCode } from '@/components/catalog/guest/CatalogGate'
+import { CatalogPhoneCheck } from '@/components/catalog/guest/CatalogPhoneCheck'
 import { CatalogShelf } from '@/components/catalog/guest/CatalogShelf'
 import { CatalogEmptyState } from '@/components/catalog/guest/CatalogEmptyState'
 
@@ -54,6 +55,17 @@ export default function PublicCatalogPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [gateCode, setGateCode] = useState<CatalogGateCode | null>(null)
+  // Proof of guest-list membership for a visitor without an invite link. Seeded
+  // from the URL (the RSVP flow forwards it) and renewed from every accepted
+  // response, so an unhurried browse never expires mid-decision.
+  const [accessPass, setAccessPass] = useState<string | undefined>(
+    searchParams.get('p') || undefined,
+  )
+  const [needsPhone, setNeedsPhone] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [phoneInput, setPhoneInput] = useState('')
+  const [verifyingPhone, setVerifyingPhone] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
 
   const [activeItem, setActiveItem] = useState<PublicCatalogItem | null>(null)
   const [form, setForm] = useState<CatalogActionForm>(EMPTY_FORM)
@@ -68,6 +80,7 @@ export default function PublicCatalogPage() {
       setError(null)
       setGateCode(null)
       setCatalog(null)
+      setNeedsPhone(false)
 
       const invitePromise = api
         .get(`/api/events/invite/${slug}/`, { params: guestToken ? { g: guestToken } : {} })
@@ -75,7 +88,7 @@ export default function PublicCatalogPage() {
 
       const [inviteRes, catalogResult] = await Promise.all([
         invitePromise,
-        getPublicCatalog(slug, guestToken).then(
+        getPublicCatalog(slug, guestToken, accessPass).then(
           (data) => ({ ok: true as const, data }),
           (e: unknown) => ({ ok: false as const, e }),
         ),
@@ -89,13 +102,18 @@ export default function PublicCatalogPage() {
 
       if (catalogResult.ok) {
         setCatalog(catalogResult.data)
+        if (catalogResult.data.access_pass) setAccessPass(catalogResult.data.access_pass)
       } else {
         const err = catalogResult.e as {
           response?: { data?: { error?: string; code?: string }; status?: number }
         }
         const code = err?.response?.data?.code
         const status = err?.response?.status
-        if (
+        if (status === 403 && code === 'private_event') {
+          // Private event and no credential: offer the same phone check the RSVP
+          // page uses rather than a dead end.
+          setNeedsPhone(true)
+        } else if (
           status === 403 &&
           code &&
           GATE_CODES.has(code as CatalogGateCode)
@@ -109,7 +127,39 @@ export default function PublicCatalogPage() {
       setLoading(false)
     }
     load()
-  }, [slug, guestToken])
+    // accessPass is intentionally not a dependency: renewing it from a response
+    // must not retrigger the whole load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, guestToken, reloadKey])
+
+  async function verifyPhone() {
+    const phone = phoneInput.trim()
+    if (phone.replace(/\D/g, '').length < 10) {
+      setVerifyError('Please enter a valid phone number')
+      return
+    }
+    setVerifyingPhone(true)
+    setVerifyError('')
+    try {
+      const res = await api.post(`/api/events/invite/${slug}/verify-phone/`, { phone })
+      const pass = res.data?.access_pass as string | undefined
+      setAccessPass(pass)
+      if (pass && typeof window !== 'undefined') {
+        // Keep it in the URL so a refresh inside the pass's short life still works.
+        const url = new URL(window.location.href)
+        url.searchParams.set('p', pass)
+        window.history.replaceState({}, '', url.toString())
+      }
+      setNeedsPhone(false)
+      setReloadKey((k) => k + 1)
+    } catch (e: any) {
+      setVerifyError(
+        e?.response?.data?.error || 'Could not check that number. Please try again.',
+      )
+    } finally {
+      setVerifyingPhone(false)
+    }
+  }
 
   function openItem(item: PublicCatalogItem, preselectedAmount?: string) {
     if (item.action_type === 'open_external_link') {
@@ -141,6 +191,7 @@ export default function PublicCatalogPage() {
         slug,
         { catalog_item_id: externalItem.id, response_type: 'external_click', source },
         guestToken,
+        accessPass,
       )
     } catch {
       /* fire-and-forget */
@@ -182,6 +233,7 @@ export default function PublicCatalogPage() {
           source,
         },
         guestToken,
+        accessPass,
       )
       setSubmitted(true)
     } catch (e: unknown) {
@@ -212,6 +264,21 @@ export default function PublicCatalogPage() {
           </p>
         </div>
       </div>
+    )
+  }
+
+  if (needsPhone) {
+    return (
+      <CatalogPhoneCheck
+        slug={slug}
+        displayTitle={gateCopy.title}
+        theme={theme}
+        value={phoneInput}
+        onChange={setPhoneInput}
+        onSubmit={verifyPhone}
+        submitting={verifyingPhone}
+        error={verifyError}
+      />
     )
   }
 

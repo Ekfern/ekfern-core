@@ -82,6 +82,8 @@ export interface PublicCatalog {
     slug: string
     is_public: boolean
   }
+  /** Renewed membership pass for a guest browsing without an invite link. */
+  access_pass?: string | null
 }
 
 export interface PublicCatalogItem {

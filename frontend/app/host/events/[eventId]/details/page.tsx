@@ -96,10 +96,13 @@ export default function EventDetailsEditPage() {
         await resyncEventDetailsTile(data.date, data.city)
       }
       showToast('Event details updated.', 'success')
-      // This page has exactly one entry point app-wide: the wizard stepper's
-      // step-1 link. So saving should always continue the wizard, same as
-      // /host/events/new does — never dead-end the user at the dashboard.
-      router.push(`/host/events/${eventId}/layout`)
+      // Continue the wizard the same way the create flow does: a multi-sub-event
+      // event goes to the Sub-events step; a single event goes straight to Layout.
+      router.push(
+        is_multi_sub_event
+          ? `/host/events/${eventId}/sub-events-setup`
+          : `/host/events/${eventId}/layout`,
+      )
     } catch (err: unknown) {
       logError('EventDetailsEditPage: save failed', err)
       showToast(getErrorMessage(err), 'error')
@@ -152,11 +155,18 @@ export default function EventDetailsEditPage() {
           <CardContent>
             {event && (
               <EventDetailsForm
-                defaultValues={event}
+                defaultValues={{
+                  ...event,
+                  // Seed the fork from the event's current structure so a
+                  // multi-sub-event (ENVELOPE) event shows "multiple sub-events"
+                  // selected instead of defaulting to single.
+                  is_multi_sub_event: event.event_structure === 'ENVELOPE',
+                }}
                 onSubmit={handleSubmit}
                 submitLabel="Save changes"
                 loading={loading}
                 onCancel={() => router.back()}
+                showStructureChoice
               />
             )}
           </CardContent>
