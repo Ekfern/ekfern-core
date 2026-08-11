@@ -105,6 +105,9 @@ export default function RSVPPage() {
   const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({})
   const [summary, setSummary] = useState<any>(null)
   const [phoneVerified, setPhoneVerified] = useState(false)
+  // Proof of guest-list membership from this session, forwarded to the registry
+  // so a guest who just verified is not asked for their number again.
+  const [accessPass, setAccessPass] = useState<string | null>(null)
   const [verifyingPhone, setVerifyingPhone] = useState(false)
   const [checkingRegistration, setCheckingRegistration] = useState(false)
   const [registrationBlocked, setRegistrationBlocked] = useState(false)
@@ -201,6 +204,7 @@ export default function RSVPPage() {
   const stepIndex = currentStep === 'success' ? visibleSteps.length : Math.max(0, visibleSteps.indexOf(currentStep)) + 1
 
   const applyLookupData = (data: any) => {
+    if (data.access_pass) setAccessPass(data.access_pass)
     if (data.name) setValue('name', data.name, { shouldValidate: false })
     if (data.email) setValue('email', data.email, { shouldValidate: false })
     if (data.guests_count) setValue('guests_count', Math.max(1, data.guests_count), { shouldValidate: false })
@@ -760,6 +764,7 @@ export default function RSVPPage() {
                 <Link
                   href={catalogUrl(slug, {
                     guestToken: searchParams.get('g') || undefined,
+                    accessPass: accessPass || undefined,
                     source: 'rsvp_confirmation',
                   })}
                 >
