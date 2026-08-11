@@ -71,11 +71,11 @@ export function getErrorMessage(error: any, fallbackMessage?: string): string {
   }
 
   if (status === 403) {
-    return 'You don\'t have permission to perform this action.'
+    return errorData?.error || errorData?.detail || 'You don\'t have permission to perform this action.'
   }
 
   if (status === 404) {
-    return errorData?.error || 'The requested item was not found.'
+    return errorData?.error || errorData?.detail || 'The requested item was not found.'
   }
 
   if (status === 409) {

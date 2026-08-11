@@ -51,11 +51,10 @@ interface Event {
   host_name?: string | null
   rsvp_experience_mode?: 'standard' | 'sub_event' | 'slot_based' | 'auto_confirm'
   rsvp_mode?: 'PER_SUBEVENT' | 'ONE_TAP_ALL'
-  rsvp_total_capacity?: number | null
-  rsvp_block_on_full_capacity?: boolean
+  rsvp_capacity_enabled?: boolean
   rsvp_registration_full?: boolean
   rsvp_require_sub_event_selection?: boolean
-  page_config?: { rsvpForm?: RsvpFormConfig }
+  rsvp_form_config?: RsvpFormConfig | null
 }
 interface CalendarDayAvailability { date: string; status: 'available' | 'sold_out'; availabilityLabel: string }
 interface SlotAvailability {
@@ -126,8 +125,7 @@ export default function RSVPPage() {
     !!event &&
     !isSlotMode &&
     (event.rsvp_experience_mode === 'standard' || event.rsvp_experience_mode === 'auto_confirm') &&
-    !!event.rsvp_block_on_full_capacity &&
-    !!event.rsvp_total_capacity
+    !!event.rsvp_capacity_enabled
   const isIntentFirstFlow = !!event?.is_public && isSlotMode
 
   const { register, watch, setValue, getValues, formState: { errors } } = useForm<RSVPForm>({
@@ -136,7 +134,7 @@ export default function RSVPPage() {
   })
 
   const willAttend = watch('will_attend')
-  const rsvpFormConfig = (event?.page_config as any)?.rsvpForm as RsvpFormConfig | undefined
+  const rsvpFormConfig = (event?.rsvp_form_config || undefined) as RsvpFormConfig | undefined
   const isEmailEnabled = rsvpFormConfig?.systemFields?.email?.enabled ?? true
   const isNotesEnabled = rsvpFormConfig?.systemFields?.notes?.enabled ?? true
   const notesLabel = rsvpFormConfig?.systemFields?.notes?.label || 'Notes (optional)'
@@ -231,8 +229,16 @@ export default function RSVPPage() {
 
   const fetchEvent = async () => {
     try {
-      const response = await api.get(`/api/events/invite/${slug}/`)
-      const eventData = response.data
+      // Two sources on purpose. The invite payload is CDN-cached and can be up
+      // to an hour stale in the guest's browser, which is fine for presentation
+      // but wrong for the gates below (is_public, capacity, form fields) - those
+      // come from the no-store rsvp-config endpoint and win on merge.
+      const [inviteRes, configRes] = await Promise.all([
+        api.get(`/api/events/invite/${slug}/`),
+        api.get(`/api/events/invite/${slug}/rsvp-config/`),
+      ])
+      const config = configRes.data
+      const eventData = { ...inviteRes.data, ...config, id: config.event_id }
       if (!eventData.has_rsvp) {
         showToast('RSVP is not available for this event', 'info')
         router.push(`/invite/${slug}`)
@@ -242,8 +248,7 @@ export default function RSVPPage() {
       setValue('country_code', eventData.country_code || '+91', { shouldValidate: false })
       const full =
         !!eventData.rsvp_registration_full &&
-        !!eventData.rsvp_block_on_full_capacity &&
-        !!eventData.rsvp_total_capacity &&
+        !!eventData.rsvp_capacity_enabled &&
         (eventData.rsvp_experience_mode === 'standard' || eventData.rsvp_experience_mode === 'auto_confirm')
       setRegistrationBlocked(full && !!eventData.is_public)
       if (eventData.rsvp_experience_mode === 'slot_based') await fetchCalendarByMonth(formatMonthKey(new Date()))

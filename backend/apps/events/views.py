@@ -1761,7 +1761,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 'event_id', 'created_at', 'updated_at',
                 'event__id', 'event__slug', 'event__event_structure',
                 'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__public_sub_events_count',
-                'event__total_sub_events_count', 'event__host_id'  # host_id needed for editor check
+                'event__total_sub_events_count', 'event__host_id',  # host_id needed for editor check
+                # Serialized fields - loaded here rather than as deferred-field queries
+                'event__country', 'event__title', 'event__host__name'
             ).get(slug=slug, is_published=True)
             event = invite_page.event
             query_time = time.time() - query_start
@@ -1777,7 +1779,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             query_start = time.time()
             logger.info(f"[PublicInviteViewSet.retrieve] Step 2: Looking for unpublished invite page with slug: '{slug}'")
             try:
-                invite_page = InvitePage.objects.select_related('event').prefetch_related(
+                invite_page = InvitePage.objects.select_related('event', 'event__host').prefetch_related(
                     'event__sub_events'
                 ).only(
                     'id', 'slug', 'background_url', 'config', 'published_config',
@@ -1785,7 +1787,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                     'event_id', 'created_at', 'updated_at',
                     'event__id', 'event__slug', 'event__title', 'event__show_branding',
                     'event__event_structure',
-                    'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__host_id'  # host_id needed for auth check
+                    'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__host_id',  # host_id needed for auth check
+                    # Serialized fields - loaded here rather than as deferred-field queries
+                    'event__country', 'event__host__name'
                 ).get(slug=slug)
                 event = invite_page.event
                 query_time = time.time() - query_start
@@ -4903,6 +4907,58 @@ def public_rsvp_sub_events(request, slug):
         queryset = eligible.filter(is_public_visible=True)
 
     return Response({'results': SubEventSerializer(queryset, many=True).data})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_rsvp_config(request, slug):
+    """
+    Guest-facing RSVP gates and form definition - deliberately NOT cached.
+
+    The public invite payload (/api/events/invite/{slug}/) is served with
+    s-maxage/stale-while-revalidate, so a guest's browser can render it up to an
+    hour stale. That is correct for presentation and wrong for anything that
+    decides what the guest is asked to do: a host flipping an event to private,
+    hitting capacity, or editing the RSVP form must take effect immediately.
+
+    Those fields live here instead, behind no-store. See
+    InvitePageSerializer for the cacheable half of this split.
+    """
+    from .utils import get_country_code
+
+    event = get_object_or_404(Event, slug=slug.lower())
+
+    payload = {
+        'event_id': event.id,
+        'slug': event.slug,
+        'has_rsvp': event.has_rsvp,
+        'is_public': event.is_public,
+        'country_code': get_country_code(event.country or 'IN'),
+        'rsvp_mode': event.rsvp_mode,
+        'rsvp_experience_mode': event.get_canonical_rsvp_mode(),
+        # Whether capacity limiting is switched on - deliberately a boolean, so the
+        # guest learns that a limit applies without the raw headcount leaving the
+        # server. is_rsvp_registration_full() answers the only other question the
+        # page needs.
+        'rsvp_capacity_enabled': bool(
+            event.rsvp_block_on_full_capacity and event.rsvp_total_capacity
+        ),
+        'rsvp_require_sub_event_selection': event.rsvp_require_sub_event_selection,
+        'rsvp_registration_full': event.is_rsvp_registration_full(),
+        # Live COUNT over another table: it changes without anything on the invite
+        # page changing, so no version key can invalidate it. The cached payload
+        # carries a copy as an instant-paint seed; this is the truthful one.
+        'rsvp_count': event.rsvps.filter(will_attend='yes', is_removed=False).count(),
+        'rsvp_form_config': (
+            event.page_config.get('rsvpForm') if isinstance(event.page_config, dict) else None
+        ),
+    }
+
+    response = Response(payload)
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 @api_view(['GET'])
