@@ -204,3 +204,192 @@ class CatalogResponseCreateTest(TestCase):
             self.assertEqual(r.status_code, 201, source)
             resp = CatalogResponse.objects.get(id=r.data['id'])
             self.assertEqual(resp.source, source)
+
+
+class GuestMembershipPassTest(TestCase):
+    """
+    A guest who proves membership by phone must be able to reach the registry.
+
+    The reported failure: an invited guest completed the RSVP on a private event
+    using the generic invite link, clicked through to the registry, and was told
+    "This is a private event. Use your invite link to access." He was on the
+    guest list and had just proved it - but RSVP accepted a phone match while
+    the catalog accepted only an invite token, so the proof did not travel.
+    """
+
+    def setUp(self):
+        from apps.events import membership
+
+        self.membership = membership
+        self.host = User.objects.create_user(email='pass-host@test.com', name='Pass Host')
+        self.event = make_event(self.host, is_public=False)
+        self.client = APIClient()
+        self.guest = Guest.objects.create(
+            event=self.event, name='Invited Guest', phone='+919812345678',
+        )
+        self.guest.refresh_from_db()
+        self.catalog = make_catalog(self.event)
+        make_item(self.catalog)
+
+    def _verify(self, phone='9812345678'):
+        return self.client.post(
+            f'/api/events/invite/{self.event.slug}/verify-phone/',
+            {'phone': phone, 'country_code': '+91'},
+            format='json',
+        )
+
+    # -- the pass itself ---------------------------------------------------
+
+    def test_pass_round_trips_to_the_same_guest(self):
+        access_pass = self.membership.issue_pass(self.event, self.guest)
+        self.assertEqual(self.membership.verify_pass(self.event, access_pass), self.guest)
+
+    def test_pass_expires(self):
+        from django.core import signing
+
+        access_pass = self.membership.issue_pass(self.event, self.guest)
+        real_unsign = signing.TimestampSigner.unsign
+
+        def expired(self_signer, value, max_age=None):
+            raise signing.SignatureExpired('too old')
+
+        signing.TimestampSigner.unsign = expired
+        try:
+            self.assertIsNone(self.membership.verify_pass(self.event, access_pass))
+        finally:
+            signing.TimestampSigner.unsign = real_unsign
+
+    def test_pass_from_another_event_is_rejected(self):
+        other_event = make_event(self.host, is_public=False)
+        other_guest = Guest.objects.create(
+            event=other_event, name='Other', phone='+919812345678',
+        )
+        foreign_pass = self.membership.issue_pass(other_event, other_guest)
+        self.assertIsNone(self.membership.verify_pass(self.event, foreign_pass))
+
+    def test_tampered_pass_is_rejected(self):
+        access_pass = self.membership.issue_pass(self.event, self.guest)
+        self.assertIsNone(self.membership.verify_pass(self.event, access_pass + 'x'))
+
+    def test_removed_guest_pass_stops_working(self):
+        access_pass = self.membership.issue_pass(self.event, self.guest)
+        self.guest.is_removed = True
+        self.guest.save(update_fields=['is_removed'])
+        self.assertIsNone(self.membership.verify_pass(self.event, access_pass))
+
+    # -- verification endpoint ---------------------------------------------
+
+    def test_verify_phone_returns_a_pass_for_a_listed_number(self):
+        r = self._verify()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['name'], 'Invited Guest')
+        self.assertEqual(
+            self.membership.verify_pass(self.event, r.data['access_pass']), self.guest
+        )
+
+    def test_verify_phone_does_not_leak_the_invite_token(self):
+        """The pass replaces the token here: momentary proof, not standing access."""
+        r = self._verify()
+        self.assertNotIn('guest_token', r.data)
+        self.assertNotIn(self.guest.guest_token, str(r.data))
+
+    def test_verify_phone_rejects_a_number_not_on_the_list(self):
+        r = self._verify(phone='9000000001')
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(r.data['error'], self.membership.GUEST_NOT_FOUND_MESSAGE)
+
+    def test_verify_phone_response_is_never_cached(self):
+        self.assertIn('no-store', self._verify()['Cache-Control'])
+
+    # -- the catalog gate --------------------------------------------------
+
+    def test_private_catalog_refuses_a_visitor_with_no_credential(self):
+        r = self.client.get(f'/api/catalog/{self.event.slug}/')
+        self.assertEqual(r.status_code, 403)
+        # The code is what lets the page offer a phone step instead of a dead end.
+        self.assertEqual(r.data['code'], 'private_event')
+
+    def test_private_catalog_accepts_a_pass(self):
+        access_pass = self.membership.issue_pass(self.event, self.guest)
+        r = self.client.get(f'/api/catalog/{self.event.slug}/?p={access_pass}')
+        self.assertEqual(r.status_code, 200)
+
+    def test_private_catalog_still_accepts_an_invite_token(self):
+        r = self.client.get(f'/api/catalog/{self.event.slug}/?g={self.guest.guest_token}')
+        self.assertEqual(r.status_code, 200)
+
+    def test_catalog_rejects_a_pass_minted_for_another_event(self):
+        other_event = make_event(self.host, is_public=False)
+        other_guest = Guest.objects.create(
+            event=other_event, name='Other', phone='+919700000000',
+        )
+        foreign_pass = self.membership.issue_pass(other_event, other_guest)
+        r = self.client.get(f'/api/catalog/{self.event.slug}/?p={foreign_pass}')
+        self.assertEqual(r.status_code, 403)
+
+    def test_catalog_renews_the_pass_on_each_visit(self):
+        """Sliding window: browsing must not expire mid-decision."""
+        access_pass = self.membership.issue_pass(self.event, self.guest)
+        r = self.client.get(f'/api/catalog/{self.event.slug}/?p={access_pass}')
+        renewed = r.data['access_pass']
+        self.assertTrue(renewed)
+        self.assertEqual(self.membership.verify_pass(self.event, renewed), self.guest)
+
+    def test_token_holders_are_not_issued_a_pass(self):
+        r = self.client.get(f'/api/catalog/{self.event.slug}/?g={self.guest.guest_token}')
+        self.assertIsNone(r.data['access_pass'])
+
+    def test_giving_a_gift_works_with_a_pass_and_attributes_it_to_the_guest(self):
+        access_pass = self.membership.issue_pass(self.event, self.guest)
+        item = CatalogItem.objects.filter(catalog=self.catalog).first()
+        r = self.client.post(
+            f'/api/catalog/{self.event.slug}/respond/?p={access_pass}',
+            {'catalog_item_id': item.id, 'response_type': 'interest', 'email': 'g@test.com'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 201)
+        response_obj = CatalogResponse.objects.get(id=r.data['id'])
+        self.assertEqual(response_obj.guest, self.guest)
+        self.assertEqual(response_obj.name, 'Invited Guest')
+
+    # -- the journey that was broken ---------------------------------------
+
+    def test_rsvp_by_phone_then_registry_without_being_asked_again(self):
+        """End to end: generic link, verify at RSVP, reach the registry."""
+        check = self.client.post(
+            f'/api/events/{self.event.id}/rsvp/check/phone/',
+            {'phone': '9812345678', 'country_code': '+91'},
+            format='json',
+        )
+        self.assertEqual(check.status_code, 200)
+        access_pass = check.data['access_pass']
+        self.assertTrue(access_pass)
+        # The RSVP lookup must not hand back a permanent key either.
+        self.assertNotIn('guest_token', check.data)
+
+        self.client.post(
+            f'/api/events/{self.event.id}/rsvp/',
+            {'name': 'Invited Guest', 'phone': '+919812345678',
+             'will_attend': 'yes', 'guests_count': 1},
+            format='json',
+        )
+
+        registry = self.client.get(f'/api/catalog/{self.event.slug}/?p={access_pass}')
+        self.assertEqual(registry.status_code, 200, 'verified guest was refused at the registry')
+
+    def test_pass_issued_after_an_rsvp_already_exists(self):
+        """The returning-guest branch serves a different serializer - it must still mint one."""
+        RSVP.objects.create(
+            event=self.event, guest=self.guest, name=self.guest.name,
+            phone=self.guest.phone, will_attend='yes', guests_count=1,
+        )
+        check = self.client.post(
+            f'/api/events/{self.event.id}/rsvp/check/phone/',
+            {'phone': '9812345678', 'country_code': '+91'},
+            format='json',
+        )
+        self.assertEqual(check.status_code, 200)
+        self.assertEqual(check.data['found_in'], 'rsvp')
+        self.assertEqual(
+            self.membership.verify_pass(self.event, check.data['access_pass']), self.guest
+        )

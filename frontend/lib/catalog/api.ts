@@ -93,9 +93,11 @@ export async function updateResponseStatus(
 export async function getPublicCatalog(
   slug: string,
   guestToken?: string,
+  accessPass?: string,
 ): Promise<PublicCatalog> {
   const params = new URLSearchParams()
   if (guestToken) params.set('g', guestToken)
+  else if (accessPass) params.set('p', accessPass)
   const qs = params.toString()
   const r = await api.get(`/api/catalog/${slug}/${qs ? `?${qs}` : ''}`)
   return r.data
@@ -114,8 +116,13 @@ export async function submitCatalogResponse(
     source?: CatalogSource
   },
   guestToken?: string,
-): Promise<{ message: string; id: number }> {
-  const params = guestToken ? `?g=${guestToken}` : ''
+  accessPass?: string,
+): Promise<{ message: string; id: number; access_pass?: string | null }> {
+  const params = guestToken
+    ? `?g=${guestToken}`
+    : accessPass
+    ? `?p=${encodeURIComponent(accessPass)}`
+    : ''
   const r = await api.post(`/api/catalog/${slug}/respond/${params}`, payload)
   return r.data
 }

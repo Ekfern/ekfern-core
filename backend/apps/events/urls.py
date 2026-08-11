@@ -16,7 +16,7 @@ from .views import (
     ses_webhook, email_click_redirect,
     booking_schedule_detail, booking_slots_collection, booking_slot_detail,
     booking_slots_reorder, public_booking_calendar, public_booking_slots_by_date,
-    public_rsvp_sub_events, public_rsvp_config,
+    public_rsvp_sub_events, public_rsvp_config, public_verify_phone,
     create_slot_booking, host_slot_bookings, host_update_slot_booking,
     host_move_slot_booking, host_override_slot_booking_capacity,
 )
@@ -76,6 +76,7 @@ urlpatterns = [
     # rsvp-config MUST come before the invite detail route so the slug pattern
     # does not swallow it. It is the uncached half of the invite payload.
     path('invite/<str:slug>/rsvp-config/', public_rsvp_config, name='public-rsvp-config'),
+    path('invite/<str:slug>/verify-phone/', public_verify_phone, name='public-verify-phone'),
     path('invite/<str:slug>/', PublicInviteViewSet.as_view({'get': 'retrieve'}), name='public-invite'),
     path('invite/<str:slug>/publish/', InvitePageViewSet.as_view({'post': 'publish'}), name='invite-publish'),
     # Image upload endpoint

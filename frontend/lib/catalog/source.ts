@@ -22,10 +22,14 @@ export function parseCatalogSource(raw: string | null | undefined): CatalogSourc
 
 export function catalogUrl(
   slug: string,
-  opts?: { guestToken?: string; source?: CatalogSource },
+  opts?: { guestToken?: string; accessPass?: string; source?: CatalogSource },
 ): string {
   const params = new URLSearchParams()
   if (opts?.guestToken) params.set('g', opts.guestToken)
+  // Short-lived proof that this visitor's number is on the guest list, minted
+  // when they verified. Carries membership from the RSVP flow into the registry
+  // so a guest who just proved themselves is not asked again.
+  else if (opts?.accessPass) params.set('p', opts.accessPass)
   if (opts?.source) params.set('source', opts.source)
   const qs = params.toString()
   return qs ? `/catalog/${slug}?${qs}` : `/catalog/${slug}`
@@ -34,7 +38,7 @@ export function catalogUrl(
 export function catalogAbsoluteUrl(
   origin: string,
   slug: string,
-  opts?: { guestToken?: string; source?: CatalogSource },
+  opts?: { guestToken?: string; accessPass?: string; source?: CatalogSource },
 ): string {
   const path = catalogUrl(slug, opts)
   return path.startsWith('http') ? path : `${origin.replace(/\/$/, '')}${path}`

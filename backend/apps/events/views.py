@@ -2284,19 +2284,13 @@ def check_phone_for_rsvp(request, event_id):
     if not phone:
         return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Format phone with country code
-    from .utils import format_phone_with_country_code, get_country_code, parse_phone_number
-    event_country_code = get_country_code(event.country)
-    
-    if phone and not phone.startswith('+'):
-        if country_code:
-            phone = format_phone_with_country_code(phone, country_code)
-        else:
-            phone = format_phone_with_country_code(phone, event_country_code)
-    
-    phone_digits_only = re.sub(r'\D', '', phone)
-    provided_country_code = country_code or event_country_code
-    
+    # One membership check for every guest-facing surface - see apps.events.membership
+    from . import membership
+
+    phone, _phone_digits_only, _provided_country_code = membership.normalize_phone(
+        event, phone, country_code
+    )
+
     existing_rsvp = event.find_main_rsvp_by_phone(phone, country_code)
     
     # If existing RSVP found (grandfather clause), return RSVP data
@@ -2313,6 +2307,11 @@ def check_phone_for_rsvp(request, event_id):
         rsvp_data = RSVPSerializer(existing_rsvp).data
         rsvp_data['found_in'] = 'rsvp'
         rsvp_data['phone_verified'] = True
+        # An RSVP can predate its guest link, so fall back to matching the
+        # number against the guest list - otherwise a returning guest would
+        # verify successfully and still be handed nothing to carry onward.
+        pass_guest = existing_rsvp.guest or membership.prove_by_phone(event, phone, country_code)
+        rsvp_data['access_pass'] = membership.issue_pass(event, pass_guest)
         rsvp_data.update(_rsvp_capacity_response_fields(event, existing_rsvp))
         return Response(rsvp_data, status=status.HTTP_200_OK)
     
@@ -2326,42 +2325,28 @@ def check_phone_for_rsvp(request, event_id):
             status=status.HTTP_409_CONFLICT,
         )
 
-    # If no existing RSVP, check guest list (exclude removed guests)
-    guest = None
-    # First try exact phone match
-    guest = Guest.objects.filter(event=event, phone=phone, is_removed=False).first()
-    
-    # If not found, try matching by digits only
-    if not guest:
-        all_guests = Guest.objects.filter(event=event, is_removed=False)
-        for g in all_guests:
-            guest_phone_digits = re.sub(r'\D', '', g.phone)
-            if guest_phone_digits == phone_digits_only:
-                guest = g
-                break
-            
-            # Try matching last 10 digits with country code verification
-            if len(phone_digits_only) >= 10 and len(guest_phone_digits) >= 10:
-                local_number = phone_digits_only[-10:]
-                if guest_phone_digits.endswith(local_number):
-                    stored_country_code, _ = parse_phone_number(g.phone)
-                    if stored_country_code == provided_country_code:
-                        guest = g
-                        break
-    
+    # If no existing RSVP, check the guest list (excludes removed guests)
+    guest = membership.prove_by_phone(event, phone, country_code)
+
     if not guest:
         return Response(
-            {'error': 'Phone number not found. Please try a different number or contact the host.'},
+            {'error': membership.GUEST_NOT_FOUND_MESSAGE},
             status=status.HTTP_404_NOT_FOUND
         )
-    
+
     # Return guest data for pre-filling form
     from .serializers import GuestSerializer
     guest_data = GuestSerializer(guest).data
+    # The permanent invite token must not leave the server here: matching a
+    # phone number is momentary proof, and handing back a forwardable key would
+    # turn it into standing access for anyone the key is passed to. The pass
+    # below covers every case the token was covering, and expires.
+    guest_data.pop('guest_token', None)
     guest_data['found_in'] = 'guest_list'
     guest_data['phone_verified'] = True
+    guest_data['access_pass'] = membership.issue_pass(event, guest)
     guest_data.update(_rsvp_capacity_response_fields(event, None))
-    
+
     return Response(guest_data, status=status.HTTP_200_OK)
 
 
@@ -4907,6 +4892,40 @@ def public_rsvp_sub_events(request, slug):
         queryset = eligible.filter(is_public_visible=True)
 
     return Response({'results': SubEventSerializer(queryset, many=True).data})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def public_verify_phone(request, slug):
+    """
+    Prove guest-list membership from a phone number, for any guest-facing surface.
+
+    Deliberately leaner than the RSVP phone check: it returns a pass and a name,
+    not the guest's record. The catalog needs to know *that* someone is on the
+    list, not everything about them.
+    """
+    from . import membership
+
+    event = get_object_or_404(Event, slug=slug.lower())
+
+    phone = (request.data.get('phone') or '').strip()
+    country_code = request.data.get('country_code', '')
+    if not phone:
+        return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    guest = membership.prove_by_phone(event, phone, country_code)
+    if guest is None:
+        return Response(
+            {'error': membership.GUEST_NOT_FOUND_MESSAGE},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    response = Response({
+        'access_pass': membership.issue_pass(event, guest),
+        'name': guest.name,
+    })
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+    return response
 
 
 @api_view(['GET'])
