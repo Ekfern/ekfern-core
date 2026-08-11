@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/components/ui/toast'
 import { formatPhoneWithCountryCode } from '@/lib/countryCodesFull'
 import CountryCodeSelector from '@/components/CountryCodeSelector'
+import { Lock } from 'lucide-react'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import type { RsvpCustomFieldConfig, RsvpFormConfig } from '@/lib/invite/schema'
 import {
@@ -130,6 +131,11 @@ export default function RSVPPage() {
     (event.rsvp_experience_mode === 'standard' || event.rsvp_experience_mode === 'auto_confirm') &&
     !!event.rsvp_capacity_enabled
   const isIntentFirstFlow = !!event?.is_public && isSlotMode
+  // Identity is settled once the guest arrived on a personal link or proved
+  // their number. The field is locked from here so nobody can accidentally
+  // submit a different number and be refused at the last step - and the server
+  // takes identity from the credential regardless of what is submitted.
+  const identityLocked = !!guestToken || phoneVerified
 
   const { register, watch, setValue, getValues, formState: { errors } } = useForm<RSVPForm>({
     resolver: zodResolver(rsvpSchema),
@@ -206,6 +212,10 @@ export default function RSVPPage() {
   const applyLookupData = (data: any) => {
     if (data.access_pass) setAccessPass(data.access_pass)
     if (data.name) setValue('name', data.name, { shouldValidate: false })
+    // The number the guest is invited on. Both lookups return it split, so the
+    // country selector and the local field stay consistent with the record.
+    if (data.local_number) setValue('phone', data.local_number, { shouldValidate: false })
+    if (data.country_code) setValue('country_code', data.country_code, { shouldValidate: false })
     if (data.email) setValue('email', data.email, { shouldValidate: false })
     if (data.guests_count) setValue('guests_count', Math.max(1, data.guests_count), { shouldValidate: false })
     if (data.notes) setValue('notes', data.notes, { shouldValidate: false })
@@ -442,7 +452,15 @@ export default function RSVPPage() {
           idempotencyKey: `${formattedPhone}:${selectedSlotId}:${Date.now()}`,
         })
       } else {
-        await api.post(`/api/events/${event.id}/rsvp/`, payload)
+        // Credential in the query string, matching every other guest-facing
+        // endpoint. The server takes identity from it, so the locked field is
+        // an explanation of the rule rather than the rule itself.
+        const credential = guestToken
+          ? `?g=${encodeURIComponent(guestToken)}`
+          : accessPass
+          ? `?p=${encodeURIComponent(accessPass)}`
+          : ''
+        await api.post(`/api/events/${event.id}/rsvp/${credential}`, payload)
       }
 
       setSummary({
@@ -560,12 +578,32 @@ export default function RSVPPage() {
           <div className="space-y-4">
             <div><label className="text-sm font-medium">Full name</label><Input {...register('name')} className="mt-1" />{errors.name && <p className="text-sm text-red-600 mt-1">{errors.name.message}</p>}</div>
             <div>
-              <label className="text-sm font-medium">Phone number</label>
-              <div className="flex gap-2 mt-1">
-                <CountryCodeSelector name="country_code" value={watch('country_code') ?? event.country_code ?? '+91'} defaultValue={event.country_code || '+91'} onChange={(v) => setValue('country_code', v, { shouldValidate: true })} className="w-44" />
-                <Input type="tel" {...register('phone')} />
-              </div>
-              {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone.message}</p>}
+              <label className="text-sm font-medium" htmlFor="rsvp-phone">Phone number</label>
+              {identityLocked ? (
+                <>
+                  <div
+                    id="rsvp-phone"
+                    aria-readonly="true"
+                    className="mt-1 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-700"
+                  >
+                    <Lock className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                    <span>
+                      {watch('country_code') ?? event.country_code ?? '+91'} {watch('phone')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This is the number you were invited on. Contact the host to change it.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex gap-2 mt-1">
+                    <CountryCodeSelector name="country_code" value={watch('country_code') ?? event.country_code ?? '+91'} defaultValue={event.country_code || '+91'} onChange={(v) => setValue('country_code', v, { shouldValidate: true })} className="w-44" />
+                    <Input id="rsvp-phone" type="tel" {...register('phone')} />
+                  </div>
+                  {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone.message}</p>}
+                </>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium">How many total guests are coming?</label>

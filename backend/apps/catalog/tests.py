@@ -393,3 +393,98 @@ class GuestMembershipPassTest(TestCase):
         self.assertEqual(
             self.membership.verify_pass(self.event, check.data['access_pass']), self.guest
         )
+
+
+class RsvpIdentityFollowsCredentialTest(TestCase):
+    """
+    Identity comes from the credential, not from the phone field.
+
+    Before this, the number typed on the form decided whose RSVP was being
+    filed. A guest holding their own invite link could submit another listed
+    guest's number and the RSVP would be created against - or overwrite - that
+    other guest. The form now locks the field for identified visitors; these
+    tests cover the half that a removed attribute or a direct API call cannot
+    get around.
+    """
+
+    def setUp(self):
+        from apps.events import membership
+
+        self.membership = membership
+        self.host = User.objects.create_user(email='identity-host@test.com', name='Identity Host')
+        self.event = make_event(self.host, is_public=False)
+        self.client = APIClient()
+        self.alice = Guest.objects.create(
+            event=self.event, name='Alice', phone='+919111100001',
+        )
+        self.bob = Guest.objects.create(
+            event=self.event, name='Bob', phone='+919111100002',
+        )
+        self.alice.refresh_from_db()
+        self.bob.refresh_from_db()
+
+    def _submit(self, phone, credential=''):
+        return self.client.post(
+            f'/api/events/{self.event.id}/rsvp/{credential}',
+            {'name': 'Alice', 'phone': phone, 'country_code': '+91',
+             'will_attend': 'yes', 'guests_count': 1},
+            format='json',
+        )
+
+    def test_token_holder_cannot_file_under_another_guests_number(self):
+        r = self._submit(self.bob.phone, credential=f'?g={self.alice.guest_token}')
+        self.assertIn(r.status_code, (200, 201))
+
+        rsvp = RSVP.objects.get(event=self.event, is_removed=False)
+        self.assertEqual(rsvp.guest, self.alice, 'RSVP was attributed to the wrong guest')
+        self.assertEqual(rsvp.phone, self.alice.phone, 'submitted number overrode the credential')
+        self.assertFalse(
+            RSVP.objects.filter(event=self.event, guest=self.bob).exists(),
+            "Bob got an RSVP he did not file",
+        )
+
+    def test_pass_holder_cannot_file_under_another_guests_number(self):
+        access_pass = self.membership.issue_pass(self.event, self.alice)
+        r = self._submit(self.bob.phone, credential=f'?p={access_pass}')
+        self.assertIn(r.status_code, (200, 201))
+
+        rsvp = RSVP.objects.get(event=self.event, is_removed=False)
+        self.assertEqual(rsvp.guest, self.alice)
+        self.assertEqual(rsvp.phone, self.alice.phone)
+
+    def test_credential_holder_cannot_overwrite_another_guests_existing_rsvp(self):
+        """The phone is the RSVP's key, so this is the case that silently edits someone else."""
+        bobs_rsvp = RSVP.objects.create(
+            event=self.event, guest=self.bob, name='Bob', phone=self.bob.phone,
+            will_attend='no', guests_count=1,
+        )
+        self._submit(self.bob.phone, credential=f'?g={self.alice.guest_token}')
+
+        bobs_rsvp.refresh_from_db()
+        self.assertEqual(bobs_rsvp.will_attend, 'no', "Bob's answer was changed by another guest")
+        self.assertEqual(bobs_rsvp.guests_count, 1)
+
+    def test_credential_holder_submitting_an_unlisted_number_still_lands_on_themselves(self):
+        """A stale or mistyped number must not strand a guest who holds a valid credential."""
+        r = self._submit('+919000000009', credential=f'?g={self.alice.guest_token}')
+        self.assertIn(r.status_code, (200, 201))
+        rsvp = RSVP.objects.get(event=self.event, is_removed=False)
+        self.assertEqual(rsvp.guest, self.alice)
+        self.assertEqual(rsvp.phone, self.alice.phone)
+
+    def test_without_a_credential_the_guest_list_check_still_applies(self):
+        """No credential: unchanged behaviour, only listed numbers get through."""
+        refused = self._submit('+919000000009')
+        self.assertEqual(refused.status_code, 403)
+
+        allowed = self._submit(self.alice.phone)
+        self.assertIn(allowed.status_code, (200, 201))
+        self.assertEqual(RSVP.objects.get(event=self.event, is_removed=False).guest, self.alice)
+
+    def test_token_lookup_returns_the_number_the_form_prefills(self):
+        r = self.client.get(
+            f'/api/events/{self.event.id}/rsvp/guest-by-token/?g={self.alice.guest_token}'
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['local_number'], '9111100001')
+        self.assertEqual(r.data['country_code'], '+91')
