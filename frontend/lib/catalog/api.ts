@@ -3,6 +3,7 @@ import type {
   CatalogItem,
   CatalogResponse,
   HostCatalog,
+  MyCatalogResponse,
   PublicCatalog,
   ResponseStatus,
 } from './types'
@@ -103,6 +104,19 @@ export async function getPublicCatalog(
   return r.data
 }
 
+export async function getMyCatalogResponses(
+  slug: string,
+  guestToken?: string,
+  accessPass?: string,
+): Promise<{ results: MyCatalogResponse[]; guest_name: string; access_pass?: string | null }> {
+  const params = new URLSearchParams()
+  if (guestToken) params.set('g', guestToken)
+  else if (accessPass) params.set('p', accessPass)
+  const qs = params.toString()
+  const r = await api.get(`/api/catalog/${slug}/my-responses/${qs ? `?${qs}` : ''}`)
+  return r.data
+}
+
 export async function submitCatalogResponse(
   slug: string,
   payload: {
@@ -111,6 +125,7 @@ export async function submitCatalogResponse(
     name?: string
     email?: string
     phone?: string
+    country_code?: string
     amount?: number
     message?: string
     source?: CatalogSource

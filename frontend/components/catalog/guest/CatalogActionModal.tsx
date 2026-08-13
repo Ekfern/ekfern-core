@@ -3,6 +3,7 @@
 import React from 'react'
 import { Lock } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import CountryCodeSelector from '@/components/CountryCodeSelector'
 import type { PublicCatalogItem } from '@/lib/catalog/types'
 import type { CatalogTheme } from '../shared/catalogTheme'
 import { CatalogModal } from '../shared/CatalogModal'
@@ -14,6 +15,7 @@ export interface CatalogActionForm {
   name: string
   email: string
   phone: string
+  country_code: string
   amount: string
   message: string
 }
@@ -26,6 +28,7 @@ export function CatalogActionModal({
   form,
   setForm,
   needsIdentity,
+  identifiedPhone,
   submitting,
   submitted,
   formError,
@@ -40,6 +43,7 @@ export function CatalogActionModal({
   form: CatalogActionForm
   setForm: React.Dispatch<React.SetStateAction<CatalogActionForm>>
   needsIdentity: boolean
+  identifiedPhone?: string | null
   submitting: boolean
   submitted: boolean
   formError: string
@@ -84,23 +88,56 @@ export function CatalogActionModal({
             )}
           </div>
 
-          {needsIdentity && (
+          {needsIdentity ? (
             <div className="space-y-2">
               <Input
                 placeholder="Your name *"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
+              {/* Phone is how the host knows who gave - the same identifier the
+                  guest list and RSVP use. Email is the optional extra: give one
+                  and you get a receipt by mail, skip it and your contributions
+                  are waiting for you here instead. */}
+              <div className="flex gap-2">
+                <CountryCodeSelector
+                  name="country_code"
+                  value={form.country_code || '+91'}
+                  defaultValue={form.country_code || '+91'}
+                  onChange={(v) => setForm({ ...form, country_code: v })}
+                  className="w-36 shrink-0"
+                />
+                <Input
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="Phone number *"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
               <Input
                 type="email"
-                placeholder="Email address *"
+                placeholder="Email (optional, for a receipt)"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {identifiedPhone && (
+                <div
+                  className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                  style={{ borderColor: `${theme.primary}20`, color: 'var(--theme-muted)' }}
+                >
+                  <Lock className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                  <span>Giving as {identifiedPhone}</span>
+                </div>
+              )}
               <Input
-                placeholder="Phone (optional)"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                type="email"
+                placeholder="Email (optional, for a receipt)"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
             </div>
           )}
