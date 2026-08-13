@@ -79,6 +79,14 @@ def _extract(config):
 
 def extract_directions(apps, schema_editor):
     InvitePage = apps.get_model('events', 'InvitePage')
+
+    # Event.page_config is the copy the page editor reads - see 0098.
+    Event = apps.get_model('events', 'Event')
+    for event in Event.objects.exclude(page_config={}).iterator():
+        value, changed = _extract(event.page_config)
+        if changed:
+            event.page_config = value
+            event.save(update_fields=['page_config'])
     for page in InvitePage.objects.all().iterator():
         touched = []
         for field in ('config', 'published_config'):

@@ -90,6 +90,16 @@ def _bake(config):
 def bake_theme_values(apps, schema_editor):
     InvitePage = apps.get_model('events', 'InvitePage')
 
+    # The invite config is stored in two places: InvitePage and a copy on the
+    # Event itself, which the page editor reads. Missing either leaves half the
+    # product on the old shape.
+    Event = apps.get_model('events', 'Event')
+    for event in Event.objects.exclude(page_config={}).iterator():
+        baked, changed = _bake(event.page_config)
+        if changed:
+            event.page_config = baked
+            event.save(update_fields=['page_config'])
+
     for page in InvitePage.objects.all().iterator():
         touched = []
         for field in ('config', 'published_config'):

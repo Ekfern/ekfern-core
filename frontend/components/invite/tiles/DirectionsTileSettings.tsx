@@ -1,7 +1,19 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import type { DirectionsTileSettings } from '@/lib/invite/schema'
+
+const LAT_RANGE = 90
+const LNG_RANGE = 180
+
+/** Parse a typed coordinate, rejecting blanks, junk and out-of-range values. */
+function parseCoordinate(value: string, limit: number): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed) || Math.abs(parsed) > limit) return null
+  return parsed
+}
 
 interface DirectionsTileSettingsProps {
   settings: DirectionsTileSettings
@@ -25,6 +37,38 @@ export default function DirectionsTileSettings({
 }: DirectionsTileSettingsProps) {
   const update = (patch: Partial<DirectionsTileSettings>) => onChange({ ...settings, ...patch })
 
+  // Held as text while typing: a half-entered "-" or "28." is not a number yet,
+  // and re-deriving the field from the parsed value would fight the host's
+  // keystrokes.
+  const [latText, setLatText] = useState(() => settings.coordinates?.lat?.toString() ?? '')
+  const [lngText, setLngText] = useState(() => settings.coordinates?.lng?.toString() ?? '')
+
+  // Follow changes that came from elsewhere (a layout applied, a template, undo).
+  useEffect(() => {
+    setLatText(settings.coordinates?.lat?.toString() ?? '')
+    setLngText(settings.coordinates?.lng?.toString() ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.coordinates?.lat, settings.coordinates?.lng])
+
+  const commitCoordinates = (nextLat: string, nextLng: string) => {
+    const lat = parseCoordinate(nextLat, LAT_RANGE)
+    const lng = parseCoordinate(nextLng, LNG_RANGE)
+    if (lat !== null && lng !== null) {
+      update({ coordinates: { lat, lng } })
+    } else if (!nextLat.trim() && !nextLng.trim()) {
+      update({ coordinates: undefined })
+    }
+    // A half-filled or invalid pair is left alone until it becomes usable.
+  }
+
+  const bothBlank = !latText.trim() && !lngText.trim()
+  const latValid = parseCoordinate(latText, LAT_RANGE) !== null
+  const lngValid = parseCoordinate(lngText, LNG_RANGE) !== null
+  const coordinateError = bothBlank ? '' : !latValid || !lngValid
+    ? 'Enter both, as decimals: latitude between -90 and 90, longitude between -180 and 180.'
+    : ''
+  const isPinned = !!settings.coordinates
+
   return (
     <div className="space-y-4">
       <div>
@@ -42,6 +86,80 @@ export default function DirectionsTileSettings({
         <p className="mt-1 text-xs text-gray-500">
           Guests tap the map to open directions in their own map app.
         </p>
+      </div>
+
+      {/* Coordinates: the way in for places an address lookup does not know -
+          a farm, a new venue, a private address - and the exact pin for anywhere
+          else. Both the map and the tap-through link prefer these over text. */}
+      <div className="rounded-md border border-gray-200 p-3">
+        <p className="text-sm font-medium">Can&apos;t find the address?</p>
+        <p className="mt-0.5 text-xs text-gray-500">
+          Enter coordinates to pin the exact spot. Used instead of the address above.
+        </p>
+
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div>
+            <label htmlFor="directions-lat" className="block text-xs font-medium text-gray-600">
+              Latitude
+            </label>
+            <input
+              id="directions-lat"
+              type="text"
+              inputMode="decimal"
+              value={latText}
+              onChange={(e) => {
+                setLatText(e.target.value)
+                commitCoordinates(e.target.value, lngText)
+              }}
+              placeholder="28.0547"
+              aria-invalid={!!coordinateError}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="directions-lng" className="block text-xs font-medium text-gray-600">
+              Longitude
+            </label>
+            <input
+              id="directions-lng"
+              type="text"
+              inputMode="decimal"
+              value={lngText}
+              onChange={(e) => {
+                setLngText(e.target.value)
+                commitCoordinates(latText, e.target.value)
+              }}
+              placeholder="-82.3721"
+              aria-invalid={!!coordinateError}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
+        {coordinateError && (
+          <p role="alert" className="mt-2 text-xs text-red-600">
+            {coordinateError}
+          </p>
+        )}
+
+        {isPinned && !coordinateError && (
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-xs text-green-700">
+              Pinned at {settings.coordinates!.lat}, {settings.coordinates!.lng}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setLatText('')
+                setLngText('')
+                update({ coordinates: undefined })
+              }}
+              className="text-xs font-medium text-gray-600 underline"
+            >
+              Clear pin
+            </button>
+          </div>
+        )}
       </div>
 
       <div>
