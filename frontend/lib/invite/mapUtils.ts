@@ -272,3 +272,100 @@ export function canShowMap(settings: EventDetailsTileSettings): boolean {
   return isLocationVerified && !!hasMapData
 }
 
+
+/**
+ * A link that hands the destination to whatever map app the device uses.
+ *
+ * Google's universal `?api=1` search URL opens the Google Maps app on Android
+ * and iOS when installed, Apple Maps' web handoff otherwise, and the browser on
+ * desktop - without an API key and without us guessing the platform.
+ *
+ * This is what a guest actually wants from a map on an invitation: their own
+ * app, with their location, traffic and saved places, rather than a pinch-zoom
+ * window inside the page.
+ */
+export function getDirectionsHref(
+  mapUrl?: string,
+  coordinates?: { lat: number; lng: number },
+): string | null {
+  if (coordinates && typeof coordinates.lat === 'number' && typeof coordinates.lng === 'number') {
+    return `https://www.google.com/maps/search/?api=1&query=${coordinates.lat},${coordinates.lng}`
+  }
+
+  const raw = (mapUrl || '').trim()
+  if (!raw) return null
+
+  // An embed URL is for an <iframe>, not for a person: opening one gives a bare
+  // widget rather than the Maps app. Resolve what the host meant instead.
+  const destination = getDestinationQuery(raw, coordinates)
+  if (destination) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`
+  }
+
+  const extracted = extractUrlFromIframe(raw)
+  if (/^https?:\/\//i.test(extracted)) {
+    return extracted.replace(/([?&])output=embed(&|$)/, (_m, p1, p2) => (p2 ? p1 : '')).replace(/[?&]$/, '')
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(raw)}`
+}
+
+/**
+ * The destination a map should actually point at, as plain text.
+ *
+ * Coordinates win; otherwise a place name is dug out of whatever the host
+ * pasted. Embed URLs hide theirs in Google's `pb` parameter as `!2s<name>`.
+ */
+export function getDestinationQuery(
+  mapUrl?: string,
+  coordinates?: { lat: number; lng: number },
+): string | null {
+  if (coordinates && typeof coordinates.lat === 'number' && typeof coordinates.lng === 'number') {
+    return `${coordinates.lat},${coordinates.lng}`
+  }
+
+  const raw = (mapUrl || '').trim()
+  if (!raw) return null
+
+  const extracted = extractUrlFromIframe(raw)
+  if (!/^https?:\/\//i.test(extracted)) return raw // plain address text
+
+  const place = extracted.match(/!2s([^!]+)/)
+  if (place?.[1]) {
+    try {
+      return decodeURIComponent(place[1])
+    } catch {
+      return place[1]
+    }
+  }
+
+  try {
+    const url = new URL(extracted)
+    const q = url.searchParams.get('q')
+    if (q) return q
+    const inPath = url.pathname.match(/\/place\/([^/]+)/)
+    if (inPath) return decodeURIComponent(inPath[1].replace(/\+/g, ' '))
+  } catch {
+    /* fall through */
+  }
+  return null
+}
+
+/**
+ * An embed framed on the venue rather than on whatever the host's pasted link
+ * happened to be showing.
+ *
+ * A pasted embed carries its own viewport, and Google's share dialog often
+ * hands out a very wide one - the invitation ends up showing a country, which
+ * tells a guest nothing about where to go. Rebuilding the embed around the
+ * destination keeps the frame useful no matter what was pasted.
+ */
+export function getDirectionsEmbedUrl(
+  mapUrl?: string,
+  coordinates?: { lat: number; lng: number },
+  zoom: number = 16,
+): string | null {
+  const destination = getDestinationQuery(mapUrl, coordinates)
+  if (!destination) return getEmbedUrl(mapUrl || '', coordinates)
+
+  return `https://www.google.com/maps?q=${encodeURIComponent(destination)}&z=${zoom}&output=embed`
+}
