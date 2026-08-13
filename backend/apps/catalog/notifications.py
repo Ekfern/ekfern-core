@@ -56,7 +56,7 @@ def _send_host_alert(response, item, event, host):
         f'You have a new catalog response on {event.title}.\n\n'
         f'Item: {item.title}\n'
         f'Response: {response_label}\n'
-        f'From: {response.name} ({response.email})\n'
+        f'From: {response.name} ({response.phone or response.email or "no contact given"})\n'
     )
     if response.amount:
         rupees = response.amount / 100
@@ -90,6 +90,7 @@ def _send_host_alert(response, item, event, host):
                     'item_title': item.title,
                     'response_type': response.response_type,
                     'guest_name': response.name,
+                    'guest_phone': response.phone,
                     'guest_email': response.email,
                     'amount': response.amount,
                 },

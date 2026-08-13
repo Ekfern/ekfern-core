@@ -150,21 +150,23 @@ class CatalogResponseCreateTest(TestCase):
             url += f'?g={token}'
         return url
 
-    def test_anonymous_guest_requires_email(self):
+    def test_anonymous_guest_requires_phone(self):
+        """Phone is the identifier across the product; email is optional here too."""
         r = self.client.post(self._respond_url(self.event.slug), {
             'catalog_item_id': self.item.id,
             'response_type': 'pledge',
             'name': 'Anon',
         }, format='json')
         self.assertEqual(r.status_code, 400)
-        self.assertIn('Email is required', str(r.data))
+        self.assertIn('Phone number is required', str(r.data))
 
     def test_anonymous_guest_creates_response(self):
         r = self.client.post(self._respond_url(self.event.slug), {
             'catalog_item_id': self.item.id,
             'response_type': 'pledge',
             'name': 'Anon User',
-            'email': 'anon@test.com',
+            'phone': '9700000123',
+            'country_code': '+91',
             'amount': 100000,
         }, format='json')
         self.assertEqual(r.status_code, 201)
@@ -196,7 +198,8 @@ class CatalogResponseCreateTest(TestCase):
                     'catalog_item_id': self.item.id,
                     'response_type': 'interest',
                     'name': 'Test User',
-                    'email': f'{source}@test.com',
+                    'phone': '9700000124',
+                    'country_code': '+91',
                     'source': source,
                 },
                 format='json',
@@ -488,3 +491,170 @@ class RsvpIdentityFollowsCredentialTest(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.data['local_number'], '9111100001')
         self.assertEqual(r.data['country_code'], '+91')
+
+
+class RegistryPhonePrimaryTest(TestCase):
+    """
+    Phone identifies a giver on the registry, as it does everywhere else.
+
+    Email used to be mandatory here while the guest list only ever required a
+    phone number. A host could therefore invite someone with nothing but a
+    number, and that guest would be stopped at the last step of giving a gift -
+    asked for the one thing nobody had ever asked them for.
+    """
+
+    def setUp(self):
+        from apps.events import membership
+
+        self.membership = membership
+        self.host = User.objects.create_user(email='reg-host@test.com', name='Registry Host')
+        self.event = make_event(self.host, is_public=True)
+        self.client = APIClient()
+        self.catalog = make_catalog(self.event)
+        self.item = make_item(self.catalog)
+        # Invited on a phone number only - no email anywhere, which is allowed.
+        self.guest = Guest.objects.create(
+            event=self.event, name='Phone Only Guest', phone='+919812345678',
+        )
+        self.guest.refresh_from_db()
+
+    def _respond(self, payload, credential=''):
+        return self.client.post(
+            f'/api/catalog/{self.event.slug}/respond/{credential}',
+            {'catalog_item_id': self.item.id, 'response_type': 'interest', **payload},
+            format='json',
+        )
+
+    # -- the case that was blocked -----------------------------------------
+
+    def test_guest_with_no_email_can_give(self):
+        r = self._respond({}, credential=f'?g={self.guest.guest_token}')
+        self.assertEqual(r.status_code, 201, r.data)
+        response_obj = CatalogResponse.objects.get(id=r.data['id'])
+        self.assertEqual(response_obj.guest, self.guest)
+        self.assertEqual(response_obj.phone, self.guest.phone)
+        self.assertEqual(response_obj.email, '')
+
+    # -- anonymous givers ---------------------------------------------------
+
+    def test_phone_is_required_and_email_is_not(self):
+        missing = self._respond({'name': 'Rita'})
+        self.assertEqual(missing.status_code, 400)
+        self.assertIn('Phone', missing.data['error'])
+
+        ok = self._respond({'name': 'Rita', 'phone': '9700000001', 'country_code': '+91'})
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.assertEqual(CatalogResponse.objects.get(id=ok.data['id']).email, '')
+
+    def test_name_is_still_required(self):
+        r = self._respond({'phone': '9700000001', 'country_code': '+91'})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Name', r.data['error'])
+
+    def test_email_is_kept_when_offered(self):
+        r = self._respond({
+            'name': 'Rita', 'phone': '9700000001', 'country_code': '+91',
+            'email': 'rita@test.com',
+        })
+        self.assertEqual(CatalogResponse.objects.get(id=r.data['id']).email, 'rita@test.com')
+
+    # -- phone as a key means normalizing it --------------------------------
+
+    def test_number_is_normalized_so_one_person_is_one_key(self):
+        """'9812345678' and '+919812345678' must not become two different givers."""
+        local = self._respond({'name': 'X', 'phone': '9812345678', 'country_code': '+91'})
+        e164 = self._respond({'name': 'X', 'phone': '+919812345678', 'country_code': '+91'})
+
+        stored = {
+            CatalogResponse.objects.get(id=local.data['id']).phone,
+            CatalogResponse.objects.get(id=e164.data['id']).phone,
+        }
+        self.assertEqual(stored, {'+919812345678'})
+
+    def test_a_listed_number_links_the_response_to_the_guest(self):
+        """The host should see one person, not a gift and a guest that never meet."""
+        r = self._respond({'name': 'Anything', 'phone': '9812345678', 'country_code': '+91'})
+        self.assertEqual(CatalogResponse.objects.get(id=r.data['id']).guest, self.guest)
+
+    def test_an_unlisted_number_still_gives_without_a_guest_link(self):
+        r = self._respond({'name': 'Stranger', 'phone': '9700000009', 'country_code': '+91'})
+        self.assertEqual(r.status_code, 201)
+        self.assertIsNone(CatalogResponse.objects.get(id=r.data['id']).guest)
+
+    def test_repeat_giving_creates_a_second_record(self):
+        for _ in range(2):
+            self._respond({'name': 'Rita', 'phone': '9700000001', 'country_code': '+91'})
+        self.assertEqual(CatalogResponse.objects.filter(phone='+919700000001').count(), 2)
+
+    # -- external link clicks ----------------------------------------------
+
+    def test_click_tracking_needs_no_identity(self):
+        """A tap types nothing, so demanding a name or number silently loses the count."""
+        r = self.client.post(
+            f'/api/catalog/{self.event.slug}/respond/',
+            {'catalog_item_id': self.item.id, 'response_type': 'external_click'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertTrue(
+            CatalogResponse.objects.filter(response_type='external_click').exists()
+        )
+
+    # -- the receipt for people who gave without an email -------------------
+
+    def test_guest_sees_only_their_own_contributions(self):
+        other = Guest.objects.create(event=self.event, name='Other', phone='+919700000002')
+        other.refresh_from_db()
+        self._respond({}, credential=f'?g={self.guest.guest_token}')
+        self._respond({}, credential=f'?g={other.guest_token}')
+
+        r = self.client.get(
+            f'/api/catalog/{self.event.slug}/my-responses/?g={self.guest.guest_token}'
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.data['results']), 1)
+        self.assertEqual(r.data['guest_name'], 'Phone Only Guest')
+        self.assertEqual(r.data['results'][0]['item_title'], self.item.title)
+
+    def test_contributions_reachable_with_a_pass_and_renews_it(self):
+        access_pass = self.membership.issue_pass(self.event, self.guest)
+        self._respond({}, credential=f'?p={access_pass}')
+
+        r = self.client.get(f'/api/catalog/{self.event.slug}/my-responses/?p={access_pass}')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.data['results']), 1)
+        self.assertEqual(
+            self.membership.verify_pass(self.event, r.data['access_pass']), self.guest
+        )
+
+    def test_contributions_refused_without_identity(self):
+        r = self.client.get(f'/api/catalog/{self.event.slug}/my-responses/')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(r.data['code'], 'guest_required')
+
+    def test_contributions_exclude_click_tracking(self):
+        self.client.post(
+            f'/api/catalog/{self.event.slug}/respond/?g={self.guest.guest_token}',
+            {'catalog_item_id': self.item.id, 'response_type': 'external_click'},
+            format='json',
+        )
+        r = self.client.get(
+            f'/api/catalog/{self.event.slug}/my-responses/?g={self.guest.guest_token}'
+        )
+        self.assertEqual(r.data['results'], [])
+
+    # -- the host still learns who gave -------------------------------------
+
+    def test_host_alert_identifies_a_giver_who_left_no_email(self):
+        from apps.catalog.notifications import send_catalog_response_notification
+        from unittest.mock import patch
+
+        r = self._respond({}, credential=f'?g={self.guest.guest_token}')
+        response_obj = CatalogResponse.objects.get(id=r.data['id'])
+
+        with patch('apps.catalog.notifications.send_email') as send:
+            send_catalog_response_notification(response_obj)
+
+        body = ''.join(str(c) for c in send.call_args_list)
+        self.assertIn('+919812345678', body)
+        self.assertNotIn('()', body, 'host alert rendered empty parentheses')

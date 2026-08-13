@@ -147,7 +147,12 @@ class CatalogResponse(models.Model):
         related_name='catalog_responses',
     )
     name = models.CharField(max_length=255)
-    email = models.EmailField()
+    # Phone is the identifier across the product - the guest list, RSVP and the
+    # registry all key on it - and email is the optional extra. Neither is
+    # enforced here: an external_click carries no identity at all (nothing is
+    # typed, the guest just opens a link), so requiredness belongs in the view
+    # where a gift can be told apart from a click.
+    email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     response_type = models.CharField(max_length=20, choices=RESPONSE_TYPE_CHOICES)
     amount = models.IntegerField(

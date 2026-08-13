@@ -337,6 +337,9 @@ class PublicCatalogView(APIView):
             # being bounced mid-decision is exactly the failure this design set
             # out to avoid. Every accepted request buys another 15 minutes.
             'access_pass': _renewed_pass(event, guest, guest_token),
+            # Lets the form confirm who it is about to give as, instead of
+            # asking a guest we have already identified for their number again.
+            'guest': {'name': guest.name, 'phone': guest.phone} if guest else None,
         })
         response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
         return response
@@ -380,34 +383,53 @@ class CatalogRespondView(APIView):
             status='published',
         )
 
-        # Resolve identity
+        # Resolve identity. Phone is the identifier here, as it is on the guest
+        # list and on RSVP; email is the optional extra. A host can invite
+        # someone with nothing but a number, so requiring an email would stop
+        # that guest giving a gift at the last step.
+        from apps.events import membership
+
         name = data.get('name', '').strip()
         email = data.get('email', '').strip()
         phone = data.get('phone', '').strip()
+        country_code = data.get('country_code', '').strip()
+
+        is_click_tracking = data['response_type'] == 'external_click'
 
         if guest:
-            # Auto-populate from Guest record
+            # Auto-populate from the Guest record; the credential outranks input.
             name = guest.name or name
-            email = guest.email or email or ''
             phone = guest.phone or phone
-            # Fallback: try linked RSVP for email
+            email = guest.email or email or ''
             if not email:
+                # Their RSVP may carry one even when the guest record does not.
                 rsvp = RSVP.objects.filter(
                     event=event, guest=guest, is_removed=False
                 ).first()
                 if rsvp and rsvp.email:
                     email = rsvp.email
+        elif phone:
+            # Normalize before storing so the same person is the same key here,
+            # on the guest list and on their RSVP - otherwise "9876543210" and
+            # "+919876543210" become two different givers.
+            phone, _digits, _cc = membership.normalize_phone(event, phone, country_code)
+            # Link to the guest list when the number is on it, the way RSVP does,
+            # so the host sees one person rather than two half-identities.
+            guest = membership.prove_by_phone(event, phone, country_code)
+            if guest:
+                name = name or guest.name
+                email = email or (guest.email or '')
 
-        # Anonymous guests must provide name + email
-        if not guest:
+        if not is_click_tracking and not guest:
+            # A click carries no identity by nature - the guest typed nothing,
+            # they opened a link. Only an actual response needs identifying.
             if not name:
                 return Response({'error': 'Name is required.'}, status=status.HTTP_400_BAD_REQUEST)
-            if not email:
-                return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # If identified guest still has no email after fallbacks, require it
-        if not email:
-            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not phone:
+                return Response(
+                    {'error': 'Phone number is required.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         response_obj = CatalogResponse.objects.create(
             catalog_item=item,
@@ -432,3 +454,59 @@ class CatalogRespondView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class MyCatalogResponsesView(APIView):
+    """
+    A guest's own contributions for this event.
+
+    Stands in for the emailed receipt when a guest gave without an email: they
+    identify themselves the same way they do everywhere else - an invite link or
+    a phone check - and can come back later to see what they gave. Scoped to the
+    resolved guest, so it can only ever return that person's own rows.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        slug = slug.lower().strip()
+        event = get_object_or_404(Event, slug=slug)
+
+        guest_token = request.query_params.get('g', '').strip()
+        access_pass = request.query_params.get('p', '').strip()
+        guest, err = _check_event_access(event, guest_token, access_pass)
+        if err:
+            return err
+
+        if guest is None:
+            # Public event, anonymous visitor: nothing to look up, and we must
+            # not guess from a phone number that was never verified.
+            return _catalog_access_denied_response(
+                'Confirm your number to see your contributions.',
+                'guest_required',
+            )
+
+        responses = (
+            CatalogResponse.objects
+            .filter(event=event, guest=guest)
+            .exclude(response_type='external_click')
+            .select_related('catalog_item')
+            .order_by('-created_at')
+        )
+
+        response = Response({
+            'results': [
+                {
+                    'id': r.id,
+                    'item_title': r.catalog_item.title if r.catalog_item else '',
+                    'response_type': r.response_type,
+                    'amount': r.amount,
+                    'message': r.message,
+                    'created_at': r.created_at,
+                }
+                for r in responses
+            ],
+            'guest_name': guest.name,
+            'access_pass': _renewed_pass(event, guest, guest_token),
+        })
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        return response
