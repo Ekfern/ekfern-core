@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { useSortable } from '@dnd-kit/sortable'
+import { TILE_DRAG_HANDLE_CLASS } from './useTileDragSensors'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { Tile } from '@/lib/invite/schema'
@@ -62,7 +63,8 @@ export default function SortableTileSettings({
           <div
             {...attributes}
             {...listeners}
-            className="absolute left-2 top-3 z-10 p-1 cursor-grab active:cursor-grabbing bg-white rounded shadow-sm hover:bg-gray-50 border border-gray-200"
+            className={`absolute left-2 top-3 z-10 p-1 bg-white rounded shadow-sm hover:bg-gray-50 border border-gray-200 ${TILE_DRAG_HANDLE_CLASS}`}
+            aria-label="Reorder tile"
           >
             <GripVertical className="w-4 h-4 text-gray-400" />
           </div>
