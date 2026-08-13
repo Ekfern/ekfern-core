@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext } from 'react'
 import { InviteConfig } from '@/lib/invite/schema'
-import { getTheme } from '@/lib/invite/themes'
+import { resolveAppearance } from '@/lib/invite/appearance'
 
 export interface ColorsAndFonts {
   backgroundColor: string
@@ -26,17 +26,9 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ config, children }: ThemeProviderProps) {
-  // When customColors/customFonts are not set, derive from themeId so template themes display correctly
-  const theme = getTheme(config?.themeId || 'warm-parchment')
-  const colors: ColorsAndFonts = {
-    backgroundColor: config?.customColors?.backgroundColor ?? theme.palette.bg,
-    fontColor: config?.customColors?.fontColor ?? theme.palette.fg,
-    primaryColor: config?.customColors?.primaryColor ?? theme.palette.primary,
-    mutedColor: config?.customColors?.mutedColor ?? theme.palette.muted,
-    titleFont: config?.customFonts?.titleFont ?? theme.fonts.title,
-    bodyFont: config?.customFonts?.bodyFont ?? theme.fonts.body,
-    overlayOpacity: theme.palette.overlayOpacity ?? 0.25,
-  }
+  // The config carries its own colours and fonts; see lib/invite/appearance.ts
+  // for why there is no longer a theme to look them up from.
+  const colors: ColorsAndFonts = resolveAppearance(config)
 
   return (
     <ThemeContext.Provider value={{ colors }}>

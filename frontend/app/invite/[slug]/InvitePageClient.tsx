@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { InviteConfig } from '@/lib/invite/schema'
-import { getTheme } from '@/lib/invite/themes'
+import { resolveAppearance } from '@/lib/invite/appearance'
 import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
 import { logError, logDebug } from '@/lib/error-handler'
 import api from '@/lib/api'
@@ -283,7 +283,6 @@ export default function InvitePageClient({
         })
         // Fallback: create config from event data
         const fallbackConfig: InviteConfig = {
-          themeId: 'classic-noir',
           hero: {
             title: eventData.title || 'Event',
             subtitle: eventData.description ? eventData.description.substring(0, 100) : undefined,
@@ -487,9 +486,8 @@ export default function InvitePageClient({
     }
   }, [fetchInvite, slug])
 
-  // Compute backgroundColor from theme when customColors not set, so template theme shows correctly
-  const theme = getTheme(config?.themeId || 'warm-parchment')
-  const backgroundColor = config?.customColors?.backgroundColor ?? theme.palette.bg
+  // The config carries its own colours; appearance.ts holds the last-resort defaults.
+  const backgroundColor = resolveAppearance(config).backgroundColor
   const pageBackground = config?.customColors?.backgroundGradient || backgroundColor
 
   // Set body background to match page background

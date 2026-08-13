@@ -384,7 +384,7 @@ class PublicInviteViewSetTestCase(TestCase):
             event=self.event,
             slug=self.event.slug.lower(),
             is_published=False,
-            config={'themeId': 'classic-noir', 'tiles': []},
+            config={'customColors': {'backgroundColor': '#111111'}, 'tiles': []},
         )
 
         # Host publishes via the API -> snapshot taken
@@ -403,25 +403,25 @@ class PublicInviteViewSetTestCase(TestCase):
         # Host edits the draft via the design endpoint
         design_resp = self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'modern-minimal', 'tiles': []}},
+            {'page_config': {'customColors': {'backgroundColor': '#222222'}, 'tiles': []}},
             format='json',
         )
         self.assertEqual(design_resp.status_code, status.HTTP_200_OK)
         invite_page.refresh_from_db()
-        self.assertEqual(invite_page.config['themeId'], 'modern-minimal')
+        self.assertEqual(invite_page.config['customColors']['backgroundColor'], '#222222')
         # Published snapshot is unchanged by a draft save
-        self.assertEqual(invite_page.published_config['themeId'], 'classic-noir')
+        self.assertEqual(invite_page.published_config['customColors']['backgroundColor'], '#111111')
 
         # A guest still sees the PUBLISHED config (no guest token, no preview)
         guest_client = APIClient()
         guest_resp = guest_client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(guest_resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(guest_resp.data['config']['themeId'], 'classic-noir')
+        self.assertEqual(guest_resp.data['config']['customColors']['backgroundColor'], '#111111')
 
         # The host preview sees the latest DRAFT
         preview_resp = self.client.get(f'/api/events/invite/{invite_page.slug}/?preview=true')
         self.assertEqual(preview_resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(preview_resp.data['config']['themeId'], 'modern-minimal')
+        self.assertEqual(preview_resp.data['config']['customColors']['backgroundColor'], '#222222')
 
     def test_pull_back_retains_snapshot_and_shows_coming_soon(self):
         """Pulling back keeps published_config/published_at and serves guests a Coming Soon page."""
@@ -429,7 +429,7 @@ class PublicInviteViewSetTestCase(TestCase):
             event=self.event,
             slug=self.event.slug.lower(),
             is_published=False,
-            config={'themeId': 'classic-noir', 'tiles': []},
+            config={'customColors': {'backgroundColor': '#111111'}, 'tiles': []},
         )
         self.client.force_authenticate(user=self.host)
         self.client.post(
@@ -481,7 +481,7 @@ class GuestRsvpPayloadTestCaseBase(TestCase):
             event=self.event,
             slug=self.event.slug,
             is_published=True,
-            config={'themeId': 'classic-noir', 'tiles': []},
+            config={'customColors': {'backgroundColor': '#111111'}, 'tiles': []},
         )
         # PK sequences survive transaction rollback, so an unrelated Event from an
         # earlier test class can occupy this InvitePage's PK. Clear it, otherwise
@@ -783,14 +783,14 @@ class UpdateDesignMergeTestCase(TestCase):
         """A save that never mentions a field (e.g. Page Editor omitting appliedLayoutId) doesn't delete it."""
         first = self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'appliedLayoutId': '95'}},
+            {'page_config': {'customColors': {'backgroundColor': '#111111'}, 'tiles': [], 'appliedLayoutId': '95'}},
             format='json',
         )
         self.assertEqual(first.status_code, status.HTTP_200_OK)
 
         second = self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'classic-noir', 'tiles': [{'id': 't1', 'type': 'title'}]}},
+            {'page_config': {'customColors': {'backgroundColor': '#111111'}, 'tiles': [{'id': 't1', 'type': 'title'}]}},
             format='json',
         )
         self.assertEqual(second.status_code, status.HTTP_200_OK)
@@ -806,7 +806,7 @@ class UpdateDesignMergeTestCase(TestCase):
         """A field explicitly sent as null overwrites the stored value instead of being ignored."""
         self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customColors': {'backgroundColor': '#ff00ff'}}},
+            {'page_config': {'customColors': {'backgroundColor': '#111111'}, 'tiles': [], 'customColors': {'backgroundColor': '#ff00ff'}}},
             format='json',
         )
         self.event.refresh_from_db()
@@ -814,7 +814,7 @@ class UpdateDesignMergeTestCase(TestCase):
 
         cleared = self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customColors': None}},
+            {'page_config': {'customColors': {'backgroundColor': '#111111'}, 'tiles': [], 'customColors': None}},
             format='json',
         )
         self.assertEqual(cleared.status_code, status.HTTP_200_OK)
@@ -823,20 +823,20 @@ class UpdateDesignMergeTestCase(TestCase):
 
     def test_first_save_auto_creates_invite_page_with_merged_config(self):
         """The very first save for an event (no InvitePage yet) still merges onto any pre-existing event.page_config."""
-        self.event.page_config = {'themeId': 'classic-noir', 'appliedLayoutId': '4'}
+        self.event.page_config = {'customColors': {'backgroundColor': '#111111'}, 'appliedLayoutId': '4'}
         self.event.save(update_fields=['page_config'])
         self.assertFalse(InvitePage.objects.filter(event=self.event).exists())
 
         resp = self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'modern-minimal', 'tiles': []}},
+            {'page_config': {'customColors': {'backgroundColor': '#222222'}, 'tiles': []}},
             format='json',
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertTrue(resp.data.get('invite_page_created'))
 
         invite_page = InvitePage.objects.get(event=self.event)
-        self.assertEqual(invite_page.config['themeId'], 'modern-minimal')
+        self.assertEqual(invite_page.config['customColors']['backgroundColor'], '#222222')
         self.assertEqual(invite_page.config['appliedLayoutId'], '4')
 
     def test_merged_draft_save_does_not_touch_published_snapshot(self):
@@ -845,7 +845,7 @@ class UpdateDesignMergeTestCase(TestCase):
             event=self.event,
             slug=self.event.slug.lower(),
             is_published=False,
-            config={'themeId': 'classic-noir', 'tiles': [], 'appliedLayoutId': '95'},
+            config={'customColors': {'backgroundColor': '#111111'}, 'tiles': [], 'appliedLayoutId': '95'},
         )
         self.client.post(
             f'/api/events/invite/{invite_page.slug}/publish/',
@@ -858,14 +858,14 @@ class UpdateDesignMergeTestCase(TestCase):
         # Draft save that switches layout (appliedLayoutId changes, doesn't mention it being cleared)
         self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'emerald-mist', 'tiles': [], 'appliedLayoutId': '4'}},
+            {'page_config': {'customColors': {'backgroundColor': '#333333'}, 'tiles': [], 'appliedLayoutId': '4'}},
             format='json',
         )
         invite_page.refresh_from_db()
         self.assertEqual(invite_page.config['appliedLayoutId'], '4')
         # Published snapshot is untouched by the draft save
         self.assertEqual(invite_page.published_config['appliedLayoutId'], '95')
-        self.assertEqual(invite_page.published_config['themeId'], 'classic-noir')
+        self.assertEqual(invite_page.published_config['customColors']['backgroundColor'], '#111111')
 
     def test_layout_switch_clears_visual_fields_but_preserves_host_content(self):
         """
@@ -882,7 +882,7 @@ class UpdateDesignMergeTestCase(TestCase):
         first = self.client.put(
             f'/api/events/{self.event.id}/design/',
             {'page_config': {
-                'themeId': 'classic-noir',
+                'customColors': {'backgroundColor': '#111111'},
                 'tiles': [{'id': 't1', 'type': 'title'}],
                 'appliedLayoutId': '95',
                 'customFonts': {'titleFont': 'Playfair Display'},
@@ -900,7 +900,6 @@ class UpdateDesignMergeTestCase(TestCase):
         switch = self.client.put(
             f'/api/events/{self.event.id}/design/',
             {'page_config': {
-                'themeId': 'modern-minimal',
                 'tiles': [{'id': 't2', 'type': 'title'}],
                 'appliedLayoutId': '4',
                 'tileSetComplete': True,
@@ -925,7 +924,6 @@ class UpdateDesignMergeTestCase(TestCase):
         self.assertIsNone(cfg['spacing'])
         # New layout applied.
         self.assertEqual(cfg['appliedLayoutId'], '4')
-        self.assertEqual(cfg['themeId'], 'modern-minimal')
         # Host content is omitted by the switch payload, so the merge keeps it.
         self.assertEqual(cfg['rsvpForm']['fields'][0]['q'], 'Meal preference?')
         self.assertEqual(cfg['linkMetadata']['title'], 'Our Wedding')
@@ -938,12 +936,12 @@ class UpdateDesignMergeTestCase(TestCase):
         """A layout that DOES define a visual field overwrites the previous value (present key wins)."""
         self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'classic-noir', 'tiles': [], 'customFonts': {'titleFont': 'Playfair Display'}}},
+            {'page_config': {'customColors': {'backgroundColor': '#111111'}, 'tiles': [], 'customFonts': {'titleFont': 'Playfair Display'}}},
             format='json',
         )
         self.client.put(
             f'/api/events/{self.event.id}/design/',
-            {'page_config': {'themeId': 'garden-soiree', 'tiles': [], 'customFonts': {'titleFont': 'Cormorant'}}},
+            {'page_config': {'customColors': {'backgroundColor': '#444444'}, 'tiles': [], 'customFonts': {'titleFont': 'Cormorant'}}},
             format='json',
         )
         self.event.refresh_from_db()
@@ -1319,7 +1317,7 @@ class InvitePageCacheTestCase(TestCase):
             event=self.event,
             slug=self.event.slug.lower(),
             is_published=True,
-            config={'themeId': 'classic-noir'}
+            config={'customColors': {'backgroundColor': '#111111'}}
         )
         
         cache_key = self.get_cache_key(invite_page.slug, invite_page)
@@ -1405,23 +1403,23 @@ class InvitePageCacheTestCase(TestCase):
             event=self.event,
             slug=self.event.slug.lower(),
             is_published=True,
-            config={'themeId': 'classic-noir'}
+            config={'customColors': {'backgroundColor': '#111111'}}
         )
         
         # First request - cache MISS, then cached under the v1 key
         response1 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
-        self.assertEqual(response1.json()['config']['themeId'], 'classic-noir')
+        self.assertEqual(response1.json()['config']['customColors']['backgroundColor'], '#111111')
         self.assertIsNotNone(cache.get(self.get_cache_key(invite_page.slug, invite_page)))
         
         # Update invite page config (bumps updated_at -> new version key)
-        invite_page.config = {'themeId': 'modern-minimal'}
+        invite_page.config = {'customColors': {'backgroundColor': '#222222'}}
         invite_page.save(update_fields=['config', 'updated_at'])
         
         # Next request must reflect the new config (fresh, not the stale cache)
         response2 = self.client.get(f'/api/events/invite/{invite_page.slug}/')
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        self.assertEqual(response2.json()['config']['themeId'], 'modern-minimal')
+        self.assertEqual(response2.json()['config']['customColors']['backgroundColor'], '#222222')
         self.assertNotEqual(response1.json(), response2.json())
     
     def test_cache_invalidation_on_publish(self):
@@ -1532,7 +1530,7 @@ class InvitePageCacheTestCase(TestCase):
             event=self.event,
             slug=self.event.slug.lower(),
             is_published=True,
-            config={'themeId': 'classic-noir'}
+            config={'customColors': {'backgroundColor': '#111111'}}
         )
         
         # Make request and bound query count.

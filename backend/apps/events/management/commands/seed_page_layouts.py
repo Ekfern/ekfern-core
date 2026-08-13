@@ -26,8 +26,16 @@ DEFAULT_HERO_IMAGE = (
 
 def get_minimal_config():
     return {
-        'themeId': 'minimal-ivory',
-        'customColors': {},
+        'customColors': {
+            'backgroundColor': '#F8F7F4',
+            'fontColor': '#121212',
+            'primaryColor': '#0D6EFD',
+            'mutedColor': '#6B7280',
+        },
+        'customFonts': {
+            'titleFont': "'Playfair Display', serif",
+            'bodyFont': 'Inter, system-ui',
+        },
         'texture': {'type': 'none', 'intensity': 40},
         'tiles': [
             {
@@ -72,8 +80,16 @@ def get_minimal_config():
 
 def get_classic_config():
     return {
-        'themeId': 'classic-noir',
-        'customColors': {},
+        'customColors': {
+            'backgroundColor': '#0E0F14',
+            'fontColor': '#FFFFFF',
+            'primaryColor': '#E55A9E',
+            'mutedColor': '#A7A8AD',
+        },
+        'customFonts': {
+            'titleFont': "'Great Vibes', cursive",
+            'bodyFont': 'Inter, system-ui',
+        },
         'texture': {'type': 'paper-grain', 'intensity': 18},
         'spacing': 'normal',
         'tiles': [
@@ -166,8 +182,16 @@ def get_classic_config():
 
 def get_emerald_config():
     return {
-        'themeId': 'emerald-mist',
-        'customColors': {},
+        'customColors': {
+            'backgroundColor': '#0d1f1a',
+            'fontColor': '#FFFFFF',
+            'primaryColor': '#34d399',
+            'mutedColor': '#a7f3d0',
+        },
+        'customFonts': {
+            'titleFont': "'Cormorant Garamond', serif",
+            'bodyFont': 'Inter, system-ui',
+        },
         'texture': {'type': 'paper-grain', 'intensity': 26},
         'tiles': [
             {
@@ -221,8 +245,16 @@ def get_emerald_config():
 
 def get_garden_config():
     return {
-        'themeId': 'minimal-ivory',
-        'customColors': {},
+        'customColors': {
+            'backgroundColor': '#F8F7F4',
+            'fontColor': '#121212',
+            'primaryColor': '#0D6EFD',
+            'mutedColor': '#6B7280',
+        },
+        'customFonts': {
+            'titleFont': "'Playfair Display', serif",
+            'bodyFont': 'Inter, system-ui',
+        },
         'texture': {'type': 'linen', 'intensity': 15},
         'tiles': [
             {

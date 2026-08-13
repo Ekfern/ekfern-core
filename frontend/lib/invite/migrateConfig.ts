@@ -8,7 +8,6 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
   // If config is null or undefined, return default
   if (!config) {
     return {
-      themeId: 'classic-noir',
       tiles: [],
     }
   }

@@ -213,10 +213,9 @@ export default function HostRsvpSettingsPage() {
       const updatedEvent = eventResponse.data as Event
       setEvent(updatedEvent)
 
-      const base: InviteConfig = (pageConfig || (event.page_config as any) || { themeId: 'classic-noir' }) as any
+      const base: InviteConfig = (pageConfig || (event.page_config as any) || {}) as any
       const next: InviteConfig = {
         ...(base as any),
-        themeId: (base as any).themeId || 'classic-noir',
         rsvpForm: (rsvpForm as any) || { version: 1 },
       }
 

@@ -5,7 +5,7 @@ import InvitePageClient from './InvitePageClient'
 import ComingSoon from '@/components/invite/ComingSoon'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
-import { getTheme } from '@/lib/invite/themes'
+import { resolveAppearance } from '@/lib/invite/appearance'
 import ImageTileSSR from '@/components/invite/tiles/ImageTileSSR'
 import DesignTileSSR from '@/components/invite/tiles/DesignTileSSR'
 import TitleTileSSR from '@/components/invite/tiles/TitleTileSSR'
@@ -1086,8 +1086,6 @@ export default async function InvitePage({
       
       initialConfig = {
         ...migratedConfig,
-        // Ensure themeId is set if it's missing (required by InviteConfig)
-        themeId: migratedConfig.themeId || pageConfig.themeId || 'classic-noir',
         customColors: pageConfig.customColors !== undefined 
           ? pageConfig.customColors 
           : migratedConfig.customColors,
@@ -1165,7 +1163,6 @@ export default async function InvitePage({
       
       // Fallback to default config
       initialConfig = {
-        themeId: 'classic-noir',
         tiles: [
           {
             id: 'tile-title-0',
@@ -1190,7 +1187,6 @@ export default async function InvitePage({
   } else {
     // No config at all - create default tile-based config
     initialConfig = {
-      themeId: 'classic-noir',
       tiles: [
         {
           id: 'tile-title-0',
@@ -1217,7 +1213,7 @@ export default async function InvitePage({
   devLog('[InvitePage SSR] ✅ CONFIG: Configuration prepared', {
     slug,
     hasConfig: !!initialConfig,
-    configType: initialConfig?.themeId || 'fallback',
+    configType: initialConfig ? 'config' : 'fallback',
   })
 
   // STEP 7: SSR Rendering - Render server-side components
@@ -1232,8 +1228,7 @@ export default async function InvitePage({
   let heroSSR: React.ReactNode = null
   let titleSSR: React.ReactNode = null
   let eventDetailsSSR: React.ReactNode = null
-  const theme = getTheme(initialConfig?.themeId || 'classic-noir')
-  const backgroundColor = initialConfig?.customColors?.backgroundColor ?? theme.palette.bg
+  const backgroundColor = resolveAppearance(initialConfig).backgroundColor
 
   if (initialConfig?.tiles && initialConfig.tiles.length > 0) {
     // Find image or greeting-card tile (first enabled tile with a src)

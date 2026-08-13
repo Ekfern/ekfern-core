@@ -1664,7 +1664,7 @@ class InvitePageLayout(models.Model):
         help_text='Design this layout was created for. Drives design-based layout filtering.',
     )
     preview_alt = models.CharField(max_length=255, blank=True)
-    config = models.JSONField(default=dict, help_text='Full InviteConfig: themeId, tiles, customColors, texture, etc.')
+    config = models.JSONField(default=dict, help_text='Full InviteConfig: tiles, customColors, customFonts, texture, etc.')
     visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_invite_page_layouts')

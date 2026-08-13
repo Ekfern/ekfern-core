@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
-import { getTheme } from '@/lib/invite/themes'
+import { resolveAppearance } from '@/lib/invite/appearance'
 import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
 import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 
@@ -88,8 +88,8 @@ export function skeletonizeDesignTiles(config: InviteConfig): InviteConfig {
  * Uses inviting sample copy so the library looks professional; same pipeline as the invite page.
  */
 export default function PageLayoutCardPreview({ config, className = '' }: PageLayoutCardPreviewProps): React.ReactElement {
-  const theme = getTheme(config?.themeId ?? 'classic-noir')
-  const pageBackground = config?.customColors?.backgroundGradient || config?.customColors?.backgroundColor || theme.palette.bg
+  const appearance = resolveAppearance(config)
+  const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
   const previewConfig = useMemo(
     () => skeletonizeDesignTiles(enrichConfigWithSampleData(config)),
     [config]

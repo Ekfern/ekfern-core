@@ -720,7 +720,6 @@ def compose_config(
         tiles.insert(0, title_tile)
 
     config = {
-        "themeId": "minimal-ivory",  # legacy fallback; overridden by customColors
         "customColors": {
             "backgroundColor": palette_data.get("bg", "#FFFFFF"),
             "backgroundGradient": _derive_gradient(palette_data, rng or random.Random()),

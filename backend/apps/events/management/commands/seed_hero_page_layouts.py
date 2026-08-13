@@ -47,7 +47,6 @@ SEED_DATE = '2025-06-14'
 
 def get_cover_config():
     return {
-        'themeId': 'minimal-ivory',
         'customColors': {
             'backgroundColor': '#FFFFFF',
             'fontColor': '#111111',
@@ -141,7 +140,6 @@ def get_cover_config():
 
 def get_editorial_type_config():
     return {
-        'themeId': 'minimal-ivory',
         'customColors': {
             'backgroundColor': '#FAFAF8',
             'fontColor': '#1A1A1A',
@@ -219,7 +217,6 @@ def get_editorial_type_config():
 
 def get_poster_card_config():
     return {
-        'themeId': 'classic-noir',
         'customColors': {
             'backgroundColor': '#15131C',
             'fontColor': '#F2F0F5',

@@ -23,7 +23,6 @@ const DUMMY_EVENT = {
 }
 
 const DEFAULT_CONFIG: InviteConfig = {
-  themeId: 'classic-noir',
   customColors: {},
   tiles: minimalStaffPageLayoutStarterTiles({
     title: DUMMY_EVENT.title,
