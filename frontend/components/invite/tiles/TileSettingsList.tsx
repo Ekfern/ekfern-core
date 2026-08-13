@@ -1,19 +1,15 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useTileDragSensors } from './useTileDragSensors'
 import {
   DndContext,
   closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
   DragEndEvent,
 } from '@dnd-kit/core'
 import {
   arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { Plus, X } from 'lucide-react'
@@ -69,12 +65,7 @@ export default function TileSettingsList({
 }: TileSettingsListProps) {
   const [showPicker, setShowPicker] = useState(false)
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
+  const sensors = useTileDragSensors()
 
   const footerTile = tiles.find((t) => t.type === 'footer')
   const otherTiles = tiles.filter((t) => t.type !== 'footer')
