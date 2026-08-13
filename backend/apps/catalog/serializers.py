@@ -66,6 +66,9 @@ class CatalogResponseCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
     phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    # Sent alongside phone so the number can be normalized the same way the
+    # guest list and RSVP normalize theirs.
+    country_code = serializers.CharField(max_length=8, required=False, allow_blank=True)
     amount = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     message = serializers.CharField(required=False, allow_blank=True)
     source = serializers.ChoiceField(

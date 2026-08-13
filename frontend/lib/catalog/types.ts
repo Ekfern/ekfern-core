@@ -84,6 +84,17 @@ export interface PublicCatalog {
   }
   /** Renewed membership pass for a guest browsing without an invite link. */
   access_pass?: string | null
+  /** Present once the visitor is identified, so the form can confirm rather than ask. */
+  guest?: { name: string; phone: string } | null
+}
+
+export interface MyCatalogResponse {
+  id: number
+  item_title: string
+  response_type: 'pledge' | 'interest' | 'external_click' | 'host_message'
+  amount: number | null
+  message: string
+  created_at: string
 }
 
 export interface PublicCatalogItem {

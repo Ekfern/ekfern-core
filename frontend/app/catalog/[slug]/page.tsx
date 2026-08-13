@@ -1,13 +1,18 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Heart } from 'lucide-react'
-import { getPublicCatalog, submitCatalogResponse } from '@/lib/catalog/api'
+import { getMyCatalogResponses, getPublicCatalog, submitCatalogResponse } from '@/lib/catalog/api'
 import { getCatalogCopy, getCatalogContextLine } from '@/lib/catalog/copy'
 import { isEmptyIntroHtml } from '@/lib/catalog/introHtml'
 import { parseCatalogSource } from '@/lib/catalog/source'
-import type { CatalogPurpose, PublicCatalog, PublicCatalogItem } from '@/lib/catalog/types'
+import type {
+  CatalogPurpose,
+  MyCatalogResponse,
+  PublicCatalog,
+  PublicCatalogItem,
+} from '@/lib/catalog/types'
 import api from '@/lib/api'
 import {
   DEFAULT_CATALOG_THEME,
@@ -27,11 +32,13 @@ import { CatalogGate, type CatalogGateCode } from '@/components/catalog/guest/Ca
 import { CatalogPhoneCheck } from '@/components/catalog/guest/CatalogPhoneCheck'
 import { CatalogShelf } from '@/components/catalog/guest/CatalogShelf'
 import { CatalogEmptyState } from '@/components/catalog/guest/CatalogEmptyState'
+import { CatalogMyContributions } from '@/components/catalog/guest/CatalogMyContributions'
 
 const EMPTY_FORM: CatalogActionForm = {
   name: '',
   email: '',
   phone: '',
+  country_code: '+91',
   amount: '',
   message: '',
 }
@@ -63,6 +70,7 @@ export default function PublicCatalogPage() {
   )
   const [needsPhone, setNeedsPhone] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [myResponses, setMyResponses] = useState<MyCatalogResponse[]>([])
   const [phoneInput, setPhoneInput] = useState('')
   const [verifyingPhone, setVerifyingPhone] = useState(false)
   const [verifyError, setVerifyError] = useState('')
@@ -161,6 +169,27 @@ export default function PublicCatalogPage() {
     }
   }
 
+  const refreshMyResponses = useCallback(async () => {
+    try {
+      const data = await getMyCatalogResponses(slug, guestToken, accessPass)
+      setMyResponses(data.results || [])
+      if (data.access_pass) setAccessPass(data.access_pass)
+    } catch {
+      // Not identified, or the pass lapsed: there is simply nothing to show.
+      setMyResponses([])
+    }
+  }, [slug, guestToken, accessPass])
+
+  useEffect(() => {
+    if (!catalog?.guest) {
+      setMyResponses([])
+      return
+    }
+    refreshMyResponses()
+    // refreshMyResponses changes with the pass it renews; running on identity is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog?.guest?.phone, slug])
+
   function openItem(item: PublicCatalogItem, preselectedAmount?: string) {
     if (item.action_type === 'open_external_link') {
       setExternalItem(item)
@@ -184,30 +213,34 @@ export default function PublicCatalogPage() {
     setForm(EMPTY_FORM)
   }
 
-  async function handleExternalClick() {
+  function handleExternalClick() {
     if (!externalItem) return
-    try {
-      await submitCatalogResponse(
-        slug,
-        { catalog_item_id: externalItem.id, response_type: 'external_click', source },
-        guestToken,
-        accessPass,
-      )
-    } catch {
-      /* fire-and-forget */
-    }
+    // Open first. Browsers only allow window.open while the tap that triggered
+    // it is still active, and awaiting a network call can outlive that - which
+    // left the button doing nothing at all on slower connections.
     window.open(externalItem.external_url!, '_blank', 'noopener,noreferrer')
+    // Then record the click, fire-and-forget. It carries no identity by design:
+    // the guest typed nothing, they opened a link.
+    submitCatalogResponse(
+      slug,
+      { catalog_item_id: externalItem.id, response_type: 'external_click', source },
+      guestToken,
+      accessPass,
+    ).catch(() => {})
     setExternalItem(null)
   }
 
   async function handleSubmit() {
     if (!activeItem) return
-    if (!form.name && !guestToken) {
+    // Phone identifies the giver, the same way it does on the guest list and
+    // the RSVP form. Email is optional - without one they simply read their
+    // receipt under "Your contributions" instead of getting it by mail.
+    if (!identified && !form.name) {
       setFormError('Please enter your name.')
       return
     }
-    if (!form.email && !guestToken) {
-      setFormError('Please enter your email.')
+    if (!identified && form.phone.replace(/\D/g, '').length < 10) {
+      setFormError('Please enter a valid phone number.')
       return
     }
     setSubmitting(true)
@@ -228,6 +261,7 @@ export default function PublicCatalogPage() {
           name: form.name || undefined,
           email: form.email || undefined,
           phone: form.phone || undefined,
+          country_code: form.country_code || undefined,
           amount: form.amount ? Math.round(parseFloat(form.amount) * 100) : undefined,
           message: form.message || undefined,
           source,
@@ -236,6 +270,7 @@ export default function PublicCatalogPage() {
         accessPass,
       )
       setSubmitted(true)
+      refreshMyResponses()
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } }
       setFormError(err?.response?.data?.error || 'Something went wrong. Please try again.')
@@ -310,7 +345,11 @@ export default function PublicCatalogPage() {
   const { catalog: cat, items, event } = catalog
   const copy = getCatalogCopy(cat.purpose, cat.catalog_title)
   const introHtml = !isEmptyIntroHtml(cat.intro_text) ? cat.intro_text : undefined
-  const needsIdentity = !guestToken
+  // Identified by an invite link or by a pass from a phone check. Either way the
+  // form confirms who they are rather than asking again.
+  const identifiedGuest = catalog?.guest || null
+  const identified = !!identifiedGuest
+  const needsIdentity = !identified
   const guestName = invite?.guest_context?.name
   const contextLine = getCatalogContextLine(source, cat.purpose)
 
@@ -364,6 +403,8 @@ export default function PublicCatalogPage() {
         )}
       </CatalogShelf>
 
+      <CatalogMyContributions responses={myResponses} theme={theme} />
+
       <div className="text-center pb-10 px-4">
         <p className="text-xs opacity-40" style={{ color: theme.fg }}>
           {copy.footerLine}
@@ -388,6 +429,7 @@ export default function PublicCatalogPage() {
           form={form}
           setForm={setForm}
           needsIdentity={needsIdentity}
+          identifiedPhone={identifiedGuest?.phone}
           submitting={submitting}
           submitted={submitted}
           formError={formError}
