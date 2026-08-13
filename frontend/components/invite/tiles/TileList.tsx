@@ -4,20 +4,16 @@ import React from 'react'
 import {
   DndContext,
   closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
   DragEndEvent,
 } from '@dnd-kit/core'
 import {
   arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { TILE_DRAG_HANDLE_CLASS, useTileDragSensors } from './useTileDragSensors'
 import { Tile } from '@/lib/invite/schema'
 import TilePreview from './TilePreview'
 import { GripVertical } from 'lucide-react'
@@ -90,7 +86,8 @@ function SortableTileItem({
           <div
             {...attributes}
             {...listeners}
-            className="absolute left-2 top-2 z-10 p-1 cursor-grab active:cursor-grabbing bg-white rounded shadow-sm hover:bg-gray-50"
+            className={`absolute left-2 top-2 z-10 p-1 bg-white rounded shadow-sm hover:bg-gray-50 ${TILE_DRAG_HANDLE_CLASS}`}
+            aria-label="Reorder tile"
           >
             <GripVertical className="w-4 h-4 text-gray-400" />
           </div>
@@ -160,7 +157,8 @@ function SortableImageWithOverlay({
         <div
           {...attributes}
           {...listeners}
-          className="absolute left-2 top-2 z-10 p-1 cursor-grab active:cursor-grabbing bg-white rounded shadow-sm hover:bg-gray-50"
+          className={`absolute left-2 top-2 z-10 p-1 bg-white rounded shadow-sm hover:bg-gray-50 ${TILE_DRAG_HANDLE_CLASS}`}
+          aria-label="Reorder tile"
         >
           <GripVertical className="w-4 h-4 text-gray-400" />
         </div>
@@ -201,12 +199,7 @@ export default function TileList({
   variant = 'editor',
   eventTimezone,
 }: TileListProps) {
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
+  const sensors = useTileDragSensors()
 
   // Separate footer from other tiles
   const footerTile = tiles.find((t) => t.type === 'footer')
