@@ -31,6 +31,8 @@ export interface MapStyleDefinition {
   filter?: string
   texture?: TextureType
   textureIntensity?: number
+  /** Whether the filter chain references the sharpen convolution. */
+  sharpen?: boolean
   /** Darkens and warms towards the edges, the way old paper ages inwards. */
   vignette?: string
   /** Eats the straight edge away, so the map sits on paper rather than in a box. */
@@ -48,6 +50,18 @@ export interface MapStyleDefinition {
  * Applied to the tile layer only, never the container, so the pin, the
  * attribution and the picker's drag handling stay outside it.
  */
+/**
+ * An unsharp-mask kernel, referenced from the filter chain.
+ *
+ * CSS has no sharpen, and OpenStreetMap's roads are thin pale strokes that go
+ * soft the moment contrast is pushed. A 3x3 convolution puts the edge back on
+ * them, which is the difference between an aged map and a blurry one.
+ *
+ * Rendered inline by the map components; the id is fixed because the
+ * definition is identical everywhere, so duplicates are harmless.
+ */
+export const MAP_SHARPEN_FILTER_ID = 'ekfern-map-sharpen'
+
 export const MAP_EDGE_MASK =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' preserveAspectRatio='none'><path d='M10,9 L27,11 L45,16 L62,10 L79,10 L96,11 L114,6 L131,10 L148,12 L165,14 L183,4 L200,7 L217,4 L235,14 L252,13 L269,4 L286,17 L304,17 L321,12 L338,12 L355,5 L373,3 L390,10 L384,23 L386,35 L386,48 L383,61 L389,74 L389,86 L395,99 L390,112 L392,125 L390,137 L392,150 L389,163 L387,175 L397,188 L397,201 L395,214 L393,226 L387,239 L386,252 L387,265 L384,277 L390,294 L373,289 L355,295 L338,288 L321,296 L304,295 L286,283 L269,286 L252,296 L235,290 L217,297 L200,289 L183,284 L165,292 L148,294 L131,287 L114,284 L96,288 L79,296 L62,294 L45,285 L27,286 L4,290 L4,277 L14,265 L5,252 L11,239 L9,226 L6,214 L13,201 L5,188 L12,175 L5,163 L9,150 L6,137 L7,125 L17,112 L14,99 L7,86 L15,74 L6,61 L9,48 L15,35 L12,23 Z' fill='white'/></svg>\")"
 
@@ -71,8 +85,17 @@ export const MAP_STYLES: Record<MapStyle, MapStyleDefinition> = {
     // then does sepia age it, uniformly, because there is nothing left to
     // clash. A multiply layer was tried instead and did not survive the
     // filtered stacking context.
+    // Sharpen first, while the linework is still neutral - convolving after a
+    // heavy sepia just sharpens the tint. Then the ageing, with contrast high
+    // enough that thin roads survive it.
+    //
+    // The -18deg rotation carries the sepia past yellow into a dusty rose
+    // rather than a straight brown. That was a side effect at first and was
+    // briefly corrected back to brown; it reads better on an invitation, so it
+    // is deliberate now.
     filter:
-      'grayscale(1) contrast(1.6) brightness(0.86) sepia(0.95) saturate(1.35) hue-rotate(-18deg)',
+      `url(#${MAP_SHARPEN_FILTER_ID}) grayscale(1) contrast(1.85) brightness(0.82) sepia(0.95) saturate(1.45) hue-rotate(-18deg)`,
+    sharpen: true,
     texture: 'vintage-paper',
     textureIntensity: 45,
     // Warm shadow gathering at the edges, as paper darkens with handling.
@@ -83,7 +106,8 @@ export const MAP_STYLES: Record<MapStyle, MapStyleDefinition> = {
   muted: {
     label: 'Muted',
     description: 'Quiet, so the map does not compete with the invitation',
-    filter: 'saturate(0.45) brightness(1.04) contrast(0.98)',
+    filter: `url(#${MAP_SHARPEN_FILTER_ID}) saturate(0.4) brightness(1.02) contrast(1.12)`,
+    sharpen: true,
   },
 }
 

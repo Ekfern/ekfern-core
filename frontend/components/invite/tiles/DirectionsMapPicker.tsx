@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react'
 // Ships with this component's chunk, which only loads in the editor.
 import 'leaflet/dist/leaflet.css'
 import TextureOverlay from '../living-poster/TextureOverlay'
+import MapSharpenFilter from './MapSharpenFilter'
 import { MAP_ATTRIBUTION, MAP_EDGE_MASK, MAP_TILE_URL, getMapStyle, type MapStyle } from '@/lib/invite/mapStyles'
 
 /**
@@ -179,6 +180,7 @@ export default function DirectionsMapPicker({
 
   return (
     <div className="mt-2">
+      {treatment.sharpen && <MapSharpenFilter />}
       <div className="relative">
         <div
           ref={containerRef}

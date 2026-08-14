@@ -1,5 +1,6 @@
 import React from 'react'
 import TextureOverlay from '../living-poster/TextureOverlay'
+import MapSharpenFilter from './MapSharpenFilter'
 import { MAP_ATTRIBUTION, MAP_EDGE_MASK, MAP_TILE_URL, getMapStyle, type MapStyle } from '@/lib/invite/mapStyles'
 
 /**
@@ -113,6 +114,7 @@ export default function StaticTileMap({
       role="img"
       aria-label={label ? `Map showing ${label}` : 'Map showing the event location'}
     >
+      {treatment.sharpen && <MapSharpenFilter />}
       {/* The tile grid is centred on the venue and clipped by the container. */}
       <div
         className="absolute left-1/2 top-0"
