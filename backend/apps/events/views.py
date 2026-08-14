@@ -4928,8 +4928,8 @@ def place_suggest(request):
     """
     from .services.places import ATTRIBUTION, search_places
 
-    results = search_places(request.query_params.get('q', ''))
-    response = Response({'results': results, 'attribution': ATTRIBUTION})
+    results, available = search_places(request.query_params.get('q', ''))
+    response = Response({'results': results, 'attribution': ATTRIBUTION, 'available': available})
     response['Cache-Control'] = 'private, max-age=300'
     return response
 

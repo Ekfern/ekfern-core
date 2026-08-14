@@ -2424,6 +2424,23 @@ class PlaceSuggestTestCase(TestCase):
 
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.data['results'], [])
+        # The editor shows manual coordinates for this, but must not claim the
+        # address does not exist.
+        self.assertFalse(r.data['available'])
+
+    def test_a_genuine_no_match_reports_the_service_as_available(self):
+        """An empty answer from a working service is a real answer."""
+        from unittest.mock import Mock, patch
+
+        self.client.force_authenticate(user=self.host)
+        with patch('apps.events.services.places.requests.get') as get:
+            get.return_value = Mock(
+                status_code=200, json=lambda: {'features': []}, raise_for_status=lambda: None,
+            )
+            r = self.client.get(self.url, {'q': 'somewhere that does not exist at all'})
+
+        self.assertEqual(r.data['results'], [])
+        self.assertTrue(r.data['available'])
 
     def test_short_queries_never_reach_the_service(self):
         from unittest.mock import patch

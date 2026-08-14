@@ -85,18 +85,21 @@ def _normalize(payload):
 
 def search_places(query, limit=MAX_RESULTS):
     """
-    Return [{label, lat, lng}] for a typed query, or [] when nothing is found
-    or the service is unreachable. Never raises.
+    Return (results, available) for a typed query. Never raises.
+
+    `available` separates the two reasons a list comes back empty: the address
+    genuinely has no match, or the lookup service could not be reached. The
+    editor offers manual coordinates for both, but says something different.
     """
     cleaned = (query or '').strip()
     if len(cleaned) < 3:
         # Below three characters the suggestions are noise and the request is waste.
-        return []
+        return [], True
 
     cache_key = f'places:photon:{cleaned.lower()}:{limit}'
     cached = cache.get(cache_key)
     if cached is not None:
-        return cached
+        return cached, True
 
     try:
         response = requests.get(
@@ -110,7 +113,7 @@ def search_places(query, limit=MAX_RESULTS):
     except (requests.RequestException, ValueError) as exc:
         # Soft failure: the editor keeps working as a plain text field.
         logger.warning('Address lookup unavailable for %r: %s', cleaned, exc)
-        return []
+        return [], False
 
     cache.set(cache_key, results, CACHE_TTL_SECONDS)
-    return results
+    return results, True

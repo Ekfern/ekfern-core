@@ -4,6 +4,13 @@ import React, { useEffect, useRef, useState } from 'react'
 import type { DirectionsTileSettings } from '@/lib/invite/schema'
 import { searchPlaces, type PlaceSuggestion } from '@/lib/invite/places'
 
+/**
+ * What the last lookup concluded. Coordinates are offered as an answer to a
+ * search that came back empty - not as permanent furniture beside a field that
+ * usually works.
+ */
+type LookupState = 'idle' | 'searching' | 'found' | 'no-match' | 'unavailable'
+
 /** Long enough that a host stops typing, short enough to feel immediate. */
 const SUGGEST_DEBOUNCE_MS = 300
 
@@ -70,6 +77,7 @@ export default function DirectionsTileSettings({
   const [attribution, setAttribution] = useState('')
   const [highlighted, setHighlighted] = useState(-1)
   const [suggestOpen, setSuggestOpen] = useState(false)
+  const [lookupState, setLookupState] = useState<LookupState>('idle')
   // Set while a suggestion is being applied, so the resulting value change does
   // not immediately search for what the host just picked.
   const justPicked = useRef(false)
@@ -83,16 +91,21 @@ export default function DirectionsTileSettings({
     // A pasted link is already a destination; there is nothing to suggest.
     if (/^https?:\/\//i.test(query.trim()) || query.trim().length < 3) {
       setSuggestions([])
+      setLookupState('idle')
       return
     }
 
     const controller = new AbortController()
+    setLookupState('searching')
     const timer = setTimeout(async () => {
-      const { results, attribution: credit } = await searchPlaces(query, controller.signal)
+      const { results, attribution: credit, status } = await searchPlaces(query, controller.signal)
       setSuggestions(results)
       setAttribution(credit)
       setHighlighted(-1)
       setSuggestOpen(results.length > 0)
+      setLookupState(
+        status === 'unavailable' ? 'unavailable' : results.length > 0 ? 'found' : 'no-match',
+      )
     }, SUGGEST_DEBOUNCE_MS)
 
     return () => {
@@ -115,6 +128,7 @@ export default function DirectionsTileSettings({
     setSuggestions([])
     setSuggestOpen(false)
     setHighlighted(-1)
+    setLookupState('found')
   }
 
   const onAddressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -140,6 +154,10 @@ export default function DirectionsTileSettings({
     ? 'Enter both, as decimals: latitude between -90 and 90, longitude between -180 and 180.'
     : ''
   const isPinned = !!settings.coordinates
+  // Offered when the search genuinely found nothing, when the lookup itself is
+  // down (a host must not be stranded by someone else's outage), or when a pin
+  // already exists - hiding that would make saved coordinates uneditable.
+  const showCoordinates = isPinned || lookupState === 'no-match' || lookupState === 'unavailable'
 
   return (
     <div className="space-y-4">
@@ -206,10 +224,21 @@ export default function DirectionsTileSettings({
       {/* Coordinates: the way in for places an address lookup does not know -
           a farm, a new venue, a private address - and the exact pin for anywhere
           else. Both the map and the tap-through link prefer these over text. */}
+      {showCoordinates && (
       <div className="rounded-md border border-gray-200 p-3">
-        <p className="text-sm font-medium">Can&apos;t find the address?</p>
+        <p className="text-sm font-medium">
+          {lookupState === 'unavailable'
+            ? 'Address lookup is unavailable right now'
+            : lookupState === 'no-match'
+            ? "We couldn't find that address"
+            : 'Pinned location'}
+        </p>
         <p className="mt-0.5 text-xs text-gray-500">
-          Enter coordinates to pin the exact spot. Used instead of the address above.
+          {lookupState === 'unavailable'
+            ? 'You can still pin the exact spot with coordinates.'
+            : lookupState === 'no-match'
+            ? 'Pin the exact spot with coordinates instead. Right-click the place in Google Maps to copy them.'
+            : 'These coordinates decide where the map pins, ahead of the address above.'}
         </p>
 
         <div className="mt-2 grid grid-cols-2 gap-2">
@@ -276,6 +305,7 @@ export default function DirectionsTileSettings({
           </div>
         )}
       </div>
+      )}
 
       <div>
         <label htmlFor="directions-heading" className="block text-sm font-medium">
