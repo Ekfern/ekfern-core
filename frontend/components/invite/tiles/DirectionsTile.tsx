@@ -56,6 +56,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
           lng={settings.coordinates.lng}
           zoom={settings.zoom ?? 16}
           height={height}
+          style={settings.mapStyle}
           label={addressLine || undefined}
         />
       ) : (

@@ -4,6 +4,7 @@ import React, { useEffect, useId, useRef, useState } from 'react'
 import type { DirectionsTileSettings } from '@/lib/invite/schema'
 import dynamic from 'next/dynamic'
 import { searchPlaces, type PlaceSuggestion } from '@/lib/invite/places'
+import { MAP_STYLES, type MapStyle } from '@/lib/invite/mapStyles'
 
 // Editor-only, and only once a pin exists: Leaflet never reaches a guest's
 // invitation, and never loads for a host who has not set a location.
@@ -238,6 +239,7 @@ export default function DirectionsTileSettings({ settings, onChange }: Direction
           lat={settings.coordinates!.lat}
           lng={settings.coordinates!.lng}
           zoom={settings.zoom ?? 16}
+          style={settings.mapStyle}
           onMove={(lat, lng) => {
             setLatText(lat.toString())
             setLngText(lng.toString())
@@ -360,6 +362,27 @@ export default function DirectionsTileSettings({ settings, onChange }: Direction
       <details className="rounded-md border border-gray-200 p-3">
         <summary className="cursor-pointer text-sm font-medium">Appearance</summary>
         <div className="mt-3 space-y-4">
+          <div>
+            <label htmlFor={fieldId('style')} className="block text-sm font-medium">
+              Map style
+            </label>
+            <select
+              id={fieldId('style')}
+              value={settings.mapStyle ?? 'standard'}
+              onChange={(e) => update({ mapStyle: e.target.value as MapStyle })}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              {(Object.keys(MAP_STYLES) as MapStyle[]).map((key) => (
+                <option key={key} value={key}>
+                  {MAP_STYLES[key].label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {MAP_STYLES[(settings.mapStyle ?? 'standard') as MapStyle].description}
+            </p>
+          </div>
+
           <div>
             <label htmlFor={fieldId('height')} className="block text-sm font-medium">
               Map height

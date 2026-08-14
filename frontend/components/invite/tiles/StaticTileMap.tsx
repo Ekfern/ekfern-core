@@ -1,4 +1,6 @@
 import React from 'react'
+import TextureOverlay from '../living-poster/TextureOverlay'
+import { MAP_ATTRIBUTION, MAP_EDGE_MASK, MAP_TILE_URL, getMapStyle, type MapStyle } from '@/lib/invite/mapStyles'
 
 /**
  * A map for a guest's invitation: map tiles as plain images, and nothing else.
@@ -16,14 +18,6 @@ import React from 'react'
 
 /** Web Mercator: the projection every tile scheme on the web agrees on. */
 const TILE_SIZE = 256
-
-/**
- * The one place a map style is chosen. OpenStreetMap's Standard rendering needs
- * no key; swapping in Carto Positron, Stadia or MapTiler for a look that suits
- * the invitation is a change to this line plus their attribution.
- */
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-const TILE_ATTRIBUTION = '© OpenStreetMap'
 
 /**
  * Three tiles wide covers 768px, which is wider than any phone and most of the
@@ -44,6 +38,7 @@ export interface StaticTileMapProps {
   lng: number
   zoom?: number
   height?: number
+  style?: MapStyle
   /** Described to screen readers, since the map itself is decorative. */
   label?: string
 }
@@ -53,8 +48,10 @@ export default function StaticTileMap({
   lng,
   zoom = 16,
   height = 260,
+  style,
   label,
 }: StaticTileMapProps) {
+  const treatment = getMapStyle(style)
   const width = COLUMNS * TILE_SIZE
 
   // Where the venue sits, in whole-world pixels at this zoom.
@@ -87,7 +84,7 @@ export default function StaticTileMap({
       tiles.push(
         <img
           key={`${tileX}-${tileY}`}
-          src={TILE_URL.replace('{z}', String(zoom))
+          src={MAP_TILE_URL.replace('{z}', String(zoom))
             .replace('{x}', String(wrappedX))
             .replace('{y}', String(tileY))}
           alt=""
@@ -111,18 +108,53 @@ export default function StaticTileMap({
 
   return (
     <div
-      className="relative w-full overflow-hidden rounded-xl bg-gray-100"
-      style={{ height }}
+      className="relative w-full overflow-hidden rounded-xl"
+      style={{ height, background: treatment.tornEdges ? '#efe2cc' : '#f3f4f6' }}
       role="img"
       aria-label={label ? `Map showing ${label}` : 'Map showing the event location'}
     >
       {/* The tile grid is centred on the venue and clipped by the container. */}
       <div
         className="absolute left-1/2 top-0"
-        style={{ width, height, transform: 'translateX(-50%)' }}
+        // The treatment sits on the tiles alone. Filtering the container would
+        // take the pin and the attribution with it.
+        style={{
+          width,
+          height,
+          transform: 'translateX(-50%)',
+          filter: treatment.filter,
+          // Masking the tiles rather than the container keeps the pin, the
+          // attribution and any hit area outside the torn edge intact.
+          ...(treatment.tornEdges
+            ? {
+                maskImage: MAP_EDGE_MASK,
+                WebkitMaskImage: MAP_EDGE_MASK,
+                maskSize: '100% 100%',
+                WebkitMaskSize: '100% 100%',
+                maskRepeat: 'no-repeat',
+                WebkitMaskRepeat: 'no-repeat',
+              }
+            : null),
+        }}
       >
         {tiles}
       </div>
+
+      {treatment.vignette && (
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: treatment.vignette }}
+          aria-hidden="true"
+        />
+      )}
+
+      {treatment.texture && (
+        // The invitation's own paper, over the map, so it reads as printed
+        // rather than pasted on. CSS-generated - no image is fetched.
+        <div className="pointer-events-none absolute inset-0">
+          <TextureOverlay type={treatment.texture} intensity={treatment.textureIntensity ?? 30} />
+        </div>
+      )}
 
       {/* The venue, at the exact centre - computed, not drawn by a map engine. */}
       <span
@@ -152,7 +184,7 @@ export default function StaticTileMap({
 
       {/* Required when showing OpenStreetMap tiles. */}
       <span className="absolute bottom-0 right-0 bg-white/70 px-1 text-[10px] leading-4 text-gray-700">
-        {TILE_ATTRIBUTION}
+        {MAP_ATTRIBUTION}
       </span>
     </div>
   )

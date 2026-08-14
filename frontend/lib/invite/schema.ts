@@ -157,6 +157,8 @@ export interface DirectionsTileSettings {
    * happened to be showing a whole country does not become the invitation's map.
    */
   zoom?: number
+  /** How the map is treated. See lib/invite/mapStyles.ts. */
+  mapStyle?: 'standard' | 'vintage' | 'muted'
   fontColor?: string
   textAlign?: 'left' | 'center' | 'right'
 }
