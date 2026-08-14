@@ -4,7 +4,7 @@ import React from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
-import { getTheme } from '@/lib/invite/themes'
+import { resolveAppearance } from '@/lib/invite/appearance'
 import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
 import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 import {
@@ -36,11 +36,8 @@ export default function LayoutPreviewModal({
   if (!isOpen || !layout) return null
 
   const config = layout.config
-  const theme = getTheme(config?.themeId ?? 'classic-noir')
-  const pageBackground =
-    config?.customColors?.backgroundGradient ||
-    config?.customColors?.backgroundColor ||
-    theme.palette.bg
+  const appearance = resolveAppearance(config)
+  const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
   const previewConfig = skeletonizeDesignTiles(enrichConfigWithSampleData(config))
 
   return (

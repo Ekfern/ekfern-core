@@ -39,7 +39,7 @@ VALID_TILE_TYPES = {
 }
 
 # Keys that `frontend/lib/invite/applyLayout.ts` and `migrateConfig` rely on.
-REQUIRED_CONFIG_KEYS = {"themeId", "tiles"}
+REQUIRED_CONFIG_KEYS = {"tiles"}
 
 
 def _fake_palette_light():

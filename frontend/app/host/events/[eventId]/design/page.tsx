@@ -941,7 +941,7 @@ export default function DesignPage(): React.ReactElement {
         // No InvitePage yet — create one with just the GC tile.
         // The design page will merge this into the full config on load.
         const gcTile = buildUpdatedTiles([], bgUrl, bgGradient, textBoxes, enableTile)
-        await createInvitePage(eventId, { config: { themeId: 'classic-noir', tiles: gcTile } })
+        await createInvitePage(eventId, { config: { tiles: gcTile } })
       }
       setAutoSaveStatus('saved')
     } catch (err) {
@@ -984,7 +984,7 @@ export default function DesignPage(): React.ReactElement {
         textOverlays: textBoxes,
       }
 
-      const baseConfig = existingConfig ?? { themeId: 'classic-noir', tiles: [] }
+      const baseConfig = existingConfig ?? { tiles: [] }
       const hasGC = baseConfig.tiles?.some(t => t.type === 'design')
       let updatedTiles
       if (hasGC) {

@@ -27,6 +27,7 @@ export function buildDefaultTileSettingsRecord(
       location: ctx.city ?? '',
       date: fallbackDate,
     },
+    directions: { mapUrl: ctx.city ?? '', height: 260 },
     description: { content: '' },
     'feature-buttons': { buttonColor: '#0D6EFD' },
     footer: { text: '' },

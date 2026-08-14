@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { InviteConfig, Tile, TileType } from '@/lib/invite/schema'
 import { buildDefaultTileSettingsRecord } from '@/lib/invite/pageLayoutTileDefaults'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
-import { getTheme } from '@/lib/invite/themes'
+import { resolveAppearance } from '@/lib/invite/appearance'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
@@ -130,7 +130,7 @@ export default function PageLayoutStudioCanvas({
   )
 
   const displayBackgroundColor =
-    config.customColors?.backgroundColor ?? getTheme(config?.themeId ?? 'classic-noir').palette.bg
+    config.customColors?.backgroundColor ?? resolveAppearance(config).backgroundColor
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">

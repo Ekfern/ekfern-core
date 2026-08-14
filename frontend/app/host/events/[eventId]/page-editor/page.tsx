@@ -21,7 +21,7 @@ import { getInvitePage, createInvitePage, publishInvitePage } from '@/lib/invite
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
-import { getTheme } from '@/lib/invite/themes'
+import { resolveAppearance } from '@/lib/invite/appearance'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
@@ -117,7 +117,7 @@ const DEFAULT_TILES: Tile[] = [
 // The tile types the editor knows how to render. Anything else is legacy/orphan
 // junk in a saved config (renders no label and no settings) and is filtered out.
 const KNOWN_TILE_TYPES = new Set<TileType>([
-  'title', 'image', 'design', 'timer', 'event-details',
+  'title', 'image', 'design', 'timer', 'event-details', 'directions',
   'description', 'feature-buttons', 'footer', 'event-carousel',
 ])
 const isKnownTile = (t: any): t is Tile =>
@@ -165,7 +165,6 @@ function normalizeConfigForCompare(cfg: InviteConfig | null | undefined): any {
     }))
     .sort((a, b) => a.order - b.order)
   return {
-    themeId: cfg.themeId,
     customColors: cfg.customColors ?? null,
     customFonts: cfg.customFonts ?? null,
     texture: cfg.texture ?? null,
@@ -254,7 +253,6 @@ export default function DesignInvitationPage(): JSX.Element {
   const [previewCropFilename, setPreviewCropFilename] = useState<string>('preview.jpg')
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
   const [config, setConfig] = useState<InviteConfig>({
-    themeId: 'warm-parchment',
     tiles: DEFAULT_TILES,
     texture: { type: 'parchment', intensity: 20 },
   })
@@ -565,7 +563,6 @@ export default function DesignInvitationPage(): JSX.Element {
         if (!finalConfig) {
           const defaultTiles = createDefaultTiles(eventData)
           finalConfig = {
-            themeId: 'warm-parchment',
             tiles: defaultTiles,
             texture: { type: 'parchment', intensity: 20 },
             customColors: { backgroundGradient: 'linear-gradient(160deg, #E8D8C3 0%, #C4A882 100%)' },
@@ -850,7 +847,6 @@ export default function DesignInvitationPage(): JSX.Element {
       : undefined
 
     const configToSave: InviteConfig = {
-      themeId: config.themeId,
       tiles: tilesToSave,
       ...(customColorsToSave && { customColors: customColorsToSave }),
       ...(config.customFonts && { customFonts: config.customFonts }),
@@ -1330,6 +1326,7 @@ export default function DesignInvitationPage(): JSX.Element {
       'design': savedDesignSettings ?? { backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)', textOverlays: [] },
       'timer': {},
       'event-details': { location: '', date: new Date().toISOString().split('T')[0] },
+      'directions': { height: 260 },
       'description': { content: '' },
       'feature-buttons': {},
       'footer': {},
@@ -1448,7 +1445,7 @@ export default function DesignInvitationPage(): JSX.Element {
   // Single source of truth: layouts from API only
   const getLayoutFromList = (layoutId: string): InvitePageLayout | undefined =>
     apiLayouts.find((t) => String(t.id) === String(layoutId))
-  const displayBackgroundColor = config.customColors?.backgroundColor ?? getTheme(config?.themeId ?? 'warm-parchment').palette.bg
+  const displayBackgroundColor = resolveAppearance(config).backgroundColor
   const displayBackground = config.customColors?.backgroundGradient || displayBackgroundColor
   const isGradientBg = !!config.customColors?.backgroundGradient
 

@@ -37,7 +37,6 @@ OLD_BATCH_NAMES = ['Keynote', 'Letterpress', 'Editorial']
 
 def get_grain_config():
     return {
-        'themeId': 'classic-noir',
         'customColors': {
             'backgroundGradient': 'linear-gradient(160deg, #0B1120 0%, #1B2A5C 45%, #2E1E52 100%)',
             'fontColor': '#F5F5F7',
@@ -117,7 +116,6 @@ def get_grain_config():
 
 def get_glass_config():
     return {
-        'themeId': 'classic-noir',
         'customColors': {
             'backgroundGradient': 'linear-gradient(135deg, #2B0B6B 0%, #5A1FB0 40%, #1447E6 100%)',
             'fontColor': '#FFFFFF',
@@ -191,7 +189,6 @@ def get_glass_config():
 
 def get_ink_config():
     return {
-        'themeId': 'carbon',
         'customColors': {
             'backgroundColor': '#0F2E22',
             'fontColor': '#F5F5F0',

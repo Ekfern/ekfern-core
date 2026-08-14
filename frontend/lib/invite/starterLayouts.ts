@@ -147,7 +147,6 @@ function buildConfigForArchetype(archetype: StarterArchetype, palette: StarterPa
   }
 
   return {
-    themeId: 'minimal-ivory',
     tileSetComplete: true,
     customColors: palette.customColors,
     tiles,

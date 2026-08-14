@@ -162,7 +162,6 @@ def compose_gallery_config(recipe: dict, preset: dict) -> dict:
     }
 
     config: dict = {
-        "themeId": preset["theme_id"],
         "customColors": custom_colors,
         "customFonts": {
             "titleFont": presets_mod.font_family(preset.get("title_font")),
