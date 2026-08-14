@@ -54,6 +54,12 @@ export default function DirectionsMapPicker({ lat, lng, zoom = 16, onMove }: Dir
           // should keep scrolling when the cursor crosses it.
           scrollWheelZoom: false,
           attributionControl: true,
+          // This is a picker, not a scenic view. Leaflet's fade and zoom
+          // transitions make a static panel look like it is animating, and they
+          // are the reason a half-measured map appears to drift into place.
+          fadeAnimation: false,
+          zoomAnimation: false,
+          markerZoomAnimation: false,
         })
 
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -85,7 +91,22 @@ export default function DirectionsMapPicker({ lat, lng, zoom = 16, onMove }: Dir
 
         mapRef.current = map
         markerRef.current = marker
+
+        // The tile grid is laid out against whatever size the container had at
+        // construction. Inside a collapsible panel that is often zero or
+        // half-measured, which is what leaves tiles offset with white gaps.
+        // Re-measure once the browser has actually laid the panel out, and
+        // again whenever the box changes size.
+        const remeasure = () => map.invalidateSize({ animate: false })
+        const raf = requestAnimationFrame(remeasure)
+        const settle = window.setTimeout(remeasure, 250)
+        const observer = new ResizeObserver(remeasure)
+        observer.observe(containerRef.current)
+
         cleanup = () => {
+          cancelAnimationFrame(raf)
+          window.clearTimeout(settle)
+          observer.disconnect()
           map.off()
           map.remove()
           mapRef.current = null

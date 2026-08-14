@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import type { DirectionsTileSettings } from '@/lib/invite/schema'
 import dynamic from 'next/dynamic'
 import { searchPlaces, type PlaceSuggestion } from '@/lib/invite/places'
@@ -51,6 +51,12 @@ export default function DirectionsTileSettings({
   onChange,
   eventLocation,
 }: DirectionsTileSettingsProps) {
+  // A page can hold several Directions tiles, and more than one can be open at
+  // once. Fixed ids would collide across them, pointing every label at the first
+  // tile's inputs.
+  const uid = useId()
+  const fieldId = (name: string) => `directions-${name}-${uid}`
+
   const update = (patch: Partial<DirectionsTileSettings>) => onChange({ ...settings, ...patch })
 
   // Held as text while typing: a half-entered "-" or "28." is not a number yet,
@@ -159,6 +165,10 @@ export default function DirectionsTileSettings({
     ? 'Enter both, as decimals: latitude between -90 and 90, longitude between -180 and 180.'
     : ''
   const isPinned = !!settings.coordinates
+  // An empty tile shows no map. The picker is there to confirm and adjust a
+  // place the host has named - with nothing typed there is nothing to confirm,
+  // and an empty map box just looks broken.
+  const showMapPicker = isPinned && !!settings.mapUrl?.trim()
   // Offered when the search genuinely found nothing, when the lookup itself is
   // down (a host must not be stranded by someone else's outage), or when a pin
   // already exists - hiding that would make saved coordinates uneditable.
@@ -167,15 +177,15 @@ export default function DirectionsTileSettings({
   return (
     <div className="space-y-4">
       <div className="relative">
-        <label htmlFor="directions-address" className="block text-sm font-medium">
+        <label htmlFor={fieldId('address')} className="block text-sm font-medium">
           Address or map link *
         </label>
         <input
-          id="directions-address"
+          id={fieldId('address')}
           type="text"
           role="combobox"
           aria-expanded={suggestOpen}
-          aria-controls="directions-suggestions"
+          aria-controls={fieldId('suggestions')}
           aria-autocomplete="list"
           autoComplete="off"
           value={settings.mapUrl || ''}
@@ -189,7 +199,7 @@ export default function DirectionsTileSettings({
 
         {suggestOpen && suggestions.length > 0 && (
           <ul
-            id="directions-suggestions"
+            id={fieldId('suggestions')}
             role="listbox"
             className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg"
           >
@@ -229,7 +239,7 @@ export default function DirectionsTileSettings({
       {/* Coordinates: the way in for places an address lookup does not know -
           a farm, a new venue, a private address - and the exact pin for anywhere
           else. Both the map and the tap-through link prefer these over text. */}
-      {isPinned && (
+      {showMapPicker && (
         <DirectionsMapPicker
           lat={settings.coordinates!.lat}
           lng={settings.coordinates!.lng}
@@ -261,11 +271,11 @@ export default function DirectionsTileSettings({
 
         <div className="mt-2 grid grid-cols-2 gap-2">
           <div>
-            <label htmlFor="directions-lat" className="block text-xs font-medium text-gray-600">
+            <label htmlFor={fieldId('lat')} className="block text-xs font-medium text-gray-600">
               Latitude
             </label>
             <input
-              id="directions-lat"
+              id={fieldId('lat')}
               type="text"
               inputMode="decimal"
               value={latText}
@@ -279,11 +289,11 @@ export default function DirectionsTileSettings({
             />
           </div>
           <div>
-            <label htmlFor="directions-lng" className="block text-xs font-medium text-gray-600">
+            <label htmlFor={fieldId('lng')} className="block text-xs font-medium text-gray-600">
               Longitude
             </label>
             <input
-              id="directions-lng"
+              id={fieldId('lng')}
               type="text"
               inputMode="decimal"
               value={lngText}
@@ -326,11 +336,11 @@ export default function DirectionsTileSettings({
       )}
 
       <div>
-        <label htmlFor="directions-heading" className="block text-sm font-medium">
+        <label htmlFor={fieldId('heading')} className="block text-sm font-medium">
           Heading
         </label>
         <input
-          id="directions-heading"
+          id={fieldId('heading')}
           type="text"
           value={settings.heading ?? ''}
           onChange={(e) => update({ heading: e.target.value })}
@@ -340,11 +350,11 @@ export default function DirectionsTileSettings({
       </div>
 
       <div>
-        <label htmlFor="directions-address-line" className="block text-sm font-medium">
+        <label htmlFor={fieldId('address-line')} className="block text-sm font-medium">
           Address shown under the map
         </label>
         <input
-          id="directions-address-line"
+          id={fieldId('address-line')}
           type="text"
           value={settings.addressLine ?? ''}
           onChange={(e) => update({ addressLine: e.target.value })}
@@ -357,11 +367,11 @@ export default function DirectionsTileSettings({
         <summary className="cursor-pointer text-sm font-medium">Appearance</summary>
         <div className="mt-3 space-y-4">
           <div>
-            <label htmlFor="directions-height" className="block text-sm font-medium">
+            <label htmlFor={fieldId('height')} className="block text-sm font-medium">
               Map height
             </label>
             <input
-              id="directions-height"
+              id={fieldId('height')}
               type="range"
               min={160}
               max={420}
@@ -374,11 +384,11 @@ export default function DirectionsTileSettings({
           </div>
 
           <div>
-            <label htmlFor="directions-zoom" className="block text-sm font-medium">
+            <label htmlFor={fieldId('zoom')} className="block text-sm font-medium">
               Zoom
             </label>
             <input
-              id="directions-zoom"
+              id={fieldId('zoom')}
               type="range"
               min={12}
               max={19}
@@ -393,11 +403,11 @@ export default function DirectionsTileSettings({
           </div>
 
           <div>
-            <label htmlFor="directions-align" className="block text-sm font-medium">
+            <label htmlFor={fieldId('align')} className="block text-sm font-medium">
               Alignment
             </label>
             <select
-              id="directions-align"
+              id={fieldId('align')}
               value={settings.textAlign ?? 'center'}
               onChange={(e) => update({ textAlign: e.target.value as DirectionsTileSettings['textAlign'] })}
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
