@@ -4,6 +4,7 @@ import React from 'react'
 import { MapPin, ArrowUpRight } from 'lucide-react'
 import { DirectionsTileSettings } from '@/lib/invite/schema'
 import { getDestinationLabel, getDirectionsEmbedUrl, getDirectionsHref } from '@/lib/invite/mapUtils'
+import StaticTileMap from './StaticTileMap'
 
 export interface DirectionsTileProps {
   settings: DirectionsTileSettings
@@ -47,21 +48,35 @@ export default function DirectionsTile({ settings, preview = false }: Directions
 
   const body = (
     <>
-      {embedUrl && (
-        <div
-          className="relative w-full overflow-hidden rounded-xl"
-          style={{ height: `${height}px` }}
-        >
-          <iframe
-            src={embedUrl}
-            title={addressLine ? `Map showing ${addressLine}` : 'Event location map'}
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            aria-hidden="true"
-            tabIndex={-1}
-            className="pointer-events-none absolute inset-0 h-full w-full border-0"
-          />
-        </div>
+      {settings.coordinates ? (
+        // Tiles as images: no frame, no script, and the same map the editor's
+        // picker shows, so the two surfaces finally look alike.
+        <StaticTileMap
+          lat={settings.coordinates.lat}
+          lng={settings.coordinates.lng}
+          zoom={settings.zoom ?? 16}
+          height={height}
+          label={addressLine || undefined}
+        />
+      ) : (
+        embedUrl && (
+          // Older tiles carry a pasted map link and no coordinates, so there is
+          // no point to centre on. Re-picking the address upgrades them.
+          <div
+            className="relative w-full overflow-hidden rounded-xl"
+            style={{ height: `${height}px` }}
+          >
+            <iframe
+              src={embedUrl}
+              title={addressLine ? `Map showing ${addressLine}` : 'Event location map'}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              aria-hidden="true"
+              tabIndex={-1}
+              className="pointer-events-none absolute inset-0 h-full w-full border-0"
+            />
+          </div>
+        )
       )}
       <div
         className="mt-3 flex items-center gap-2 px-1"
