@@ -17,7 +17,7 @@ export interface BackgroundImage {
 }
 
 // Tile-based structure
-export type TileType = 'title' | 'image' | 'design' | 'timer' | 'event-details' | 'description' | 'feature-buttons' | 'footer' | 'event-carousel'
+export type TileType = 'title' | 'image' | 'design' | 'timer' | 'event-details' | 'directions' | 'description' | 'feature-buttons' | 'footer' | 'event-carousel'
 
 export interface TitleTileSettings {
   text: string
@@ -133,6 +133,34 @@ export interface EventDetailsTileSettings {
   decorativeSymbol?: string // Custom symbol (❦, ✿, ✤, ✦, •, —, or empty)
   backgroundColor?: string // Background color for the tile (default: transparent or gray-50)
   borderRadius?: number // 0-24 pixels (default: 0 for preview, 4 for non-preview)
+}
+
+export interface DirectionsTileSettings {
+  /**
+   * Where the guest is going. Accepts an address, a Google Maps URL, or iframe
+   * embed code - the same input Event Details used to take, now owned by the
+   * tile that renders it.
+   */
+  mapUrl?: string
+  coordinates?: {
+    lat: number
+    lng: number
+  }
+  locationVerified?: boolean // Auto-set by the system from map location validation
+  heading?: string // Defaults to "Getting there"
+  /** Address line shown under the map; falls back to the event's location. */
+  addressLine?: string
+  height?: number // Map height in pixels (default 260)
+  /**
+   * How closely the map frames the venue (default 16 - street and surrounds).
+   * The embed is always rebuilt around the destination, so a pasted link that
+   * happened to be showing a whole country does not become the invitation's map.
+   */
+  zoom?: number
+  /** How the map is treated. See lib/invite/mapStyles.ts. */
+  mapStyle?: 'standard' | 'vintage' | 'muted'
+  fontColor?: string
+  textAlign?: 'left' | 'center' | 'right'
 }
 
 export interface DescriptionTileSettings {
@@ -273,6 +301,7 @@ export type TileSettings =
   | DesignTileSettings
   | TimerTileSettings
   | EventDetailsTileSettings
+  | DirectionsTileSettings
   | DescriptionTileSettings
   | FeatureButtonsTileSettings
   | FooterTileSettings

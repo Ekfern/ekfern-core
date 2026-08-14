@@ -117,7 +117,7 @@ const DEFAULT_TILES: Tile[] = [
 // The tile types the editor knows how to render. Anything else is legacy/orphan
 // junk in a saved config (renders no label and no settings) and is filtered out.
 const KNOWN_TILE_TYPES = new Set<TileType>([
-  'title', 'image', 'design', 'timer', 'event-details',
+  'title', 'image', 'design', 'timer', 'event-details', 'directions',
   'description', 'feature-buttons', 'footer', 'event-carousel',
 ])
 const isKnownTile = (t: any): t is Tile =>
@@ -1326,6 +1326,7 @@ export default function DesignInvitationPage(): JSX.Element {
       'design': savedDesignSettings ?? { backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)', textOverlays: [] },
       'timer': {},
       'event-details': { location: '', date: new Date().toISOString().split('T')[0] },
+      'directions': { height: 260 },
       'description': { content: '' },
       'feature-buttons': {},
       'footer': {},

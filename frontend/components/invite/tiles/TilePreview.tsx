@@ -6,6 +6,7 @@ import TitleTile from './TitleTile'
 import ImageTile from './ImageTile'
 import TimerTile from './TimerTile'
 import EventDetailsTile from './EventDetailsTile'
+import DirectionsTile from './DirectionsTile'
 import DescriptionTile from './DescriptionTile'
 import FeatureButtonsTile from './FeatureButtonsTile'
 import FooterTile from './FooterTile'
@@ -82,6 +83,8 @@ export default function TilePreview({
         return <TimerTile settings={tile.settings as any} preview eventDate={timerDate} eventTime={eventTime} eventSlug={eventSlug} eventTitle={eventTitle} />
       case 'event-details':
         return <EventDetailsTile settings={tile.settings as any} preview eventSlug={eventSlug} eventTitle={eventTitle} eventDate={eventDate} eventTimezone={eventTimezone} />
+      case 'directions':
+        return <DirectionsTile settings={tile.settings as any} preview />
       case 'description':
         return <DescriptionTile settings={tile.settings as any} preview />
       case 'feature-buttons':

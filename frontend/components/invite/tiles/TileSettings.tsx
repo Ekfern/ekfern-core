@@ -7,6 +7,7 @@ import TitleTileSettings from './TitleTileSettings'
 import ImageTileSettings from './ImageTileSettings'
 import TimerTileSettings from './TimerTileSettings'
 import EventDetailsTileSettings from './EventDetailsTileSettings'
+import DirectionsTileSettings from './DirectionsTileSettings'
 import DescriptionTileSettings from './DescriptionTileSettings'
 import FeatureButtonsTileSettings from './FeatureButtonsTileSettings'
 import FooterTileSettings from './FooterTileSettings'
@@ -30,6 +31,7 @@ const TILE_LABELS: Record<TileType, string> = {
   'design': 'Design',
   'timer': 'Timer',
   'event-details': 'Event Details',
+  'directions': 'Directions',
   'description': 'Description',
   'feature-buttons': 'Feature Buttons',
   'footer': 'Footer',
@@ -68,6 +70,8 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
         return <TimerTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
       case 'event-details':
         return <EventDetailsTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
+      case 'directions':
+        return <DirectionsTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
       case 'description':
         return <DescriptionTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
       case 'feature-buttons':

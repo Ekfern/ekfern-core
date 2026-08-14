@@ -6,7 +6,6 @@ import { EventDetailsTileSettings } from '@/lib/invite/schema'
 import { getTimezoneLabel } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
 import { getAutomaticLabelColor } from '@/lib/invite/colorUtils'
-import { isValidMapUrl, getEmbedUrl, canShowMap, generateMapUrlFromLocation, generateMapUrlFromCoordinates } from '@/lib/invite/mapUtils'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 
 export interface EventDetailsTileProps {
@@ -362,11 +361,6 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                       </div>
                     </div>
                     {settings.location && (() => {
-                      let mapUrl = settings.mapUrl
-                      if (settings.coordinates) {
-                        mapUrl = generateMapUrlFromCoordinates(settings.coordinates.lat, settings.coordinates.lng)
-                      }
-                      const canDisplay = canShowMap(settings)
                       return (
                         <div className="space-y-2">
                           <div
@@ -374,55 +368,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                             style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
                           >
                             <span>{settings.location}</span>
-                            {canDisplay && mapUrl && (
-                              <a
-                                href={mapUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 transition-colors ml-2"
-                                aria-label="Open location in maps"
-                              >
-                                <MapPin className="w-4 h-4 text-gray-600" />
-                              </a>
-                            )}
                           </div>
-                          {canDisplay && settings.showMap && mapUrl && isValidMapUrl(mapUrl) && (() => {
-                            const embedUrl = getEmbedUrl(mapUrl, settings.coordinates, settings.mapZoom)
-                            if (embedUrl) {
-                              const mapBorderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
-                              const mapBorderWidth = settings.borderWidth || 1
-                              const mapBackgroundColor = settings.backgroundColor || '#FFFFFF'
-                              const mapBorderRadius = settings.borderRadius ?? 8
-                              return (
-                                <div className="mt-6">
-                                  <div
-                                    className="w-full rounded-xl overflow-hidden"
-                                    style={{
-                                      border: `${mapBorderWidth * 2}px solid ${mapBorderColor}`,
-                                      borderRadius: `${mapBorderRadius}px`,
-                                      backgroundColor: mapBackgroundColor,
-                                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-                                    }}
-                                  >
-                                    <div className="relative">
-                                      <iframe
-                                        key={`map-${settings.mapZoom ?? 15}-${embedUrl}`}
-                                        src={embedUrl}
-                                        width="100%"
-                                        height="400"
-                                        style={{ border: 0 }}
-                                        allowFullScreen
-                                        loading="lazy"
-                                        referrerPolicy="no-referrer-when-downgrade"
-                                        title="Event location map"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            }
-                            return null
-                          })()}
                         </div>
                       )
                     })()}
@@ -479,14 +425,6 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   </div>
                 )}
                 {settings.location && (() => {
-                  // Determine map URL - prioritize coordinates, then mapUrl
-                  let mapUrl = settings.mapUrl
-                  if (settings.coordinates) {
-                    mapUrl = generateMapUrlFromCoordinates(settings.coordinates.lat, settings.coordinates.lng)
-                  }
-
-                  // Check if map can be shown (location must be verified)
-                  const canDisplay = canShowMap(settings)
 
                   return (
                     <div className="space-y-2">
@@ -507,78 +445,9 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                         }}
                       >
                         <span>{settings.location}</span>
-                        {canDisplay && mapUrl && (
-                          <a
-                            href={mapUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 transition-colors ml-2"
-                            aria-label="Open location in maps"
-                          >
-                            <MapPin className="w-4 h-4 text-gray-600" />
-                          </a>
-                        )}
                       </div>
 
                       {/* Embedded Map - only show if verified, enabled, and valid */}
-                      {canDisplay && settings.showMap && mapUrl && isValidMapUrl(mapUrl) && (() => {
-                        const embedUrl = getEmbedUrl(mapUrl, settings.coordinates, settings.mapZoom)
-
-                        if (embedUrl) {
-                          // Get border settings to match tile styling
-                          const mapBorderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
-                          const mapBorderWidth = settings.borderWidth || 1
-                          const mapBackgroundColor = settings.backgroundColor || '#FFFFFF'
-                          const mapBorderRadius = settings.borderRadius ?? 8
-
-                          return (
-                            <div className="mt-6">
-                              {/* Map container with enhanced styling */}
-                              <div
-                                className="w-full rounded-xl overflow-hidden"
-                                style={{
-                                  border: `${mapBorderWidth * 2}px solid ${mapBorderColor}`,
-                                  borderRadius: `${mapBorderRadius}px`,
-                                  backgroundColor: mapBackgroundColor,
-                                  boxShadow: `0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)`,
-                                }}
-                              >
-                                <div className="relative">
-                                  <iframe
-                                    key={`map-${settings.mapZoom ?? 15}-${embedUrl}`}
-                                    src={embedUrl}
-                                    width="100%"
-                                    height="400"
-                                    style={{ border: 0 }}
-                                    allowFullScreen
-                                    loading="lazy"
-                                    referrerPolicy="no-referrer-when-downgrade"
-                                    title="Event location map"
-                                    className="w-full"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        }
-
-                        // If URL is valid but not embeddable (e.g., Apple Maps, short links), show helpful message
-                        return (
-                          <div className="mt-4 p-3 bg-gray-50 rounded border border-gray-200">
-                            <p className="text-xs text-gray-600 text-center">
-                              Map preview not available for this link type.
-                              <a
-                                href={mapUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline ml-1"
-                              >
-                                Open in maps
-                              </a>
-                            </p>
-                          </div>
-                        )
-                      })()}
                     </div>
                   )
                 })()}
@@ -744,14 +613,6 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           </p>
         )}
         {settings.location && (() => {
-          // Determine map URL - prioritize coordinates, then mapUrl
-          let mapUrl = settings.mapUrl
-          if (settings.coordinates) {
-            mapUrl = generateMapUrlFromCoordinates(settings.coordinates.lat, settings.coordinates.lng)
-          }
-
-          // Check if map can be shown (location must be verified)
-          const canDisplay = canShowMap(settings)
 
           return (
             <div>
@@ -777,58 +638,6 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
               </p>
 
               {/* Embedded Map - only show if verified, enabled, and valid */}
-              {canDisplay && settings.showMap && mapUrl && isValidMapUrl(mapUrl) && (() => {
-                const embedUrl = getEmbedUrl(mapUrl, settings.coordinates, settings.mapZoom)
-
-                if (embedUrl) {
-                  return (
-                    <div className="mt-4">
-                      {/* Map container with enhanced styling */}
-                      <div
-                        className="w-full rounded-xl overflow-hidden"
-                        style={{
-                          border: `${borderWidth * 2}px solid ${borderColor}`,
-                          borderRadius: `${borderRadius}px`,
-                          backgroundColor: backgroundColor,
-                          boxShadow: `0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)`,
-                        }}
-                      >
-                        <div className="relative">
-                          <iframe
-                            key={`map-${settings.mapZoom ?? 15}-${embedUrl}`}
-                            src={embedUrl}
-                            width="100%"
-                            height="350"
-                            style={{ border: 0 }}
-                            allowFullScreen
-                            loading="lazy"
-                            referrerPolicy="no-referrer-when-downgrade"
-                            title="Event location map"
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )
-                }
-
-                // If URL is valid but not embeddable (e.g., Apple Maps, short links), show helpful message
-                return (
-                  <div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200">
-                    <p className="text-xs text-gray-600 text-center">
-                      Map preview not available for this link type.
-                      <a
-                        href={mapUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline ml-1"
-                      >
-                        Open in maps
-                      </a>
-                    </p>
-                  </div>
-                )
-              })()}
             </div>
           )
         })()}
