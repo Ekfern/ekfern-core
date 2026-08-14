@@ -16,7 +16,7 @@ from .views import (
     ses_webhook, email_click_redirect,
     booking_schedule_detail, booking_slots_collection, booking_slot_detail,
     booking_slots_reorder, public_booking_calendar, public_booking_slots_by_date,
-    public_rsvp_sub_events, public_rsvp_config, public_verify_phone,
+    public_rsvp_sub_events, public_rsvp_config, public_verify_phone, place_suggest,
     create_slot_booking, host_slot_bookings, host_update_slot_booking,
     host_move_slot_booking, host_override_slot_booking_capacity,
 )
@@ -133,6 +133,7 @@ urlpatterns = [
     path('<int:event_id>/guest-segments/<int:pk>/', GuestSegmentViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='event-guest-segment-detail'),
     # WhatsApp global endpoints
     path('whatsapp/webhook/', whatsapp_webhook, name='whatsapp-webhook'),
+    path('places/suggest/', place_suggest, name='place-suggest'),
     path('waitlist/', join_waitlist, name='join-waitlist'),
     path('whatsapp/status/', whatsapp_status, name='whatsapp-status'),
     path('whatsapp/test-send/', whatsapp_test_send, name='whatsapp-test-send'),

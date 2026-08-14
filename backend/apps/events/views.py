@@ -4914,6 +4914,26 @@ def public_rsvp_sub_events(request, slug):
     return Response({'results': SubEventSerializer(queryset, many=True).data})
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def place_suggest(request):
+    """
+    Address suggestions for the invite editor.
+
+    Host-only: this is an authoring aid, never called from a guest's invitation,
+    so the volume is a handful of lookups per host rather than one per visitor.
+    Always 200 - an empty list means "no suggestions", whether that is because
+    nothing matched or because the lookup service is unreachable, and the editor
+    falls back to a plain text field either way.
+    """
+    from .services.places import ATTRIBUTION, search_places
+
+    results = search_places(request.query_params.get('q', ''))
+    response = Response({'results': results, 'attribution': ATTRIBUTION})
+    response['Cache-Control'] = 'private, max-age=300'
+    return response
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def public_verify_phone(request, slug):

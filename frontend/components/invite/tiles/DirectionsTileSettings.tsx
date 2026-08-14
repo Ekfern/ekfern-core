@@ -1,7 +1,11 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { DirectionsTileSettings } from '@/lib/invite/schema'
+import { searchPlaces, type PlaceSuggestion } from '@/lib/invite/places'
+
+/** Long enough that a host stops typing, short enough to feel immediate. */
+const SUGGEST_DEBOUNCE_MS = 300
 
 const LAT_RANGE = 90
 const LNG_RANGE = 180
@@ -61,6 +65,74 @@ export default function DirectionsTileSettings({
     // A half-filled or invalid pair is left alone until it becomes usable.
   }
 
+  // --- address suggestions -------------------------------------------------
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
+  const [attribution, setAttribution] = useState('')
+  const [highlighted, setHighlighted] = useState(-1)
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  // Set while a suggestion is being applied, so the resulting value change does
+  // not immediately search for what the host just picked.
+  const justPicked = useRef(false)
+
+  useEffect(() => {
+    const query = settings.mapUrl || ''
+    if (justPicked.current) {
+      justPicked.current = false
+      return
+    }
+    // A pasted link is already a destination; there is nothing to suggest.
+    if (/^https?:\/\//i.test(query.trim()) || query.trim().length < 3) {
+      setSuggestions([])
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      const { results, attribution: credit } = await searchPlaces(query, controller.signal)
+      setSuggestions(results)
+      setAttribution(credit)
+      setHighlighted(-1)
+      setSuggestOpen(results.length > 0)
+    }, SUGGEST_DEBOUNCE_MS)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [settings.mapUrl])
+
+  const applySuggestion = (suggestion: PlaceSuggestion) => {
+    justPicked.current = true
+    setLatText(suggestion.lat.toString())
+    setLngText(suggestion.lng.toString())
+    // Both halves of the address story at once: the words a guest reads and the
+    // point the map pins. Manual entry writes the same two fields.
+    onChange({
+      ...settings,
+      mapUrl: suggestion.label,
+      coordinates: { lat: suggestion.lat, lng: suggestion.lng },
+    })
+    setSuggestions([])
+    setSuggestOpen(false)
+    setHighlighted(-1)
+  }
+
+  const onAddressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!suggestOpen || suggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlighted((i) => (i + 1) % suggestions.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlighted((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
+    } else if (e.key === 'Enter' && highlighted >= 0) {
+      e.preventDefault()
+      applySuggestion(suggestions[highlighted])
+    } else if (e.key === 'Escape') {
+      setSuggestOpen(false)
+    }
+  }
+
   const bothBlank = !latText.trim() && !lngText.trim()
   const latValid = parseCoordinate(latText, LAT_RANGE) !== null
   const lngValid = parseCoordinate(lngText, LNG_RANGE) !== null
@@ -71,20 +143,63 @@ export default function DirectionsTileSettings({
 
   return (
     <div className="space-y-4">
-      <div>
+      <div className="relative">
         <label htmlFor="directions-address" className="block text-sm font-medium">
           Address or map link *
         </label>
         <input
           id="directions-address"
           type="text"
+          role="combobox"
+          aria-expanded={suggestOpen}
+          aria-controls="directions-suggestions"
+          aria-autocomplete="list"
+          autoComplete="off"
           value={settings.mapUrl || ''}
           onChange={(e) => update({ mapUrl: e.target.value })}
-          placeholder="Enter address, or paste a Google Maps link"
+          onKeyDown={onAddressKeyDown}
+          onFocus={() => setSuggestOpen(suggestions.length > 0)}
+          onBlur={() => window.setTimeout(() => setSuggestOpen(false), 150)}
+          placeholder="Start typing an address or venue"
           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
         />
+
+        {suggestOpen && suggestions.length > 0 && (
+          <ul
+            id="directions-suggestions"
+            role="listbox"
+            className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg"
+          >
+            {suggestions.map((suggestion, index) => (
+              <li key={`${suggestion.lat},${suggestion.lng},${suggestion.label}`} role="option" aria-selected={index === highlighted}>
+                <button
+                  type="button"
+                  // onMouseDown, not onClick: blur fires first and would close
+                  // the list before a click ever landed.
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    applySuggestion(suggestion)
+                  }}
+                  onMouseEnter={() => setHighlighted(index)}
+                  className={`block w-full px-3 py-2 text-left text-sm ${
+                    index === highlighted ? 'bg-gray-100' : 'bg-white'
+                  }`}
+                >
+                  {suggestion.label}
+                </button>
+              </li>
+            ))}
+            {attribution && (
+              <li className="border-t border-gray-100 px-3 py-1.5 text-[11px] text-gray-400">
+                {attribution}
+              </li>
+            )}
+          </ul>
+        )}
+
         <p className="mt-1 text-xs text-gray-500">
-          Guests tap the map to open directions in their own map app.
+          Pick a suggestion to pin the exact spot, or paste a map link. Guests tap
+          the map to open directions in their own map app.
         </p>
       </div>
 

@@ -2354,3 +2354,119 @@ class CustomFieldRegistryTests(TestCase):
         resp = self._add('Sneaky')
         self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
         self.assertEqual(CustomField.objects.filter(event=self.event).count(), 0)
+
+
+class PlaceSuggestTestCase(TestCase):
+    """
+    Address lookup for the invite editor.
+
+    The point of the feature is the coordinates: a host picks a suggestion and
+    the map pins the venue exactly, instead of us reverse-engineering a place
+    from pasted text. These cover the parts that must not surprise anyone - it
+    is host-only, it never raises when the third party misbehaves, and it does
+    not hammer a free community service.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='places@test.com', name='Places Host')
+        self.url = '/api/events/places/suggest/'
+
+    def _photon_payload(self):
+        return {
+            'features': [
+                {
+                    'geometry': {'type': 'Point', 'coordinates': [72.8330431, 18.921876]},
+                    'properties': {
+                        'name': 'The Taj Mahal Palace',
+                        'city': 'Mumbai',
+                        'state': 'Maharashtra',
+                        'country': 'India',
+                    },
+                }
+            ]
+        }
+
+    def test_requires_a_host(self):
+        """An authoring aid, never reachable from a guest's invitation."""
+        self.assertEqual(self.client.get(self.url, {'q': 'taj'}).status_code, 401)
+
+    def test_returns_label_and_coordinates(self):
+        from unittest.mock import Mock, patch
+
+        self.client.force_authenticate(user=self.host)
+        with patch('apps.events.services.places.requests.get') as get:
+            get.return_value = Mock(
+                status_code=200,
+                json=lambda: self._photon_payload(),
+                raise_for_status=lambda: None,
+            )
+            r = self.client.get(self.url, {'q': 'The Taj Mahal Palace Mumbai'})
+
+        self.assertEqual(r.status_code, 200)
+        result = r.data['results'][0]
+        self.assertIn('The Taj Mahal Palace', result['label'])
+        # GeoJSON is [lng, lat]; getting this backwards puts venues in the sea.
+        self.assertAlmostEqual(result['lat'], 18.921876)
+        self.assertAlmostEqual(result['lng'], 72.8330431)
+        self.assertTrue(r.data['attribution'])
+
+    def test_a_dead_lookup_service_is_not_an_error(self):
+        """The editor falls back to a plain text field; it must not break."""
+        from unittest.mock import patch
+        import requests as requests_lib
+
+        self.client.force_authenticate(user=self.host)
+        with patch('apps.events.services.places.requests.get',
+                   side_effect=requests_lib.Timeout('too slow')):
+            r = self.client.get(self.url, {'q': 'somewhere'})
+
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['results'], [])
+
+    def test_short_queries_never_reach_the_service(self):
+        from unittest.mock import patch
+
+        self.client.force_authenticate(user=self.host)
+        with patch('apps.events.services.places.requests.get') as get:
+            r = self.client.get(self.url, {'q': 'ta'})
+        self.assertEqual(r.data['results'], [])
+        get.assert_not_called()
+
+    def test_repeat_queries_are_served_from_cache(self):
+        """Keystroke prefixes repeat constantly; we do not re-ask each time."""
+        from unittest.mock import Mock, patch
+
+        self.client.force_authenticate(user=self.host)
+        with patch('apps.events.services.places.requests.get') as get:
+            get.return_value = Mock(
+                status_code=200,
+                json=lambda: self._photon_payload(),
+                raise_for_status=lambda: None,
+            )
+            self.client.get(self.url, {'q': 'The Taj Mahal Palace'})
+            self.client.get(self.url, {'q': 'the taj mahal palace'})  # case-insensitive
+            self.assertEqual(get.call_count, 1)
+
+    def test_malformed_features_are_skipped_not_fatal(self):
+        from unittest.mock import Mock, patch
+
+        self.client.force_authenticate(user=self.host)
+        payload = {'features': [
+            {'geometry': {'coordinates': []}, 'properties': {'name': 'Broken'}},
+            self._photon_payload()['features'][0],
+        ]}
+        with patch('apps.events.services.places.requests.get') as get:
+            get.return_value = Mock(status_code=200, json=lambda: payload, raise_for_status=lambda: None)
+            r = self.client.get(self.url, {'q': 'mixed results'})
+
+        self.assertEqual(len(r.data['results']), 1)
+        self.assertIn('The Taj Mahal Palace', r.data['results'][0]['label'])
+
+    def test_label_does_not_repeat_a_value(self):
+        """Photon repeats values across fields; a label should read like an address."""
+        from apps.events.services.places import _label
+
+        label = _label({'name': 'Mumbai', 'city': 'Mumbai', 'state': 'Maharashtra', 'country': 'India'})
+        self.assertEqual(label, 'Mumbai, Maharashtra, India')
