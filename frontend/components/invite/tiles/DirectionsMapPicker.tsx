@@ -188,6 +188,25 @@ export default function DirectionsMapPicker({
           // Leaflet needs a real height before it can size its tiles.
           style={{ minHeight: '208px' }}
         />
+        {treatment.scorch && (
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              boxShadow: treatment.scorch,
+              ...(treatment.tornEdges
+                ? {
+                    maskImage: MAP_EDGE_MASK,
+                    WebkitMaskImage: MAP_EDGE_MASK,
+                    maskSize: '100% 100%',
+                    WebkitMaskSize: '100% 100%',
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskRepeat: 'no-repeat',
+                  }
+                : null),
+            }}
+            aria-hidden="true"
+          />
+        )}
         {treatment.vignette && (
           <div
             className="pointer-events-none absolute inset-0 rounded-md"

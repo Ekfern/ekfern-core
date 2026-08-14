@@ -31,6 +31,12 @@ export interface MapStyleDefinition {
   filter?: string
   texture?: TextureType
   textureIntensity?: number
+  /**
+   * The edge, burnt inwards: near-black where the paper tore, then umber, then
+   * a sun-bleached amber bleeding into the sheet. Layered as inset shadows so
+   * the whole gradient is clipped by the tear and follows every notch of it.
+   */
+  scorch?: string
   /** Whether the filter chain references the sharpen convolution. */
   sharpen?: boolean
   /** Darkens and warms towards the edges, the way old paper ages inwards. */
@@ -102,6 +108,12 @@ export const MAP_STYLES: Record<MapStyle, MapStyleDefinition> = {
     vignette:
       'radial-gradient(115% 95% at 50% 45%, rgba(120,72,28,0) 28%, rgba(96,55,20,0.42) 72%, rgba(58,31,9,0.72) 100%)',
     tornEdges: true,
+    scorch: [
+      'inset 0 0 10px 2px rgba(24,10,2,0.9)',
+      'inset 0 0 22px 6px rgba(120,52,10,0.72)',
+      'inset 0 0 46px 14px rgba(196,110,32,0.42)',
+      'inset 0 0 92px 30px rgba(214,150,70,0.22)',
+    ].join(', '),
   },
   muted: {
     label: 'Muted',

@@ -110,53 +110,81 @@ export default function StaticTileMap({
   return (
     <div
       className="relative w-full overflow-hidden rounded-xl"
-      style={{ height, background: treatment.tornEdges ? '#efe2cc' : '#f3f4f6' }}
+      // Nothing behind a torn sheet: the invitation shows through where the
+      // paper is gone.
+      style={{ height, background: treatment.tornEdges ? 'transparent' : '#f3f4f6' }}
       role="img"
       aria-label={label ? `Map showing ${label}` : 'Map showing the event location'}
     >
       {treatment.sharpen && <MapSharpenFilter />}
-      {/* The tile grid is centred on the venue and clipped by the container. */}
+
+      {/* Everything that makes up the sheet lives inside one masked layer, so
+          the tear removes all of it at once. Vignette and texture used to sit
+          outside the mask and painted across the torn-away area, which is why
+          the edge read as a filter rather than as paper. */}
       <div
-        className="absolute left-1/2 top-0"
-        // The treatment sits on the tiles alone. Filtering the container would
-        // take the pin and the attribution with it.
-        style={{
-          width,
-          height,
-          transform: 'translateX(-50%)',
-          filter: treatment.filter,
-          // Masking the tiles rather than the container keeps the pin, the
-          // attribution and any hit area outside the torn edge intact.
-          ...(treatment.tornEdges
-            ? {
-                maskImage: MAP_EDGE_MASK,
-                WebkitMaskImage: MAP_EDGE_MASK,
-                maskSize: '100% 100%',
-                WebkitMaskSize: '100% 100%',
-                maskRepeat: 'no-repeat',
-                WebkitMaskRepeat: 'no-repeat',
-              }
-            : null),
-        }}
+        className="absolute inset-0"
+        // The shadow is applied to the parent of the masked layer on purpose:
+        // drop-shadow follows the child's alpha, so it traces the ragged
+        // outline instead of drawing a rectangle around it.
+        style={
+          treatment.tornEdges
+            ? { filter: 'drop-shadow(0 1px 1px rgba(38,20,6,.55)) drop-shadow(0 6px 10px rgba(38,20,6,.35))' }
+            : undefined
+        }
       >
-        {tiles}
-      </div>
-
-      {treatment.vignette && (
         <div
-          className="pointer-events-none absolute inset-0"
-          style={{ background: treatment.vignette }}
-          aria-hidden="true"
-        />
-      )}
+          className="absolute left-1/2 top-0"
+          style={{
+            width,
+            height,
+            transform: 'translateX(-50%)',
+            ...(treatment.tornEdges
+              ? {
+                  maskImage: MAP_EDGE_MASK,
+                  WebkitMaskImage: MAP_EDGE_MASK,
+                  maskSize: '100% 100%',
+                  WebkitMaskSize: '100% 100%',
+                  maskRepeat: 'no-repeat',
+                  WebkitMaskRepeat: 'no-repeat',
+                }
+              : null),
+          }}
+        >
+          {/* The colour treatment stays on the tiles alone, so the scorching
+              and the paper above it are not run through it a second time. */}
+          <div className="absolute inset-0" style={{ filter: treatment.filter }}>
+            {tiles}
+          </div>
 
-      {treatment.texture && (
-        // The invitation's own paper, over the map, so it reads as printed
-        // rather than pasted on. CSS-generated - no image is fetched.
-        <div className="pointer-events-none absolute inset-0">
-          <TextureOverlay type={treatment.texture} intensity={treatment.textureIntensity ?? 30} />
+          {treatment.vignette && (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ background: treatment.vignette }}
+              aria-hidden="true"
+            />
+          )}
+
+          {treatment.scorch && (
+            // Sun and fire, in that order inwards. Inside the mask, so the
+            // whole gradient is clipped to the tear and follows every notch of
+            // it rather than ringing a neat rectangle.
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ boxShadow: treatment.scorch }}
+              aria-hidden="true"
+            />
+          )}
+
+          {treatment.texture && (
+            // The invitation's own paper, over the map, so it reads as printed
+            // rather than pasted on. CSS-generated - no image is fetched.
+            <div className="pointer-events-none absolute inset-0">
+              <TextureOverlay type={treatment.texture} intensity={treatment.textureIntensity ?? 30} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* The venue, at the exact centre - computed, not drawn by a map engine. */}
       <span
