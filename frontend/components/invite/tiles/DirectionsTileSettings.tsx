@@ -2,7 +2,12 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import type { DirectionsTileSettings } from '@/lib/invite/schema'
+import dynamic from 'next/dynamic'
 import { searchPlaces, type PlaceSuggestion } from '@/lib/invite/places'
+
+// Editor-only, and only once a pin exists: Leaflet never reaches a guest's
+// invitation, and never loads for a host who has not set a location.
+const DirectionsMapPicker = dynamic(() => import('./DirectionsMapPicker'), { ssr: false })
 
 /**
  * What the last lookup concluded. Coordinates are offered as an answer to a
@@ -224,6 +229,19 @@ export default function DirectionsTileSettings({
       {/* Coordinates: the way in for places an address lookup does not know -
           a farm, a new venue, a private address - and the exact pin for anywhere
           else. Both the map and the tap-through link prefer these over text. */}
+      {isPinned && (
+        <DirectionsMapPicker
+          lat={settings.coordinates!.lat}
+          lng={settings.coordinates!.lng}
+          zoom={settings.zoom ?? 16}
+          onMove={(lat, lng) => {
+            setLatText(lat.toString())
+            setLngText(lng.toString())
+            update({ coordinates: { lat, lng } })
+          }}
+        />
+      )}
+
       {showCoordinates && (
       <div className="rounded-md border border-gray-200 p-3">
         <p className="text-sm font-medium">
@@ -238,7 +256,7 @@ export default function DirectionsTileSettings({
             ? 'You can still pin the exact spot with coordinates.'
             : lookupState === 'no-match'
             ? 'Pin the exact spot with coordinates instead. Right-click the place in Google Maps to copy them.'
-            : 'These coordinates decide where the map pins, ahead of the address above.'}
+            : 'Set by the map above. Type them in if you already know the exact numbers.'}
         </p>
 
         <div className="mt-2 grid grid-cols-2 gap-2">
