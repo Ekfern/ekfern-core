@@ -3,12 +3,10 @@
 import React from 'react'
 import { MapPin, ArrowUpRight } from 'lucide-react'
 import { DirectionsTileSettings } from '@/lib/invite/schema'
-import { getDirectionsEmbedUrl, getDirectionsHref } from '@/lib/invite/mapUtils'
+import { getDestinationLabel, getDirectionsEmbedUrl, getDirectionsHref } from '@/lib/invite/mapUtils'
 
 export interface DirectionsTileProps {
   settings: DirectionsTileSettings
-  /** Falls back to the event's location when the tile has no address line of its own. */
-  eventLocation?: string
   preview?: boolean
 }
 
@@ -29,27 +27,23 @@ export interface DirectionsTileProps {
  * own map app. Nobody wants to pinch-zoom a 260px window; they want the venue
  * in the app that knows where they are.
  */
-export default function DirectionsTile({
-  settings,
-  eventLocation,
-  preview = false,
-}: DirectionsTileProps) {
+export default function DirectionsTile({ settings, preview = false }: DirectionsTileProps) {
   const embedUrl = getDirectionsEmbedUrl(settings.mapUrl, settings.coordinates, settings.zoom)
   const directionsHref = getDirectionsHref(settings.mapUrl, settings.coordinates)
   const heading = settings.heading ?? 'Getting there'
-  const addressLine = settings.addressLine || eventLocation || ''
+  // Always the destination, never a value borrowed from elsewhere: captioning
+  // an Agra map with the event's "Mumbai" is worse than no caption at all.
+  const addressLine = settings.addressLine?.trim() || getDestinationLabel(settings.mapUrl, settings.coordinates) || ''
   const height = settings.height ?? 260
   const textAlign = settings.textAlign ?? 'center'
 
-  // Nothing to point at yet - in the editor say so, on a live invite stay silent.
-  if (!embedUrl && !directionsHref) {
-    if (!preview) return null
-    return (
-      <div className="w-full px-4 py-6 text-center text-sm" style={{ color: 'var(--theme-muted)' }}>
-        Add an address to show the map.
-      </div>
-    )
-  }
+  // Nothing to point at yet, so render nothing - anywhere.
+  //
+  // `preview` is set by TilePreview for the live invitation as well as the
+  // editor, so a prompt here would be shown to guests. The host can already see
+  // the tile and its empty address field in the settings panel; a guest should
+  // simply see no map section at all.
+  if (!embedUrl && !directionsHref) return null
 
   const body = (
     <>

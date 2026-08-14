@@ -83,15 +83,8 @@ export default function TilePreview({
         return <TimerTile settings={tile.settings as any} preview eventDate={timerDate} eventTime={eventTime} eventSlug={eventSlug} eventTitle={eventTitle} />
       case 'event-details':
         return <EventDetailsTile settings={tile.settings as any} preview eventSlug={eventSlug} eventTitle={eventTitle} eventDate={eventDate} eventTimezone={eventTimezone} />
-      case 'directions': {
-        // Falls back to whatever the Event Details tile calls the venue, so the
-        // address line reads sensibly before the host writes one.
-        const detailsTile = allTiles.find(t => t.type === 'event-details')
-        const venue = detailsTile
-          ? (detailsTile.settings as import('@/lib/invite/schema').EventDetailsTileSettings).location
-          : undefined
-        return <DirectionsTile settings={tile.settings as any} preview eventLocation={venue} />
-      }
+      case 'directions':
+        return <DirectionsTile settings={tile.settings as any} preview />
       case 'description':
         return <DescriptionTile settings={tile.settings as any} preview />
       case 'feature-buttons':

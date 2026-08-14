@@ -34,8 +34,6 @@ function parseCoordinate(value: string, limit: number): number | null {
 interface DirectionsTileSettingsProps {
   settings: DirectionsTileSettings
   onChange: (settings: DirectionsTileSettings) => void
-  /** Shown as the placeholder for the address line, so the fallback is visible. */
-  eventLocation?: string
 }
 
 /**
@@ -46,11 +44,7 @@ interface DirectionsTileSettingsProps {
  * is the first and only required thing, and everything else has a sensible
  * default.
  */
-export default function DirectionsTileSettings({
-  settings,
-  onChange,
-  eventLocation,
-}: DirectionsTileSettingsProps) {
+export default function DirectionsTileSettings({ settings, onChange }: DirectionsTileSettingsProps) {
   // A page can hold several Directions tiles, and more than one can be open at
   // once. Fixed ids would collide across them, pointing every label at the first
   // tile's inputs.
@@ -358,7 +352,7 @@ export default function DirectionsTileSettings({
           type="text"
           value={settings.addressLine ?? ''}
           onChange={(e) => update({ addressLine: e.target.value })}
-          placeholder={eventLocation || 'Uses your event location'}
+          placeholder="Uses the address above"
           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
         />
       </div>

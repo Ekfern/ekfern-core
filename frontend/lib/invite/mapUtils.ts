@@ -369,3 +369,29 @@ export function getDirectionsEmbedUrl(
 
   return `https://www.google.com/maps?q=${encodeURIComponent(destination)}&z=${zoom}&output=embed`
 }
+
+/**
+ * A human-readable name for wherever the map is pointing.
+ *
+ * Used as the caption under the map, so it must describe the destination and
+ * nothing else. Borrowing an unrelated value here - the event's venue name, say
+ * - produces a map of one city labelled with another.
+ *
+ * Returns null when the destination can only be expressed as coordinates:
+ * "18.92,72.83" is not a caption, and the caller says something neutral instead.
+ */
+export function getDestinationLabel(
+  mapUrl?: string,
+  coordinates?: { lat: number; lng: number },
+): string | null {
+  const raw = (mapUrl || '').trim()
+
+  // Plain text the host typed or picked is already the best label.
+  if (raw && !/^https?:\/\//i.test(raw) && !raw.includes('<iframe')) return raw
+
+  // A link: dig out the place name, but never fall back to its coordinates.
+  const fromLink = getDestinationQuery(raw || undefined, undefined)
+  if (fromLink && !/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(fromLink)) return fromLink
+
+  return null
+}
