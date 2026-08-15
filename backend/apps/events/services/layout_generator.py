@@ -455,7 +455,7 @@ def _tile_greeting_card(*, order: int, src: str, overlays: list[dict]) -> dict:
     fit = "cover" if overlays else "contain"
     return {
         "id": _new_id("tile-design"),
-        "type": "design",
+        "type": "poster",
         "enabled": True,
         "order": order,
         "settings": {

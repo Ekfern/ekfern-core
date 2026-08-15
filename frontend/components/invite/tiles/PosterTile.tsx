@@ -1,38 +1,36 @@
+'use client'
+
 import React from 'react'
-import { DesignTileSettings } from '@/lib/invite/schema'
+import { ImagePlus } from 'lucide-react'
+import { PosterTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 
-interface DesignTileSSRProps {
-  settings: DesignTileSettings
-  hasTitleOverlay?: boolean
+export interface PosterTileProps {
+  settings: PosterTileSettings
+  preview?: boolean
 }
 
-/**
- * Server-safe version of DesignTile.
- * No client-side hooks. Renders a 9:16 card with image or gradient background
- * and static text overlays using absolute positioning.
- */
-export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
+export default function PosterTile({ settings, preview: _preview = false }: PosterTileProps) {
   const hasImage = !!settings.src
   const hasGradient = !!settings.backgroundGradient
-
-  if (!hasImage && !hasGradient) {
-    return null
-  }
-
+  const hasTextOverlays = settings.textOverlays && settings.textOverlays.length > 0
   const isFullBleed = settings.frameMode === 'full-bleed'
   const fullBleedAspectRatio = settings.aspectRatio || '4 / 5'
   const outerClassName = 'w-full flex justify-center'
-  // Keep in sync with DesignTile.tsx (client) — same cap for the same reason,
-  // so the server-rendered first paint and the client hydration agree and
-  // there's no visible size jump when JS takes over.
+  // Full-bleed has no width cap on its own — on a wide desktop window it would
+  // stretch edge to edge and, since it keeps its aspect ratio, get extremely
+  // tall with it (a 4:5 hero at 1920px wide is 2400px tall). max-w-4xl keeps
+  // it clearly bigger than the ~672px text column below (max-w-2xl on the
+  // other tiles) so it still reads as the bold hero moment, without the
+  // runaway height on large screens. Mobile is unaffected — phone widths
+  // never approach this cap.
   const boxClassName = isFullBleed ? 'relative w-full max-w-4xl overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
   const boxStyle = isFullBleed ? { aspectRatio: fullBleedAspectRatio } : { aspectRatio: '9 / 16' }
 
   const renderTextOverlays = () => {
-    if (!settings.textOverlays || settings.textOverlays.length === 0) return null
-    return settings.textOverlays.map((overlay) => {
+    if (!hasTextOverlays) return null
+    return settings.textOverlays!.map((overlay) => {
       const verticalAlign = overlay.verticalAlign ?? 'middle'
       const justifyContent =
         verticalAlign === 'top' ? 'flex-start' : verticalAlign === 'bottom' ? 'flex-end' : 'center'
@@ -64,7 +62,12 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
               : { minHeight: `${overlay.fontSize * 1.6}px` }),
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
-            textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+            textShadow:
+              (overlay.shadowBlur ?? 4) === 0
+                ? 'none'
+                : `${overlay.shadowX ?? 0}px ${overlay.shadowY ?? 1}px ${overlay.shadowBlur ?? 4}px ${overlay.shadowColor ?? '#000000'}${Math.round((overlay.shadowOpacity ?? 0.8) * 255)
+                  .toString(16)
+                  .padStart(2, '0')}`,
             padding: '2px 4px',
             pointerEvents: 'none',
           }}
@@ -73,6 +76,31 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
         </div>
       )
     })
+  }
+
+  // No image or gradient: still show text overlays (e.g. template with missing asset URL).
+  // In preview, never return null so the tile slot is visible in page-layout / design previews.
+  if (!hasImage && !hasGradient) {
+    if (hasTextOverlays) {
+      return (
+        <div className={outerClassName}>
+          <div className={`${boxClassName} bg-gray-100`} style={boxStyle}>
+            {renderTextOverlays()}
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className={outerClassName}>
+        <div
+          className={`${boxClassName} flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 ${isFullBleed ? '' : 'rounded-xl'} bg-gray-50`}
+          style={boxStyle}
+        >
+          <ImagePlus className="w-10 h-10 text-gray-400" aria-hidden />
+          <p className="text-gray-500 text-sm font-medium">Add your design</p>
+        </div>
+      </div>
+    )
   }
 
   const heroTexture = settings.texture && settings.texture.type !== 'none' && (
@@ -84,6 +112,7 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
     />
   )
 
+  // Gradient-only card (no image)
   if (!hasImage && hasGradient) {
     return (
       <div className={outerClassName}>
@@ -95,13 +124,14 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
     )
   }
 
-  // Mirror GreetingCardTile.tsx: 'contain' lets auto-generated cards with
-  // off-9:16 aspects render without side-cropping the title.
+  // Image card (with optional text overlays).
+  // imageFit defaults to 'cover' (fills frame, may crop sides) for back-compat
+  // with cards designed in the 9:16 card editor. Auto-generated layouts pass
+  // 'contain' so a user-uploaded card with a non-9:16 aspect isn't cropped.
   const fit = settings.imageFit === 'contain' ? 'contain' : 'cover'
   return (
     <div className={outerClassName}>
       <div className={boxClassName} style={boxStyle}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={convertToCloudFrontUrl(settings.src!)}
           alt="Greeting card"

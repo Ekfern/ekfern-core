@@ -52,7 +52,7 @@ export function enrichConfigWithSampleData(config: InviteConfig): InviteConfig {
  * layout gallery doesn't present a staff-authored companion background as if
  * it were already chosen — that decision belongs to the (later) Design step.
  * Structure, theme, and every other tile's styling is left untouched.
- * `DesignTile` already renders a dashed empty-state box when given no
+ * `PosterTile` already renders a dashed empty-state box when given no
  * image/gradient/overlays, so this alone produces the "add your design here"
  * placeholder. Pure function — never mutates the original config.
  *
@@ -62,10 +62,10 @@ export function enrichConfigWithSampleData(config: InviteConfig): InviteConfig {
  * browsing, the same way page-level customColors.backgroundGradient already is.
  * Only `src` (an actual uploaded photo) is still blanked in that case.
  */
-export function skeletonizeDesignTiles(config: InviteConfig): InviteConfig {
+export function skeletonizePosterTiles(config: InviteConfig): InviteConfig {
   if (!config.tiles?.length) return config
   const tiles = config.tiles.map((tile: Tile) => {
-    if (tile.type !== 'design') return tile
+    if (tile.type !== 'poster') return tile
     const settings = tile.settings as Record<string, unknown>
     if (settings.isLayoutHero) {
       return { ...tile, settings: { ...settings, src: undefined } }
@@ -91,7 +91,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
   const appearance = resolveAppearance(config)
   const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
   const previewConfig = useMemo(
-    () => skeletonizeDesignTiles(enrichConfigWithSampleData(config)),
+    () => skeletonizePosterTiles(enrichConfigWithSampleData(config)),
     [config]
   )
 

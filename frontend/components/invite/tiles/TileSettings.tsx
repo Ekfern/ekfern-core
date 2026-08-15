@@ -12,7 +12,7 @@ import DescriptionTileSettings from './DescriptionTileSettings'
 import FeatureButtonsTileSettings from './FeatureButtonsTileSettings'
 import FooterTileSettings from './FooterTileSettings'
 import EventCarouselTileSettings from './EventCarouselTileSettings'
-import DesignTileSettings from './DesignTileSettings'
+import PosterTileSettings from './PosterTileSettings'
 
 interface TileSettingsProps {
   tile: Tile
@@ -28,7 +28,7 @@ interface TileSettingsProps {
 const TILE_LABELS: Record<TileType, string> = {
   'title': 'Title',
   'image': 'Image',
-  'design': 'Design',
+  'poster': 'Poster',
   'timer': 'Timer',
   'event-details': 'Event Details',
   'directions': 'Directions',
@@ -64,8 +64,8 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
         )
       case 'image':
         return <ImageTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
-      case 'design':
-        return <DesignTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
+      case 'poster':
+        return <PosterTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
       case 'timer':
         return <TimerTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
       case 'event-details':

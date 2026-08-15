@@ -37,7 +37,7 @@ def _tile_design(*, order: int, recipe: dict, preset: dict) -> dict:
         settings["texture"] = texture
     return {
         "id": _new_id("tile-design"),
-        "type": "design",
+        "type": "poster",
         "enabled": True,
         "order": order,
         "settings": settings,
@@ -138,7 +138,7 @@ def _tile_footer(*, order: int, recipe: dict, preset: dict) -> dict:
 
 
 _TILE_BUILDERS = {
-    "design": _tile_design,
+    "poster": _tile_design,
     "title": _tile_title,
     "event-details": _tile_event_details,
     "description": _tile_description,

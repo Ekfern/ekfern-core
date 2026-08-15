@@ -59,10 +59,10 @@ function buildTitleTile(
   }
 }
 
-function buildDesignTile(order: number): Tile {
+function buildPosterTile(order: number): Tile {
   return {
-    id: tileId('design', 'main'),
-    type: 'design',
+    id: tileId('poster', 'main'),
+    type: 'poster',
     enabled: true,
     order,
     settings: {
@@ -113,19 +113,19 @@ const ARCHETYPES: StarterArchetype[] = [
     id: 'starter-card-then-title',
     name: 'Card first',
     description: 'Your design at the top, then a headline and event details.',
-    tileSequence: ['design', 'title', 'event-details', 'feature-buttons'],
+    tileSequence: ['poster', 'title', 'event-details', 'feature-buttons'],
   },
   {
     id: 'starter-title-then-card',
     name: 'Title first',
     description: 'Headline leads, then your design and event details.',
-    tileSequence: ['title', 'design', 'event-details', 'feature-buttons'],
+    tileSequence: ['title', 'poster', 'event-details', 'feature-buttons'],
   },
   {
     id: 'starter-card-banner',
     name: 'Card + title below',
     description: 'Design hero with a compact title band underneath.',
-    tileSequence: ['design', 'title', 'event-details', 'feature-buttons'],
+    tileSequence: ['poster', 'title', 'event-details', 'feature-buttons'],
     titleSize: 'medium',
   },
 ]
@@ -134,8 +134,8 @@ function buildConfigForArchetype(archetype: StarterArchetype, palette: StarterPa
   const tiles: Tile[] = []
   let order = 0
   for (const tileType of archetype.tileSequence) {
-    if (tileType === 'design') {
-      tiles.push(buildDesignTile(order))
+    if (tileType === 'poster') {
+      tiles.push(buildPosterTile(order))
     } else if (tileType === 'title') {
       tiles.push(buildTitleTile(order, palette, { size: archetype.titleSize }))
     } else if (tileType === 'event-details') {

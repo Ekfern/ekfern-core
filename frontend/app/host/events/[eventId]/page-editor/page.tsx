@@ -117,7 +117,7 @@ const DEFAULT_TILES: Tile[] = [
 // The tile types the editor knows how to render. Anything else is legacy/orphan
 // junk in a saved config (renders no label and no settings) and is filtered out.
 const KNOWN_TILE_TYPES = new Set<TileType>([
-  'title', 'image', 'design', 'timer', 'event-details', 'directions',
+  'title', 'image', 'poster', 'timer', 'event-details', 'directions',
   'description', 'feature-buttons', 'footer', 'event-carousel',
 ])
 const isKnownTile = (t: any): t is Tile =>
@@ -590,8 +590,8 @@ export default function DesignInvitationPage(): JSX.Element {
             finalConfig = {
               ...finalConfig,
               tiles: finalConfig.tiles.map((tile) => {
-                if (tile.type !== 'design') return tile
-                const s = tile.settings as import('@/lib/invite/schema').DesignTileSettings
+                if (tile.type !== 'poster') return tile
+                const s = tile.settings as import('@/lib/invite/schema').PosterTileSettings
                 // Only restore from localStorage if the tile has no meaningful content yet
                 const tileHasContent = !!s.src || (s.textOverlays && s.textOverlays.length > 0)
                 if (tileHasContent) return tile
@@ -1275,11 +1275,11 @@ export default function DesignInvitationPage(): JSX.Element {
     // For design tiles, restore saved work from the card studio.
     // Priority: backend saved tile (device-independent) > localStorage > defaults.
     let savedDesignSettings: { src?: string; backgroundGradient?: string; textOverlays: unknown[] } | null = null
-    if (type === 'design' && eventId) {
+    if (type === 'poster' && eventId) {
       try {
         // Fetch backend first — this is the source of truth after auto-save
         const page = await getInvitePage(eventId)
-        const gcTile = page?.config?.tiles?.find((t: { type: string }) => t.type === 'design')
+        const gcTile = page?.config?.tiles?.find((t: { type: string }) => t.type === 'poster')
         const gcSettings = gcTile?.settings as { src?: string; backgroundGradient?: string; textOverlays?: unknown[] } | undefined
         const hasBackendContent = !!gcSettings?.src || (gcSettings?.textOverlays?.length ?? 0) > 0
         if (hasBackendContent) {
@@ -1323,7 +1323,7 @@ export default function DesignInvitationPage(): JSX.Element {
     const defaultSettings: Record<TileType, object> = {
       'title': { text: 'Event Title' },
       'image': { src: '', fitMode: 'fit-to-screen' },
-      'design': savedDesignSettings ?? { backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)', textOverlays: [] },
+      'poster': savedDesignSettings ?? { backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)', textOverlays: [] },
       'timer': {},
       'event-details': { location: '', date: new Date().toISOString().split('T')[0] },
       'directions': { height: 260 },
@@ -1515,10 +1515,10 @@ export default function DesignInvitationPage(): JSX.Element {
                       return
                     }
                     if (event) {
-                      const layoutHasGC = t.config?.tiles?.some((tile: { type: string }) => tile.type === 'design')
+                      const layoutHasGC = t.config?.tiles?.some((tile: { type: string }) => tile.type === 'poster')
 
                       // Warn if the current config has an enabled GC tile but the new layout doesn't
-                      const currentHasEnabledGC = config.tiles?.some(tile => tile.type === 'design' && tile.enabled)
+                      const currentHasEnabledGC = config.tiles?.some(tile => tile.type === 'poster' && tile.enabled)
                       if (currentHasEnabledGC && !layoutHasGC) {
                         const confirmed = confirm(
                           "This page layout doesn't include a design tile. Your design tile will be disabled — you can re-enable it manually from Tile Settings."
@@ -1571,7 +1571,7 @@ export default function DesignInvitationPage(): JSX.Element {
 
   // Derived values for Link Preview Settings
   const designTileForPreview = config.tiles?.find(
-    (t: any) => t.type === 'design' && t.enabled !== false && (t.settings as any)?.src
+    (t: any) => t.type === 'poster' && t.enabled !== false && (t.settings as any)?.src
   )
   const imageTileForPreview = config.tiles?.find(
     (t: any) => t.type === 'image' && t.enabled !== false && (t.settings as any)?.src
@@ -1943,7 +1943,7 @@ export default function DesignInvitationPage(): JSX.Element {
                       <button
                         type="button"
                         onClick={async () => {
-                          const cardTile = config.tiles?.find(t => t.type === 'design')
+                          const cardTile = config.tiles?.find(t => t.type === 'poster')
                           const cardSrc = (cardTile?.settings as any)?.src as string | undefined
                           if (!cardSrc) return
                           const prevState = {

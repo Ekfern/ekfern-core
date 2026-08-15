@@ -261,10 +261,10 @@ export default function InvitePageClient({
           ...(eventData.page_config.cornerDecorations && { cornerDecorations: eventData.page_config.cornerDecorations }),
         }
         
-        // Debug: Log image tile settings when loading public page
-        const imageTile = configWithCustomColors.tiles?.find((t: any) => t.type === 'image' || t.type === 'design')
-        if (imageTile) {
-          logDebug('[Public Invite Page] Image tile loaded')
+        // Debug: note when the poster is present on a public page load
+        const posterTile = configWithCustomColors.tiles?.find((t: any) => t.type === 'poster')
+        if (posterTile) {
+          logDebug('[Public Invite Page] Poster tile loaded')
         }
         
         setEvent(eventData)
@@ -608,7 +608,7 @@ export default function InvitePageClient({
     ...config,
     tiles: config.tiles?.filter((tile) => {
       // Skip image/greeting-card tile if heroSSR is provided
-      if (heroSSR && (tile.type === 'image' || tile.type === 'design')) {
+      if (heroSSR && tile.type === 'poster') {
         return false
       }
       // Skip title tile if it's overlaying on image (heroSSR handles it)
@@ -635,7 +635,7 @@ export default function InvitePageClient({
         order: t.order,
       })),
       removedTiles: config.tiles?.filter(t => {
-        if (heroSSR && (t.type === 'image' || t.type === 'design')) return true
+        if (heroSSR && t.type === 'poster') return true
         if (heroSSR && t.type === 'title' && t.overlayTargetId) return true
         if (titleSSR && t.type === 'title' && !t.overlayTargetId) return true
         if (eventDetailsSSR && t.type === 'event-details') return true
@@ -645,7 +645,7 @@ export default function InvitePageClient({
         type: t.type,
         enabled: t.enabled,
         order: t.order,
-        reason: heroSSR && (t.type === 'image' || t.type === 'design') ? 'heroSSR' :
+        reason: heroSSR && t.type === 'poster' ? 'heroSSR' :
                 heroSSR && t.type === 'title' && t.overlayTargetId ? 'overlayTitleSSR' :
                 titleSSR && t.type === 'title' && !t.overlayTargetId ? 'titleSSR' :
                 eventDetailsSSR && t.type === 'event-details' ? 'eventDetailsSSR' : 'unknown'

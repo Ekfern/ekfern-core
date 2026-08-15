@@ -11,7 +11,7 @@ import DescriptionTile from './DescriptionTile'
 import FeatureButtonsTile from './FeatureButtonsTile'
 import FooterTile from './FooterTile'
 import EventCarouselTile from './EventCarouselTile'
-import DesignTile from './DesignTile'
+import PosterTile from './PosterTile'
 
 export interface TilePreviewProps {
   tile: Tile
@@ -62,9 +62,9 @@ export default function TilePreview({
             preview
           />
         )
-      case 'design':
+      case 'poster':
         return (
-          <DesignTile
+          <PosterTile
             settings={tile.settings as any}
             preview
           />

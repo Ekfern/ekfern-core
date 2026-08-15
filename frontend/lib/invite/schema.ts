@@ -17,7 +17,7 @@ export interface BackgroundImage {
 }
 
 // Tile-based structure
-export type TileType = 'title' | 'image' | 'design' | 'timer' | 'event-details' | 'directions' | 'description' | 'feature-buttons' | 'footer' | 'event-carousel'
+export type TileType = 'title' | 'image' | 'poster' | 'timer' | 'event-details' | 'directions' | 'description' | 'feature-buttons' | 'footer' | 'event-carousel'
 
 export interface TitleTileSettings {
   text: string
@@ -75,7 +75,7 @@ export interface ImageTileSettings {
   textOverlays?: TextOverlay[]
 }
 
-export interface DesignTileSettings {
+export interface PosterTileSettings {
   src?: string                  // Image URL or data URL
   backgroundGradient?: string   // CSS gradient when no image e.g. 'linear-gradient(135deg, #fce4ec, #f48fb1)'
   textOverlays?: TextOverlay[]  // Positioned text boxes from the card designer (9:16 coordinate system)
@@ -298,7 +298,7 @@ export interface RsvpFormConfig {
 export type TileSettings =
   | TitleTileSettings
   | ImageTileSettings
-  | DesignTileSettings
+  | PosterTileSettings
   | TimerTileSettings
   | EventDetailsTileSettings
   | DirectionsTileSettings
