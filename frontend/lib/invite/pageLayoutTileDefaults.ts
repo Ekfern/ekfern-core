@@ -17,7 +17,7 @@ export function buildDefaultTileSettingsRecord(
   const fallbackDate = ctx.date ?? new Date().toISOString().split('T')[0]
   return {
     title: { text: ctx.title || 'Sample Event' },
-    image: { src: '', fitMode: 'fit-to-screen' },
+    gallery: { images: [] },
     'poster': {
       backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)',
       textOverlays: [],

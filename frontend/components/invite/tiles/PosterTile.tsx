@@ -134,7 +134,7 @@ export default function PosterTile({ settings, preview: _preview = false }: Post
       <div className={boxClassName} style={boxStyle}>
         <img
           src={convertToCloudFrontUrl(settings.src!)}
-          alt="Greeting card"
+          alt="Poster"
           loading="eager"
           decoding="async"
           fetchPriority="high"

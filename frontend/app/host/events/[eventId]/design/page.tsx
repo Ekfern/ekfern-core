@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import api, { uploadImage } from '@/lib/api'
 import { updateInvitePage, createInvitePage, getInvitePage, type DesignSample } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
-import type { ImageTileSettings, PosterTileSettings } from '@/lib/invite/schema'
+import type { PosterTileSettings } from '@/lib/invite/schema'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import WizardProgress from '@/components/host/WizardProgress'
 import { logError } from '@/lib/error-handler'
@@ -897,22 +897,18 @@ export default function DesignPage(): React.ReactElement {
       backgroundGradient: currentBgUrl ? undefined : currentBgGradient,
       textOverlays: currentTextBoxes,
     }
+    // The card studio writes to the poster and nothing else. It used to fall
+    // back to the image tile, which is how a card ended up rendered as a hero
+    // photo; the image tile is a gallery now and holds no text overlays, so
+    // there is nothing there for a card to land in.
     const hasPosterTiles = tiles.some((t) => t.type === 'poster')
-    const hasImageTiles = tiles.some((t) => t.type === 'image')
 
     let updated = tiles.map((t) => {
-      if (hasPosterTiles) {
-        if (t.type !== 'poster') return t
-        return { ...t, enabled: enableTile ? true : t.enabled, settings: { ...(t.settings as PosterTileSettings), ...cardSettings } }
-      }
-      if (!hasImageTiles || t.type !== 'image') return t
-      return {
-        ...t,
-        settings: { ...(t.settings as ImageTileSettings), ...cardSettings, fitMode: 'full-image' as const },
-      }
+      if (t.type !== 'poster') return t
+      return { ...t, enabled: enableTile ? true : t.enabled, settings: { ...(t.settings as PosterTileSettings), ...cardSettings } }
     })
 
-    if (!hasPosterTiles && !hasImageTiles) {
+    if (!hasPosterTiles) {
       const maxOrder = Math.max(...tiles.map((t) => t.order ?? 0), 0)
       updated = [
         ...updated,

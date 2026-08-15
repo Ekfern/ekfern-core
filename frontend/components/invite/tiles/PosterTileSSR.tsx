@@ -104,7 +104,7 @@ export default function PosterTileSSR({ settings }: PosterTileSSRProps) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={convertToCloudFrontUrl(settings.src!)}
-          alt="Greeting card"
+          alt="Poster"
           loading="eager"
           decoding="async"
           fetchPriority="high"

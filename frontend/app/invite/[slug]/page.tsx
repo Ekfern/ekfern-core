@@ -757,21 +757,21 @@ export async function generateMetadata({
   if (imageSource === 'upload') {
     // Explicit upload source: use the uploaded image only
     bannerImage = customMetadata?.image
-  } else if (imageSource === 'greeting-card') {
-    // Use first enabled greeting-card tile with a src
+  } else if (imageSource === 'poster') {
+    // Use first enabled poster tile with a src
     if (inviteData.config?.tiles) {
-      const gcTile = inviteData.config.tiles.find(
-        (tile: any) => tile.type === 'design' && tile.enabled !== false && tile.settings?.src
+      const posterTile = inviteData.config.tiles.find(
+        (tile: any) => tile.type === 'poster' && tile.enabled !== false && tile.settings?.src
       ) as any
-      bannerImage = gcTile?.settings?.src
+      bannerImage = posterTile?.settings?.src
     }
-  } else if (imageSource === 'image-tile') {
-    // Use first enabled image tile with a src
+  } else if (imageSource === 'gallery') {
+    // Use the first photo of the first enabled gallery
     if (inviteData.config?.tiles) {
-      const imgTile = inviteData.config.tiles.find(
-        (tile: any) => tile.type === 'image' && tile.enabled !== false && tile.settings?.src
+      const galleryTile = inviteData.config.tiles.find(
+        (tile: any) => tile.type === 'gallery' && tile.enabled !== false && tile.settings?.images?.[0]?.src
       ) as any
-      bannerImage = imgTile?.settings?.src
+      bannerImage = galleryTile?.settings?.images?.[0]?.src
     }
   } else {
     // No source set — existing waterfall: upload → first image/GC tile → generic envelope

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Tile, TileType } from '@/lib/invite/schema'
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import TitleTileSettings from './TitleTileSettings'
-import ImageTileSettings from './ImageTileSettings'
+import GalleryTileSettings from './GalleryTileSettings'
 import TimerTileSettings from './TimerTileSettings'
 import EventDetailsTileSettings from './EventDetailsTileSettings'
 import DirectionsTileSettings from './DirectionsTileSettings'
@@ -27,7 +27,7 @@ interface TileSettingsProps {
 
 const TILE_LABELS: Record<TileType, string> = {
   'title': 'Title',
-  'image': 'Image',
+  'gallery': 'Gallery',
   'poster': 'Poster',
   'timer': 'Timer',
   'event-details': 'Event Details',
@@ -62,8 +62,8 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
             onChange={handleSettingsChange}
           />
         )
-      case 'image':
-        return <ImageTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
+      case 'gallery':
+        return <GalleryTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
       case 'poster':
         return <PosterTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
       case 'timer':

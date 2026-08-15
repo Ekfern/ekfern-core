@@ -19,7 +19,7 @@ import SortableTileSettings from './SortableTileSettings'
 // All available tile types with descriptions for the picker
 const TILE_CATALOG: { type: TileType; label: string; description: string }[] = [
   { type: 'title',           label: 'Title',           description: 'Your event name and subtitle' },
-  { type: 'image',           label: 'Image',           description: 'A hero photo or banner image' },
+  { type: 'gallery',         label: 'Gallery',         description: 'Up to six photos, framed and arranged' },
   { type: 'poster',          label: 'Poster',           description: 'A flyer for your invite - photo, gradient and your own text' },
   { type: 'event-details',   label: 'Event Details',   description: 'Date, time, and location' },
   { type: 'directions',      label: 'Directions',      description: 'A map guests tap to open in their map app' },

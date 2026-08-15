@@ -3,7 +3,7 @@
 import React from 'react'
 import { Tile } from '@/lib/invite/schema'
 import TitleTile from './TitleTile'
-import ImageTile from './ImageTile'
+import GalleryTile from './GalleryTile'
 import TimerTile from './TimerTile'
 import EventDetailsTile from './EventDetailsTile'
 import DirectionsTile from './DirectionsTile'
@@ -55,9 +55,9 @@ export default function TilePreview({
             preview
           />
         )
-      case 'image':
+      case 'gallery':
         return (
-          <ImageTile
+          <GalleryTile
             settings={tile.settings as any}
             preview
           />

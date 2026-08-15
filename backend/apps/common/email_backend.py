@@ -94,8 +94,13 @@ def inject_tracking_links(body: str, recipient_id: int | None, is_rich_text: boo
 def get_flyer_image_url(event) -> str:
     """
     Return the CloudFront URL of the event's invite page banner/cover image.
-    Checks InvitePage.config tiles for an image tile, falls back to background_url.
+    Checks InvitePage.config tiles for the poster, falls back to background_url.
     Returns empty string if nothing found.
+
+    This used to look at the image tile for a key named ``url``, which the tile
+    never stored - it has always been ``src`` - so the lookup silently found
+    nothing and every email fell through to ``background_url``. The hero is the
+    poster now, and the key it actually uses is read here.
     """
     try:
         invite_page = event.invite_page
@@ -105,8 +110,8 @@ def get_flyer_image_url(event) -> str:
     config = invite_page.config or {}
     tiles = config.get('tiles', [])
     for tile in tiles:
-        if tile.get('type') == 'image':
-            url = (tile.get('settings') or {}).get('url', '')
+        if tile.get('type') == 'poster':
+            url = (tile.get('settings') or {}).get('src', '')
             if url and url.startswith('http'):
                 return url
 
