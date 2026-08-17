@@ -157,7 +157,7 @@ class Event(models.Model):
     banner_image = models.TextField(blank=True, help_text="Banner image URL or data URL for public invitation page (deprecated - use page_config)")
     description = models.TextField(blank=True, help_text="Rich text description for public invitation page (deprecated - use page_config)")
     additional_photos = models.JSONField(default=list, blank=True, help_text="Array of up to 5 photo URLs or data URLs (deprecated - use page_config)")
-    page_config = models.JSONField(default=dict, blank=True, help_text="Living Poster invitation page configuration with theme, hero, description")
+    page_config = models.JSONField(default=dict, blank=True, help_text="Invitation page configuration: appearance plus an ordered list of tiles")
     
     # Event expiry and messaging
     expiry_date = models.DateField(null=True, blank=True, help_text="Date when event expires (for impact calculation)")
