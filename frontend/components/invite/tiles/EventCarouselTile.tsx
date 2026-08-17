@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Calendar, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
 import { EventCarouselTileSettings } from '@/lib/invite/schema'
-import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import { 
   getImageDimensions, 
   calculateOptimalDimensions, 
@@ -410,7 +409,9 @@ export default function EventCarouselTile({
     const titleStyling = normalizedSettings.subEventTitleStyling || {}
     const detailsStyling = normalizedSettings.subEventDetailsStyling || {}
     
-    const titleFont = titleStyling.font || FONT_OPTIONS[0].family
+    // Falls back to the invitation's display face, not FONT_OPTIONS[0] -
+    // which is Helvetica, and has nothing to do with this invitation.
+    const titleFont = titleStyling.font || 'var(--theme-font-title, inherit)'
     const titleColor = titleStyling.color || '#111827' // gray-900
     const titleSize = titleStyling.size || 'medium'
     const detailsColor = detailsStyling.fontColor || '#4B5563' // gray-600

@@ -33,6 +33,13 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
   return (
     <div
       style={{
+        // Applied, not just published. Tiles that never mention a font used to
+        // inherit whatever the document gave them - Tailwind's sans stack - so
+        // a host could choose Lora and watch half the invitation ignore it.
+        // Setting it here means a tile opts *out* to be different, rather than
+        // having to opt in to be correct.
+        fontFamily: colors.bodyFont,
+
         '--theme-bg': colors.backgroundColor,
         '--theme-fg': colors.fontColor,
         '--theme-primary': colors.primaryColor,
