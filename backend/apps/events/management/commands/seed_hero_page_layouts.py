@@ -62,7 +62,7 @@ def get_cover_config():
         'tiles': [
             {
                 'id': 'tile-design-0',
-                'type': 'design',
+                'type': 'poster',
                 'enabled': True,
                 'order': 0,
                 'settings': {
@@ -232,7 +232,7 @@ def get_poster_card_config():
         'tiles': [
             {
                 'id': 'tile-design-0',
-                'type': 'design',
+                'type': 'poster',
                 'enabled': True,
                 'order': 0,
                 'settings': {

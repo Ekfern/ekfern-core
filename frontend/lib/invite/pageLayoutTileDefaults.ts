@@ -17,8 +17,8 @@ export function buildDefaultTileSettingsRecord(
   const fallbackDate = ctx.date ?? new Date().toISOString().split('T')[0]
   return {
     title: { text: ctx.title || 'Sample Event' },
-    image: { src: '', fitMode: 'fit-to-screen' },
-    'design': {
+    gallery: { images: [] },
+    'poster': {
       backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)',
       textOverlays: [],
     },
@@ -44,10 +44,10 @@ export function minimalStaffPageLayoutStarterTiles(ctx: PageLayoutStudioSampleCo
     { id: 'tile-title-0', type: 'title', enabled: true, order: 0, settings: s.title },
     {
       id: 'tile-design-1',
-      type: 'design',
+      type: 'poster',
       enabled: true,
       order: 1,
-      settings: s['design'],
+      settings: s['poster'],
     },
     {
       id: 'tile-event-details-2',

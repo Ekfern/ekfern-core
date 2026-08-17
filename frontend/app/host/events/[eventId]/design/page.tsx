@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import api, { uploadImage } from '@/lib/api'
 import { updateInvitePage, createInvitePage, getInvitePage, type DesignSample } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
-import type { ImageTileSettings, DesignTileSettings } from '@/lib/invite/schema'
+import type { PosterTileSettings } from '@/lib/invite/schema'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import WizardProgress from '@/components/host/WizardProgress'
 import { logError } from '@/lib/error-handler'
@@ -390,7 +390,7 @@ export default function DesignPage(): React.ReactElement {
   const [saving, setSaving] = useState(false)
   const [hasSelectedBackground, setHasSelectedBackground] = useState(false)
   // The shape this event's design tile actually renders as on the real page
-  // (DesignTile.tsx / DesignTileSSR.tsx) — set by whichever layout was
+  // (PosterTile.tsx / PosterTileSSR.tsx) — set by whichever layout was
   // applied, independent of whether background/text content exists yet.
   // Defaults to the old card shape so a blank canvas (no layout-provided
   // design tile) behaves exactly as before.
@@ -463,12 +463,12 @@ export default function DesignPage(): React.ReactElement {
       setEvent(data)
 
       // Check if backend already has greeting-card content (e.g. saved from another device)
-      const gcTile = page?.config?.tiles?.find((t) => t.type === 'design')
-      const gcSettings = gcTile?.settings as DesignTileSettings | undefined
+      const gcTile = page?.config?.tiles?.find((t) => t.type === 'poster')
+      const gcSettings = gcTile?.settings as PosterTileSettings | undefined
 
       // Hero shape comes from the applied layout, not from whether custom
       // background/text has been added yet — read it unconditionally so the
-      // canvas matches DesignTile.tsx's real render from the first paint.
+      // canvas matches PosterTile.tsx's real render from the first paint.
       const isFullBleed = gcSettings?.frameMode === 'full-bleed'
       setHeroAspectRatio(isFullBleed ? (gcSettings?.aspectRatio || '4 / 5') : '9 / 16')
 
@@ -892,33 +892,29 @@ export default function DesignPage(): React.ReactElement {
     currentTextBoxes: TextBox[],
     enableTile = false,
   ): import('@/lib/invite/schema').Tile[] {
-    const cardSettings: DesignTileSettings = {
+    const cardSettings: PosterTileSettings = {
       src: currentBgUrl ?? undefined,
       backgroundGradient: currentBgUrl ? undefined : currentBgGradient,
       textOverlays: currentTextBoxes,
     }
-    const hasDesignTiles = tiles.some((t) => t.type === 'design')
-    const hasImageTiles = tiles.some((t) => t.type === 'image')
+    // The card studio writes to the poster and nothing else. It used to fall
+    // back to the image tile, which is how a card ended up rendered as a hero
+    // photo; the image tile is a gallery now and holds no text overlays, so
+    // there is nothing there for a card to land in.
+    const hasPosterTiles = tiles.some((t) => t.type === 'poster')
 
     let updated = tiles.map((t) => {
-      if (hasDesignTiles) {
-        if (t.type !== 'design') return t
-        return { ...t, enabled: enableTile ? true : t.enabled, settings: { ...(t.settings as DesignTileSettings), ...cardSettings } }
-      }
-      if (!hasImageTiles || t.type !== 'image') return t
-      return {
-        ...t,
-        settings: { ...(t.settings as ImageTileSettings), ...cardSettings, fitMode: 'full-image' as const },
-      }
+      if (t.type !== 'poster') return t
+      return { ...t, enabled: enableTile ? true : t.enabled, settings: { ...(t.settings as PosterTileSettings), ...cardSettings } }
     })
 
-    if (!hasDesignTiles && !hasImageTiles) {
+    if (!hasPosterTiles) {
       const maxOrder = Math.max(...tiles.map((t) => t.order ?? 0), 0)
       updated = [
         ...updated,
         {
-          id: `tile-design-${Date.now().toString(36)}`,
-          type: 'design' as const,
+          id: `tile-poster-${Date.now().toString(36)}`,
+          type: 'poster' as const,
           enabled: enableTile,
           order: maxOrder + 1,
           settings: cardSettings,
@@ -978,26 +974,26 @@ export default function DesignPage(): React.ReactElement {
       // This is the same store the design page reads on load — no race, no separate fetch.
       const pageConfig = await getEventPageConfig(eventId)
       const existingConfig = pageConfig?.page_config
-      const cardSettings: DesignTileSettings = {
+      const cardSettings: PosterTileSettings = {
         src: bgUrl ?? undefined,
         backgroundGradient: bgUrl ? undefined : bgGradient,
         textOverlays: textBoxes,
       }
 
       const baseConfig = existingConfig ?? { tiles: [] }
-      const hasGC = baseConfig.tiles?.some(t => t.type === 'design')
+      const hasGC = baseConfig.tiles?.some(t => t.type === 'poster')
       let updatedTiles
       if (hasGC) {
         updatedTiles = baseConfig.tiles!.map(t =>
-          t.type === 'design'
-            ? { ...t, enabled: true, settings: { ...(t.settings as DesignTileSettings), ...cardSettings } }
+          t.type === 'poster'
+            ? { ...t, enabled: true, settings: { ...(t.settings as PosterTileSettings), ...cardSettings } }
             : t
         )
       } else {
         const maxOrder = Math.max(...(baseConfig.tiles?.map(t => t.order ?? 0) ?? [0]), 0)
         updatedTiles = [
           ...(baseConfig.tiles ?? []),
-          { id: `tile-design-${Date.now().toString(36)}`, type: 'design' as const, enabled: true, order: maxOrder + 1, settings: cardSettings },
+          { id: `tile-poster-${Date.now().toString(36)}`, type: 'poster' as const, enabled: true, order: maxOrder + 1, settings: cardSettings },
         ]
       }
       await updateEventPageConfig(eventId, { ...baseConfig, tiles: updatedTiles })
@@ -1627,7 +1623,7 @@ export default function DesignPage(): React.ReactElement {
       <div className="flex items-start justify-center px-4 py-6">
         {/* Outer wrapper enforces the applied layout's real hero shape (card
             9:16, or full-bleed at its own aspectRatio) at up to 72vh — matches
-            DesignTile.tsx's render exactly, so what you see here is what
+            PosterTile.tsx's render exactly, so what you see here is what
             actually publishes. Capped against (100vh - 440px), the measured
             height of the header/toolbar/footer chrome around the canvas, so
             on shorter screens the canvas shrinks instead of pushing the

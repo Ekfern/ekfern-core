@@ -3,8 +3,8 @@
 import React, { useMemo } from 'react'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import InviteRenderer from '@/components/invite/render/InviteRenderer'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 
 // Inviting sample copy for library previews so cards look like real invites, not placeholders
 export const PREVIEW_SAMPLE = {
@@ -52,7 +52,7 @@ export function enrichConfigWithSampleData(config: InviteConfig): InviteConfig {
  * layout gallery doesn't present a staff-authored companion background as if
  * it were already chosen — that decision belongs to the (later) Design step.
  * Structure, theme, and every other tile's styling is left untouched.
- * `DesignTile` already renders a dashed empty-state box when given no
+ * `PosterTile` already renders a dashed empty-state box when given no
  * image/gradient/overlays, so this alone produces the "add your design here"
  * placeholder. Pure function — never mutates the original config.
  *
@@ -62,10 +62,10 @@ export function enrichConfigWithSampleData(config: InviteConfig): InviteConfig {
  * browsing, the same way page-level customColors.backgroundGradient already is.
  * Only `src` (an actual uploaded photo) is still blanked in that case.
  */
-export function skeletonizeDesignTiles(config: InviteConfig): InviteConfig {
+export function skeletonizePosterTiles(config: InviteConfig): InviteConfig {
   if (!config.tiles?.length) return config
   const tiles = config.tiles.map((tile: Tile) => {
-    if (tile.type !== 'design') return tile
+    if (tile.type !== 'poster') return tile
     const settings = tile.settings as Record<string, unknown>
     if (settings.isLayoutHero) {
       return { ...tile, settings: { ...settings, src: undefined } }
@@ -91,7 +91,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
   const appearance = resolveAppearance(config)
   const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
   const previewConfig = useMemo(
-    () => skeletonizeDesignTiles(enrichConfigWithSampleData(config)),
+    () => skeletonizePosterTiles(enrichConfigWithSampleData(config)),
     [config]
   )
 
@@ -103,7 +103,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
     >
       {/*
         Texture is also rendered on the wrapper so it fills the whole 9:16
-        thumbnail. The LivingPosterPage's own texture only spans its content
+        thumbnail. The InviteRenderer's own texture only spans its content
         height — when tiles end well before the bottom of the preview the
         remainder used to look flat / dead-cream. Rendering the texture here
         as a backdrop keeps the look continuous.
@@ -123,7 +123,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
           minHeight: `${INVERSE_SCALE * 100}%`,
         }}
       >
-        <LivingPosterPage
+        <InviteRenderer
           config={previewConfig}
           eventSlug="preview"
           eventDate={PREVIEW_SAMPLE.dateDisplay}

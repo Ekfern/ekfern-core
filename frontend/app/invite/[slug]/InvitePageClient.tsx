@@ -4,10 +4,10 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { InviteConfig } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
+import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import { logError, logDebug } from '@/lib/error-handler'
 import api from '@/lib/api'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import EnvelopeAnimation from '@/components/invite/EnvelopeAnimation'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
 import ComingSoon from '@/components/invite/ComingSoon'
@@ -261,10 +261,10 @@ export default function InvitePageClient({
           ...(eventData.page_config.cornerDecorations && { cornerDecorations: eventData.page_config.cornerDecorations }),
         }
         
-        // Debug: Log image tile settings when loading public page
-        const imageTile = configWithCustomColors.tiles?.find((t: any) => t.type === 'image' || t.type === 'design')
-        if (imageTile) {
-          logDebug('[Public Invite Page] Image tile loaded')
+        // Debug: note when the poster is present on a public page load
+        const posterTile = configWithCustomColors.tiles?.find((t: any) => t.type === 'poster')
+        if (posterTile) {
+          logDebug('[Public Invite Page] Poster tile loaded')
         }
         
         setEvent(eventData)
@@ -608,7 +608,7 @@ export default function InvitePageClient({
     ...config,
     tiles: config.tiles?.filter((tile) => {
       // Skip image/greeting-card tile if heroSSR is provided
-      if (heroSSR && (tile.type === 'image' || tile.type === 'design')) {
+      if (heroSSR && tile.type === 'poster') {
         return false
       }
       // Skip title tile if it's overlaying on image (heroSSR handles it)
@@ -635,7 +635,7 @@ export default function InvitePageClient({
         order: t.order,
       })),
       removedTiles: config.tiles?.filter(t => {
-        if (heroSSR && (t.type === 'image' || t.type === 'design')) return true
+        if (heroSSR && t.type === 'poster') return true
         if (heroSSR && t.type === 'title' && t.overlayTargetId) return true
         if (titleSSR && t.type === 'title' && !t.overlayTargetId) return true
         if (eventDetailsSSR && t.type === 'event-details') return true
@@ -645,7 +645,7 @@ export default function InvitePageClient({
         type: t.type,
         enabled: t.enabled,
         order: t.order,
-        reason: heroSSR && (t.type === 'image' || t.type === 'design') ? 'heroSSR' :
+        reason: heroSSR && t.type === 'poster' ? 'heroSSR' :
                 heroSSR && t.type === 'title' && t.overlayTargetId ? 'overlayTitleSSR' :
                 titleSSR && t.type === 'title' && !t.overlayTargetId ? 'titleSSR' :
                 eventDetailsSSR && t.type === 'event-details' ? 'eventDetailsSSR' : 'unknown'
@@ -654,7 +654,7 @@ export default function InvitePageClient({
   }
 
   const renderTime = Date.now()
-  devLog('[InvitePageClient] ✅ CLIENT RENDER: Rendering LivingPosterPage', {
+  devLog('[InvitePageClient] ✅ CLIENT RENDER: Rendering InviteRenderer', {
     slug,
     hasConfig: !!configForClient,
     hasHeroSSR: !!heroSSR,
@@ -771,7 +771,7 @@ export default function InvitePageClient({
             {heroSSR}
 
             {/* All other tiles (including title and event-details) render client-side in correct order */}
-            <LivingPosterPage
+            <InviteRenderer
               config={configForClient}
               eventSlug={slug}
               eventDate={event?.date}
@@ -813,7 +813,7 @@ export default function InvitePageClient({
           {heroSSR}
 
           {/* All other tiles (including title and event-details) render client-side in correct order */}
-          <LivingPosterPage
+          <InviteRenderer
             config={configForClient}
             eventSlug={slug}
             eventDate={event?.date}

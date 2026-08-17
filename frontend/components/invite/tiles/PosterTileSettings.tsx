@@ -1,12 +1,12 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import type { DesignTileSettings } from '@/lib/invite/schema'
+import type { PosterTileSettings } from '@/lib/invite/schema'
 import { Button } from '@/components/ui/button'
 import type { TextOverlay } from '@/lib/invite/api'
 import DesignMediaPicker from '@/components/invite/DesignMediaPicker'
 import TextOverlayEditorModal from '@/components/invite/TextOverlayEditorModal'
-import DesignTile from '@/components/invite/tiles/DesignTile'
+import PosterTile from '@/components/invite/tiles/PosterTile'
 
 // Parse a linear-gradient string into its component parts so we can
 // pre-populate the color pickers. Falls back to defaults on any parse failure.
@@ -25,9 +25,9 @@ const GRADIENT_DIRECTIONS = [
   { label: '↗ Up-right', value: '45deg'  },
 ]
 
-interface DesignTileSettingsProps {
-  settings: DesignTileSettings
-  onChange: (settings: DesignTileSettings) => void
+interface PosterTileSettingsProps {
+  settings: PosterTileSettings
+  onChange: (settings: PosterTileSettings) => void
   eventId: number
 }
 
@@ -42,7 +42,7 @@ const PRESET_GRADIENTS = [
   { label: 'Forest',        value: 'linear-gradient(135deg, #1b4332, #40916c)' },
 ]
 
-export default function DesignTileSettings({ settings, onChange, eventId: _eventId }: DesignTileSettingsProps) {
+export default function PosterTileSettings({ settings, onChange, eventId: _eventId }: PosterTileSettingsProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [overlayEditorOpen, setOverlayEditorOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -82,7 +82,7 @@ export default function DesignTileSettings({ settings, onChange, eventId: _event
           // identically to the mobile preview — just smaller.
           <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200, height: Math.round(200 * 16 / 9) }}>
             <div style={{ width: 384, transformOrigin: 'top left', transform: `scale(${200 / 384})` }}>
-              <DesignTile settings={settings} preview />
+              <PosterTile settings={settings} preview />
             </div>
           </div>
         ) : (

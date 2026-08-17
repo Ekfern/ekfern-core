@@ -38,7 +38,7 @@ _RECIPES: list[dict] = [
         "description": "Full-bleed photo/color hero, plain body below, a decisive bordered RSVP card.",
         "has_hero": True,
         "hero_aspect_ratio": "4 / 5",
-        "tile_sequence": ["design", "title", "event-details", "feature-buttons", "description", "footer"],
+        "tile_sequence": ["poster", "title", "event-details", "feature-buttons", "description", "footer"],
         "title_align": "left",
         "title_size": "xlarge",
         "use_eyebrow": False,
@@ -53,7 +53,7 @@ _RECIPES: list[dict] = [
         "description": "Full-bleed moody hero (texture confined to it), calm body, one frosted glass card for date+RSVP.",
         "has_hero": True,
         "hero_aspect_ratio": "4 / 5",
-        "tile_sequence": ["design", "title", "description", "event-details", "feature-buttons", "footer"],
+        "tile_sequence": ["poster", "title", "description", "event-details", "feature-buttons", "footer"],
         "title_align": "center",
         "title_size": "xlarge",
         "use_eyebrow": True,
@@ -99,7 +99,7 @@ def all_recipes() -> list[dict]:
     return [deepcopy(r) for r in _RECIPES]
 
 
-_VALID_TILE_TYPES = {"design", "title", "event-details", "description", "feature-buttons", "footer"}
+_VALID_TILE_TYPES = {"poster", "title", "event-details", "description", "feature-buttons", "footer"}
 
 
 def _validate_recipes() -> None:
@@ -126,7 +126,7 @@ def _validate_recipes() -> None:
                 raise RuntimeError(
                     f"gallery_recipes: recipe {rid!r} tile_sequence has unknown type {t!r}"
                 )
-        has_design_tile = "design" in seq
+        has_design_tile = "poster" in seq
         if bool(r.get("has_hero")) != has_design_tile:
             raise RuntimeError(
                 f"gallery_recipes: recipe {rid!r} has_hero={r.get('has_hero')} but "

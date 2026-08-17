@@ -223,7 +223,7 @@ export default function TileList({
       <div className="space-y-0 w-full overflow-x-hidden">
         {sortedForInvite.map((tile) => {
           const titleOverlay = tiles.find(t => t.type === 'title' && t.overlayTargetId === tile.id)
-          if ((tile.type === 'image' || tile.type === 'design') && titleOverlay) {
+          if (tile.type === 'poster' && titleOverlay) {
             return (
               <div key={tile.id} className="relative w-full">
                 <TilePreview
@@ -358,7 +358,7 @@ export default function TileList({
             // If this is an image tile with a title overlay, render both together
             const titleOverlay = tiles.find(t => t.type === 'title' && t.overlayTargetId === tile.id)
             
-            if ((tile.type === 'image' || tile.type === 'design') && titleOverlay) {
+            if (tile.type === 'poster' && titleOverlay) {
               return (
                 <SortableImageWithOverlay
                   key={tile.id}

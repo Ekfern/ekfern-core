@@ -2,16 +2,16 @@
 
 import React from 'react'
 import { ImagePlus } from 'lucide-react'
-import { DesignTileSettings } from '@/lib/invite/schema'
+import { PosterTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 
-export interface DesignTileProps {
-  settings: DesignTileSettings
+export interface PosterTileProps {
+  settings: PosterTileSettings
   preview?: boolean
 }
 
-export default function DesignTile({ settings, preview: _preview = false }: DesignTileProps) {
+export default function PosterTile({ settings, preview: _preview = false }: PosterTileProps) {
   const hasImage = !!settings.src
   const hasGradient = !!settings.backgroundGradient
   const hasTextOverlays = settings.textOverlays && settings.textOverlays.length > 0
@@ -134,7 +134,7 @@ export default function DesignTile({ settings, preview: _preview = false }: Desi
       <div className={boxClassName} style={boxStyle}>
         <img
           src={convertToCloudFrontUrl(settings.src!)}
-          alt="Greeting card"
+          alt="Poster"
           loading="eager"
           decoding="async"
           fetchPriority="high"

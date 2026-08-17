@@ -25,8 +25,8 @@ import { resolveAppearance } from '@/lib/invite/appearance'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
-import { ThemeProvider } from '@/components/invite/living-poster/ThemeProvider'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage, extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
@@ -56,11 +56,11 @@ const DEFAULT_TILES: Tile[] = [
     settings: { text: 'Event Title' },
   },
   {
-    id: 'tile-image-1',
-    type: 'image',
+    id: 'tile-gallery-1',
+    type: 'gallery',
     enabled: false,
     order: 1,
-    settings: { src: '', fitMode: 'fit-to-screen' },
+    settings: { images: [] },
   },
   {
     id: 'tile-event-details-2',
@@ -117,7 +117,7 @@ const DEFAULT_TILES: Tile[] = [
 // The tile types the editor knows how to render. Anything else is legacy/orphan
 // junk in a saved config (renders no label and no settings) and is filtered out.
 const KNOWN_TILE_TYPES = new Set<TileType>([
-  'title', 'image', 'design', 'timer', 'event-details', 'directions',
+  'title', 'gallery', 'poster', 'timer', 'event-details', 'directions',
   'description', 'feature-buttons', 'footer', 'event-carousel',
 ])
 const isKnownTile = (t: any): t is Tile =>
@@ -380,11 +380,11 @@ export default function DesignInvitationPage(): JSX.Element {
             settings: { text: data?.title || 'Event Title' },
           },
           {
-            id: 'tile-image-1',
-            type: 'image',
+            id: 'tile-gallery-1',
+            type: 'gallery',
             enabled: false,
             order: 1,
-            settings: { src: '', fitMode: 'fit-to-screen' },
+            settings: { images: [] },
           },
           {
             id: 'tile-event-details-2',
@@ -590,8 +590,8 @@ export default function DesignInvitationPage(): JSX.Element {
             finalConfig = {
               ...finalConfig,
               tiles: finalConfig.tiles.map((tile) => {
-                if (tile.type !== 'design') return tile
-                const s = tile.settings as import('@/lib/invite/schema').DesignTileSettings
+                if (tile.type !== 'poster') return tile
+                const s = tile.settings as import('@/lib/invite/schema').PosterTileSettings
                 // Only restore from localStorage if the tile has no meaningful content yet
                 const tileHasContent = !!s.src || (s.textOverlays && s.textOverlays.length > 0)
                 if (tileHasContent) return tile
@@ -694,11 +694,11 @@ export default function DesignInvitationPage(): JSX.Element {
     if (enabledTilesCount === 0) {
       return 'At least one tile must be enabled to publish the invite page.'
     }
-    const enabledImageTiles = config.tiles?.filter(t => t.type === 'image' && t.enabled) || []
-    for (const imageTile of enabledImageTiles) {
-      const imageSettings = imageTile.settings as any
-      if (!imageSettings?.src || imageSettings.src.trim() === '') {
-        return 'Image tile is enabled but no image is uploaded. Please upload an image or disable the image tile.'
+    const enabledGalleries = config.tiles?.filter(t => t.type === 'gallery' && t.enabled) || []
+    for (const gallery of enabledGalleries) {
+      const images = (gallery.settings as any)?.images
+      if (!Array.isArray(images) || images.every((image: any) => !image?.src)) {
+        return 'Gallery tile is enabled but has no photos. Please add a photo or disable the gallery tile.'
       }
     }
     const enabledTitleTiles = config.tiles?.filter(t => t.type === 'title' && t.enabled) || []
@@ -773,10 +773,10 @@ export default function DesignInvitationPage(): JSX.Element {
         if (baseTile.type === 'title') {
           return { ...baseTile, enabled: true, settings: { ...latestSettings } as any }
         }
-        // For image tiles, explicitly preserve all settings including coverPosition
-        if (baseTile.type === 'image') {
-          const imageSettings = latestSettings as any
-          return { ...baseTile, settings: { ...imageSettings } }
+        // For gallery tiles, explicitly preserve all settings including the photo list
+        if (baseTile.type === 'gallery') {
+          const gallerySettings = latestSettings as any
+          return { ...baseTile, settings: { ...gallerySettings } }
         }
         // For feature-buttons tiles, explicitly preserve all settings including custom labels
         if (baseTile.type === 'feature-buttons') {
@@ -1275,11 +1275,11 @@ export default function DesignInvitationPage(): JSX.Element {
     // For design tiles, restore saved work from the card studio.
     // Priority: backend saved tile (device-independent) > localStorage > defaults.
     let savedDesignSettings: { src?: string; backgroundGradient?: string; textOverlays: unknown[] } | null = null
-    if (type === 'design' && eventId) {
+    if (type === 'poster' && eventId) {
       try {
         // Fetch backend first — this is the source of truth after auto-save
         const page = await getInvitePage(eventId)
-        const gcTile = page?.config?.tiles?.find((t: { type: string }) => t.type === 'design')
+        const gcTile = page?.config?.tiles?.find((t: { type: string }) => t.type === 'poster')
         const gcSettings = gcTile?.settings as { src?: string; backgroundGradient?: string; textOverlays?: unknown[] } | undefined
         const hasBackendContent = !!gcSettings?.src || (gcSettings?.textOverlays?.length ?? 0) > 0
         if (hasBackendContent) {
@@ -1322,8 +1322,8 @@ export default function DesignInvitationPage(): JSX.Element {
 
     const defaultSettings: Record<TileType, object> = {
       'title': { text: 'Event Title' },
-      'image': { src: '', fitMode: 'fit-to-screen' },
-      'design': savedDesignSettings ?? { backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)', textOverlays: [] },
+      'gallery': { images: [] },
+      'poster': savedDesignSettings ?? { backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)', textOverlays: [] },
       'timer': {},
       'event-details': { location: '', date: new Date().toISOString().split('T')[0] },
       'directions': { height: 260 },
@@ -1376,18 +1376,20 @@ export default function DesignInvitationPage(): JSX.Element {
 
     // Check if trying to disable title tile
     if (tile?.type === 'title' && !enabled) {
-      // Check if there's an enabled image tile with a valid image source - if yes, allow disabling title
-      const enabledImageTiles = config.tiles?.filter(t => t.type === 'image' && t.enabled) || []
-      const hasValidImageTile = enabledImageTiles.some(t => {
-        const imageSettings = t.settings as any
-        return imageSettings?.src && imageSettings.src.trim() !== ''
+      // A poster carries its own text overlays, so it can stand in for the
+      // title. A gallery cannot - it is photos, with no words of its own - so
+      // dropping the title with only a gallery would leave the invitation
+      // without a name on it.
+      const hasPosterWithArtwork = (config.tiles || []).some(t => {
+        if (t.type !== 'poster' || !t.enabled) return false
+        const posterSettings = t.settings as any
+        return !!posterSettings?.src?.trim() || !!posterSettings?.backgroundGradient
       })
 
-      if (!hasValidImageTile) {
-        showToast('Title tile cannot be disabled when no valid image is present. Please add and upload an image first.', 'error')
+      if (!hasPosterWithArtwork) {
+        showToast('The title cannot be turned off unless a poster is in place. Add a poster first, or keep the title.', 'error')
         return
       }
-      // If valid image exists, allow disabling title tile
     }
     pushHistory()
 
@@ -1515,10 +1517,10 @@ export default function DesignInvitationPage(): JSX.Element {
                       return
                     }
                     if (event) {
-                      const layoutHasGC = t.config?.tiles?.some((tile: { type: string }) => tile.type === 'design')
+                      const layoutHasGC = t.config?.tiles?.some((tile: { type: string }) => tile.type === 'poster')
 
                       // Warn if the current config has an enabled GC tile but the new layout doesn't
-                      const currentHasEnabledGC = config.tiles?.some(tile => tile.type === 'design' && tile.enabled)
+                      const currentHasEnabledGC = config.tiles?.some(tile => tile.type === 'poster' && tile.enabled)
                       if (currentHasEnabledGC && !layoutHasGC) {
                         const confirmed = confirm(
                           "This page layout doesn't include a design tile. Your design tile will be disabled — you can re-enable it manually from Tile Settings."
@@ -1570,19 +1572,19 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
   // Derived values for Link Preview Settings
-  const designTileForPreview = config.tiles?.find(
-    (t: any) => t.type === 'design' && t.enabled !== false && (t.settings as any)?.src
+  const posterTileForPreview = config.tiles?.find(
+    (t: any) => t.type === 'poster' && t.enabled !== false && (t.settings as any)?.src
   )
-  const imageTileForPreview = config.tiles?.find(
-    (t: any) => t.type === 'image' && t.enabled !== false && (t.settings as any)?.src
+  const galleryTileForPreview = config.tiles?.find(
+    (t: any) => t.type === 'gallery' && t.enabled !== false && (t.settings as any)?.images?.[0]?.src
   )
   const effectiveImageSource = config.linkMetadata?.previewImageSource
-    ?? (designTileForPreview ? 'greeting-card' : imageTileForPreview ? 'image-tile' : 'upload')
+    ?? (posterTileForPreview ? 'poster' : galleryTileForPreview ? 'gallery' : 'upload')
 
   const resolvedPreviewImage = (() => {
     if (effectiveImageSource === 'upload') return config.linkMetadata?.image
-    if (effectiveImageSource === 'greeting-card') return (designTileForPreview?.settings as any)?.src
-    if (effectiveImageSource === 'image-tile') return (imageTileForPreview?.settings as any)?.src
+    if (effectiveImageSource === 'poster') return (posterTileForPreview?.settings as any)?.src
+    if (effectiveImageSource === 'gallery') return (galleryTileForPreview?.settings as any)?.images?.[0]?.src
     return undefined
   })()
 
@@ -1943,7 +1945,7 @@ export default function DesignInvitationPage(): JSX.Element {
                       <button
                         type="button"
                         onClick={async () => {
-                          const cardTile = config.tiles?.find(t => t.type === 'design')
+                          const cardTile = config.tiles?.find(t => t.type === 'poster')
                           const cardSrc = (cardTile?.settings as any)?.src as string | undefined
                           if (!cardSrc) return
                           const prevState = {
@@ -2318,10 +2320,10 @@ export default function DesignInvitationPage(): JSX.Element {
                         {!showLinkMetadata && (() => {
                           const src = effectiveImageSource
                           const label =
-                            src === 'greeting-card' ? 'Using greeting card' :
-                              src === 'image-tile' ? 'Using image tile' :
+                            src === 'poster' ? 'Using poster' :
+                              src === 'gallery' ? 'Using gallery' :
                                 config.linkMetadata?.image ? 'Using custom image' : 'Using default'
-                          const isDefault = !config.linkMetadata?.image && src !== 'greeting-card' && src !== 'image-tile'
+                          const isDefault = !config.linkMetadata?.image && src !== 'poster' && src !== 'gallery'
                           return (
                             <span className={`text-xs px-2 py-0.5 rounded-full ${isDefault ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
                               {label}
@@ -2464,22 +2466,22 @@ export default function DesignInvitationPage(): JSX.Element {
 
                         {/* Source selector — 3 clickable cards */}
                         <div className="grid grid-cols-3 gap-2 mb-3">
-                          {/* Greeting Card option */}
+                          {/* Poster option */}
                           <button
                             type="button"
-                            disabled={!designTileForPreview}
-                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "greeting-card" } }))}
+                            disabled={!posterTileForPreview}
+                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "poster" } }))}
                             className={
                               "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
-                              (effectiveImageSource === "greeting-card" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
-                              (!designTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
+                              (effectiveImageSource === "poster" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
+                              (!posterTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
                             }
                           >
                             <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {designTileForPreview ? (
+                              {posterTileForPreview ? (
                                 <img
-                                  src={convertToCloudFrontUrl((designTileForPreview.settings as any)?.src)}
-                                  alt="Greeting Card"
+                                  src={convertToCloudFrontUrl((posterTileForPreview.settings as any)?.src)}
+                                  alt="Poster"
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
@@ -2488,25 +2490,25 @@ export default function DesignInvitationPage(): JSX.Element {
                                 </svg>
                               )}
                             </div>
-                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Greeting Card</span>
+                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Poster</span>
                           </button>
 
-                          {/* Image Tile option */}
+                          {/* Gallery option */}
                           <button
                             type="button"
-                            disabled={!imageTileForPreview}
-                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "image-tile" } }))}
+                            disabled={!galleryTileForPreview}
+                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "gallery" } }))}
                             className={
                               "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
-                              (effectiveImageSource === "image-tile" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
-                              (!imageTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
+                              (effectiveImageSource === "gallery" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
+                              (!galleryTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
                             }
                           >
                             <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {imageTileForPreview ? (
+                              {galleryTileForPreview ? (
                                 <img
-                                  src={convertToCloudFrontUrl((imageTileForPreview.settings as any)?.src)}
-                                  alt="Image Tile"
+                                  src={convertToCloudFrontUrl((galleryTileForPreview.settings as any)?.images?.[0]?.src)}
+                                  alt="Gallery"
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
@@ -2515,7 +2517,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                 </svg>
                               )}
                             </div>
-                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Image Tile</span>
+                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Gallery</span>
                           </button>
 
                           {/* Upload Custom option */}
@@ -2649,7 +2651,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             )}
                             <p className="text-xs text-gray-500 mt-1">
                               This image is pulled from your{' '}
-                              <strong>{effectiveImageSource === 'greeting-card' ? 'Design' : 'Image'} tile</strong>.
+                              <strong>{effectiveImageSource === 'poster' ? 'Poster' : 'Gallery'} tile</strong>.
                               {' '}To change it, update the tile directly.
                             </p>
                           </div>
@@ -2800,7 +2802,7 @@ export default function DesignInvitationPage(): JSX.Element {
                           }}
                         ></div>
                         {/* Screen - iPhone 16 aspect ratio (1179:2556 ≈ 0.461) */}
-                        <ThemeProvider config={config}>
+                        <AppearanceProvider config={config}>
                           <div
                             className="relative overflow-hidden bg-white flex flex-col w-full"
                             style={{
@@ -2865,7 +2867,7 @@ export default function DesignInvitationPage(): JSX.Element {
                               }}
                             ></div>
                           </div>
-                        </ThemeProvider>
+                        </AppearanceProvider>
                       </div>
                     </div>
                   </div>

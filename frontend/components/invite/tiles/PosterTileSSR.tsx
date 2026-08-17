@@ -1,19 +1,19 @@
 import React from 'react'
-import { DesignTileSettings } from '@/lib/invite/schema'
+import { PosterTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 
-interface DesignTileSSRProps {
-  settings: DesignTileSettings
+interface PosterTileSSRProps {
+  settings: PosterTileSettings
   hasTitleOverlay?: boolean
 }
 
 /**
- * Server-safe version of DesignTile.
+ * Server-safe version of PosterTile.
  * No client-side hooks. Renders a 9:16 card with image or gradient background
  * and static text overlays using absolute positioning.
  */
-export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
+export default function PosterTileSSR({ settings }: PosterTileSSRProps) {
   const hasImage = !!settings.src
   const hasGradient = !!settings.backgroundGradient
 
@@ -24,7 +24,7 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
   const isFullBleed = settings.frameMode === 'full-bleed'
   const fullBleedAspectRatio = settings.aspectRatio || '4 / 5'
   const outerClassName = 'w-full flex justify-center'
-  // Keep in sync with DesignTile.tsx (client) — same cap for the same reason,
+  // Keep in sync with PosterTile.tsx (client) — same cap for the same reason,
   // so the server-rendered first paint and the client hydration agree and
   // there's no visible size jump when JS takes over.
   const boxClassName = isFullBleed ? 'relative w-full max-w-4xl overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
@@ -104,7 +104,7 @@ export default function DesignTileSSR({ settings }: DesignTileSSRProps) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={convertToCloudFrontUrl(settings.src!)}
-          alt="Greeting card"
+          alt="Poster"
           loading="eager"
           decoding="async"
           fetchPriority="high"
