@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { InviteConfig } from '@/lib/invite/schema'
 import { getInvitePageLayout } from '@/lib/invite/api'
-import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
+import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import {
   PREVIEW_SAMPLE,
   enrichConfigWithSampleData,
@@ -137,7 +137,7 @@ export default function PageLayoutPreviewPage() {
 
       {/* Full-size invite render, offset below the banner */}
       <div className="pt-10">
-        <LivingPosterPage
+        <InviteRenderer
           config={enrichedConfig}
           eventSlug="preview"
           eventDate={PREVIEW_SAMPLE.dateDisplay}

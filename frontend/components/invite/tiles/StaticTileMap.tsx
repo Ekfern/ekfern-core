@@ -1,5 +1,5 @@
 import React from 'react'
-import TextureOverlay from '../living-poster/TextureOverlay'
+import TextureOverlay from '../render/TextureOverlay'
 import MapSharpenFilter from './MapSharpenFilter'
 import { MAP_ATTRIBUTION, MAP_EDGE_MASK, MAP_TILE_URL, getMapStyle, type MapStyle } from '@/lib/invite/mapStyles'
 

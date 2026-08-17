@@ -4,10 +4,10 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { InviteConfig } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
+import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import { logError, logDebug } from '@/lib/error-handler'
 import api from '@/lib/api'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import EnvelopeAnimation from '@/components/invite/EnvelopeAnimation'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
 import ComingSoon from '@/components/invite/ComingSoon'
@@ -654,7 +654,7 @@ export default function InvitePageClient({
   }
 
   const renderTime = Date.now()
-  devLog('[InvitePageClient] ✅ CLIENT RENDER: Rendering LivingPosterPage', {
+  devLog('[InvitePageClient] ✅ CLIENT RENDER: Rendering InviteRenderer', {
     slug,
     hasConfig: !!configForClient,
     hasHeroSSR: !!heroSSR,
@@ -771,7 +771,7 @@ export default function InvitePageClient({
             {heroSSR}
 
             {/* All other tiles (including title and event-details) render client-side in correct order */}
-            <LivingPosterPage
+            <InviteRenderer
               config={configForClient}
               eventSlug={slug}
               eventDate={event?.date}
@@ -813,7 +813,7 @@ export default function InvitePageClient({
           {heroSSR}
 
           {/* All other tiles (including title and event-details) render client-side in correct order */}
-          <LivingPosterPage
+          <InviteRenderer
             config={configForClient}
             eventSlug={slug}
             eventDate={event?.date}

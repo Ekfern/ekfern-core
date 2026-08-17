@@ -3,8 +3,8 @@
 import React, { useMemo } from 'react'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import InviteRenderer from '@/components/invite/render/InviteRenderer'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 
 // Inviting sample copy for library previews so cards look like real invites, not placeholders
 export const PREVIEW_SAMPLE = {
@@ -103,7 +103,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
     >
       {/*
         Texture is also rendered on the wrapper so it fills the whole 9:16
-        thumbnail. The LivingPosterPage's own texture only spans its content
+        thumbnail. The InviteRenderer's own texture only spans its content
         height — when tiles end well before the bottom of the preview the
         remainder used to look flat / dead-cream. Rendering the texture here
         as a backdrop keeps the look continuous.
@@ -123,7 +123,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
           minHeight: `${INVERSE_SCALE * 100}%`,
         }}
       >
-        <LivingPosterPage
+        <InviteRenderer
           config={previewConfig}
           eventSlug="preview"
           eventDate={PREVIEW_SAMPLE.dateDisplay}

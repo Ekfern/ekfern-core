@@ -25,8 +25,8 @@ import { resolveAppearance } from '@/lib/invite/appearance'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
-import { ThemeProvider } from '@/components/invite/living-poster/ThemeProvider'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage, extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
@@ -2802,7 +2802,7 @@ export default function DesignInvitationPage(): JSX.Element {
                           }}
                         ></div>
                         {/* Screen - iPhone 16 aspect ratio (1179:2556 ≈ 0.461) */}
-                        <ThemeProvider config={config}>
+                        <AppearanceProvider config={config}>
                           <div
                             className="relative overflow-hidden bg-white flex flex-col w-full"
                             style={{
@@ -2867,7 +2867,7 @@ export default function DesignInvitationPage(): JSX.Element {
                               }}
                             ></div>
                           </div>
-                        </ThemeProvider>
+                        </AppearanceProvider>
                       </div>
                     </div>
                   </div>
