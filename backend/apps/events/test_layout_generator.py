@@ -28,10 +28,11 @@ from apps.events.services import layout_generator, recipes, style_presets, textu
 # loudly if the generator emits something the frontend can't render.
 VALID_TILE_TYPES = {
     "title",
-    "image",
-    "design",
+    "gallery",
+    "poster",
     "timer",
     "event-details",
+    "directions",
     "description",
     "feature-buttons",
     "footer",
@@ -384,7 +385,7 @@ class ComposeConfigTests(TestCase):
             copy=self.copy,
         )
         # find the design (card) tile and verify overlays were attached
-        gc_tiles = [t for t in config["tiles"] if t["type"] == "design"]
+        gc_tiles = [t for t in config["tiles"] if t["type"] == "poster"]
         self.assertEqual(len(gc_tiles), 1)
         overlays = gc_tiles[0]["settings"].get("textOverlays") or []
         self.assertTrue(overlays, "full_overlay recipe should produce overlays")
@@ -404,7 +405,7 @@ class ComposeConfigTests(TestCase):
             preset=self.preset,
             copy=self.copy,
         )
-        gc_tiles = [t for t in config["tiles"] if t["type"] == "design"]
+        gc_tiles = [t for t in config["tiles"] if t["type"] == "poster"]
         self.assertEqual(len(gc_tiles), 1)
         self.assertEqual(gc_tiles[0]["settings"].get("textOverlays") or [], [])
 
@@ -422,42 +423,50 @@ class ComposeConfigTests(TestCase):
         self.assertEqual(cc.get("backgroundColor"), self.palette["bg"])
         self.assertEqual(cc.get("primaryColor"), self.palette["accent"])
 
-    def test_compose_config_image_hero_has_text_overlays_for_full_overlay(self):
-        recipe = next(
-            r for r in recipes.all_recipes()
-            if r["id"] == "image-overlay-classic"
-        )
-        config, _ = layout_generator.compose_config(
-            card_url="https://test.example.com/card.jpg",
-            card_analysis=self.card,
-            palette_data=self.palette,
-            recipe=recipe,
-            preset=self.preset,
-            copy=self.copy,
-        )
-        img_tiles = [t for t in config["tiles"] if t["type"] == "image"]
-        self.assertEqual(len(img_tiles), 1)
-        overlays = img_tiles[0]["settings"].get("textOverlays") or []
-        self.assertTrue(overlays, "image overlay recipe should attach textOverlays")
-        self.assertEqual(img_tiles[0]["settings"].get("fitMode"), "full-image")
+    def test_poster_covers_the_frame_only_when_overlays_sit_on_it(self):
+        # Overlay coordinates are in 9:16 frame space, so a poster carrying text
+        # has to fill that frame or the words land on the letterbox bars. With
+        # no overlays the card is shown whole instead, so a card that is not
+        # 9:16 does not get its own printed text cropped off.
+        def poster_for(recipe_id):
+            recipe = next(r for r in recipes.all_recipes() if r["id"] == recipe_id)
+            config, _ = layout_generator.compose_config(
+                card_url="https://test.example.com/card.jpg",
+                card_analysis=self.card,
+                palette_data=self.palette,
+                recipe=recipe,
+                preset=self.preset,
+                copy=self.copy,
+            )
+            posters = [t for t in config["tiles"] if t["type"] == "poster"]
+            self.assertEqual(len(posters), 1)
+            return posters[0]["settings"]
 
-    def test_compose_config_image_then_title_uses_fit_to_screen_without_overlays(self):
-        recipe = next(
-            r for r in recipes.all_recipes()
-            if r["id"] == "image-then-title"
-        )
-        config, _ = layout_generator.compose_config(
-            card_url="https://test.example.com/card.jpg",
-            card_analysis=self.card,
-            palette_data=self.palette,
-            recipe=recipe,
-            preset=self.preset,
-            copy=self.copy,
-        )
-        img_tiles = [t for t in config["tiles"] if t["type"] == "image"]
-        self.assertEqual(len(img_tiles), 1)
-        self.assertEqual(img_tiles[0]["settings"].get("textOverlays") or [], [])
-        self.assertEqual(img_tiles[0]["settings"].get("fitMode"), "fit-to-screen")
+        with_overlays = poster_for("overlay-hero-classic")
+        self.assertTrue(with_overlays.get("textOverlays"))
+        self.assertEqual(with_overlays.get("imageFit"), "cover")
+
+        without_overlays = poster_for("card-then-title")
+        self.assertEqual(without_overlays.get("textOverlays") or [], [])
+        self.assertEqual(without_overlays.get("imageFit"), "contain")
+
+    def test_the_generator_never_emits_a_gallery(self):
+        # The generator has exactly one picture to place - the host's card - and
+        # that is a poster. A gallery is photos the host chooses themselves, so
+        # nothing here should ever produce one.
+        for recipe in recipes.all_recipes():
+            config, _ = layout_generator.compose_config(
+                card_url="https://test.example.com/card.jpg",
+                card_analysis=self.card,
+                palette_data=self.palette,
+                recipe=recipe,
+                preset=self.preset,
+                copy=self.copy,
+            )
+            self.assertEqual(
+                [t for t in config["tiles"] if t["type"] == "gallery"], [],
+                f"recipe {recipe['id']} emitted a gallery",
+            )
 
 
 class MetaAndRoutingTests(TestCase):
@@ -508,13 +517,13 @@ class SamplerFingerprintTests(TestCase):
     def test_sample_prefers_distinct_structure_fingerprints_before_reuse(self):
         r_a = {
             "id": "finger-a",
-            "tile_sequence": ["image", "title"],
+            "tile_sequence": ["poster", "title"],
             "overlay_strategy": "none",
             "weight": 1.0,
         }
         r_b = {
             "id": "finger-b",
-            "tile_sequence": ["greeting-card", "title"],
+            "tile_sequence": ["title", "poster"],
             "overlay_strategy": "none",
             "weight": 1.0,
         }

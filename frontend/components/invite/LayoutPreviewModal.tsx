@@ -10,7 +10,7 @@ import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 import {
   PREVIEW_SAMPLE,
   enrichConfigWithSampleData,
-  skeletonizeDesignTiles,
+  skeletonizePosterTiles,
 } from '@/components/invite/PageLayoutCardPreview'
 
 export interface LayoutPreviewModalProps {
@@ -38,7 +38,7 @@ export default function LayoutPreviewModal({
   const config = layout.config
   const appearance = resolveAppearance(config)
   const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
-  const previewConfig = skeletonizeDesignTiles(enrichConfigWithSampleData(config))
+  const previewConfig = skeletonizePosterTiles(enrichConfigWithSampleData(config))
 
   return (
     <div

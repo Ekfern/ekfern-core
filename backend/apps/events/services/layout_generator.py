@@ -445,7 +445,7 @@ def _tile_title(*, order: int, copy: dict, preset: dict, palette_data: dict, ove
     return tile
 
 
-def _tile_greeting_card(*, order: int, src: str, overlays: list[dict]) -> dict:
+def _tile_poster(*, order: int, src: str, overlays: list[dict]) -> dict:
     # Aspect-fit choice: when overlays are present the text positions are in
     # 9:16 frame coords, so the card MUST fill that frame ('cover') or the
     # text would sit on the letterbox bars. When there are no overlays
@@ -454,8 +454,8 @@ def _tile_greeting_card(*, order: int, src: str, overlays: list[dict]) -> dict:
     # titles getting cropped at the sides.
     fit = "cover" if overlays else "contain"
     return {
-        "id": _new_id("tile-design"),
-        "type": "design",
+        "id": _new_id("tile-poster"),
+        "type": "poster",
         "enabled": True,
         "order": order,
         "settings": {
@@ -604,26 +604,6 @@ def _tile_event_carousel(*, order: int, preset: dict, palette_data: dict) -> dic
     }
 
 
-def _tile_image(*, order: int, src: str, overlays: Optional[list] = None) -> dict:
-    """Image tile hero. With text overlays, use full-image + 9:16 coords (matches ImageTile client)."""
-    ovs = overlays or []
-    if ovs:
-        settings: dict = {
-            "src": src,
-            "textOverlays": ovs,
-            "fitMode": "full-image",
-        }
-    else:
-        settings = {"src": src, "fitMode": "fit-to-screen"}
-    return {
-        "id": _new_id("tile-image"),
-        "type": "image",
-        "enabled": True,
-        "order": order,
-        "settings": settings,
-    }
-
-
 # ---------------------------------------------------------------------------
 # Composer
 # ---------------------------------------------------------------------------
@@ -663,12 +643,8 @@ def compose_config(
     sequence = list(recipe["tile_sequence"])
 
     for tile_type in sequence:
-        if tile_type == "greeting-card":
-            tile = _tile_greeting_card(order=order, src=card_url, overlays=overlays)
-            card_tile_id = tile["id"]
-            tiles.append(tile)
-        elif tile_type == "image":
-            tile = _tile_image(order=order, src=card_url, overlays=overlays)
+        if tile_type == "poster":
+            tile = _tile_poster(order=order, src=card_url, overlays=overlays)
             card_tile_id = tile["id"]
             tiles.append(tile)
         elif tile_type == "title":

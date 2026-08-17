@@ -21,8 +21,7 @@ from apps.events.services import recipes, style_presets
 
 VALID_TILE_TYPES = {
     "title",
-    "image",
-    "greeting-card",
+    "poster",
     "timer",
     "event-details",
     "description",

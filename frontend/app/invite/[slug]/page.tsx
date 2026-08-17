@@ -6,8 +6,7 @@ import ComingSoon from '@/components/invite/ComingSoon'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import ImageTileSSR from '@/components/invite/tiles/ImageTileSSR'
-import DesignTileSSR from '@/components/invite/tiles/DesignTileSSR'
+import PosterTileSSR from '@/components/invite/tiles/PosterTileSSR'
 import TitleTileSSR from '@/components/invite/tiles/TitleTileSSR'
 import EventDetailsTileSSR from '@/components/invite/tiles/EventDetailsTileSSR'
 import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
@@ -758,28 +757,28 @@ export async function generateMetadata({
   if (imageSource === 'upload') {
     // Explicit upload source: use the uploaded image only
     bannerImage = customMetadata?.image
-  } else if (imageSource === 'greeting-card') {
-    // Use first enabled greeting-card tile with a src
+  } else if (imageSource === 'poster') {
+    // Use first enabled poster tile with a src
     if (inviteData.config?.tiles) {
-      const gcTile = inviteData.config.tiles.find(
-        (tile: any) => tile.type === 'design' && tile.enabled !== false && tile.settings?.src
+      const posterTile = inviteData.config.tiles.find(
+        (tile: any) => tile.type === 'poster' && tile.enabled !== false && tile.settings?.src
       ) as any
-      bannerImage = gcTile?.settings?.src
+      bannerImage = posterTile?.settings?.src
     }
-  } else if (imageSource === 'image-tile') {
-    // Use first enabled image tile with a src
+  } else if (imageSource === 'gallery') {
+    // Use the first photo of the first enabled gallery
     if (inviteData.config?.tiles) {
-      const imgTile = inviteData.config.tiles.find(
-        (tile: any) => tile.type === 'image' && tile.enabled !== false && tile.settings?.src
+      const galleryTile = inviteData.config.tiles.find(
+        (tile: any) => tile.type === 'gallery' && tile.enabled !== false && tile.settings?.images?.[0]?.src
       ) as any
-      bannerImage = imgTile?.settings?.src
+      bannerImage = galleryTile?.settings?.images?.[0]?.src
     }
   } else {
     // No source set — existing waterfall: upload → first image/GC tile → generic envelope
     bannerImage = customMetadata?.image
     if (!bannerImage && inviteData.config?.tiles) {
       const imageTile = inviteData.config.tiles.find(
-        (tile: any) => (tile.type === 'image' || tile.type === 'design') && tile.enabled !== false && tile.settings?.src
+        (tile: any) => tile.type === 'poster' && tile.enabled !== false && tile.settings?.src
       ) as any
       if (imageTile?.settings?.src) {
         bannerImage = imageTile.settings.src
@@ -1231,14 +1230,16 @@ export default async function InvitePage({
   const backgroundColor = resolveAppearance(initialConfig).backgroundColor
 
   if (initialConfig?.tiles && initialConfig.tiles.length > 0) {
-    // Find image or greeting-card tile (first enabled tile with a src)
-    const imageTile = initialConfig.tiles.find(
-      (t: Tile) => (t.type === 'image' || t.type === 'design') && t.enabled !== false && (t.settings as any)?.src
+    // The hero is the poster, and only the poster. The gallery holds several
+    // photos with no single one to promote, and it sits lower in the page's
+    // priority by design.
+    const posterTile = initialConfig.tiles.find(
+      (t: Tile) => t.type === 'poster' && t.enabled !== false && (t.settings as any)?.src
     ) as Tile | undefined
 
     // Find title tile that overlays on image
-    const overlayTitleTile = imageTile ? initialConfig.tiles.find(
-      (t: Tile) => t.type === 'title' && t.enabled && t.overlayTargetId === imageTile.id
+    const overlayTitleTile = posterTile ? initialConfig.tiles.find(
+      (t: Tile) => t.type === 'title' && t.enabled && t.overlayTargetId === posterTile.id
     ) as Tile | undefined : null
 
     // Find standalone title tile (not overlaying on any image)
@@ -1251,22 +1252,15 @@ export default async function InvitePage({
       (t: Tile) => t.type === 'event-details' && t.enabled
     ) as Tile | undefined
 
-    // Render hero section server-side (image or greeting-card with overlay title)
-    if (imageTile) {
-      const imageSettings = imageTile.settings as any
+    // Render the poster server-side, with its overlaid title if there is one.
+    if (posterTile) {
+      const posterSettings = posterTile.settings as any
       heroSSR = (
         <div className="w-full relative">
-          {imageTile.type === 'design' ? (
-            <DesignTileSSR
-              settings={imageSettings}
-              hasTitleOverlay={!!overlayTitleTile}
-            />
-          ) : (
-            <ImageTileSSR
-              settings={imageSettings}
-              hasTitleOverlay={!!overlayTitleTile}
-            />
-          )}
+          <PosterTileSSR
+            settings={posterSettings}
+            hasTitleOverlay={!!overlayTitleTile}
+          />
           {overlayTitleTile && (
             <TitleTileSSR settings={overlayTitleTile.settings as any} overlayMode={true} />
           )}

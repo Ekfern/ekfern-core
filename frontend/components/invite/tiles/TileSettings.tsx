@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Tile, TileType } from '@/lib/invite/schema'
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import TitleTileSettings from './TitleTileSettings'
-import ImageTileSettings from './ImageTileSettings'
+import GalleryTileSettings from './GalleryTileSettings'
 import TimerTileSettings from './TimerTileSettings'
 import EventDetailsTileSettings from './EventDetailsTileSettings'
 import DirectionsTileSettings from './DirectionsTileSettings'
@@ -12,7 +12,7 @@ import DescriptionTileSettings from './DescriptionTileSettings'
 import FeatureButtonsTileSettings from './FeatureButtonsTileSettings'
 import FooterTileSettings from './FooterTileSettings'
 import EventCarouselTileSettings from './EventCarouselTileSettings'
-import DesignTileSettings from './DesignTileSettings'
+import PosterTileSettings from './PosterTileSettings'
 
 interface TileSettingsProps {
   tile: Tile
@@ -27,8 +27,8 @@ interface TileSettingsProps {
 
 const TILE_LABELS: Record<TileType, string> = {
   'title': 'Title',
-  'image': 'Image',
-  'design': 'Design',
+  'gallery': 'Gallery',
+  'poster': 'Poster',
   'timer': 'Timer',
   'event-details': 'Event Details',
   'directions': 'Directions',
@@ -62,10 +62,10 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
             onChange={handleSettingsChange}
           />
         )
-      case 'image':
-        return <ImageTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
-      case 'design':
-        return <DesignTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
+      case 'gallery':
+        return <GalleryTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
+      case 'poster':
+        return <PosterTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
       case 'timer':
         return <TimerTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
       case 'event-details':

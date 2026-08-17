@@ -17,7 +17,7 @@ export interface BackgroundImage {
 }
 
 // Tile-based structure
-export type TileType = 'title' | 'image' | 'design' | 'timer' | 'event-details' | 'directions' | 'description' | 'feature-buttons' | 'footer' | 'event-carousel'
+export type TileType = 'title' | 'gallery' | 'poster' | 'timer' | 'event-details' | 'directions' | 'description' | 'feature-buttons' | 'footer' | 'event-carousel'
 
 export interface TitleTileSettings {
   text: string
@@ -59,23 +59,35 @@ export interface TextOverlay {
   shadowOpacity?: number
 }
 
-export interface ImageTileSettings {
-  src?: string // Image URL or data URL
-  fitMode?: 'fit-to-screen' | 'full-image'
-  backgroundColor?: string // Background color if image doesn't fill
-  backgroundGradient?: string // CSS gradient string e.g. 'linear-gradient(135deg, #fce4ec, #f48fb1)' — used when no src image is set
-  blur?: number // 0-100
-  coverPosition?: 'center' | 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | { x: number; y: number } // Position for cover image mode (x, y are 0-100 percentages)
-  // Shape and frame (for sleek invite look)
-  shape?: 'rectangle' | 'circle' | 'rounded'
-  frameStyle?: 'none' | 'single' | 'double'
-  frameColor?: string // Hex color for frame border
-  frameWidth?: number // Pixels
-  // Text overlays from card designer (stored with 9:16 coordinate system)
-  textOverlays?: TextOverlay[]
+/** How many photos a gallery may hold. A wedding invitation is not an album. */
+export const GALLERY_MAX_IMAGES = 6
+
+export interface GalleryImage {
+  /** Stable across reordering, so React keys and drag order stay honest. */
+  id: string
+  src: string
+  caption?: string
 }
 
-export interface DesignTileSettings {
+export interface GalleryTileSettings {
+  images: GalleryImage[]
+  /**
+   * vertical   — one per row, full width
+   * horizontal — side by side, wrapping onto further rows on narrow screens
+   * grid       — two columns
+   */
+  arrangement?: 'vertical' | 'horizontal' | 'grid'
+  /** One frame for every photo in the gallery; no mixing. */
+  frame?: 'none' | 'simple' | 'polaroid'
+  frameColor?: string // 'simple' only
+  frameWidth?: number // 'simple' only, pixels
+  // Shared vocabulary with the event carousel, so hosts learn one set of words.
+  spacing?: 'tight' | 'normal' | 'spacious'
+  cornerRadius?: number
+  shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl'
+}
+
+export interface PosterTileSettings {
   src?: string                  // Image URL or data URL
   backgroundGradient?: string   // CSS gradient when no image e.g. 'linear-gradient(135deg, #fce4ec, #f48fb1)'
   textOverlays?: TextOverlay[]  // Positioned text boxes from the card designer (9:16 coordinate system)
@@ -254,7 +266,7 @@ export interface LinkMetadata {
   previewImageOriginal?: string // Original uploaded image URL for re-editing framing
   previewImageCrop?: { x: number; y: number; width: number; height: number } // Crop rectangle in original image coordinates
   previewImageCropAspectRatio?: number // Aspect ratio used when cropping (e.g., 1200/630)
-  previewImageSource?: 'upload' | 'greeting-card' | 'image-tile' // Which source drives the OG image
+  previewImageSource?: 'upload' | 'poster' | 'gallery' // Which source drives the OG image
   previewTitleSource?: 'auto' | 'custom' // Whether to use auto-generated or custom title
   previewDescriptionSource?: 'auto' | 'custom' // Whether to use auto-generated or custom description
 }
@@ -297,8 +309,8 @@ export interface RsvpFormConfig {
 
 export type TileSettings =
   | TitleTileSettings
-  | ImageTileSettings
-  | DesignTileSettings
+  | GalleryTileSettings
+  | PosterTileSettings
   | TimerTileSettings
   | EventDetailsTileSettings
   | DirectionsTileSettings

@@ -2,7 +2,40 @@
  * Migration utility to convert legacy InviteConfig to tile-based structure
  */
 
-import { InviteConfig, Tile, TitleTileSettings, ImageTileSettings, TimerTileSettings, EventDetailsTileSettings, DescriptionTileSettings, FeatureButtonsTileSettings, FooterTileSettings } from './schema'
+import { InviteConfig, Tile, TitleTileSettings, GalleryTileSettings, TimerTileSettings, EventDetailsTileSettings, DescriptionTileSettings, FeatureButtonsTileSettings, FooterTileSettings } from './schema'
+
+/**
+ * Bring a tile up to the current type names and settings shape.
+ *
+ * Stored configs are migrated server-side; this is read-compat, so a config
+ * loaded from anywhere - a cached payload, a fixture, an export - still
+ * renders. Returns the tile unchanged when there is nothing legacy about it.
+ *
+ * Two renames are handled:
+ *  - `greeting-card` -> `design` -> `poster`, the flyer with text overlays.
+ *  - `image` -> `gallery`, which went from one `src` to a list of photos.
+ */
+const LEGACY_POSTER_TYPES = ['greeting-card', 'design']
+
+function normalizeLegacyTile(tile: Tile): Tile {
+  const type = (tile as any).type
+
+  if (LEGACY_POSTER_TYPES.includes(type)) {
+    return { ...tile, type: 'poster' } as Tile
+  }
+
+  if (type === 'image') {
+    const legacy = (tile.settings ?? {}) as { src?: string }
+    const settings: GalleryTileSettings = {
+      images: legacy.src ? [{ id: `${tile.id}-1`, src: legacy.src }] : [],
+      arrangement: 'vertical',
+      frame: 'none',
+    }
+    return { ...tile, type: 'gallery', settings } as Tile
+  }
+
+  return tile
+}
 
 export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, eventDate?: string, eventCity?: string): InviteConfig {
   // If config is null or undefined, return default
@@ -14,18 +47,9 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
 
   // If tiles already exist, return as-is (after normalizing legacy tile types).
   if (config.tiles && config.tiles.length > 0) {
-    // Legacy rename: the 'greeting-card' tile type was renamed to 'design'
-    // (commit 043ed3b). Older saved configs and AI-generated layouts may still
-    // carry the old type, which has no renderer or label on the frontend, so it
-    // would show up as a blank tile. Normalize it on load as a safety net (a
-    // data migration handles guest SSR, which does not run this).
-    if (config.tiles.some((t) => (t as any).type === 'greeting-card')) {
-      return {
-        ...config,
-        tiles: config.tiles.map((t) =>
-          (t as any).type === 'greeting-card' ? { ...t, type: 'design' as const } : t,
-        ),
-      }
+    const normalized = config.tiles.map(normalizeLegacyTile)
+    if (normalized.some((tile, index) => tile !== config.tiles![index])) {
+      return { ...config, tiles: normalized }
     }
     return config
   }
@@ -49,21 +73,20 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
     })
   }
 
-  // Image Tile (Optional)
+  // Gallery Tile (Optional) - the legacy hero background becomes its one photo.
   if (config.hero?.background && typeof config.hero.background === 'object' && 'src' in config.hero.background) {
     const bg = config.hero.background as any
-    const imageSettings: ImageTileSettings = {
-      src: bg.src,
-      fitMode: bg.fitMode === 'cover' ? 'full-image' : bg.fitMode === 'contain' ? 'fit-to-screen' : 'fit-to-screen',
-      backgroundColor: bg.backgroundColor || config.customColors?.backgroundColor,
-      blur: bg.blur,
+    const gallerySettings: GalleryTileSettings = {
+      images: [{ id: `tile-${order}-1`, src: bg.src }],
+      arrangement: 'vertical',
+      frame: 'none',
     }
     tiles.push({
       id: `tile-${order}`,
-      type: 'image',
+      type: 'gallery',
       enabled: true,
       order: order++,
-      settings: imageSettings,
+      settings: gallerySettings,
     })
   }
 

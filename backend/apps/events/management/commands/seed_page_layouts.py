@@ -94,17 +94,14 @@ def get_classic_config():
         'spacing': 'normal',
         'tiles': [
             {
-                'id': 'tile-image-0',
-                'type': 'image',
+                # A poster, not a gallery: the title tile below overlays this,
+                # and only the poster carries text overlays.
+                'id': 'tile-poster-0',
+                'type': 'poster',
                 'enabled': True,
                 'order': 0,
                 'settings': {
                     'src': DEFAULT_HERO_IMAGE,
-                    'fitMode': 'fit-to-screen',
-                    'shape': 'circle',
-                    'frameStyle': 'single',
-                    'frameColor': '#D4AF37',
-                    'frameWidth': 2,
                 },
             },
             {
@@ -112,7 +109,7 @@ def get_classic_config():
                 'type': 'title',
                 'enabled': True,
                 'order': 1,
-                'overlayTargetId': 'tile-image-0',
+                'overlayTargetId': 'tile-poster-0',
                 'settings': {
                     'text': 'Event Title',
                     'font': "'Great Vibes', cursive",
