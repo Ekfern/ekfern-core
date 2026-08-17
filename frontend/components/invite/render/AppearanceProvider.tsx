@@ -14,8 +14,9 @@ import { resolveAppearance } from '@/lib/invite/appearance'
  * being passed a colour by every renderer above it.
  *
  * This is the only channel by which a page-level design decision reaches a
- * tile, and it currently carries colour and type only - no radius, spacing or
- * shadow, which is why those are duplicated across tile settings instead.
+ * tile. It carries all eight look families; see lib/invite/appearance.ts for
+ * what each one means and why shape and depth were the two that used to be
+ * missing.
  *
  * It also used to expose the same values through React context, via a
  * `useTheme()` hook. That had exactly one caller, which used it to re-apply
@@ -39,6 +40,22 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
         '--theme-overlay-opacity': colors.overlayOpacity,
         '--theme-font-title': colors.titleFont,
         '--theme-font-body': colors.bodyFont,
+
+        // Shape: cards/images/media vs buttons.
+        '--radius-surface': colors.radiusSurface,
+        '--radius-control': colors.radiusControl,
+
+        // Depth: resting on the page vs lifted above it.
+        '--shadow-rest': colors.shadowRest,
+        '--shadow-lift': colors.shadowLift,
+
+        // Rhythm: three relationships, not one gap. `section` matches the flat
+        // gap the page used before, so adopting these changes nothing today.
+        '--space-cluster': colors.spaceCluster,
+        '--space-section': colors.spaceSection,
+        '--space-chapter': colors.spaceChapter,
+        '--inset-page': colors.insetPage,
+        '--measure-text': colors.measureText,
       } as React.CSSProperties}
     >
       {children}

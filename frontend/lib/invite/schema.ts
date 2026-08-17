@@ -395,6 +395,11 @@ export interface InviteConfig {
   tileSetComplete?: boolean
   // Global spacing between tiles
   spacing?: 'tight' | 'normal' | 'spacious' | null
+  // How edges behave. Surfaces (cards, images, the map) and controls (buttons)
+  // move together but are not the same value, so one word sets both.
+  shape?: 'sharp' | 'soft' | 'rounded' | null
+  // Whether things rest on the paper or lift off it.
+  depth?: 'flat' | 'raised' | 'lifted' | null
   // Legacy structure (for backward compatibility)
   hero?: {
     background?: BackgroundImage | {

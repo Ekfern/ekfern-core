@@ -7,6 +7,7 @@ import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
+import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 
 export interface DummyEventLike {
@@ -567,7 +568,13 @@ export default function PageLayoutStudioCanvas({
                       className="overflow-y-auto flex-1 w-full overflow-x-hidden"
                       style={{ paddingBottom: '24px' }}
                     >
+                      {/* The canvas has to publish the layout's own colours and
+                          fonts. Without this the tiles below fall through to
+                          their hardcoded fallbacks, so a layout was authored
+                          against #1F2937 on Georgia and only revealed its real
+                          palette on the preview screen. */}
                       {sortedTiles.length > 0 ? (
+                        <AppearanceProvider config={config}>
                         <TileList
                           tiles={sortedTiles}
                           onReorder={handleTileReorder}
@@ -581,6 +588,7 @@ export default function PageLayoutStudioCanvas({
                           hasRegistry={eventLike.has_registry}
                           allowedSubEvents={[]}
                         />
+                        </AppearanceProvider>
                       ) : (
                         <div className="p-8 text-center text-gray-500">
                           <p>No tiles</p>
