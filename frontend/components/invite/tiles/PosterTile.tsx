@@ -4,7 +4,7 @@ import React from 'react'
 import { ImagePlus } from 'lucide-react'
 import { PosterTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 
 export interface PosterTileProps {
   settings: PosterTileSettings

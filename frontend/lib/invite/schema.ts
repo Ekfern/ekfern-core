@@ -1,5 +1,14 @@
 /**
- * TypeScript schema for Living Poster Invitation configuration
+ * The shape of an invitation.
+ *
+ * An InviteConfig is one JSON document: page-level appearance plus an ordered
+ * list of tiles. It is the unit every surface reads - the guest's invitation,
+ * the page editor, the layout studio and the layout library all render from
+ * this and nothing else.
+ *
+ * "Living Poster" was the original concept - one animated poster rather than a
+ * scroll of tiles - and the name survived in this file long after the idea was
+ * replaced. It is gone now; nothing here is a poster except the poster tile.
  */
 
 export interface BackgroundImage {

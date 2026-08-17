@@ -3,13 +3,14 @@
 import React, { useEffect, useMemo } from 'react'
 import { InviteConfig } from '@/lib/invite/schema'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
-import { ThemeProvider, useTheme } from './ThemeProvider'
+import { AppearanceProvider } from './AppearanceProvider'
+import { resolveAppearance } from '@/lib/invite/appearance'
 import TilePreview from '@/components/invite/tiles/TilePreview'
 import ScrollIndicator from '@/components/invite/ScrollIndicator'
 import TextureOverlay from './TextureOverlay'
 
 
-interface LivingPosterPageProps {
+interface InviteRendererProps {
   config: InviteConfig
   eventSlug: string
   eventDate?: string
@@ -26,7 +27,7 @@ interface LivingPosterPageProps {
   rsvpCount?: number
 }
 
-function LivingPosterContent({
+function InviteRendererContent({
   config,
   eventSlug,
   eventDate,
@@ -41,11 +42,9 @@ function LivingPosterContent({
   allowedSubEvents = [],
   guestToken,
   rsvpCount,
-}: LivingPosterPageProps) {
-  const theme = useTheme()
-  const backgroundColor = config.customColors?.backgroundColor ?? theme.backgroundColor
-  const backgroundGradient = config.customColors?.backgroundGradient
-  const pageBackground = backgroundGradient || backgroundColor
+}: InviteRendererProps) {
+  const appearance = resolveAppearance(config)
+  const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
 
   // Set body background to match page background (skip if already set at page level)
   useEffect(() => {
@@ -72,22 +71,6 @@ function LivingPosterContent({
   const sortedTiles = [...(effectiveConfig.tiles || [])]
     .filter(tile => tile.enabled !== false)
     .sort((a, b) => a.order - b.order)
-
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('[TILE ORDER DEBUG] Invite page order:', {
-      allTiles: (effectiveConfig.tiles || []).map(t => ({
-        id: t.id,
-        type: t.type,
-        enabled: t.enabled,
-        order: t.order,
-      })),
-      enabledTiles: sortedTiles.map(t => ({
-        id: t.id,
-        type: t.type,
-        order: t.order,
-      })),
-    })
-  }
 
   const sharedProps = {
     eventDate,
@@ -142,7 +125,7 @@ function LivingPosterContent({
           const tileEl = <TilePreview tile={tile} {...sharedProps} />
 
           if (tile.type === 'feature-buttons' && hasRsvp && rsvpCount !== undefined && rsvpCount >= 5) {
-            const countColor = effectiveConfig.customColors?.fontColor ?? theme.fontColor
+            const countColor = appearance.fontColor
             return (
               <div key={tile.id} className="flex flex-col gap-2 w-full">
                 <p className="text-center text-sm px-6" style={{ color: countColor, opacity: 0.6 }}>
@@ -179,11 +162,11 @@ function LivingPosterContent({
   )
 }
 
-export default function LivingPosterPage(props: LivingPosterPageProps) {
+export default function InviteRenderer(props: InviteRendererProps) {
   return (
-    <ThemeProvider config={props.config}>
-      <LivingPosterContent {...props} />
-    </ThemeProvider>
+    <AppearanceProvider config={props.config}>
+      <InviteRendererContent {...props} />
+    </AppearanceProvider>
   )
 }
 

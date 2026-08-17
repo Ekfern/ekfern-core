@@ -5,8 +5,8 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import InviteRenderer from '@/components/invite/render/InviteRenderer'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import {
   PREVIEW_SAMPLE,
   enrichConfigWithSampleData,
@@ -72,7 +72,7 @@ export default function LayoutPreviewModal({
               imageUrl={config?.texture?.imageUrl}
               textureBlend={config?.texture?.textureBlend}
             />
-            <LivingPosterPage
+            <InviteRenderer
               config={previewConfig}
               eventSlug="preview"
               eventDate={PREVIEW_SAMPLE.dateDisplay}

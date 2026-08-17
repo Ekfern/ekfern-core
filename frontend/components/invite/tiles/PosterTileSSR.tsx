@@ -1,7 +1,7 @@
 import React from 'react'
 import { PosterTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
-import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
+import TextureOverlay from '@/components/invite/render/TextureOverlay'
 
 interface PosterTileSSRProps {
   settings: PosterTileSettings
