@@ -36,7 +36,7 @@ export default function FeatureButtonsTile({
 }: FeatureButtonsTileProps) {
   const buttonColor = settings.buttonColor || 'var(--theme-primary, #D4A017)'
   const variant = settings.buttonVariant ?? 'classic'
-  const radius  = settings.buttonRadius  ?? 'round'
+  const radius  = settings.buttonRadius  ?? 'var(--radius-control)'
   const { extraClass, style: btnStyle } = getButtonStyles(buttonColor, variant, radius)
 
   const buttons: Array<{ label: string; href: string }> = []
@@ -80,7 +80,7 @@ export default function FeatureButtonsTile({
         ? {
             backgroundColor: settings.ctaCardBackgroundColor || '#FFFFFF',
             border: `1px solid ${settings.ctaCardBorderColor || 'rgba(0,0,0,0.1)'}`,
-            borderRadius: '16px',
+            borderRadius: 'var(--radius-surface)',
             boxShadow: ctaCardShadow ? '0 12px 32px rgba(0,0,0,0.12)' : undefined,
             padding: '20px 24px',
           }
@@ -90,7 +90,7 @@ export default function FeatureButtonsTile({
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
               border: '1px solid rgba(255,255,255,0.28)',
-              borderRadius: '16px',
+              borderRadius: 'var(--radius-surface)',
               boxShadow: ctaCardShadow ? '0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25)' : undefined,
               padding: '20px 24px',
             }

@@ -64,8 +64,8 @@ export default function DirectionsTile({ settings, preview = false }: Directions
           // Older tiles carry a pasted map link and no coordinates, so there is
           // no point to centre on. Re-picking the address upgrades them.
           <div
-            className="relative w-full overflow-hidden rounded-xl"
-            style={{ height: `${height}px` }}
+            className="relative w-full overflow-hidden"
+            style={{ height: `${height}px`, borderRadius: 'var(--radius-surface)' }}
           >
             <iframe
               src={embedUrl}
@@ -113,7 +113,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
           href={directionsHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2" style={{ borderRadius: 'var(--radius-surface)' }}
           aria-label={
             addressLine ? `Open directions to ${addressLine} in your map app` : 'Open directions in your map app'
           }
@@ -121,7 +121,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
           {body}
         </a>
       ) : (
-        <div className="block rounded-xl">{body}</div>
+        <div className="block" style={{ borderRadius: 'var(--radius-surface)' }}>{body}</div>
       )}
     </section>
   )

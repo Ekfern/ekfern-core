@@ -33,8 +33,8 @@ export type InviteSpacing = 'tight' | 'normal' | 'spacious'
  * cards with pill buttons, or sharp cards with barely-rounded ones.
  */
 const SHAPE_SCALE: Record<InviteShape, { surface: string; control: string }> = {
-  sharp: { surface: '0px', control: '4px' },
-  soft: { surface: '12px', control: '9999px' },
+  sharp: { surface: '0px', control: '0px' },
+  soft: { surface: '12px', control: '8px' },
   rounded: { surface: '20px', control: '9999px' },
 }
 
@@ -77,10 +77,14 @@ const RHYTHM_SCALE: Record<
  * The colours and fonts are what the old default theme resolved to, so nothing
  * that previously fell through changes. Shape and depth are set to the values
  * already most common in the tiles: 12px surfaces (poster, directions and the
- * carousel all use it today), pill controls (the timer and the details buttons
- * already do), and the subtle shadow that both the gallery and the carousel
- * default to. Adopting them moves the outliers to meet the majority rather
- * than imposing a new opinion.
+ * carousel all use it today), 8px controls (what `RADIUS_MAP.round` resolves
+ * to, which is the fallback both button-bearing tiles use), and the subtle
+ * shadow that both the gallery and the carousel default to. Adopting them
+ * moves the outliers to meet the majority rather than imposing a new opinion.
+ *
+ * Controls are not pill by default. The timer renders a circle, which is a
+ * shape rather than a control, and counting it as one is how an earlier pass
+ * concluded that buttons were already round.
  */
 export const INVITE_APPEARANCE_DEFAULTS = {
   backgroundColor: '#E8D8C3',

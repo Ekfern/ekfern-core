@@ -430,7 +430,10 @@ export default function EventCarouselTile({
     const cardPaddingClass = getCardPaddingClass()
 
     const cardStyle: React.CSSProperties = {
-      borderRadius: `${normalizedSettings.cardBorderRadius ?? 12}px`,
+      borderRadius:
+        normalizedSettings.cardBorderRadius !== undefined
+          ? `${normalizedSettings.cardBorderRadius}px`
+          : 'var(--radius-surface)',
       backgroundColor: normalizedSettings.cardBackgroundColor || '#ffffff',
       borderWidth: normalizedSettings.cardBorderWidth ?? 0,
       borderColor: normalizedSettings.cardBorderColor || 'transparent',

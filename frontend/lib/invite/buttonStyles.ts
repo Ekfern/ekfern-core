@@ -105,7 +105,9 @@ export function getButtonStyles(
   variant: string,
   radius: string,
 ): { extraClass: string; style: CSSProperties } {
-  const borderRadius = RADIUS_MAP[radius as ButtonRadius] ?? '8px'
+  // A named step maps to its value; anything else passes through, so callers
+  // can hand in `var(--radius-control)` and inherit the invitation's shape.
+  const borderRadius = RADIUS_MAP[radius as ButtonRadius] ?? radius
 
   if (variant === 'link') {
     return {

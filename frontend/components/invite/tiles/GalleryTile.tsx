@@ -46,7 +46,15 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   const arrangement = settings.arrangement ?? 'vertical'
   const frame = settings.frame ?? 'none'
   const gap = GAP[settings.spacing ?? 'normal']
-  const radius = settings.cornerRadius ?? 8
+  // A CSS value rather than a number: unset means "whatever the invitation's
+  // surfaces use", which cannot be expressed as an integer.
+  const radius =
+    settings.cornerRadius !== undefined ? `${settings.cornerRadius}px` : 'var(--radius-surface)'
+  // The photo sits inside the frame, so its corners are slightly tighter.
+  const innerRadius =
+    settings.cornerRadius !== undefined
+      ? `${Math.max(settings.cornerRadius - 2, 0)}px`
+      : 'calc(var(--radius-surface) - 2px)'
   const shadow = SHADOW[settings.shadow ?? 'sm']
 
   // Vertical keeps a photo's own proportions; the other two need a common
@@ -110,7 +118,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
                 className="block w-full object-cover"
                 style={{
                   aspectRatio: aspect,
-                  borderRadius: frame === 'none' ? radius : frame === 'simple' ? Math.max(radius - 2, 0) : 0,
+                  borderRadius: frame === 'none' ? radius : frame === 'simple' ? innerRadius : 0,
                   userSelect: 'none',
                   WebkitTouchCallout: 'none',
                 }}
