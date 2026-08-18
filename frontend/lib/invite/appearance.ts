@@ -14,9 +14,9 @@ import type { InviteConfig } from './schema'
  * (`texture`), ornament (`pageBorder`/`pageFrame`/`cornerDecorations`) and
  * motion (`animations`). Shape and depth did not, so every tile answered those
  * two questions for itself - corner radius under four different names, shadow
- * under three, none of them agreeing. That is why a page could show three
- * different margins and four different corners, and why a tile added on day
- * forty looked bolted onto a design chosen on day one.
+ * under three, none of them agreeing. That is why a tile added on day forty
+ * looks bolted onto a design chosen on day one: it arrives with the factory's
+ * corners and shadow rather than the invitation's.
  *
  * This module resolves all of it into one set of values, which
  * `AppearanceProvider` publishes as CSS custom properties. The rule the tiles
@@ -57,13 +57,16 @@ const DEPTH_SCALE: Record<InviteDepth, { rest: string; lift: string }> = {
  * `section` deliberately equals the flat gap the page already used for each
  * density (16 / 32 / 48px), so adopting these values changes nothing that is
  * on a page today. `cluster` and `chapter` are new capability, not a rewrite.
+ *
+ * `inset` at normal density is 1rem for the same reason: every tile already
+ * uses `px-4`, so a tile adopting the token keeps the margin it had.
  */
 const RHYTHM_SCALE: Record<
   InviteSpacing,
   { cluster: string; section: string; chapter: string; inset: string }
 > = {
-  tight: { cluster: '0.5rem', section: '1rem', chapter: '2.5rem', inset: '1rem' },
-  normal: { cluster: '0.75rem', section: '2rem', chapter: '4rem', inset: '1.25rem' },
+  tight: { cluster: '0.5rem', section: '1rem', chapter: '2.5rem', inset: '0.75rem' },
+  normal: { cluster: '0.75rem', section: '2rem', chapter: '4rem', inset: '1rem' },
   spacious: { cluster: '1rem', section: '3rem', chapter: '6rem', inset: '1.5rem' },
 }
 

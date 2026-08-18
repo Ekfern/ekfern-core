@@ -214,13 +214,17 @@ export default function TileList({
     return true
   })
 
-  // Invite-style preview: no cards, no drag handles — matches live invite page so template preview matches final result
+  // Invite-style preview: no cards, no drag handles. The gap comes from
+  // --space-section, the same variable the live renderer uses, so this preview
+  // matches the invitation by construction rather than by claim. It used to be
+  // space-y-0 while the live page rendered 16/32/48px, which is how the editor
+  // could promise "matches your live invite" and be wrong.
   if (variant === 'invite') {
     const sortedForInvite = [...tilesToRender].sort(
       (a, b) => (a.order ?? 0) - (b.order ?? 0)
     )
     return (
-      <div className="space-y-0 w-full overflow-x-hidden">
+      <div className="flex flex-col w-full overflow-x-hidden" style={{ gap: 'var(--space-section)' }}>
         {sortedForInvite.map((tile) => {
           const titleOverlay = tiles.find(t => t.type === 'title' && t.overlayTargetId === tile.id)
           if (tile.type === 'poster' && titleOverlay) {

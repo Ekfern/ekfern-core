@@ -112,15 +112,10 @@ function InviteRendererContent({
           )}
         </div>
       )}
-      <div
-        className={
-          effectiveConfig.spacing === 'tight'
-            ? 'flex flex-col gap-4'
-            : effectiveConfig.spacing === 'spacious'
-              ? 'flex flex-col gap-12'
-              : 'flex flex-col gap-8'
-        }
-      >
+      {/* The gap is a token, not a class, so the editor preview and this page
+          cannot drift apart again. --space-section resolves to the same
+          16 / 32 / 48px these classes produced. */}
+      <div className="flex flex-col" style={{ gap: 'var(--space-section)' }}>
         {sortedTiles.map((tile) => {
           const tileEl = <TilePreview tile={tile} {...sharedProps} />
 
