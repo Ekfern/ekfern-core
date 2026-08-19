@@ -345,6 +345,11 @@ export interface InviteConfig {
   appliedLayoutId?: string
   // Custom overrides (optional - if not set, uses theme defaults)
   customColors?: {
+    // Whether the non-background colours are still derived from the background
+    // or were set by hand. Ink, accent and muted follow the background while
+    // this is absent or 'derived'; once a host picks one of them directly the
+    // palette is theirs and nothing overwrites it again.
+    source?: 'derived' | 'custom'
     backgroundColor?: string // Overrides theme.palette.bg
     backgroundGradient?: string // CSS gradient string e.g. 'linear-gradient(160deg, #E8D8C3 0%, #C4A882 100%)' — takes precedence over backgroundColor
     fontColor?: string // Overrides theme.palette.fg

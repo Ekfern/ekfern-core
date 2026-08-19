@@ -29,6 +29,7 @@ import { AppearanceProvider } from '@/components/invite/render/AppearanceProvide
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage, extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
+import { derivePaletteFromColor, representativeColorFromGradient } from '@/lib/invite/paletteUtils'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import WizardProgress from '@/components/host/WizardProgress'
@@ -1371,6 +1372,39 @@ export default function DesignInvitationPage(): JSX.Element {
     }))
   }
 
+  // Every background change goes through here.
+  //
+  // A palette is a set that has to agree with itself: a preset picks ground,
+  // ink, accent and muted together. The editor used to let a host change only
+  // the ground, which guaranteed the other three would stop matching the moment
+  // it was used - a lilac accent left over from a near-black page, sitting on
+  // cream.
+  //
+  // So the other three follow the background, unless the host has set one by
+  // hand. At that point the palette is theirs and we stop touching it.
+  const applyBackground = (patch: { backgroundColor?: string; backgroundGradient?: string }) => {
+    setConfig(prev => {
+      const colors = prev.customColors ?? {}
+      if (colors.source === 'custom') {
+        return { ...prev, customColors: { ...colors, ...patch } }
+      }
+      const merged = { ...colors, ...patch }
+      const ground = merged.backgroundGradient
+        ? representativeColorFromGradient(merged.backgroundGradient)
+        : merged.backgroundColor
+      if (!ground) return { ...prev, customColors: merged }
+      return { ...prev, customColors: { ...merged, ...derivePaletteFromColor(ground) } }
+    })
+  }
+
+  // A host touching ink, accent or muted directly takes ownership of the set.
+  const applyInkColor = (patch: { fontColor?: string; primaryColor?: string; mutedColor?: string }) => {
+    setConfig(prev => ({
+      ...prev,
+      customColors: { ...(prev.customColors ?? {}), ...patch, source: 'custom' as const },
+    }))
+  }
+
   const handleTileToggle = (tileId: string, enabled: boolean) => {
     const tile = config.tiles?.find(t => t.id === tileId)
 
@@ -1923,7 +1957,7 @@ export default function DesignInvitationPage(): JSX.Element {
                     <div className="flex rounded-lg overflow-hidden border border-gray-300 w-fit">
                       <button
                         type="button"
-                        onClick={() => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: undefined } }))}
+                        onClick={() => applyBackground({ backgroundGradient: undefined })}
                         className={`px-3 py-1.5 text-sm font-medium transition-colors ${!isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                       >
                         Solid
@@ -1932,7 +1966,7 @@ export default function DesignInvitationPage(): JSX.Element {
                         type="button"
                         onClick={() => {
                           const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
-                          setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                          applyBackground({ backgroundGradient: g })
                         }}
                         className={`px-3 py-1.5 text-sm font-medium transition-colors ${isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                       >
@@ -1961,9 +1995,9 @@ export default function DesignInvitationPage(): JSX.Element {
                             setGradientColor1(hex1)
                             setGradientColor2(hex2)
                             const g = `linear-gradient(${gradientAngle}deg, ${hex1} 0%, ${hex2} 100%)`
-                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                            applyBackground({ backgroundGradient: g })
                           } else {
-                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: hex1 } }))
+                            applyBackground({ backgroundColor: hex1 })
                           }
                         }}
                         className="px-3 py-1.5 text-sm font-medium bg-eco-beige text-eco-green border border-eco-green-light rounded hover:bg-eco-green hover:text-white transition-colors"
@@ -1978,7 +2012,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             if (!raw) return
                             try {
                               const prev = JSON.parse(raw) as { backgroundColor?: string; backgroundGradient?: string }
-                              setConfig(p => ({ ...p, customColors: { ...p.customColors, backgroundColor: prev.backgroundColor, backgroundGradient: prev.backgroundGradient } }))
+                              applyBackground({ backgroundColor: prev.backgroundColor, backgroundGradient: prev.backgroundGradient })
                               if (prev.backgroundGradient) {
                                 const m = prev.backgroundGradient.match(/linear-gradient\((\d+)deg,\s*(#[0-9a-fA-F]{3,8})\s+0%,\s*(#[0-9a-fA-F]{3,8})\s+100%\)/)
                                 if (m) { setGradientAngle(parseInt(m[1], 10)); setGradientColor1(m[2]); setGradientColor2(m[3]) }
@@ -2000,13 +2034,13 @@ export default function DesignInvitationPage(): JSX.Element {
                         <input
                           type="color"
                           value={displayBackgroundColor}
-                          onChange={(e) => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: e.target.value } }))}
+                          onChange={(e) => applyBackground({ backgroundColor: e.target.value })}
                           className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
                         />
                         <Input
                           type="text"
                           value={displayBackgroundColor}
-                          onChange={(e) => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: e.target.value } }))}
+                          onChange={(e) => applyBackground({ backgroundColor: e.target.value })}
                           placeholder="#E8D8C3"
                           className="w-32 font-mono text-sm"
                         />
@@ -2023,7 +2057,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             onChange={(e) => {
                               setGradientColor1(e.target.value)
                               const g = `linear-gradient(${gradientAngle}deg, ${e.target.value} 0%, ${gradientColor2} 100%)`
-                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                              applyBackground({ backgroundGradient: g })
                             }}
                             className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
                           />
@@ -2034,7 +2068,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             onChange={(e) => {
                               setGradientColor2(e.target.value)
                               const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${e.target.value} 100%)`
-                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                              applyBackground({ backgroundGradient: g })
                             }}
                             className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
                           />
@@ -2050,7 +2084,7 @@ export default function DesignInvitationPage(): JSX.Element {
                               const a = parseInt(e.target.value, 10)
                               setGradientAngle(a)
                               const g = `linear-gradient(${a}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
-                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                              applyBackground({ backgroundGradient: g })
                             }}
                             className="w-full mt-1"
                           />
@@ -2170,6 +2204,60 @@ export default function DesignInvitationPage(): JSX.Element {
                           </div>
                         )}
                         <p className="text-xs text-gray-500 mt-1">Image texture (e.g. marble photo). Intensity above applies to it.</p>
+                      </div>
+
+                      {/* Ink, accent and muted. These follow the background until a
+                          host sets one, which is what the "Following the background"
+                          note is telling them. */}
+                      <div className="border-t border-gray-200 pt-4 mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium">Text &amp; accent colours</label>
+                          {config.customColors?.source === 'custom' ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ground = config.customColors?.backgroundGradient
+                                  ? representativeColorFromGradient(config.customColors.backgroundGradient)
+                                  : config.customColors?.backgroundColor
+                                if (!ground) return
+                                setConfig(prev => ({
+                                  ...prev,
+                                  customColors: {
+                                    ...(prev.customColors ?? {}),
+                                    ...derivePaletteFromColor(ground),
+                                    source: 'derived' as const,
+                                  },
+                                }))
+                              }}
+                              className="text-xs text-eco-green underline hover:no-underline"
+                            >
+                              Match to background
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400">Following the background</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([
+                            ['fontColor', 'Text', '#1F1B16'],
+                            ['primaryColor', 'Accent', '#A6815B'],
+                            ['mutedColor', 'Muted', '#8B5E3C'],
+                          ] as const).map(([key, label, fallback]) => (
+                            <div key={key}>
+                              <label htmlFor={`page-${key}`} className="block text-xs text-gray-600 mb-1">{label}</label>
+                              <input
+                                id={`page-${key}`}
+                                type="color"
+                                value={colorInputValue(config.customColors?.[key], fallback)}
+                                onChange={(e) => applyInkColor({ [key]: e.target.value })}
+                                className="h-9 w-full rounded border border-gray-300"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Text is the main ink, accent highlights things like the eyebrow and buttons, muted is for labels and captions.
+                        </p>
                       </div>
 
                       <div>
