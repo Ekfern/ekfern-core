@@ -37,7 +37,10 @@ export default function TitleTile({ settings, preview = false }: TitleTileProps)
   const eyebrow = settings.eyebrow?.trim()
   const eyebrowColor = settings.eyebrowColor || 'var(--theme-primary, #D4A017)'
   const subtitle = settings.subtitle?.trim()
-  const subtitleFont = settings.subtitleFont || FONT_OPTIONS[0].family
+  // A subtitle is supporting text, so it falls back to the body face rather
+  // than to FONT_OPTIONS[0] - which is Helvetica, and has nothing to do with
+  // this invitation.
+  const subtitleFont = settings.subtitleFont || 'var(--theme-font-body, inherit)'
   const subtitleColor = settings.subtitleColor ?? color
   const subtitleSize = settings.subtitleSize || 'medium'
   const subtitleSizeClasses = {

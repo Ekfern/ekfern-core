@@ -32,6 +32,7 @@ import { cropImage, extractDominantColors, rgbToHex } from '@/lib/invite/imageAn
 import { derivePaletteFromColor, representativeColorFromGradient } from '@/lib/invite/paletteUtils'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
+import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import WizardProgress from '@/components/host/WizardProgress'
 
 interface Event {
@@ -123,6 +124,12 @@ const DEFAULT_TILES: Tile[] = [
 // `frameColor` and the timer's `textColor`: those fall back to hardcoded
 // literals, so clearing them would swap one fixed colour for another rather
 // than handing anything back to the page.
+// Tile font settings that fall back to a page token when absent. `font` is the
+// title's headline face and `contentFontFamily` the details tile's; both land
+// on --theme-font-title / --theme-font-body once removed. `subtitleFont` is
+// included because it now falls back to the body face too.
+const FONT_LINKED_TILE_KEYS = ['font', 'subtitleFont', 'contentFontFamily'] as const
+
 const PALETTE_LINKED_TILE_KEYS = [
   'color',          // title      -> --theme-fg
   'fontColor',      // details, directions, description -> --theme-fg; footer -> --theme-muted
@@ -1388,6 +1395,14 @@ export default function DesignInvitationPage(): JSX.Element {
     }))
   }
 
+  // How many tiles carry a font of their own and would therefore ignore the
+  // page selection. Shown only when there are any, so the offer to sweep them
+  // appears exactly when it is useful.
+  const tilesOverridingFonts = (config.tiles ?? []).filter(tile => {
+    const settings = tile.settings as Record<string, unknown> | undefined
+    return !!settings && FONT_LINKED_TILE_KEYS.some(key => settings[key])
+  }).length
+
   // Every background change goes through here.
   //
   // A palette is a set that has to agree with itself: a preset picks ground,
@@ -2220,6 +2235,73 @@ export default function DesignInvitationPage(): JSX.Element {
                           </div>
                         )}
                         <p className="text-xs text-gray-500 mt-1">Image texture (e.g. marble photo). Intensity above applies to it.</p>
+                      </div>
+
+                      {/* Two faces, because that is how many an invitation has: the
+                          one the names are set in, and the one everything else uses. */}
+                      <div className="border-t border-gray-200 pt-4 mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium">Fonts</label>
+                          {tilesOverridingFonts > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setConfig(prev => ({
+                                ...prev,
+                                tiles: (prev.tiles ?? []).map(tile => {
+                                  const settings = tile.settings as Record<string, unknown> | undefined
+                                  if (!settings) return tile
+                                  const cleared = { ...settings }
+                                  for (const key of FONT_LINKED_TILE_KEYS) delete cleared[key]
+                                  return { ...tile, settings: cleared } as typeof tile
+                                }),
+                              }))}
+                              title="Some tiles have a font of their own, so they ignore the choices above. This returns them to these fonts."
+                              className="text-xs text-eco-green underline hover:no-underline"
+                            >
+                              Match {tilesOverridingFonts} {tilesOverridingFonts === 1 ? 'tile' : 'tiles'} to these fonts
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {([
+                            ['titleFont', 'Headline', 'The names on your invitation, the small line above them, and your sub-event titles.'],
+                            ['bodyFont', 'Everything else', 'Dates, location, description, buttons, captions and footer \u2014 all the text that is not the headline.'],
+                          ] as const).map(([key, label, hint]) => (
+                            <div key={key} className="relative group">
+                              <label
+                                htmlFor={`page-${key}`}
+                                tabIndex={0}
+                                className="block text-xs text-gray-600 mb-1 cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-eco-green rounded"
+                              >
+                                {label}
+                              </label>
+                              <div
+                                role="tooltip"
+                                className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-52 rounded-md bg-gray-900 px-2.5 py-2 text-xs leading-snug text-white shadow-lg group-hover:block group-focus-within:block"
+                              >
+                                {hint}
+                              </div>
+                              <select
+                                id={`page-${key}`}
+                                aria-label={`${label} font. ${hint}`}
+                                value={config.customFonts?.[key] ?? ''}
+                                onChange={(e) => setConfig(prev => ({
+                                  ...prev,
+                                  customFonts: { ...(prev.customFonts ?? {}), [key]: e.target.value || undefined },
+                                }))}
+                                style={{ fontFamily: config.customFonts?.[key] || undefined }}
+                                className="w-full px-2 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                              >
+                                <option value="">Layout default</option>
+                                {FONT_OPTIONS.map(f => (
+                                  <option key={f.id} value={f.family} style={{ fontFamily: f.family }}>
+                                    {f.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
                       {/* Ink, accent and muted. These follow the background until a
