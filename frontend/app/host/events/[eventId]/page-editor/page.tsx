@@ -117,6 +117,22 @@ const DEFAULT_TILES: Tile[] = [
 
 // The tile types the editor knows how to render. Anything else is legacy/orphan
 // junk in a saved config (renders no label and no settings) and is filtered out.
+// Tile colour settings that fall back to a page token when absent, so removing
+// one returns that tile to the invitation's palette. Deliberately excludes
+// `backgroundColor`, `ctaCardBackgroundColor`, `ctaCardBorderColor`,
+// `frameColor` and the timer's `textColor`: those fall back to hardcoded
+// literals, so clearing them would swap one fixed colour for another rather
+// than handing anything back to the page.
+const PALETTE_LINKED_TILE_KEYS = [
+  'color',          // title      -> --theme-fg
+  'fontColor',      // details, directions, description -> --theme-fg; footer -> --theme-muted
+  'eyebrowColor',   // title      -> --theme-primary
+  'subtitleColor',  // title      -> the title's own colour, which is --theme-fg
+  'buttonColor',    // details, feature-buttons -> --theme-primary
+  'circleColor',    // timer      -> --theme-primary
+  'borderColor',    // details    -> --theme-muted
+] as const
+
 const KNOWN_TILE_TYPES = new Set<TileType>([
   'title', 'gallery', 'poster', 'timer', 'event-details', 'directions',
   'description', 'feature-buttons', 'footer', 'event-carousel',
@@ -2227,8 +2243,24 @@ export default function DesignInvitationPage(): JSX.Element {
                                     ...derivePaletteFromColor(ground),
                                     source: 'derived' as const,
                                   },
+                                  // Tiles carrying their own colour would keep
+                                  // overriding the page, so matching the page
+                                  // alone would appear to do nothing. Clearing
+                                  // these hands each tile back to the palette:
+                                  // every one of them already falls back to a
+                                  // theme token, so each lands on the right
+                                  // colour for its own job - the footer on
+                                  // Secondary, the buttons on Accent.
+                                  tiles: (prev.tiles ?? []).map(tile => {
+                                    const settings = tile.settings as Record<string, unknown> | undefined
+                                    if (!settings) return tile
+                                    const cleared = { ...settings }
+                                    for (const key of PALETTE_LINKED_TILE_KEYS) delete cleared[key]
+                                    return { ...tile, settings: cleared } as typeof tile
+                                  }),
                                 }))
                               }}
+                              title="Puts the text and accent colours back in step with the background, and returns any tile you have recoloured to the page colours."
                               className="text-xs text-eco-green underline hover:no-underline"
                             >
                               Match to background
