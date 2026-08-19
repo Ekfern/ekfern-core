@@ -2248,13 +2248,23 @@ export default function DesignInvitationPage(): JSX.Element {
                             ['mutedColor', 'Secondary', '#8B5E3C',
                               'Footer text, photo captions, the fine lines around your event details, and supporting text in your registry.'],
                           ] as const).map(([key, label, fallback, hint]) => (
-                            <div key={key} title={hint}>
+                            <div key={key} className="relative group">
                               <label
                                 htmlFor={`page-${key}`}
-                                className="block text-xs text-gray-600 mb-1 cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2"
+                                tabIndex={0}
+                                className="block text-xs text-gray-600 mb-1 cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-eco-green rounded"
                               >
                                 {label}
                               </label>
+                              {/* Shown on hover and on keyboard focus. A native `title`
+                                  needs a second of hovering and renders inconsistently,
+                                  which reads as "nothing happened". */}
+                              <div
+                                role="tooltip"
+                                className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-52 rounded-md bg-gray-900 px-2.5 py-2 text-xs leading-snug text-white shadow-lg group-hover:block group-focus-within:block"
+                              >
+                                {hint}
+                              </div>
                               <input
                                 id={`page-${key}`}
                                 type="color"
