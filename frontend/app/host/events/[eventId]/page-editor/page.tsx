@@ -2238,16 +2238,27 @@ export default function DesignInvitationPage(): JSX.Element {
                           )}
                         </div>
                         <div className="grid grid-cols-3 gap-2">
+                          {/* Each hint names what the colour actually paints, so a host can
+                              tell which swatch to move without guessing from its name. */}
                           {([
-                            ['fontColor', 'Text', '#1F1B16'],
-                            ['primaryColor', 'Accent', '#A6815B'],
-                            ['mutedColor', 'Muted', '#8B5E3C'],
-                          ] as const).map(([key, label, fallback]) => (
-                            <div key={key}>
-                              <label htmlFor={`page-${key}`} className="block text-xs text-gray-600 mb-1">{label}</label>
+                            ['fontColor', 'Text', '#1F1B16',
+                              'Your title, event details, description and directions text.'],
+                            ['primaryColor', 'Accent', '#A6815B',
+                              'The small line above your title, the countdown circles, and buttons like RSVP and Save the Date.'],
+                            ['mutedColor', 'Secondary', '#8B5E3C',
+                              'Footer text, photo captions, the fine lines around your event details, and supporting text in your registry.'],
+                          ] as const).map(([key, label, fallback, hint]) => (
+                            <div key={key} title={hint}>
+                              <label
+                                htmlFor={`page-${key}`}
+                                className="block text-xs text-gray-600 mb-1 cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2"
+                              >
+                                {label}
+                              </label>
                               <input
                                 id={`page-${key}`}
                                 type="color"
+                                aria-label={`${label} colour. ${hint}`}
                                 value={colorInputValue(config.customColors?.[key], fallback)}
                                 onChange={(e) => applyInkColor({ [key]: e.target.value })}
                                 className="h-9 w-full rounded border border-gray-300"
@@ -2255,9 +2266,6 @@ export default function DesignInvitationPage(): JSX.Element {
                             </div>
                           ))}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Text is the main ink, accent highlights things like the eyebrow and buttons, muted is for labels and captions.
-                        </p>
                       </div>
 
                       <div>
