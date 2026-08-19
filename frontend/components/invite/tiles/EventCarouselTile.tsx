@@ -32,28 +32,15 @@ export interface EventCarouselTileProps {
 }
 
 // Design tokens
+// A local scale for the one thing the page has no opinion about. This object
+// used to also carry spacing, shadows and breakpoints - a private design system
+// inside a single tile, none of it referenced. Spacing and depth belong to the
+// invitation now; the dead entries are gone.
 const designTokens = {
   transitions: {
     default: '400ms cubic-bezier(0.4, 0, 0.2, 1)',
     fast: '200ms ease-in-out',
     slow: '600ms ease-in-out',
-  },
-  spacing: {
-    cardPadding: { tight: 16, normal: 24, spacious: 32 },
-    elementGap: 12,
-    iconGap: 8,
-  },
-  shadows: {
-    none: 'none',
-    sm: '0 1px 2px rgba(0,0,0,0.05)',
-    md: '0 4px 6px rgba(0,0,0,0.1)',
-    lg: '0 10px 15px rgba(0,0,0,0.1)',
-    xl: '0 20px 25px rgba(0,0,0,0.15)',
-  },
-  breakpoints: {
-    mobile: 640,
-    tablet: 1024,
-    desktop: 1280,
   },
 }
 

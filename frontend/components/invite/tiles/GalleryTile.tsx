@@ -55,7 +55,10 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
     settings.cornerRadius !== undefined
       ? `${Math.max(settings.cornerRadius - 2, 0)}px`
       : 'calc(var(--radius-surface) - 2px)'
-  const shadow = SHADOW[settings.shadow ?? 'sm']
+  // A named step still maps to its value; unset means the invitation's own
+  // resting elevation. `sm` in the map above is where --shadow-rest came from,
+  // so a gallery that never chose a shadow does not move.
+  const shadow = settings.shadow ? SHADOW[settings.shadow] : 'var(--shadow-rest)'
 
   // Vertical keeps a photo's own proportions; the other two need a common
   // shape or the rows come out ragged.
@@ -93,7 +96,10 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
                       background: '#fff',
                       padding: '0.6rem 0.6rem 0',
                       borderRadius: 2,
-                      boxShadow: shadow === 'none' ? '0 2px 6px rgba(0,0,0,.18)' : shadow,
+                      // A polaroid sits on top of the page rather than in it,
+                      // so it keeps a shadow even when the gallery asked for
+                      // none - that is what makes it read as a physical print.
+                      boxShadow: shadow === 'none' ? 'var(--shadow-lift)' : shadow,
                     }
                   : frame === 'simple'
                     ? {
