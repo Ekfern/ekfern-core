@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useId, useState } from 'react'
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
+import React, { useId, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, ImagePlus, Trash2 } from 'lucide-react'
 import { GALLERY_MAX_IMAGES, type GalleryImage, type GalleryTileSettings } from '@/lib/invite/schema'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { uploadImage } from '@/lib/api'
@@ -18,6 +18,7 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
   const uid = useId()
   const fieldId = (name: string) => `gallery-${name}-${uid}`
   const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const images = settings.images ?? []
   const isFull = images.length >= GALLERY_MAX_IMAGES
@@ -68,18 +69,29 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
   return (
     <div className="space-y-4">
       <div>
-        <label htmlFor={fieldId('upload')} className="block text-sm font-medium">
-          Photos
-        </label>
+        <span className="block text-sm font-medium">Photos</span>
+        {/* A hidden input driven by a real button, which is how every other
+            upload in this app is built. The gallery was the one place using a
+            bare `<input type="file">` styled through Tailwind's `file:`
+            pseudo-variants, and its button did not reliably open a chooser. */}
         <input
+          ref={fileInputRef}
           id={fieldId('upload')}
           type="file"
           accept="image/jpeg,image/png,image/webp"
           multiple
-          disabled={uploading || isFull}
+          className="hidden"
           onChange={handleUpload}
-          className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:rounded file:border-0 file:bg-eco-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-600 disabled:opacity-50"
         />
+        <button
+          type="button"
+          disabled={uploading || isFull}
+          onClick={() => fileInputRef.current?.click()}
+          className="mt-1 inline-flex items-center gap-2 rounded-md bg-eco-green px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <ImagePlus className="h-4 w-4" aria-hidden="true" />
+          {uploading ? 'Uploading\u2026' : images.length > 0 ? 'Add more photos' : 'Choose photos'}
+        </button>
         <p className="mt-1 text-xs text-gray-500">
           {uploading
             ? 'Uploading…'
