@@ -32,7 +32,7 @@ import { cropImage, extractDominantColors, rgbToHex } from '@/lib/invite/imageAn
 import { derivePaletteFromColor, representativeColorFromGradient } from '@/lib/invite/paletteUtils'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
-import { FONT_OPTIONS } from '@/lib/invite/fonts'
+import FontPicker from '@/components/invite/FontPicker'
 import WizardProgress from '@/components/host/WizardProgress'
 
 interface Event {
@@ -2281,24 +2281,16 @@ export default function DesignInvitationPage(): JSX.Element {
                               >
                                 {hint}
                               </div>
-                              <select
+                              <FontPicker
                                 id={`page-${key}`}
-                                aria-label={`${label} font. ${hint}`}
-                                value={config.customFonts?.[key] ?? ''}
-                                onChange={(e) => setConfig(prev => ({
+                                ariaLabel={`${label} font. ${hint}`}
+                                value={config.customFonts?.[key]}
+                                onChange={(family) => setConfig(prev => ({
                                   ...prev,
-                                  customFonts: { ...(prev.customFonts ?? {}), [key]: e.target.value || undefined },
+                                  customFonts: { ...(prev.customFonts ?? {}), [key]: family },
                                 }))}
-                                style={{ fontFamily: config.customFonts?.[key] || undefined }}
-                                className="w-full px-2 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                              >
-                                <option value="">Layout default</option>
-                                {FONT_OPTIONS.map(f => (
-                                  <option key={f.id} value={f.family} style={{ fontFamily: f.family }}>
-                                    {f.name}
-                                  </option>
-                                ))}
-                              </select>
+                                defaultLabel="Layout default"
+                              />
                             </div>
                           ))}
                         </div>

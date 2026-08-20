@@ -5,6 +5,7 @@ import type { TitleTileSettings } from '@/lib/invite/schema'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { FONT_OPTIONS, findFontByFamily } from '@/lib/invite/fonts'
 import { Input } from '@/components/ui/input'
+import FontPicker from '@/components/invite/FontPicker'
 
 interface TitleTileSettingsProps {
   settings: TitleTileSettings
@@ -26,20 +27,12 @@ export default function TitleTileSettings({ settings, onChange }: TitleTileSetti
 
       <div>
         <label className="block text-sm font-medium mb-2">Font</label>
-        <select
-          value={findFontByFamily(settings.font)?.id || FONT_OPTIONS[0].id}
-          onChange={(e) => {
-            const font = FONT_OPTIONS.find(f => f.id === e.target.value)
-            onChange({ ...settings, font: font?.family })
-          }}
-          className="w-full text-sm border rounded px-3 py-2"
-        >
-          {FONT_OPTIONS.map((font) => (
-            <option key={font.id} value={font.id}>
-              {font.name} ({font.category})
-            </option>
-          ))}
-        </select>
+        <FontPicker
+          value={settings.font}
+          onChange={(family) => onChange({ ...settings, font: family })}
+          defaultLabel="Page headline font"
+          ariaLabel="Title font"
+        />
         <p className="text-xs text-gray-500 mt-1">
           Preview: <span style={{ fontFamily: settings.font || FONT_OPTIONS[0].family }}>{settings.text || 'Event Title'}</span>
         </p>
@@ -92,18 +85,12 @@ export default function TitleTileSettings({ settings, onChange }: TitleTileSetti
           <div className="mt-2 space-y-2">
             <div>
               <label className="text-xs font-medium text-gray-600">Subtitle font</label>
-              <select
-                value={findFontByFamily(settings.subtitleFont)?.id || FONT_OPTIONS[0].id}
-                onChange={(e) => {
-                  const font = FONT_OPTIONS.find(f => f.id === e.target.value)
-                  onChange({ ...settings, subtitleFont: font?.family })
-                }}
-                className="w-full text-sm border rounded px-2 py-1 mt-0.5"
-              >
-                {FONT_OPTIONS.map((font) => (
-                  <option key={font.id} value={font.id}>{font.name}</option>
-                ))}
-              </select>
+              <FontPicker
+                  value={settings.subtitleFont}
+                  onChange={(family) => onChange({ ...settings, subtitleFont: family })}
+                  defaultLabel="Page body font"
+                  ariaLabel="Subtitle font"
+                />
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-gray-600">Subtitle color</label>

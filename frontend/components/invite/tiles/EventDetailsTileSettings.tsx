@@ -6,6 +6,7 @@ import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { Input } from '@/components/ui/input'
 import { FONT_OPTIONS, findFontByFamily } from '@/lib/invite/fonts'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import FontPicker from '@/components/invite/FontPicker'
 
 interface EventDetailsTileSettingsProps {
   settings: EventDetailsTileSettings
@@ -108,28 +109,12 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <div>
           <label className="block text-sm font-medium mb-2">Header Font</label>
 
-          <select
-            value={findFontByFamily(settings.headerFontFamily)?.id || ''}
-            onChange={(e) => {
-              const font = FONT_OPTIONS.find((f) => f.id === e.target.value)
-              onChange({
-                ...settings,
-                headerFontFamily: font?.family,
-              })
-            }}
-            className="w-full text-sm border rounded px-3 py-2"
-          >
-            <option value="">Theme Default</option>
-            {FONT_OPTIONS.map((font) => (
-              <option
-                key={font.id}
-                value={font.id}
-                style={{ fontFamily: font.family }}
-              >
-                {font.name} ({font.category})
-              </option>
-            ))}
-          </select>
+          <FontPicker
+            value={settings.headerFontFamily}
+            onChange={(family) => onChange({ ...settings, headerFontFamily: family })}
+            defaultLabel="Page font"
+            ariaLabel="Header font"
+          />
 
           <p className="text-xs text-gray-500 mt-1">
             Preview:{' '}
@@ -145,28 +130,12 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         <div>
           <label className="block text-sm font-medium mb-2">Content Font</label>
 
-          <select
-            value={findFontByFamily(settings.contentFontFamily)?.id || ''}
-            onChange={(e) => {
-              const font = FONT_OPTIONS.find((f) => f.id === e.target.value)
-              onChange({
-                ...settings,
-                contentFontFamily: font?.family,
-              })
-            }}
-            className="w-full text-sm border rounded px-3 py-2"
-          >
-            <option value="">Theme Default</option>
-            {FONT_OPTIONS.map((font) => (
-              <option
-                key={font.id}
-                value={font.id}
-                style={{ fontFamily: font.family }}
-              >
-                {font.name} ({font.category})
-              </option>
-            ))}
-          </select>
+          <FontPicker
+            value={settings.contentFontFamily}
+            onChange={(family) => onChange({ ...settings, contentFontFamily: family })}
+            defaultLabel="Page font"
+            ariaLabel="Content font"
+          />
 
           <p className="text-xs text-gray-500 mt-1">
             Preview:{' '}
