@@ -1356,12 +1356,25 @@ export default function DesignInvitationPage(): JSX.Element {
       'footer': {},
       'event-carousel': {},
     }
-    const maxOrder = Math.max(...(config.tiles?.map(t => t.order ?? 0) ?? [0]), 0)
+    // A new tile goes after everything except the footer, which is always last.
+    // Counting the footer here is how tiles ended up numbered past it: the
+    // footer sat at 4, so the next tile took 5 and saving made that permanent.
+    //
+    // `tile.order` and `previewOrder` are two separate numbering systems that
+    // every sort reads through the same fallback chain, so they have to agree
+    // about where a new tile goes. Both are computed the same way below - same
+    // function, same exclusion - rather than each working it out for itself.
+    const footerIds = new Set((config.tiles ?? []).filter(t => t.type === 'footer').map(t => t.id))
+    const nextPositionAfter = (positions: number[]) =>
+      positions.length > 0 ? Math.max(...positions) + 1 : 0
+
     const newTile: Tile = {
       id: `tile-${type}-${Date.now().toString(36)}`,
       type,
       enabled: true,
-      order: maxOrder + 1,
+      order: nextPositionAfter(
+        (config.tiles ?? []).filter(t => t.type !== 'footer').map(t => t.order ?? 0),
+      ),
       settings: defaultSettings[type],
     }
     setConfig(prev => ({
@@ -1370,9 +1383,12 @@ export default function DesignInvitationPage(): JSX.Element {
     }))
     setPreviewOrder((prev) => {
       const next = new Map(prev)
-      const position =
-        next.size > 0 ? Math.max(...Array.from(next.values())) + 1 : (newTile.order ?? 0)
-      next.set(newTile.id, position)
+      next.set(
+        newTile.id,
+        nextPositionAfter(
+          Array.from(next.entries()).filter(([id]) => !footerIds.has(id)).map(([, position]) => position),
+        ),
+      )
       return next
     })
     setSelectedTileId(newTile.id)

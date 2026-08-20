@@ -99,12 +99,18 @@ export default function PageLayoutStudioCanvas({
         city: eventLike.city,
       })
       setConfig((prev) => {
-        const maxOrder = Math.max(...(prev.tiles?.map((t) => t.order ?? 0) ?? [0]), 0)
+        // The footer is always last, so it is not counted when working out where
+        // a new tile goes. Counting it puts every later tile after the footer -
+        // and a layout authored that way carries the problem to every host who
+        // applies it.
+        const positions = (prev.tiles ?? [])
+          .filter((t) => t.type !== 'footer')
+          .map((t) => t.order ?? 0)
         const newTile: Tile = {
           id: `tile-${type}-${Date.now().toString(36)}`,
           type,
           enabled: true,
-          order: maxOrder + 1,
+          order: positions.length > 0 ? Math.max(...positions) + 1 : 0,
           settings: defaultSettings[type],
         }
         return { ...prev, tiles: [...(prev.tiles ?? []), newTile] }

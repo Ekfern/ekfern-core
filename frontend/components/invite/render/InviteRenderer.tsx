@@ -68,9 +68,19 @@ function InviteRendererContent({
     [config, eventDate],
   )
 
-  const sortedTiles = [...(effectiveConfig.tiles || [])]
+  // The footer is a closing note, so it is last by structure rather than by
+  // number - exactly what TileList has always done, which is why the editor's
+  // list showed it correctly while this page did not. Pulling it out here means
+  // a config whose footer carries a middling `order` still renders it last,
+  // including every config already saved that way.
+  const orderedTiles = [...(effectiveConfig.tiles || [])]
     .filter(tile => tile.enabled !== false)
     .sort((a, b) => a.order - b.order)
+  const footerTile = orderedTiles.find(tile => tile.type === 'footer')
+  const sortedTiles = [
+    ...orderedTiles.filter(tile => tile.type !== 'footer'),
+    ...(footerTile ? [footerTile] : []),
+  ]
 
   const sharedProps = {
     eventDate,
