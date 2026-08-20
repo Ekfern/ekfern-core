@@ -1,4 +1,5 @@
 import type { InviteConfig } from './schema'
+import type { ButtonVariant } from './buttonStyles'
 
 /**
  * How an invite's look is resolved.
@@ -95,6 +96,7 @@ export const INVITE_APPEARANCE_DEFAULTS = {
   bodyFont: "Georgia, 'Times New Roman', serif",
   overlayOpacity: 0.18,
   shape: 'soft' as InviteShape,
+  buttonStyle: 'classic' as ButtonVariant,
   depth: 'raised' as InviteDepth,
   spacing: 'normal' as InviteSpacing,
   /** Roughly 65 characters, the point past which running text gets hard to track. */
@@ -128,6 +130,12 @@ export interface InviteAppearance {
   insetPage: string
   /** Maximum width for running text. */
   measureText: string
+  /**
+   * How buttons are drawn. Not a CSS value - it names a recipe that
+   * `getButtonStyles` turns into classes and inline styles - so it travels by
+   * context rather than as a custom property.
+   */
+  buttonStyle: ButtonVariant
 }
 
 /** Resolve the look an invite should render with. */
@@ -160,5 +168,6 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
     spaceChapter: rhythm.chapter,
     insetPage: rhythm.inset,
     measureText: INVITE_APPEARANCE_DEFAULTS.measure,
+    buttonStyle: config?.buttonStyle ?? INVITE_APPEARANCE_DEFAULTS.buttonStyle,
   }
 }

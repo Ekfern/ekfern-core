@@ -7,6 +7,7 @@ import { getTimezoneLabel } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
 import { getAutomaticLabelColor } from '@/lib/invite/colorUtils'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
+import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
 
 export interface EventDetailsTileProps {
   settings: EventDetailsTileSettings
@@ -167,7 +168,10 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   // have two button shapes. #D4A017 is the real --theme-primary default; the
   // #1F2937 that used to sit here was a near-black that matched nothing.
   const buttonColor = settings.buttonColor || 'var(--theme-primary, #D4A017)'
-  const buttonVariant = settings.buttonVariant ?? 'classic'
+  const pageDesign = usePageDesign()
+  // The page decides how buttons look, so Save the Date and the RSVP buttons
+  // cannot end up drawn differently. A tile may still override it.
+  const buttonVariant = settings.buttonVariant ?? pageDesign?.buttonStyle ?? 'classic'
   const buttonRadius = settings.buttonRadius ?? 'var(--radius-control)'
   const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
   const formatDate = (dateString: string) => {

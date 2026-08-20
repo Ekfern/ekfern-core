@@ -2237,6 +2237,36 @@ export default function DesignInvitationPage(): JSX.Element {
                         <p className="text-xs text-gray-500 mt-1">Image texture (e.g. marble photo). Intensity above applies to it.</p>
                       </div>
 
+                      {/* Button style is page-level: an invitation with two button
+                          shapes reads as a mistake. Both the RSVP buttons and Save
+                          the Date take this unless a tile overrides it. */}
+                      <div className="border-t border-gray-200 pt-4 mt-4">
+                        <label htmlFor="page-buttonStyle" className="block text-sm font-medium mb-2">
+                          Button style
+                        </label>
+                        <select
+                          id="page-buttonStyle"
+                          value={config.buttonStyle ?? 'classic'}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            buttonStyle: e.target.value as NonNullable<typeof prev.buttonStyle>,
+                          }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          {([
+                            ['classic', 'Classic'], ['soft', 'Soft'], ['raised', 'Raised'],
+                            ['gloss', 'Gloss'], ['metal', 'Metal'], ['glow', 'Glow'],
+                            ['glass', 'Glass'], ['bracket', 'Bracket'], ['ornate', 'Ornate'],
+                            ['link', 'Link (text only)'],
+                          ] as const).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Applies to RSVP, Registry and Save the Date together.
+                        </p>
+                      </div>
+
                       {/* Two faces, because that is how many an invitation has: the
                           one the names are set in, and the one everything else uses. */}
                       <div className="border-t border-gray-200 pt-4 mt-4">

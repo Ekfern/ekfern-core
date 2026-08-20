@@ -10,6 +10,7 @@ import {
 import { catalogUrl } from '@/lib/catalog/source'
 import type { CatalogPurpose } from '@/lib/catalog/types'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
+import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
 
 export interface FeatureButtonsTileProps {
   settings: FeatureButtonsTileSettings
@@ -35,7 +36,10 @@ export default function FeatureButtonsTile({
   guestToken,
 }: FeatureButtonsTileProps) {
   const buttonColor = settings.buttonColor || 'var(--theme-primary, #D4A017)'
-  const variant = settings.buttonVariant ?? 'classic'
+  const pageDesign = usePageDesign()
+  // The page decides how buttons look, so Save the Date and the RSVP buttons
+  // cannot end up drawn differently. A tile may still override it.
+  const variant = settings.buttonVariant ?? pageDesign?.buttonStyle ?? 'classic'
   const radius  = settings.buttonRadius  ?? 'var(--radius-control)'
   const { extraClass, style: btnStyle } = getButtonStyles(buttonColor, variant, radius)
 

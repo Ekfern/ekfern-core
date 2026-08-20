@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { createContext, useContext, useMemo } from 'react'
 import { InviteConfig } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
+import type { ButtonVariant } from '@/lib/invite/buttonStyles'
 
 /**
  * Publishes an invite's appearance to its tiles as CSS custom properties.
@@ -18,10 +19,33 @@ import { resolveAppearance } from '@/lib/invite/appearance'
  * what each one means and why shape and depth were the two that used to be
  * missing.
  *
- * It also used to expose the same values through React context, via a
- * `useTheme()` hook. That had exactly one caller, which used it to re-apply
- * overrides `resolveAppearance` had already applied, so both are gone.
+ * Almost everything travels as a custom property, because almost everything is
+ * a CSS value. Button style is the exception: it names a recipe that
+ * `getButtonStyles` turns into class names and inline styles, which no variable
+ * can carry. That one value goes by context instead.
+ *
+ * (An earlier `useTheme()` context published the whole palette a second time and
+ * had a single caller that used it to re-apply overrides `resolveAppearance`
+ * had already applied. This is deliberately not that: it carries only what a
+ * custom property cannot.)
  */
+interface PageDesign {
+  /** How every button on the invitation is drawn. */
+  buttonStyle: ButtonVariant
+}
+
+const PageDesignContext = createContext<PageDesign | undefined>(undefined)
+
+/**
+ * The page-level design decisions that are not CSS values.
+ *
+ * Returns undefined outside a provider - the server-rendered hero, for one - so
+ * callers fall back to their own setting rather than crashing.
+ */
+export function usePageDesign(): PageDesign | undefined {
+  return useContext(PageDesignContext)
+}
+
 interface AppearanceProviderProps {
   config?: InviteConfig
   children: React.ReactNode
@@ -29,8 +53,10 @@ interface AppearanceProviderProps {
 
 export function AppearanceProvider({ config, children }: AppearanceProviderProps) {
   const colors = resolveAppearance(config)
+  const design = useMemo<PageDesign>(() => ({ buttonStyle: colors.buttonStyle }), [colors.buttonStyle])
 
   return (
+    <PageDesignContext.Provider value={design}>
     <div
       style={{
         // Applied, not just published. Tiles that never mention a font used to
@@ -67,5 +93,6 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
     >
       {children}
     </div>
+    </PageDesignContext.Provider>
   )
 }

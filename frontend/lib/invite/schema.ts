@@ -405,6 +405,9 @@ export interface InviteConfig {
   shape?: 'sharp' | 'soft' | 'rounded' | null
   // Whether things rest on the paper or lift off it.
   depth?: 'flat' | 'raised' | 'lifted' | null
+  // How buttons are drawn. Page-level because an invitation with two button
+  // styles looks like a mistake, and every tile that draws one reads this.
+  buttonStyle?: import('./buttonStyles').ButtonVariant | null
   // Legacy structure (for backward compatibility)
   hero?: {
     background?: BackgroundImage | {
