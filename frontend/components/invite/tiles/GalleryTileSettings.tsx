@@ -23,6 +23,43 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
   const images = settings.images ?? []
   const isFull = images.length >= GALLERY_MAX_IMAGES
 
+  /**
+   * Ask the browser for a file dialog, at most one at a time.
+   *
+   * A dialog that opens behind the window is indistinguishable from a dead
+   * button, and every further click queued another request the browser then
+   * refused to present - so the button stayed dead until the browser was
+   * restarted. Tracking the outstanding request keeps one bad dialog from
+   * becoming a permanently broken button.
+   *
+   * Released on window focus, which fires when a dialog closes whether a file
+   * was picked or not, and on a timeout so a request the browser never
+   * honoured cannot jam the button for good.
+   */
+  const pickerPending = useRef(false)
+
+  const openPicker = () => {
+    const input = fileInputRef.current
+    if (!input || pickerPending.current) return
+
+    pickerPending.current = true
+    const release = () => {
+      pickerPending.current = false
+    }
+    window.addEventListener('focus', release, { once: true })
+    window.setTimeout(release, 60_000)
+
+    // `showPicker` reports refusal instead of failing silently the way
+    // `click()` does; `click()` remains the fallback for older browsers.
+    const withPicker = input as HTMLInputElement & { showPicker?: () => void }
+    try {
+      if (typeof withPicker.showPicker === 'function') withPicker.showPicker()
+      else input.click()
+    } catch {
+      input.click()
+    }
+  }
+
   const update = (patch: Partial<GalleryTileSettings>) => onChange({ ...settings, ...patch })
   const setImages = (next: GalleryImage[]) => update({ images: next })
 
@@ -86,7 +123,7 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
         <button
           type="button"
           disabled={uploading || isFull}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={openPicker}
           className="mt-1 inline-flex items-center gap-2 rounded-md bg-eco-green px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ImagePlus className="h-4 w-4" aria-hidden="true" />
