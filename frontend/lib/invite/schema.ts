@@ -85,7 +85,12 @@ export interface GalleryTileSettings {
    * horizontal — side by side, wrapping onto further rows on narrow screens
    * grid       — two columns
    */
-  arrangement?: 'vertical' | 'horizontal' | 'grid'
+  /**
+   * `stacked` tells a story one photograph at a time: each print sticks while
+   * the next slides over it. `grid` shows the set at once in a wrapping row.
+   * Both are centred.
+   */
+  arrangement?: 'stacked' | 'grid'
   /** One frame for every photo in the gallery; no mixing. */
   frame?: 'none' | 'simple' | 'polaroid'
   frameColor?: string // 'simple' only

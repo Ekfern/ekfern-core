@@ -97,7 +97,13 @@ function InviteRendererContent({
   }
 
   return (
-    <div className="w-full relative overflow-x-hidden" style={skipBackgroundColor ? {} : { background: pageBackground } as React.CSSProperties}>
+    <div
+      className="w-full relative"
+      style={{
+        overflowX: 'clip',
+        ...(skipBackgroundColor ? {} : { background: pageBackground }),
+      } as React.CSSProperties}
+    >
       {!skipTextureOverlay && (
         <TextureOverlay
           type={effectiveConfig.texture?.type || 'none'}

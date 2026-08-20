@@ -28,10 +28,23 @@ function normalizeLegacyTile(tile: Tile): Tile {
     const legacy = (tile.settings ?? {}) as { src?: string }
     const settings: GalleryTileSettings = {
       images: legacy.src ? [{ id: `${tile.id}-1`, src: legacy.src }] : [],
-      arrangement: 'vertical',
+      arrangement: 'stacked',
       frame: 'none',
     }
     return { ...tile, type: 'gallery', settings } as Tile
+  }
+
+  // The gallery once offered `vertical` and `horizontal`. A vertical column of
+  // photographs is what `stacked` does, and a wrapping row is what `grid` does,
+  // so each maps to the arrangement that kept its behaviour.
+  if (type === 'gallery') {
+    const settings = (tile.settings ?? {}) as { arrangement?: string }
+    const legacyArrangement =
+      settings.arrangement === 'vertical' ? 'stacked' :
+      settings.arrangement === 'horizontal' ? 'grid' : null
+    if (legacyArrangement) {
+      return { ...tile, settings: { ...settings, arrangement: legacyArrangement } } as Tile
+    }
   }
 
   return tile
@@ -78,7 +91,7 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
     const bg = config.hero.background as any
     const gallerySettings: GalleryTileSettings = {
       images: [{ id: `tile-${order}-1`, src: bg.src }],
-      arrangement: 'vertical',
+      arrangement: 'stacked',
       frame: 'none',
     }
     tiles.push({

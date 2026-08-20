@@ -124,7 +124,7 @@ export default function TilePreview({
   }
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-w-0">
+    <div className="w-full max-w-full min-w-0" style={{ overflowX: 'clip' }}>
       {renderTile()}
     </div>
   )

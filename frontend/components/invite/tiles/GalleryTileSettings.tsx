@@ -155,14 +155,17 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
         </label>
         <select
           id={fieldId('arrangement')}
-          value={settings.arrangement ?? 'vertical'}
+          value={settings.arrangement ?? 'stacked'}
           onChange={(e) => update({ arrangement: e.target.value as GalleryTileSettings['arrangement'] })}
           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
         >
-          <option value="vertical">Vertical — one below the other</option>
-          <option value="horizontal">Horizontal — side by side, wrapping</option>
-          <option value="grid">Grid — two columns</option>
+          <option value="stacked">Stacked &mdash; one photo at a time, as guests scroll</option>
+          <option value="grid">Grid &mdash; all of them at once</option>
         </select>
+        <p className="mt-1 text-xs text-gray-500">
+          Stacked gives each photo its own moment and reads as prints laid down; grid shows the
+          whole set without scrolling. Both stay centred.
+        </p>
       </div>
 
       <div>

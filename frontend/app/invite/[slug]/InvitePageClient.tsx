@@ -748,8 +748,9 @@ export default function InvitePageClient({
           } as React.CSSProperties}
         >
           <div 
-            className="relative overflow-x-hidden w-full"
+            className="relative w-full"
             style={{
+              overflowX: 'clip',
               background: pageBackground,
               minHeight: '100vh', 
               height: 'auto',
@@ -794,8 +795,9 @@ export default function InvitePageClient({
       ) : (
         // No border - original structure
         <div
-          className="w-full relative overflow-x-hidden"
+          className="w-full relative"
           style={{
+            overflowX: 'clip',
             background: pageBackground,
             minHeight: 'auto',
             height: 'auto',
