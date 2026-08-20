@@ -205,9 +205,12 @@ export default function EventDetailsTileSSR({
   }
 
   // Save the Date button styling — shares the same variant system as FeatureButtonsTile
-  const buttonColor = settings.buttonColor || 'var(--theme-primary, #1F2937)'
+  // Same defaults as the client tile. The literals inside each var() matter
+  // here: this renders outside AppearanceProvider, where a bare custom property
+  // resolves to nothing. 8px is what RADIUS_MAP.round produced before.
+  const buttonColor = settings.buttonColor || 'var(--theme-primary, #D4A017)'
   const buttonVariant = settings.buttonVariant ?? 'classic'
-  const buttonRadius = settings.buttonRadius ?? 'round'
+  const buttonRadius = settings.buttonRadius ?? 'var(--radius-control, 8px)'
   const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
 
   const labelColor = getAutomaticLabelColor(settings.fontColor)

@@ -163,9 +163,12 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
   // Save the Date button styling — shares the same variant system as FeatureButtonsTile
   // so every layout's CTAs look consistent instead of a fixed hardcoded outline.
-  const buttonColor = settings.buttonColor || 'var(--theme-primary, #1F2937)'
+  // Kept identical to FeatureButtonsTile on purpose: one invitation should not
+  // have two button shapes. #D4A017 is the real --theme-primary default; the
+  // #1F2937 that used to sit here was a near-black that matched nothing.
+  const buttonColor = settings.buttonColor || 'var(--theme-primary, #D4A017)'
   const buttonVariant = settings.buttonVariant ?? 'classic'
-  const buttonRadius = settings.buttonRadius ?? 'round'
+  const buttonRadius = settings.buttonRadius ?? 'var(--radius-control)'
   const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
   const formatDate = (dateString: string) => {
     try {
