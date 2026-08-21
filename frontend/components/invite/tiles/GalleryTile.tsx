@@ -40,7 +40,8 @@ const TILT = [-2.5, 1.8, -1.5, 2.2, -1.9, 1.4]
  */
 const TRAVEL_PER_PHOTO = '100svh'
 
-const STACK_TOP = '16px'
+/** Height of the pinned stage. The pile is centred inside it. */
+const STAGE_HEIGHT = '100svh'
 
 /**
  * How dark a print goes at each depth. A lookup, not a curve: the first step
@@ -55,13 +56,12 @@ const DEPTH_SHIFT_Y = -3
 const DEPTH_ROTATE = 2.2
 const DEPTH_SCALE = 0.035
 
-/** Where an arriving print starts, as a share of its height. */
-const ARRIVAL_RISE = 62
-
-/** Share of the arrival over which the print fades in. */
-const ARRIVAL_FADE = 0.7
-
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+/**
+ * Where an arriving print starts, as a share of its height. Large enough that
+ * the next photo peeks in below the pile before it starts climbing, which is
+ * what makes the motion read as a photo being laid down rather than appearing.
+ */
+const ARRIVAL_RISE = 90
 
 function veilAt(depth: number): number {
   const d = Math.min(Math.max(depth, 0), MAX_DEPTH)
@@ -122,7 +122,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
 
       // Out of sight. The veil is still settled first: a hidden print keeps
       // whatever it was last given, and would flash the wrong shade on return.
-      if (depth < -1.05 || depth > MAX_DEPTH + 1) {
+      if (depth < -2.2 || depth > MAX_DEPTH + 1) {
         if (veil) veil.style.opacity = depth < 0 ? '0' : veilAt(MAX_DEPTH).toFixed(3)
         card.style.visibility = 'hidden'
         return
@@ -132,11 +132,14 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
       const tilt = TILT[index % TILT.length]!
 
       if (depth <= 0) {
-        // Arriving: rising, and squaring up to its resting angle as it lands.
-        const rise = Math.min(1, -depth)
+        // Arriving: climbing into place, squaring up to its resting angle as it
+        // lands. Solid the whole way and travelling from off-screen rather than
+        // fading in - a photograph being laid on a pile does not materialise.
+        const rise = -depth
         card.style.transform =
-          `translate3d(0, ${(rise * ARRIVAL_RISE).toFixed(2)}%, 0) rotate(${(tilt * (1 - rise)).toFixed(2)}deg)`
-        card.style.opacity = clamp01(1 + depth / ARRIVAL_FADE).toFixed(3)
+          `translate3d(0, ${(rise * ARRIVAL_RISE).toFixed(2)}%, 0)` +
+          ` rotate(${(tilt * (1 - Math.min(rise, 1))).toFixed(2)}deg)`
+        card.style.opacity = '1'
         if (veil) veil.style.opacity = '0'
         return
       }
@@ -261,11 +264,11 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   }
 
   if (isStacked) {
-    // Width is capped three ways: a print never gets bigger than 320px, never
-    // wider than most of a narrow screen, and never taller than the screen it
-    // has to sit on. The last cap is what keeps the pile whole on a short
-    // phone instead of running off the bottom of it.
-    const printWidth = 'min(320px, 78vw, (100svh - 120px) * 5 / 7)'
+    // 46svh of width is 65% of the viewport in height at a 5:7 ratio, which is
+    // how large the pile reads against the screen in the design this follows.
+    // The other two caps keep it off the edges of a narrow screen and stop it
+    // growing without limit on a tall desktop one.
+    const printWidth = 'min(420px, 82vw, 46svh)'
 
     if (!isPile) {
       return (
@@ -295,7 +298,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
             // Scroll budget: one travel for every photo after the first, plus a
             // screen so the stage has somewhere to pin and the finished pile
             // gets a moment before the next tile arrives.
-            height: `calc(${images.length - 1} * var(--stack-travel) + 100svh)`,
+            height: `calc(${images.length - 1} * var(--stack-travel) + ${STAGE_HEIGHT} + 0.35 * var(--stack-travel))`,
           } as React.CSSProperties
         }
       >
@@ -308,11 +311,16 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
           className="pointer-events-none absolute left-0 top-0 w-0 opacity-0"
           style={{ height: 'var(--stack-travel)' }}
         />
+        {/* A full-height band pinned to the viewport, with the pile centred in
+            it - so the photos sit in the middle of the screen rather than
+            against its top edge, and an arriving print has room below to climb
+            out of. */}
         <div
           ref={stageRef}
-          className="sticky mx-auto"
-          style={{ top: STACK_TOP, width: printWidth, aspectRatio: '5 / 7' }}
+          className="sticky flex items-center justify-center"
+          style={{ top: 0, height: STAGE_HEIGHT }}
         >
+          <div className="relative" style={{ width: printWidth, aspectRatio: '5 / 7' }}>
           {images.map((image, index) => (
             <div
               key={image.id || image.src}
@@ -327,8 +335,8 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
                 zIndex: index,
                 // The first print is already in place; the rest start below and
                 // out of sight, so nothing flashes before the first frame runs.
-                transform: index === 0 ? `rotate(${TILT[0]}deg)` : `translate3d(0, ${ARRIVAL_RISE}%, 0)`,
-                opacity: index === 0 ? 1 : 0,
+                transform: index === 0 ? `rotate(${TILT[0]}deg)` : `translate3d(0, ${index * ARRIVAL_RISE}%, 0)`,
+                opacity: 1,
                 willChange: 'transform, opacity',
               }}
             >
@@ -341,6 +349,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
               />
             </div>
           ))}
+          </div>
         </div>
       </section>
     )
