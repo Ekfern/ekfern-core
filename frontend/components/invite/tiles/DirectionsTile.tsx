@@ -1,10 +1,11 @@
 'use client'
 
-import React from 'react'
+import React, { useRef } from 'react'
 import { MapPin, ArrowUpRight } from 'lucide-react'
 import { DirectionsTileSettings } from '@/lib/invite/schema'
 import { getDestinationLabel, getDirectionsEmbedUrl, getDirectionsHref } from '@/lib/invite/mapUtils'
 import StaticTileMap from './StaticTileMap'
+import { INVITE_MEDIA_MAX_WIDTH, useInviteViewport } from '../render/useInviteViewport'
 
 export interface DirectionsTileProps {
   settings: DirectionsTileSettings
@@ -29,13 +30,25 @@ export interface DirectionsTileProps {
  * in the app that knows where they are.
  */
 export default function DirectionsTile({ settings, preview = false }: DirectionsTileProps) {
+  const sectionRef = useRef<HTMLElement>(null)
+  const { size: viewport } = useInviteViewport(sectionRef)
+
   const embedUrl = getDirectionsEmbedUrl(settings.mapUrl, settings.coordinates, settings.zoom)
   const directionsHref = getDirectionsHref(settings.mapUrl, settings.coordinates)
   const heading = settings.heading ?? 'Getting there'
   // Always the destination, never a value borrowed from elsewhere: captioning
   // an Agra map with the event's "Mumbai" is worse than no caption at all.
   const addressLine = settings.addressLine?.trim() || getDestinationLabel(settings.mapUrl, settings.coordinates) || ''
-  const height = settings.height ?? 260
+  // A share of the screen, like a photograph, rather than a flat 260px - which
+  // was a third of a phone next to a print filling half of it, and read as a
+  // strip rather than as a piece of the invitation. A number rather than a CSS
+  // length because the tile grid and the torn-edge mask are both sized in
+  // pixels; the host's own setting still wins when they have chosen one.
+  const height = settings.height
+    ? Math.min(Math.max(settings.height, 160), 460)
+    : viewport
+      ? Math.min(Math.max(Math.round(viewport.height * 0.42), 240), 460)
+      : 300
   const textAlign = settings.textAlign ?? 'center'
 
   // Nothing to point at yet, so render nothing - anywhere.
@@ -47,7 +60,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
   if (!embedUrl && !directionsHref) return null
 
   const body = (
-    <>
+    <div className="mx-auto w-full" style={{ maxWidth: INVITE_MEDIA_MAX_WIDTH }}>
       {settings.coordinates ? (
         // Tiles as images: no frame, no script, and the same map the editor's
         // picker shows, so the two surfaces finally look alike.
@@ -87,11 +100,12 @@ export default function DirectionsTile({ settings, preview = false }: Directions
         <span className="text-sm font-medium">{addressLine || 'View location'}</span>
         <ArrowUpRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
       </div>
-    </>
+    </div>
   )
 
   return (
     <section
+      ref={sectionRef}
       className="w-full px-4 py-3"
       style={{
         color: settings.fontColor || 'var(--theme-fg)',
