@@ -223,8 +223,15 @@ export default function TileList({
     const sortedForInvite = [...tilesToRender].sort(
       (a, b) => (a.order ?? 0) - (b.order ?? 0)
     )
+    // `clip`, never `hidden`: CSS computes the other axis to `auto` when one
+    // axis is `hidden`, which quietly turns this into a scroll container. It
+    // then becomes the nearest scrollport for anything sticky inside the
+    // preview - and because it is as tall as its content it never scrolls, so
+    // sticky pins to it and never moves. That is how the gallery's stack
+    // animated on the invitation and sat frozen in the editor. `clip` clips the
+    // same way without creating a scroll container.
     return (
-      <div className="flex flex-col w-full overflow-x-hidden" style={{ gap: 'var(--space-section)' }}>
+      <div className="flex flex-col w-full" style={{ gap: 'var(--space-section)', overflowX: 'clip' }}>
         {sortedForInvite.map((tile) => {
           const titleOverlay = tiles.find(t => t.type === 'title' && t.overlayTargetId === tile.id)
           if (tile.type === 'poster' && titleOverlay) {
