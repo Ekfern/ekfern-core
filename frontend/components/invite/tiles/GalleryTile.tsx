@@ -38,10 +38,34 @@ const TILT = [-2.5, 1.8, -1.5, 2.2, -1.9, 1.4]
  * reaches the top on a small screen. `svh` so hiding browser chrome mid-scroll
  * does not drag the animation with it.
  */
-const TRAVEL_PER_PHOTO = '100svh'
+const TRAVEL_PER_PHOTO = '140svh'
 
 /** Height of the pinned stage. The pile is centred inside it. */
 const STAGE_HEIGHT = '100svh'
+
+/**
+ * Share of each photo's travel where nothing moves and the front print simply
+ * sits there, fully in view.
+ *
+ * Without it the next photo starts climbing the instant the current one lands,
+ * so a photograph is never once on screen by itself - it is always either
+ * arriving or being covered. The hold is what gives each one a moment.
+ */
+const HOLD = 0.3
+
+/**
+ * Turn raw scroll into stage progress, holding at each whole number.
+ *
+ * The pause has to live here rather than in the transforms: every part of the
+ * animation reads from this one value, so pausing it pauses the arrival, the
+ * veil and the displacement together, and reversing still costs nothing.
+ */
+function holdAt(progress: number): number {
+  const landed = Math.floor(progress)
+  const into = progress - landed
+  if (into <= HOLD) return landed
+  return landed + (into - HOLD) / (1 - HOLD)
+}
 
 /**
  * How dark a print goes at each depth. A lookup, not a curve: the first step
@@ -57,11 +81,16 @@ const DEPTH_ROTATE = 2.2
 const DEPTH_SCALE = 0.035
 
 /**
- * Where an arriving print starts, as a share of its height. Large enough that
- * the next photo peeks in below the pile before it starts climbing, which is
- * what makes the motion read as a photo being laid down rather than appearing.
+ * Where an arriving print waits, as a CSS length it can be multiplied by.
+ *
+ * `50svh + 50%` puts its top exactly on the bottom edge of the screen: half a
+ * viewport plus half a print from the centred position. Expressed against the
+ * viewport rather than as a share of the print's own height because the print
+ * is not a fixed fraction of the screen - a flat percentage leaves it peeking
+ * over the bottom edge on a desktop and well clear of it on a phone, and a
+ * photo peeking is a photo covering the one you are trying to look at.
  */
-const ARRIVAL_RISE = 90
+const ARRIVAL_OFFSET = '(50svh + 50%)'
 
 function veilAt(depth: number): number {
   const d = Math.min(Math.max(depth, 0), MAX_DEPTH)
@@ -113,7 +142,8 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
     if (!section || !stage || !probe) return
 
     const travel = probe.offsetHeight || 1
-    const progress = (stage.getBoundingClientRect().top - section.getBoundingClientRect().top) / travel
+    const scrolled = (stage.getBoundingClientRect().top - section.getBoundingClientRect().top) / travel
+    const progress = holdAt(scrolled)
 
     cardsRef.current.forEach((card, index) => {
       if (!card) return
@@ -137,7 +167,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
         // fading in - a photograph being laid on a pile does not materialise.
         const rise = -depth
         card.style.transform =
-          `translate3d(0, ${(rise * ARRIVAL_RISE).toFixed(2)}%, 0)` +
+          `translate3d(0, calc(${ARRIVAL_OFFSET} * ${rise.toFixed(4)}), 0)` +
           ` rotate(${(tilt * (1 - Math.min(rise, 1))).toFixed(2)}deg)`
         card.style.opacity = '1'
         if (veil) veil.style.opacity = '0'
@@ -335,7 +365,10 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
                 zIndex: index,
                 // The first print is already in place; the rest start below and
                 // out of sight, so nothing flashes before the first frame runs.
-                transform: index === 0 ? `rotate(${TILT[0]}deg)` : `translate3d(0, ${index * ARRIVAL_RISE}%, 0)`,
+                transform:
+                  index === 0
+                    ? `rotate(${TILT[0]}deg)`
+                    : `translate3d(0, calc(${ARRIVAL_OFFSET} * ${index}), 0)`,
                 opacity: 1,
                 willChange: 'transform, opacity',
               }}
