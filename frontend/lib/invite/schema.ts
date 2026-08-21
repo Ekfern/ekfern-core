@@ -81,6 +81,13 @@ export interface GalleryImage {
 export interface GalleryTileSettings {
   images: GalleryImage[]
   /**
+   * Optional heading above the photos, giving them context - "Our Story" over
+   * "Forever Us". Same vocabulary as the title tile: `eyebrow` is the small
+   * spaced-out label, `title` the headline under it. Either may stand alone.
+   */
+  eyebrow?: string
+  title?: string
+  /**
    * vertical   — one per row, full width
    * horizontal — side by side, wrapping onto further rows on narrow screens
    * grid       — two columns

@@ -199,6 +199,40 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
       )}
 
       <div>
+        <label htmlFor={fieldId('eyebrow')} className="block text-sm font-medium">
+          Label
+        </label>
+        <input
+          id={fieldId('eyebrow')}
+          type="text"
+          value={settings.eyebrow ?? ''}
+          onChange={(e) => update({ eyebrow: e.target.value })}
+          placeholder="Our Story"
+          maxLength={40}
+          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div>
+        <label htmlFor={fieldId('title')} className="block text-sm font-medium">
+          Heading
+        </label>
+        <input
+          id={fieldId('title')}
+          type="text"
+          value={settings.title ?? ''}
+          onChange={(e) => update({ title: e.target.value })}
+          placeholder="Forever Us"
+          maxLength={80}
+          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Both are optional, and sit above the photos to give them context. The label is the small
+          spaced-out line; the heading is the larger one under it.
+        </p>
+      </div>
+
+      <div>
         <label htmlFor={fieldId('arrangement')} className="block text-sm font-medium">
           Arrangement
         </label>

@@ -121,6 +121,10 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
     return () => query.removeEventListener('change', apply)
   }, [])
 
+  const eyebrow = settings.eyebrow?.trim()
+  const title = settings.title?.trim()
+  const hasHeader = !!eyebrow || !!title
+
   const images = (settings.images || []).filter((image) => image?.src)
   const arrangement = settings.arrangement ?? 'stacked'
   const frame = settings.frame ?? 'none'
@@ -221,6 +225,29 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   // Covers the frame too: a dark photo in a bright border reads as broken.
   const veilRadius = frame === 'polaroid' ? '2px' : radius
 
+  // Matches the title tile's eyebrow so the two read as the same device: a
+  // spaced-out label in the accent colour over a headline in the title face.
+  const header = hasHeader ? (
+    <div className="w-full px-4 text-center">
+      {eyebrow && (
+        <p
+          className="text-xs font-semibold uppercase tracking-[0.3em]"
+          style={{ color: 'var(--theme-primary, #D4A017)' }}
+        >
+          {eyebrow}
+        </p>
+      )}
+      {title && (
+        <h2
+          className="mt-2 text-3xl font-light leading-tight tracking-wide md:text-4xl"
+          style={{ fontFamily: 'var(--theme-font-title, inherit)', color: 'var(--theme-fg, inherit)' }}
+        >
+          {title}
+        </h2>
+      )}
+    </div>
+  ) : null
+
   /** @param fill - size to the stage, so every print in a pile matches. */
   const renderPrint = (image: (typeof images)[number], fill = false) => {
     const caption = image.caption?.trim()
@@ -298,14 +325,15 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
     // how large the pile reads against the screen in the design this follows.
     // The other two caps keep it off the edges of a narrow screen and stop it
     // growing without limit on a tall desktop one.
-    const printWidth = 'min(420px, 82vw, 46svh)'
+    const printWidth = hasHeader ? 'min(420px, 82vw, 40svh)' : 'min(420px, 82vw, 46svh)'
 
     if (!isPile) {
       return (
         <section className="w-full px-4 py-2" aria-label="Photo gallery">
+          {header}
           <div
             className="mx-auto flex flex-col items-center"
-            style={{ gap: 'var(--space-section, 2rem)' }}
+            style={{ gap: 'var(--space-section, 2rem)', marginTop: hasHeader ? 'var(--space-section, 2rem)' : undefined }}
           >
             {images.map((image) => (
               <div key={image.id || image.src} className="w-full" style={{ maxWidth: printWidth }}>
@@ -347,9 +375,10 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
             out of. */}
         <div
           ref={stageRef}
-          className="sticky flex items-center justify-center"
-          style={{ top: 0, height: STAGE_HEIGHT }}
+          className="sticky flex flex-col items-center justify-center"
+          style={{ top: 0, height: STAGE_HEIGHT, gap: 'var(--space-section, 2rem)' }}
         >
+          {header}
           <div className="relative" style={{ width: printWidth, aspectRatio: '5 / 7' }}>
           {images.map((image, index) => (
             <div
@@ -392,9 +421,14 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   // sits in the middle and five leave a centred pair rather than a hole.
   return (
     <section className="w-full px-4 py-2" aria-label="Photo gallery">
+      {header}
       <div
         className="mx-auto flex flex-wrap justify-center"
-        style={{ gap: 'var(--space-cluster, 1rem)', maxWidth: '620px' }}
+        style={{
+          gap: 'var(--space-cluster, 1rem)',
+          maxWidth: '620px',
+          marginTop: hasHeader ? 'var(--space-section, 2rem)' : undefined,
+        }}
       >
         {images.map((image) => (
           <div key={image.id || image.src} style={{ flex: '0 0 auto', width: '184px', maxWidth: '100%' }}>
