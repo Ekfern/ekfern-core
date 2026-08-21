@@ -183,7 +183,6 @@ export interface DirectionsTileSettings {
   heading?: string // Defaults to "Getting there"
   /** Address line shown under the map; falls back to the event's location. */
   addressLine?: string
-  height?: number // Map height in pixels (default 260)
   /**
    * How closely the map frames the venue (default 16 - street and surrounds).
    * The embed is always rebuilt around the destination, so a pasted link that

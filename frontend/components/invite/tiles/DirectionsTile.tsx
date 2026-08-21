@@ -39,16 +39,15 @@ export default function DirectionsTile({ settings, preview = false }: Directions
   // Always the destination, never a value borrowed from elsewhere: captioning
   // an Agra map with the event's "Mumbai" is worse than no caption at all.
   const addressLine = settings.addressLine?.trim() || getDestinationLabel(settings.mapUrl, settings.coordinates) || ''
-  // A share of the screen, like a photograph, rather than a flat 260px - which
-  // was a third of a phone next to a print filling half of it, and read as a
-  // strip rather than as a piece of the invitation. A number rather than a CSS
-  // length because the tile grid and the torn-edge mask are both sized in
-  // pixels; the host's own setting still wins when they have chosen one.
-  const height = settings.height
-    ? Math.min(Math.max(settings.height, 160), 460)
-    : viewport
-      ? Math.min(Math.max(Math.round(viewport.height * 0.42), 240), 460)
-      : 300
+  // A share of the screen, like a photograph, rather than a height in pixels.
+  // A pixel height cannot be predictable: the same 400px is a third of a laptop
+  // and half a phone, so a host choosing it once could not know what a guest
+  // would see. A number rather than a CSS length because the tile grid and the
+  // torn-edge mask are both sized in pixels, and a container the mask does not
+  // match is a tear that falls outside the frame.
+  const height = viewport
+    ? Math.min(Math.max(Math.round(viewport.height * 0.42), 240), 460)
+    : 300
   const textAlign = settings.textAlign ?? 'center'
 
   // Nothing to point at yet, so render nothing - anywhere.
