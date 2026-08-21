@@ -6,23 +6,11 @@ import { GalleryTileSettings } from '@/lib/invite/schema'
 /**
  * A gallery of photos on the invitation.
  *
- * This tile used to be a single hero image, and its job has changed: the poster
- * is the hero now, and this is a handful of pictures arranged on the page. One
- * frame style applies to every photo - a gallery of mismatched frames reads as
- * a mistake rather than a choice.
- *
- * Two arrangements, because there are two questions a gallery answers:
- *
- *   stacked - a pile of prints in one place, near the top of the screen. Scroll
- *             down and each photo lands on top of the pile; the ones underneath
- *             darken as they are covered. Scroll back up and they lift off
- *             again, and the pile clears.
+ *   stacked - a pile of prints in one place. Each photo lands on top as you
+ *             scroll; the ones underneath darken. Scrolling up reverses it.
  *   grid    - the whole set at once, in a row that wraps.
  *
- * Both are centred. Nothing is interactive: guests get no lightbox, which keeps
- * the page light and avoids a modal on an invitation nobody asked to open.
- * Images are lazy and carry an explicit ratio so the page does not jump as they
- * arrive.
+ * One frame style applies to every photo, and nothing is interactive.
  */
 export interface GalleryTileProps {
   settings: GalleryTileSettings
@@ -38,54 +26,39 @@ const SHADOW: Record<NonNullable<GalleryTileSettings['shadow']>, string> = {
 }
 
 /**
- * How far each print in a stack is tilted, in degrees.
- *
- * Fixed per position and alternating, never scroll-linked. That is what makes
- * the pile read as photographs someone put down rather than as an effect - a
- * print keeps the angle it landed at. Cycled so a stack of any length keeps
- * alternating.
+ * Tilt per position, in degrees. Fixed and never scroll-linked: a print keeps
+ * the angle it landed at, which is what makes the pile read as photographs
+ * rather than as an effect.
  */
 const TILT = [-2.5, 1.8, -1.5, 2.2, -1.9, 1.4]
 
 /**
- * How much scrolling it takes for one photo to land on the pile.
- *
- * Declared here rather than derived from the photos, which is what the previous
- * version did: it spaced prints down the page and let the distance between them
- * fall out of photo height plus gap. That distance changed with viewport and
- * photo count, and on a small screen the page ran out of scroll before the last
- * print ever reached the top - the stack simply never formed. A fixed budget
- * per photo is the same on every screen.
- *
- * `svh` rather than `vh` so the budget does not change when mobile browser
- * chrome hides mid-scroll and drags the animation with it.
+ * Scrolling it takes for one photo to land. Declared, not derived from photo
+ * height, or the distance changes with viewport and the last print never
+ * reaches the top on a small screen. `svh` so hiding browser chrome mid-scroll
+ * does not drag the animation with it.
  */
-const TRAVEL_PER_PHOTO = '65svh'
+const TRAVEL_PER_PHOTO = '100svh'
 
-/** Where the pile sits. Close to the top edge, so photos land into view. */
 const STACK_TOP = '16px'
 
 /**
- * How dark a print goes at each depth under the pile.
- *
- * A lookup rather than a formula because the first step matters most - a print
- * has to read as *covered* the moment something lands on it - and no cheap
- * curve puts its steepest part there. Interpolated between steps, so a print
- * halfway between depths is halfway darkened.
+ * How dark a print goes at each depth. A lookup, not a curve: the first step
+ * matters most and no cheap easing puts its steepest part there.
  */
 const VEIL_BY_DEPTH = [0, 0.45, 0.7, 0.85]
 const MAX_DEPTH = VEIL_BY_DEPTH.length - 1
 
-/** How a print is displaced for each photo covering it. */
-const DEPTH_SHIFT_X = 12 // px to the right
-const DEPTH_SHIFT_Y = -3 // px, drifting slightly up
-const DEPTH_ROTATE = 2.2 // degrees
-const DEPTH_SCALE = 0.035 // shrink, so the pile recedes
+/** Displacement per photo covering a print. */
+const DEPTH_SHIFT_X = 12
+const DEPTH_SHIFT_Y = -3
+const DEPTH_ROTATE = 2.2
+const DEPTH_SCALE = 0.035
 
-/** How far below the pile an arriving print starts, as a share of its height. */
+/** Where an arriving print starts, as a share of its height. */
 const ARRIVAL_RISE = 62
 
-/** The last stretch of an arrival, over which the print fades in. */
+/** Share of the arrival over which the print fades in. */
 const ARRIVAL_FADE = 0.7
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
@@ -105,18 +78,9 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   const probeRef = useRef<HTMLDivElement>(null)
   const cardsRef = useRef<(HTMLDivElement | null)[]>([])
 
-  /**
-   * Whether to pile the prints at all.
-   *
-   * This has to be known while rendering, not only inside the driver: prints
-   * are laid on top of each other at opacity 0 and it is the driver that
-   * reveals them, so a pile nothing is driving shows one photo and hides the
-   * rest. Reduced motion gets a plain column instead - the photographs, in
-   * order, with no pinning and nothing that moves on scroll.
-   *
-   * Starts false so the server and the first client render agree; a browser
-   * asking for less motion drops to the column on the effect that follows.
-   */
+  // Needed at render time, not just in the driver: prints start at opacity 0
+  // and the driver is what reveals them, so a pile nothing drives would show
+  // one photo and hide the rest. Starts false so SSR and hydration agree.
   const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
@@ -136,18 +100,11 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   const isPile = isStacked && images.length > 1 && !reducedMotion
 
   /**
-   * Place every print from a single number.
-   *
-   * `progress` is how many photos have landed, as a decimal, and a print's
-   * `depth` is how far it sits under the top of the pile. Everything - the
-   * arrival, the displacement, the veil - is a function of that one value, so
-   * scrolling back up reverses the whole animation without any code of its own:
-   * depth simply decreases again and prints lift off the pile.
-   *
-   * Driven from scroll rather than an IntersectionObserver because the value is
-   * continuous. Measured as the stage's drift inside its section rather than
-   * from `scrollY`, which means it reads the same whether the page is scrolling
-   * or the editor's phone mockup is.
+   * Place every print from one number: `progress` is how many photos have
+   * landed, and `depth` is how far a print sits under the top. Everything is a
+   * function of it, so scrolling up reverses the animation with no extra code.
+   * Measured as the stage's drift inside its section, not from `scrollY`, so it
+   * reads the same in the page and in the editor's mockup.
    */
   const drive = useCallback(() => {
     const section = sectionRef.current
@@ -163,10 +120,8 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
       const depth = progress - index
       const veil = card.querySelector<HTMLElement>('[data-veil]')
 
-      // Far below the pile or buried well under it: nothing to paint. The veil
-      // is still settled to where that depth belongs before hiding, because a
-      // hidden print keeps whatever it was last given - and a print that comes
-      // back into view wearing the wrong veil flashes on the way in.
+      // Out of sight. The veil is still settled first: a hidden print keeps
+      // whatever it was last given, and would flash the wrong shade on return.
       if (depth < -1.05 || depth > MAX_DEPTH + 1) {
         if (veil) veil.style.opacity = depth < 0 ? '0' : veilAt(MAX_DEPTH).toFixed(3)
         card.style.visibility = 'hidden'
@@ -177,8 +132,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
       const tilt = TILT[index % TILT.length]!
 
       if (depth <= 0) {
-        // Arriving: rising into place, and squaring up to its resting angle as
-        // it lands so the print settles rather than snapping.
+        // Arriving: rising, and squaring up to its resting angle as it lands.
         const rise = Math.min(1, -depth)
         card.style.transform =
           `translate3d(0, ${(rise * ARRIVAL_RISE).toFixed(2)}%, 0) rotate(${(tilt * (1 - rise)).toFixed(2)}deg)`
@@ -187,7 +141,6 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
         return
       }
 
-      // Landed, and being buried by whatever came after it.
       const d = Math.min(depth, MAX_DEPTH)
       card.style.transform =
         `translate3d(${(d * DEPTH_SHIFT_X).toFixed(2)}px, ${(d * DEPTH_SHIFT_Y).toFixed(2)}px, 0)` +
@@ -199,8 +152,6 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   }, [])
 
   useEffect(() => {
-    // `isPile` is already false for reduced motion and for a lone photo, so
-    // there is nothing to drive in either case.
     if (!isPile) return
 
     let frameId = 0
@@ -209,8 +160,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
       frameId = requestAnimationFrame(drive)
     }
     run()
-    // `true` catches scrolling inside the editor's phone mockup as well as the
-    // window, so the preview animates the same way the invitation does.
+    // Capture catches the editor mockup's scrolling as well as the window's.
     window.addEventListener('scroll', run, { passive: true, capture: true })
     window.addEventListener('resize', run)
     return () => {
@@ -221,39 +171,24 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   }, [isPile, images.length, drive])
 
   if (images.length === 0) {
-    // An empty gallery renders nothing, on the invitation and in the preview
-    // alike: the host sees the tile and its empty state in the settings panel,
-    // which is where a prompt belongs.
     return null
   }
 
-  // A CSS value rather than a number: unset means "whatever the invitation's
-  // surfaces use", which cannot be expressed as an integer.
   const radius =
     settings.cornerRadius !== undefined ? `${settings.cornerRadius}px` : 'var(--radius-surface)'
   const innerRadius =
     settings.cornerRadius !== undefined
       ? `${Math.max(settings.cornerRadius - 2, 0)}px`
       : 'calc(var(--radius-surface) - 2px)'
-  // A named step still maps to its value; unset means the invitation's own
-  // resting elevation.
   const shadow = settings.shadow ? SHADOW[settings.shadow] : 'var(--shadow-rest)'
 
-  // Stacked prints are portrait, which is the shape a photograph of people
-  // wants and what makes a polaroid read as one. A grid is square so the rows
-  // come out level.
+  // Portrait for a pile, square for a grid so the rows come out level.
   const aspect = isStacked ? '5 / 7' : '1 / 1'
 
-  // The veil has to cover the frame as well as the photo - a darkened picture
-  // in a bright white polaroid border reads as a broken image rather than a
-  // buried one.
+  // Covers the frame too: a dark photo in a bright border reads as broken.
   const veilRadius = frame === 'polaroid' ? '2px' : radius
 
-  /**
-   * @param fill - size to the stage rather than to the photo's own ratio. The
-   *   pile needs every print the same size whatever its picture, or the stack
-   *   edges do not line up.
-   */
+  /** @param fill - size to the stage, so every print in a pile matches. */
   const renderPrint = (image: (typeof images)[number], fill = false) => {
     const caption = image.caption?.trim()
     const showCaption = frame === 'polaroid' || !!caption
@@ -264,9 +199,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
             background: '#fff',
             padding: '0.75rem 0.75rem 0',
             borderRadius: 2,
-            // A polaroid sits on top of the page rather than in it, so it
-            // keeps a shadow even when the gallery asked for none - that is
-            // what makes it read as a physical print.
+            // A polaroid keeps a shadow even when the gallery asked for none.
             boxShadow: shadow === 'none' ? 'var(--shadow-lift)' : shadow,
           }
         : frame === 'simple'
