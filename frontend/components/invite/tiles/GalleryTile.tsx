@@ -38,10 +38,10 @@ const TILT = [-2.5, 1.8, -1.5, 2.2, -1.9, 1.4]
  * reaches the top on a small screen. `svh` so hiding browser chrome mid-scroll
  * does not drag the animation with it.
  */
-const TRAVEL_PER_PHOTO = '140svh'
+const TRAVEL_PER_PHOTO = 'calc(var(--invite-viewport, 100svh) * 1.4)'
 
 /** Height of the pinned stage. The pile is centred inside it. */
-const STAGE_HEIGHT = '100svh'
+const STAGE_HEIGHT = 'var(--invite-viewport, 100svh)'
 
 /**
  * Share of each photo's travel where nothing moves and the front print simply
@@ -90,7 +90,7 @@ const DEPTH_SCALE = 0.035
  * over the bottom edge on a desktop and well clear of it on a phone, and a
  * photo peeking is a photo covering the one you are trying to look at.
  */
-const ARRIVAL_OFFSET = '(50svh + 50%)'
+const ARRIVAL_OFFSET = '(var(--invite-viewport, 100svh) * 0.5 + 50%)'
 
 function veilAt(depth: number): number {
   const d = Math.min(Math.max(depth, 0), MAX_DEPTH)
@@ -139,7 +139,47 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
    * Measured as the stage's drift inside its section, not from `scrollY`, so it
    * reads the same in the page and in the editor's mockup.
    */
+  /**
+   * Publish the size of the surface this gallery is actually on.
+   *
+   * `svh` always means the browser window, which is wrong inside the editor's
+   * phone mockup: the pinned band came out taller than the mockup and the print
+   * filled three quarters of it, so the preview promised a photo far larger
+   * than the invitation delivers. Everything is measured against the nearest
+   * scrollport instead - the window on a real invitation, the mockup in a
+   * preview - falling back to `100svh` before this runs and during SSR.
+   */
+  const applyViewport = useCallback(() => {
+    const section = sectionRef.current
+    if (!section) return
+    let node = section.parentElement
+    let height = 0
+    let width = 0
+    while (node) {
+      const style = getComputedStyle(node)
+      if (['auto', 'scroll'].includes(style.overflowY) && node.clientHeight > 0) {
+        height = node.clientHeight
+        width = node.clientWidth
+        break
+      }
+      node = node.parentElement
+    }
+    if (!height) {
+      height = window.innerHeight
+      width = window.innerWidth
+    }
+    section.style.setProperty('--invite-viewport', `${height}px`)
+    section.style.setProperty('--invite-viewport-w', `${width}px`)
+  }, [])
+
+  useEffect(() => {
+    applyViewport()
+    window.addEventListener('resize', applyViewport)
+    return () => window.removeEventListener('resize', applyViewport)
+  }, [applyViewport, isStacked, images.length])
+
   const drive = useCallback(() => {
+    applyViewport()
     const section = sectionRef.current
     const stage = stageRef.current
     const probe = probeRef.current
@@ -186,7 +226,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
       card.style.opacity = '1'
       if (veil) veil.style.opacity = veilAt(d).toFixed(3)
     })
-  }, [])
+  }, [applyViewport])
 
   useEffect(() => {
     if (!isPile) return
@@ -325,11 +365,13 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
     // how large the pile reads against the screen in the design this follows.
     // The other two caps keep it off the edges of a narrow screen and stop it
     // growing without limit on a tall desktop one.
-    const printWidth = hasHeader ? 'min(420px, 82vw, 40svh)' : 'min(420px, 82vw, 46svh)'
+    const tall = hasHeader ? 0.4 : 0.46
+    const printWidth =
+      `min(420px, calc(var(--invite-viewport-w, 100vw) * 0.82), calc(var(--invite-viewport, 100svh) * ${tall}))`
 
     if (!isPile) {
       return (
-        <section className="w-full px-4 py-2" aria-label="Photo gallery">
+        <section ref={sectionRef} className="w-full px-4 py-2" aria-label="Photo gallery">
           {header}
           <div
             className="mx-auto flex flex-col items-center"
@@ -420,7 +462,7 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   // Grid: a row that fills, then wraps, centred at every count - so one photo
   // sits in the middle and five leave a centred pair rather than a hole.
   return (
-    <section className="w-full px-4 py-2" aria-label="Photo gallery">
+    <section ref={sectionRef} className="w-full px-4 py-2" aria-label="Photo gallery">
       {header}
       <div
         className="mx-auto flex flex-wrap justify-center"
