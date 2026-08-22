@@ -130,6 +130,35 @@ const DEFAULT_TILES: Tile[] = [
 // included because it now falls back to the body face too.
 const FONT_LINKED_TILE_KEYS = ['font', 'subtitleFont', 'contentFontFamily'] as const
 
+type FontRoleName = 'title' | 'header' | 'body'
+type PageFonts = NonNullable<InviteConfig['customFonts']>
+
+/**
+ * The face a role is set to.
+ *
+ * Reads the version 1 spelling when the role itself has not been written yet.
+ * `header` falls back to the body face on purpose: a config that never had a
+ * header face should not look like it already chose one.
+ */
+function roleFamily(fonts: InviteConfig['customFonts'], role: FontRoleName): string | undefined {
+  if (!fonts) return undefined
+  if (role === 'title') return fonts.title?.family ?? fonts.titleFont
+  if (role === 'body') return fonts.body?.family ?? fonts.bodyFont
+  return fonts.header?.family ?? fonts.bodyFont
+}
+
+/** Set one role's family, leaving the rest of its recipe alone. */
+function withRoleFamily(
+  fonts: InviteConfig['customFonts'],
+  role: FontRoleName,
+  family: string | undefined,
+): PageFonts {
+  const next: PageFonts = { ...(fonts ?? {}) }
+  if (family) next[role] = { ...(next[role] ?? {}), family }
+  else delete next[role]
+  return next
+}
+
 const PALETTE_LINKED_TILE_KEYS = [
   'color',          // title      -> --theme-fg
   'fontColor',      // details, directions, description -> --theme-fg; footer -> --theme-muted
@@ -2308,10 +2337,11 @@ export default function DesignInvitationPage(): JSX.Element {
                             </button>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                           {([
-                            ['titleFont', 'Headline', 'The names on your invitation, the small line above them, and your sub-event titles.'],
-                            ['bodyFont', 'Everything else', 'Dates, location, description, buttons, captions and footer \u2014 all the text that is not the headline.'],
+                            ['title', 'Headline', 'The names on your invitation, and the small line above them.'],
+                            ['header', 'Section headings', 'The heading over your photos, and your sub-event titles.'],
+                            ['body', 'Normal text', 'Dates, location, description, buttons, captions and footer \u2014 all the running text.'],
                           ] as const).map(([key, label, hint]) => (
                             <div key={key} className="relative group">
                               <label
@@ -2330,10 +2360,10 @@ export default function DesignInvitationPage(): JSX.Element {
                               <FontPicker
                                 id={`page-${key}`}
                                 ariaLabel={`${label} font. ${hint}`}
-                                value={config.customFonts?.[key]}
+                                value={roleFamily(config.customFonts, key)}
                                 onChange={(family) => setConfig(prev => ({
                                   ...prev,
-                                  customFonts: { ...(prev.customFonts ?? {}), [key]: family },
+                                  customFonts: withRoleFamily(prev.customFonts, key, family),
                                 }))}
                                 defaultLabel="Layout default"
                               />
@@ -2441,6 +2471,113 @@ export default function DesignInvitationPage(): JSX.Element {
                           <option value="normal">Normal</option>
                           <option value="spacious">Spacious</option>
                         </select>
+                      </div>
+
+                      {/* Shape, depth, material, alignment and rules. All five were
+                          already answerable in the config and none had a control, so
+                          the only way to set them was to author a layout - which is
+                          how an invitation ended up with two cards raised by accident.
+                          Every label says what a host would say, not what CSS calls it. */}
+                      <div>
+                        <label htmlFor="page-shape" className="block text-sm font-medium mb-2">Corners</label>
+                        <select
+                          id="page-shape"
+                          value={config.shape ?? 'soft'}
+                          onChange={(e) => setConfig(prev => ({ ...prev, shape: e.target.value as NonNullable<typeof prev.shape> }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="sharp">Square</option>
+                          <option value="soft">Softly rounded</option>
+                          <option value="rounded">Fully rounded</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Cards, photos and buttons together.</p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="page-depth" className="block text-sm font-medium mb-2">Card shadows</label>
+                        <select
+                          id="page-depth"
+                          value={config.depth === 'raised' || config.depth === 'lifted' ? 'uniform' : config.depth ?? 'uniform'}
+                          onChange={(e) => setConfig(prev => ({ ...prev, depth: e.target.value as NonNullable<typeof prev.depth> }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="flat">None &mdash; everything sits flat</option>
+                          <option value="uniform">Every card lifts a little</option>
+                          <option value="featured">One card stands out</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {config.depth === 'featured'
+                            ? 'Your event details lift off the page; everything else lies flat.'
+                            : 'Applies to every card on the invitation, so none of them lifts by accident.'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="page-material" className="block text-sm font-medium mb-2">Card style</label>
+                        <select
+                          id="page-material"
+                          value={config.material ?? 'solid'}
+                          onChange={(e) => setConfig(prev => ({ ...prev, material: e.target.value as NonNullable<typeof prev.material> }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="solid">Plain</option>
+                          <option value="glass">Frosted glass</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label htmlFor="page-textAlign" className="block text-sm font-medium mb-2">Text alignment</label>
+                        <select
+                          id="page-textAlign"
+                          value={config.textAlign ?? 'center'}
+                          onChange={(e) => setConfig(prev => ({ ...prev, textAlign: e.target.value as NonNullable<typeof prev.textAlign> }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="center">Centred</option>
+                          <option value="left">Left</option>
+                          <option value="right">Right</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Centred reads formal; left reads like a magazine.</p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="page-divider" className="block text-sm font-medium mb-2">Dividers</label>
+                        <select
+                          id="page-divider"
+                          value={config.ornament?.divider ?? 'hairline'}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            ornament: { ...(prev.ornament ?? {}), divider: e.target.value as 'none' | 'hairline' | 'symbol' },
+                          }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="none">None</option>
+                          <option value="hairline">Thin line</option>
+                          <option value="symbol">Small symbol</option>
+                        </select>
+                        {config.ornament?.divider === 'symbol' && (
+                          <div className="mt-2 flex gap-1">
+                            {['\u2766', '\u273F', '\u2724', '\u2726', '\u2022', '\u2014'].map((symbol) => (
+                              <button
+                                key={symbol}
+                                type="button"
+                                aria-label={`Use ${symbol} as the divider`}
+                                aria-pressed={(config.ornament?.symbol ?? '\u2766') === symbol}
+                                onClick={() => setConfig(prev => ({
+                                  ...prev,
+                                  ornament: { ...(prev.ornament ?? {}), divider: 'symbol', symbol },
+                                }))}
+                                className={`h-8 w-8 rounded border text-sm ${
+                                  (config.ornament?.symbol ?? '\u2766') === symbol
+                                    ? 'border-eco-green bg-green-50'
+                                    : 'border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {symbol}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Opening Animation */}
