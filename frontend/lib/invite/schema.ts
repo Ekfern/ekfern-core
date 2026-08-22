@@ -349,6 +349,23 @@ export interface Tile {
   overlayTargetId?: string // If set, this title tile overlays on top of the target tile (image)
 }
 
+/**
+ * One text role, complete.
+ *
+ * Family is what a host picks. The rest is what makes two labels doing the same
+ * job look like the same job - the part that was missing, and the reason an
+ * invitation could read as four fonts while carrying two.
+ */
+export interface FontRole {
+  family: string
+  weight?: number
+  /** A step on the page type scale, not a raw length. */
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  tracking?: string
+  transform?: 'none' | 'uppercase'
+  italic?: boolean
+}
+
 export interface InviteConfig {
   // id of the InvitePageLayout this config was last cloned from (via applyLayout).
   // Lets the Layout step highlight what's currently applied when you revisit it.
@@ -373,9 +390,23 @@ export interface InviteConfig {
   // clearing a setting actually removes a leftover value from a previous
   // layout/Page Editor session instead of the backend's save-merge (see
   // update_design) preserving it by mistake.
+  /**
+   * The three faces a host picks, as recipes rather than bare families.
+   *
+   * A family alone does not settle how text looks: the four eyebrow-class
+   * labels on a page were already sharing a family and still came out at four
+   * different trackings and two weights. A role carries the whole answer.
+   *
+   * `titleFont` / `bodyFont` are the version 1 spelling and still parse.
+   */
   customFonts?: {
-    titleFont?: string // Overrides theme.fonts.title
-    bodyFont?: string // Overrides theme.fonts.body
+    title?: FontRole
+    header?: FontRole
+    body?: FontRole
+    /** @deprecated version 1; migrates to `title.family`. */
+    titleFont?: string
+    /** @deprecated version 1; migrates to `body.family` and `header.family`. */
+    bodyFont?: string
   } | null
   // Background texture (CSS-based)
   texture?: TextureSettings | null
@@ -414,8 +445,53 @@ export interface InviteConfig {
   // How edges behave. Surfaces (cards, images, the map) and controls (buttons)
   // move together but are not the same value, so one word sets both.
   shape?: 'sharp' | 'soft' | 'rounded' | null
-  // Whether things rest on the paper or lift off it.
-  depth?: 'flat' | 'raised' | 'lifted' | null
+  /**
+   * Whether things rest on the paper or lift off it.
+   *
+   *   flat      nothing casts a shadow
+   *   uniform   every card sits at the same small height
+   *   featured  one surface is raised and the rest lie flat
+   *
+   * `raised` and `lifted` are the previous vocabulary and still parse; both
+   * resolve to `uniform`. There is deliberately no `alternate`: alternating by
+   * index re-shuffles emphasis whenever a host reorders or disables a tile, so
+   * the page would change meaning on an edit that had nothing to do with look.
+   */
+  depth?: 'flat' | 'uniform' | 'featured' | 'raised' | 'lifted' | null
+  /**
+   * Which surface is raised when depth is `featured`. Staff and templates set
+   * this; it is not a host-facing picker, because "pick the special tile" ends
+   * with the gallery raised and the RSVP buried. Unset resolves semantically -
+   * event details, then the buttons, then the poster.
+   */
+  featuredTileId?: string | null
+  /**
+   * What a surface is made of. Orthogonal to depth: glass is a material, not a
+   * height. Elevation still comes from `depth` alone, so a glass card under
+   * `flat` is translucent and casts nothing.
+   */
+  material?: 'solid' | 'glass' | null
+  /**
+   * Rules and flourishes, decided once for the whole invitation. Replaces the
+   * footer's own divider flag and the details card's own symbol, which between
+   * them meant a host could get a fleuron in one place by accident.
+   */
+  ornament?: {
+    divider?: 'none' | 'hairline' | 'symbol'
+    /** Used when divider is `symbol`. One of ❦ ✿ ✤ ✦ • — */
+    symbol?: string
+  } | null
+  /**
+   * How the invitation is set. Centred reads formal, left reads editorial - the
+   * kind of decision that should move the whole page at once rather than being
+   * answered five times by five tiles.
+   */
+  textAlign?: 'left' | 'center' | 'right' | null
+  /**
+   * Which shape of config this is. Absent means version 1: two font fields and
+   * per-tile look settings. See docs/invite-look-ownership.md.
+   */
+  configVersion?: number
   // How buttons are drawn. Page-level because an invitation with two button
   // styles looks like a mistake, and every tile that draws one reads this.
   buttonStyle?: import('./buttonStyles').ButtonVariant | null

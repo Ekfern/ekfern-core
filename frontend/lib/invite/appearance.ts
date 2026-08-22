@@ -1,5 +1,6 @@
-import type { InviteConfig } from './schema'
+import type { FontRole, InviteConfig } from './schema'
 import type { ButtonVariant } from './buttonStyles'
+import { isDisplayFamily } from './fonts'
 
 /**
  * How an invite's look is resolved.
@@ -25,7 +26,11 @@ import type { ButtonVariant } from './buttonStyles'
  */
 
 export type InviteShape = 'sharp' | 'soft' | 'rounded'
-export type InviteDepth = 'flat' | 'raised' | 'lifted'
+export type InviteDepth = 'flat' | 'uniform' | 'featured'
+/** The vocabulary before `uniform`/`featured`. Both resolve to `uniform`. */
+export type LegacyInviteDepth = 'raised' | 'lifted'
+export type InviteMaterial = 'solid' | 'glass'
+export type InviteTextAlign = 'left' | 'center' | 'right'
 export type InviteSpacing = 'tight' | 'normal' | 'spacious'
 
 /**
@@ -46,8 +51,84 @@ const SHAPE_SCALE: Record<InviteShape, { surface: string; control: string }> = {
  */
 const DEPTH_SCALE: Record<InviteDepth, { rest: string; lift: string }> = {
   flat: { rest: 'none', lift: 'none' },
-  raised: { rest: '0 1px 2px rgba(0,0,0,.08)', lift: '0 4px 10px -2px rgba(0,0,0,.15)' },
-  lifted: { rest: '0 4px 10px -2px rgba(0,0,0,.15)', lift: '0 12px 24px -8px rgba(0,0,0,.22)' },
+  uniform: { rest: '0 1px 2px rgba(0,0,0,.08)', lift: '0 4px 10px -2px rgba(0,0,0,.15)' },
+  // Under `featured` the page lies flat and one surface carries the whole
+  // difference, so `rest` is nothing and `lift` is stronger than uniform's.
+  featured: { rest: 'none', lift: '0 12px 24px -8px rgba(0,0,0,.22)' },
+}
+
+/**
+ * `raised` and `lifted` both land on `uniform`.
+ *
+ * `lifted` was the louder of the two, so a page that used it gets slightly
+ * softer shadows than before. That is the intended trade: one uniform height
+ * is worth more than two intensities of the same idea.
+ */
+function resolveDepth(depth?: InviteDepth | LegacyInviteDepth | null): InviteDepth {
+  if (depth === 'raised' || depth === 'lifted') return 'uniform'
+  if (depth === 'flat' || depth === 'uniform' || depth === 'featured') return depth
+  return INVITE_APPEARANCE_DEFAULTS.depth
+}
+
+/**
+ * What a surface is made of, kept apart from how high it sits.
+ *
+ * Glass used to carry its own shadow - a different one in each of the two tiles
+ * that offered it - which is why turning the page flat left two cards floating.
+ * It contributes fill, border and blur only.
+ */
+const MATERIAL_SCALE: Record<InviteMaterial, {
+  fill: string
+  border: string
+  blur: string
+  inset: string
+}> = {
+  solid: { fill: 'transparent', border: '1px solid transparent', blur: 'none', inset: 'none' },
+  glass: {
+    fill: 'rgba(255,255,255,0.14)',
+    border: '1px solid rgba(255,255,255,0.28)',
+    blur: 'blur(20px)',
+    inset: 'inset 0 1px 0 rgba(255,255,255,0.25)',
+  },
+}
+
+/** Steps on the type scale, so a role names a step rather than a length. */
+const TYPE_SCALE: Record<NonNullable<FontRole['size']>, string> = {
+  xs: '0.75rem',
+  sm: '0.8125rem',
+  md: '1rem',
+  lg: 'clamp(1.75rem, 5vw, 2.25rem)',
+  xl: 'clamp(2.5rem, 9vw, 4rem)',
+}
+
+/**
+ * The six recipes, and which of the three host-picked families each draws on.
+ *
+ * Three roles are chosen; six are rendered. Eyebrow, caption and data have no
+ * picker of their own because a fourth family is another webfont on a phone on
+ * patchy data, and because nobody deliberately sets captions in a fourth face.
+ * What they needed was a recipe, which is what they get here.
+ */
+const RECIPE_DEFAULTS = {
+  title: { role: 'title', weight: 400, size: 'xl', tracking: '0.01em', transform: 'none' },
+  header: { role: 'header', weight: 500, size: 'lg', tracking: '0.02em', transform: 'none' },
+  body: { role: 'body', weight: 400, size: 'md', tracking: 'normal', transform: 'none' },
+  // Borrows the title family, so the kicker over a headline and the kicker over
+  // a gallery finally read as the same device.
+  eyebrow: { role: 'title', weight: 600, size: 'xs', tracking: '0.3em', transform: 'uppercase' },
+  caption: { role: 'body', weight: 400, size: 'sm', tracking: '0.01em', transform: 'none' },
+  data: { role: 'body', weight: 500, size: 'md', tracking: '0.02em', transform: 'none' },
+} as const
+
+export type RecipeName = keyof typeof RECIPE_DEFAULTS
+
+export interface ResolvedRecipe {
+  family: string
+  weight: number
+  size: string
+  tracking: string
+  transform: 'none' | 'uppercase'
+  italic: boolean
 }
 
 /**
@@ -97,8 +178,11 @@ export const INVITE_APPEARANCE_DEFAULTS = {
   overlayOpacity: 0.18,
   shape: 'soft' as InviteShape,
   buttonStyle: 'classic' as ButtonVariant,
-  depth: 'raised' as InviteDepth,
+  depth: 'uniform' as InviteDepth,
   spacing: 'normal' as InviteSpacing,
+  material: 'solid' as InviteMaterial,
+  textAlign: 'center' as InviteTextAlign,
+  headerFont: "Georgia, 'Times New Roman', serif",
   /** Roughly 65 characters, the point past which running text gets hard to track. */
   measure: '36rem',
 } as const
@@ -136,6 +220,74 @@ export interface InviteAppearance {
    * context rather than as a custom property.
    */
   buttonStyle: ButtonVariant
+  /** How high surfaces sit, after legacy vocabulary is folded in. */
+  depth: InviteDepth
+  /** Which tile is raised under `featured`; null when nothing qualifies. */
+  featuredTileId: string | null
+  /** What surfaces are made of. Contributes no shadow. */
+  material: InviteMaterial
+  surfaceFill: string
+  surfaceBorder: string
+  surfaceBlur: string
+  surfaceInset: string
+  /** Rules and flourishes, decided once for the invitation. */
+  dividerStyle: 'none' | 'hairline' | 'symbol'
+  dividerSymbol: string
+  /** How the invitation is set. */
+  textAlign: InviteTextAlign
+  /** The six text roles, fully resolved. */
+  recipes: Record<RecipeName, ResolvedRecipe>
+}
+
+/**
+ * Which surface is raised when depth is `featured`.
+ *
+ * Semantic, not a free pick. A host told to choose "the special tile" chooses
+ * the photographs, and the RSVP button stops being the thing the eye lands on.
+ */
+const FEATURED_PREFERENCE = ['event-details', 'feature-buttons', 'poster'] as const
+
+function resolveFeaturedTileId(config?: Partial<InviteConfig> | null): string | null {
+  if (config?.featuredTileId) return config.featuredTileId
+  const tiles = (config?.tiles ?? []).filter((tile) => tile.enabled !== false)
+  for (const type of FEATURED_PREFERENCE) {
+    const match = tiles.find((tile) => tile.type === type)
+    if (match) return match.id
+  }
+  return null
+}
+
+/** Resolve one text role, letting a host's own values win over the defaults. */
+function resolveRole(role: FontRole | undefined, fallbackFamily: string): FontRole {
+  return { ...(role ?? {}), family: role?.family || fallbackFamily }
+}
+
+function resolveRecipes(
+  roles: { title: FontRole; header: FontRole; body: FontRole },
+): Record<RecipeName, ResolvedRecipe> {
+  const out = {} as Record<RecipeName, ResolvedRecipe>
+
+  for (const [name, recipe] of Object.entries(RECIPE_DEFAULTS) as [
+    RecipeName,
+    (typeof RECIPE_DEFAULTS)[RecipeName],
+  ][]) {
+    const role = roles[recipe.role]
+    const family = role.family
+    // A script or display face keeps the family and drops the capitals: caps at
+    // 0.3em is a convention for text faces, and illegible for a script one.
+    const suppress = recipe.transform === 'uppercase' && isDisplayFamily(family)
+
+    out[name] = {
+      family,
+      weight: role.weight ?? recipe.weight,
+      size: TYPE_SCALE[role.size ?? recipe.size],
+      tracking: suppress ? '0.04em' : role.tracking ?? recipe.tracking,
+      transform: suppress ? 'none' : role.transform ?? recipe.transform,
+      italic: role.italic ?? false,
+    }
+  }
+
+  return out
 }
 
 /** Resolve the look an invite should render with. */
@@ -145,8 +297,22 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
 
   const shape = SHAPE_SCALE[config?.shape ?? INVITE_APPEARANCE_DEFAULTS.shape]
     ?? SHAPE_SCALE[INVITE_APPEARANCE_DEFAULTS.shape]
-  const depth = DEPTH_SCALE[config?.depth ?? INVITE_APPEARANCE_DEFAULTS.depth]
-    ?? DEPTH_SCALE[INVITE_APPEARANCE_DEFAULTS.depth]
+  const depthName = resolveDepth(config?.depth)
+  const depth = DEPTH_SCALE[depthName]
+  const material = config?.material ?? INVITE_APPEARANCE_DEFAULTS.material
+  const materialScale = MATERIAL_SCALE[material] ?? MATERIAL_SCALE.solid
+
+  // Version 1 carried two bare families. `titleFont` becomes the title role;
+  // `bodyFont` becomes both body and header, because a config that never had a
+  // header face should not suddenly grow a second one.
+  const titleFamily = fonts?.title?.family ?? fonts?.titleFont ?? INVITE_APPEARANCE_DEFAULTS.titleFont
+  const bodyFamily = fonts?.body?.family ?? fonts?.bodyFont ?? INVITE_APPEARANCE_DEFAULTS.bodyFont
+  const headerFamily = fonts?.header?.family ?? fonts?.bodyFont ?? INVITE_APPEARANCE_DEFAULTS.headerFont
+  const roles = {
+    title: resolveRole(fonts?.title, titleFamily),
+    header: resolveRole(fonts?.header, headerFamily),
+    body: resolveRole(fonts?.body, bodyFamily),
+  }
   const rhythm = RHYTHM_SCALE[config?.spacing ?? INVITE_APPEARANCE_DEFAULTS.spacing]
     ?? RHYTHM_SCALE[INVITE_APPEARANCE_DEFAULTS.spacing]
 
@@ -156,8 +322,8 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
     fontColor: colors.fontColor ?? INVITE_APPEARANCE_DEFAULTS.fontColor,
     primaryColor: colors.primaryColor ?? INVITE_APPEARANCE_DEFAULTS.primaryColor,
     mutedColor: colors.mutedColor ?? INVITE_APPEARANCE_DEFAULTS.mutedColor,
-    titleFont: fonts?.titleFont ?? INVITE_APPEARANCE_DEFAULTS.titleFont,
-    bodyFont: fonts?.bodyFont ?? INVITE_APPEARANCE_DEFAULTS.bodyFont,
+    titleFont: titleFamily,
+    bodyFont: bodyFamily,
     overlayOpacity: INVITE_APPEARANCE_DEFAULTS.overlayOpacity,
     radiusSurface: shape.surface,
     radiusControl: shape.control,
@@ -169,5 +335,16 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
     insetPage: rhythm.inset,
     measureText: INVITE_APPEARANCE_DEFAULTS.measure,
     buttonStyle: config?.buttonStyle ?? INVITE_APPEARANCE_DEFAULTS.buttonStyle,
+    depth: depthName,
+    featuredTileId: depthName === 'featured' ? resolveFeaturedTileId(config) : null,
+    material,
+    surfaceFill: materialScale.fill,
+    surfaceBorder: materialScale.border,
+    surfaceBlur: materialScale.blur,
+    surfaceInset: materialScale.inset,
+    dividerStyle: config?.ornament?.divider ?? 'hairline',
+    dividerSymbol: config?.ornament?.symbol ?? '',
+    textAlign: config?.textAlign ?? INVITE_APPEARANCE_DEFAULTS.textAlign,
+    recipes: resolveRecipes(roles),
   }
 }

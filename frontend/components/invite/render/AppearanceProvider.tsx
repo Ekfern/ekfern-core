@@ -4,6 +4,7 @@ import React, { createContext, useContext, useMemo } from 'react'
 import { InviteConfig } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import type { ButtonVariant } from '@/lib/invite/buttonStyles'
+import type { InviteDepth, InviteMaterial } from '@/lib/invite/appearance'
 
 /**
  * Publishes an invite's appearance to its tiles as CSS custom properties.
@@ -32,6 +33,21 @@ import type { ButtonVariant } from '@/lib/invite/buttonStyles'
 interface PageDesign {
   /** How every button on the invitation is drawn. */
   buttonStyle: ButtonVariant
+  /**
+   * How high surfaces sit. A tile asks this to decide whether it is the raised
+   * one, not to decide what raised looks like - that is `--shadow-lift`.
+   */
+  depth: InviteDepth
+  /**
+   * The one raised surface under `featured`. A tile compares its own id and
+   * takes `--shadow-lift` on a match, `--shadow-rest` otherwise.
+   */
+  featuredTileId: string | null
+  /** What surfaces are made of. Never a shadow. */
+  material: InviteMaterial
+  /** Rules and flourishes, decided once. */
+  dividerStyle: 'none' | 'hairline' | 'symbol'
+  dividerSymbol: string
 }
 
 const PageDesignContext = createContext<PageDesign | undefined>(undefined)
@@ -53,7 +69,37 @@ interface AppearanceProviderProps {
 
 export function AppearanceProvider({ config, children }: AppearanceProviderProps) {
   const colors = resolveAppearance(config)
-  const design = useMemo<PageDesign>(() => ({ buttonStyle: colors.buttonStyle }), [colors.buttonStyle])
+  const design = useMemo<PageDesign>(
+    () => ({
+      buttonStyle: colors.buttonStyle,
+      depth: colors.depth,
+      featuredTileId: colors.featuredTileId,
+      material: colors.material,
+      dividerStyle: colors.dividerStyle,
+      dividerSymbol: colors.dividerSymbol,
+    }),
+    [
+      colors.buttonStyle,
+      colors.depth,
+      colors.featuredTileId,
+      colors.material,
+      colors.dividerStyle,
+      colors.dividerSymbol,
+    ],
+  )
+
+  // One entry per recipe, flattened to custom properties. A tile spends five of
+  // them at a time and never asks what any of them should be.
+  const recipeVars = Object.fromEntries(
+    Object.entries(colors.recipes).flatMap(([name, recipe]) => [
+      [`--font-${name}-family`, recipe.family],
+      [`--font-${name}-weight`, String(recipe.weight)],
+      [`--font-${name}-size`, recipe.size],
+      [`--font-${name}-tracking`, recipe.tracking],
+      [`--font-${name}-transform`, recipe.transform],
+      [`--font-${name}-style`, recipe.italic ? 'italic' : 'normal'],
+    ]),
+  )
 
   return (
     <PageDesignContext.Provider value={design}>
@@ -64,7 +110,7 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
         // a host could choose Lora and watch half the invitation ignore it.
         // Setting it here means a tile opts *out* to be different, rather than
         // having to opt in to be correct.
-        fontFamily: colors.bodyFont,
+        fontFamily: colors.recipes.body.family,
 
         '--theme-bg': colors.backgroundColor,
         '--theme-fg': colors.fontColor,
@@ -89,6 +135,20 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
         '--space-chapter': colors.spaceChapter,
         '--inset-page': colors.insetPage,
         '--measure-text': colors.measureText,
+
+        // Material: what a surface is made of, kept apart from how high it
+        // sits. Glass adds fill, border and blur; the shadow still comes from
+        // depth, so a glass card on a flat page casts nothing.
+        '--surface-fill': colors.surfaceFill,
+        '--surface-border': colors.surfaceBorder,
+        '--surface-blur': colors.surfaceBlur,
+        '--surface-inset': colors.surfaceInset,
+
+        // How the invitation is set, answered once rather than by five tiles.
+        '--invite-align': colors.textAlign,
+
+        // The six text recipes.
+        ...recipeVars,
       } as React.CSSProperties}
     >
       {children}
