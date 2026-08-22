@@ -175,7 +175,6 @@ export const INVITE_APPEARANCE_DEFAULTS = {
   mutedColor: '#8B5E3C',
   titleFont: "'Cormorant Garamond', serif",
   bodyFont: "Georgia, 'Times New Roman', serif",
-  overlayOpacity: 0.18,
   shape: 'soft' as InviteShape,
   buttonStyle: 'classic' as ButtonVariant,
   depth: 'uniform' as InviteDepth,
@@ -195,7 +194,6 @@ export interface InviteAppearance {
   mutedColor: string
   titleFont: string
   bodyFont: string
-  overlayOpacity: number
   /** Corner radius for cards, images and other surfaces. */
   radiusSurface: string
   /** Corner radius for buttons and other controls. */
@@ -324,7 +322,6 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
     mutedColor: colors.mutedColor ?? INVITE_APPEARANCE_DEFAULTS.mutedColor,
     titleFont: titleFamily,
     bodyFont: bodyFamily,
-    overlayOpacity: INVITE_APPEARANCE_DEFAULTS.overlayOpacity,
     radiusSurface: shape.surface,
     radiusControl: shape.control,
     shadowRest: depth.rest,

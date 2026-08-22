@@ -112,11 +112,9 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
         // having to opt in to be correct.
         fontFamily: colors.recipes.body.family,
 
-        '--theme-bg': colors.backgroundColor,
         '--theme-fg': colors.fontColor,
         '--theme-primary': colors.primaryColor,
         '--theme-muted': colors.mutedColor,
-        '--theme-overlay-opacity': colors.overlayOpacity,
         '--theme-font-title': colors.titleFont,
         '--theme-font-body': colors.bodyFont,
 

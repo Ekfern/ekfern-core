@@ -41,12 +41,11 @@ const PENDING_ADOPTION = new Set([
 
   // Already orphaned before this work started - published by the earlier token
   // pass and read by nothing. Listed here so the check can run green, not
-  // because they are fine.
+  // because they are fine. (`--theme-bg` and `--theme-overlay-opacity` were on
+  // this list too; nothing needed them, so they were deleted instead.)
   '--measure-text',      // PR 4  - running text gets a measure
   '--inset-page',        // PR 6  - replaces each tile's own px-4
   '--space-chapter',     // PR 6  - the breath before the footer
-  '--theme-bg',          // PR 5  - under review; a tile may never need it
-  '--theme-overlay-opacity', // PR 6 - under review; TextureOverlay takes a prop
 ])
 
 function walk(dir) {
