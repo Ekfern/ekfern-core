@@ -29,7 +29,7 @@ import { AppearanceProvider } from '@/components/invite/render/AppearanceProvide
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage, extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
-import { derivePaletteFromColor, representativeColorFromGradient } from '@/lib/invite/paletteUtils'
+import { deriveInk, representativeColorFromGradient } from '@/lib/invite/paletteUtils'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import FontPicker from '@/components/invite/FontPicker'
@@ -1465,11 +1465,23 @@ export default function DesignInvitationPage(): JSX.Element {
         return { ...prev, customColors: { ...colors, ...patch } }
       }
       const merged = { ...colors, ...patch }
-      const ground = merged.backgroundGradient
-        ? representativeColorFromGradient(merged.backgroundGradient)
-        : merged.backgroundColor
-      if (!ground) return { ...prev, customColors: merged }
-      return { ...prev, customColors: { ...merged, ...derivePaletteFromColor(ground) } }
+      if (!merged.backgroundGradient && !merged.backgroundColor) {
+        return { ...prev, customColors: merged }
+      }
+      // The whole background, not a representative colour from it: a gradient
+      // has two ends and ink has to be legible at both. Material goes too,
+      // because text on a frosted card sits on the blend, not on the page.
+      return {
+        ...prev,
+        customColors: {
+          ...merged,
+          ...deriveInk({
+            backgroundColor: merged.backgroundColor,
+            backgroundGradient: merged.backgroundGradient,
+            material: prev.material,
+          }),
+        },
+      }
     })
   }
 
@@ -2390,7 +2402,11 @@ export default function DesignInvitationPage(): JSX.Element {
                                   ...prev,
                                   customColors: {
                                     ...(prev.customColors ?? {}),
-                                    ...derivePaletteFromColor(ground),
+                                    ...deriveInk({
+                                      backgroundColor: prev.customColors?.backgroundColor,
+                                      backgroundGradient: prev.customColors?.backgroundGradient,
+                                      material: prev.material,
+                                    }),
                                     source: 'derived' as const,
                                   },
                                   // Tiles carrying their own colour would keep
