@@ -115,8 +115,10 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
         '--theme-fg': colors.fontColor,
         '--theme-primary': colors.primaryColor,
         '--theme-muted': colors.mutedColor,
+        // The last reader of the old spelling is the carousel's own title
+        // styling, which goes in the carousel pass. `--theme-font-body` had
+        // none left and is gone already.
         '--theme-font-title': colors.titleFont,
-        '--theme-font-body': colors.bodyFont,
 
         // Shape: cards/images/media vs buttons.
         '--radius-surface': colors.radiusSurface,

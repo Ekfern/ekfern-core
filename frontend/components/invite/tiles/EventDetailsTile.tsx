@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react'
 import { MapPin, ChevronDown, Calendar, Download } from 'lucide-react'
+import { recipe } from '@/lib/invite/recipes'
 import { EventDetailsTileSettings } from '@/lib/invite/schema'
 import { getTimezoneLabel } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
-import { getAutomaticLabelColor } from '@/lib/invite/colorUtils'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
 
@@ -337,32 +337,34 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           )}
 
           {(() => {
-            const labelColor = getAutomaticLabelColor(settings.fontColor)
-            const fontColor = settings.fontColor || 'var(--theme-fg, #1F2937)'
+            // Labels are the page's Secondary; with no per-tile ink there is nothing
+    // left for getAutomaticLabelColor to derive from.
+    const labelColor = 'var(--theme-muted)'
+            const fontColor = 'var(--theme-fg)'
             const dateLayout = settings.dateLayout || 'single-line'
 
             if (dateLayout === 'day-prominent' && settings.date) {
               const parts = parseDateParts(settings.date)
               if (parts) {
                 return (
-                  <div className="space-y-8" style={{ fontFamily: 'var(--theme-font-body, Georgia, serif)' }}>
+                  <div className="space-y-8" style={recipe('body')}>
                     <div className="space-y-4">
                       <div
                         className="text-4xl md:text-5xl lg:text-6xl font-bold leading-none tracking-tight"
-                        style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                        style={recipe('data', { color: fontColor })}
                       >
                         {parts.day}
                       </div>
                       <div
                         className="text-sm md:text-base uppercase tracking-widest font-medium"
-                        style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                        style={recipe('data', { color: fontColor })}
                       >
                         {parts.weekday}
                         {settings.time && ` · ${formatTime(settings.time)}`}
                       </div>
                       <div
                         className="text-sm md:text-base uppercase tracking-widest"
-                        style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                        style={recipe('data', { color: fontColor })}
                       >
                         {parts.month} {parts.year}
                       </div>
@@ -372,7 +374,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                         <div className="space-y-2">
                           <div
                             className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`}
-                            style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                            style={recipe('data', { color: fontColor })}
                           >
                             <span>{settings.location}</span>
                           </div>
@@ -386,24 +388,18 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
             }
 
             return (
-              <div className="space-y-8" style={{ fontFamily: 'var(--theme-font-body, Georgia, serif)' }}>
+              <div className="space-y-8" style={recipe('body')}>
                 {settings.date && (
                   <div className="space-y-2">
                     <div
-                      className="text-xs uppercase tracking-widest font-light italic mb-3"
-                      style={{
-                        color: labelColor,
-                        fontFamily: settings.headerFontFamily,
-                      }}
+                      className="mb-3"
+                      style={recipe('eyebrow', { color: labelColor })}
                     >
                       Date
                     </div>
                     <div
                       className="text-xl md:text-2xl font-normal leading-relaxed"
-                      style={{
-                        color: fontColor,
-                        fontFamily: settings.contentFontFamily,
-                      }}
+                      style={recipe('data', { color: fontColor })}
                     >
                       {formatDate(settings.date)}
                     </div>
@@ -412,20 +408,14 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                 {settings.time && (
                   <div className="space-y-2">
                     <div
-                      className="text-xs uppercase tracking-widest font-light italic mb-3"
-                      style={{
-                        color: labelColor,
-                        fontFamily: settings.headerFontFamily,
-                      }}
+                      className="mb-3"
+                      style={recipe('eyebrow', { color: labelColor })}
                     >
                       Time
                     </div>
                     <div
                       className="text-xl md:text-2xl font-normal leading-relaxed"
-                      style={{
-                        color: fontColor,
-                        fontFamily: settings.contentFontFamily,
-                      }}
+                      style={recipe('data', { color: fontColor })}
                     >
                       {formatTime(settings.time)}
                     </div>
@@ -436,20 +426,14 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   return (
                     <div className="space-y-2">
                       <div
-                        className="text-xs uppercase tracking-widest font-light italic mb-3"
-                        style={{
-                          color: labelColor,
-                          fontFamily: settings.headerFontFamily,
-                        }}
+                        className="mb-3"
+                        style={recipe('eyebrow', { color: labelColor })}
                       >
                         Location
                       </div>
                       <div
                         className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`}
-                        style={{
-                          color: fontColor,
-                          fontFamily: settings.contentFontFamily,
-                        }}
+                        style={recipe('data', { color: fontColor })}
                       >
                         <span>{settings.location}</span>
                       </div>
@@ -462,20 +446,14 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                 {settings.dressCode && (
                   <div className="space-y-2">
                     <div
-                      className="text-xs uppercase tracking-widest font-light italic mb-3"
-                      style={{
-                        color: labelColor,
-                        fontFamily: settings.headerFontFamily,
-                      }}
+                      className="mb-3"
+                      style={recipe('eyebrow', { color: labelColor })}
                     >
                       Dress Code
                     </div>
                     <div
                       className="text-xl md:text-2xl font-normal leading-relaxed italic"
-                      style={{
-                        color: fontColor,
-                        fontFamily: settings.contentFontFamily,
-                      }}
+                      style={recipe('data', { color: fontColor })}
                     >
                       {settings.dressCode}
                     </div>
@@ -546,8 +524,10 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     )
   }
 
-  const fontColor = settings.fontColor || 'var(--theme-fg, #374151)' // Default to gray-700 equivalent
-  const labelColor = getAutomaticLabelColor(settings.fontColor)
+  const fontColor = 'var(--theme-fg)'
+  // Labels are the page's Secondary; with no per-tile ink there is nothing
+    // left for getAutomaticLabelColor to derive from.
+    const labelColor = 'var(--theme-muted)'
 
   // Get border settings with defaults for non-preview mode
   const borderStyle = settings.borderStyle || 'elegant'
@@ -574,24 +554,18 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
         backgroundColor,
       }}
     >
-      <div className="space-y-3 text-sm" style={{ fontFamily: 'var(--theme-font-body, Georgia, serif)' }}>
+      <div className="space-y-3 text-sm" style={recipe('body')}>
         {settings.date && (
           <p>
             <span
               className="text-xs uppercase tracking-widest font-light italic mr-2"
-              style={{
-                color: labelColor,
-                fontFamily: settings.headerFontFamily,
-              }}
+              style={recipe('eyebrow', { color: labelColor })}
             >
               Date:
             </span>
             <span
               className="font-normal"
-              style={{
-                color: fontColor,
-                fontFamily: settings.contentFontFamily,
-              }}
+              style={recipe('data', { color: fontColor })}
             >
               {formatDate(settings.date)}
             </span>
@@ -601,19 +575,13 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           <p>
             <span
               className="text-xs uppercase tracking-widest font-light italic mr-2"
-              style={{
-                color: labelColor,
-                fontFamily: settings.headerFontFamily,
-              }}
+              style={recipe('eyebrow', { color: labelColor })}
             >
               Time:
             </span>
             <span
               className="font-normal"
-              style={{
-                color: fontColor,
-                fontFamily: settings.contentFontFamily,
-              }}
+              style={recipe('data', { color: fontColor })}
             >
               {formatTime(settings.time)}
             </span>
@@ -626,19 +594,13 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
               <p>
                 <span
                   className="text-xs uppercase tracking-widest font-light italic mr-2"
-                  style={{
-                    color: labelColor,
-                    fontFamily: settings.headerFontFamily,
-                  }}
+                  style={recipe('eyebrow', { color: labelColor })}
                 >
                   Location:
                 </span>
                 <span
                   className="font-normal"
-                  style={{
-                    color: fontColor,
-                    fontFamily: settings.contentFontFamily,
-                  }}
+                  style={recipe('data', { color: fontColor })}
                 >
                   {settings.location}
                 </span>
@@ -652,19 +614,13 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           <p>
             <span
               className="text-xs uppercase tracking-widest font-light italic mr-2"
-              style={{
-                color: labelColor,
-                fontFamily: settings.headerFontFamily,
-              }}
+              style={recipe('eyebrow', { color: labelColor })}
             >
               Dress Code:
             </span>
             <span
               className="font-normal italic"
-              style={{
-                color: fontColor,
-                fontFamily: settings.contentFontFamily,
-              }}
+              style={recipe('data', { color: fontColor })}
             >
               {settings.dressCode}
             </span>

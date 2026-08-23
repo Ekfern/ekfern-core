@@ -6,6 +6,7 @@ import { DirectionsTileSettings } from '@/lib/invite/schema'
 import { getDestinationLabel, getDirectionsEmbedUrl, getDirectionsHref } from '@/lib/invite/mapUtils'
 import StaticTileMap from './StaticTileMap'
 import { INVITE_MEDIA_MAX_WIDTH, useInviteViewport } from '../render/useInviteViewport'
+import { recipe } from '@/lib/invite/recipes'
 
 export interface DirectionsTileProps {
   settings: DirectionsTileSettings
@@ -96,7 +97,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
         style={{ justifyContent: textAlign === 'center' ? 'center' : 'flex-start' }}
       >
         <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="text-sm font-medium">{addressLine || 'View location'}</span>
+        <span style={recipe('caption')}>{addressLine || 'View location'}</span>
         <ArrowUpRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
       </div>
     </div>
@@ -106,17 +107,13 @@ export default function DirectionsTile({ settings, preview = false }: Directions
     <section
       ref={sectionRef}
       className="w-full px-4 py-3"
-      style={{
-        color: settings.fontColor || 'var(--theme-fg)',
-        fontFamily: 'var(--theme-font-body)',
-        textAlign,
-      }}
+      style={{ ...recipe('body'), color: 'var(--theme-fg)', textAlign }}
     >
+      {/* The same kicker the title and the gallery use. It used to set its own
+          0.18em against their 0.3em, which is how one page produced four labels
+          doing one job at four different trackings. */}
       {heading && (
-        <h3
-          className="mb-2 text-xs uppercase tracking-[0.18em] opacity-60"
-          style={{ fontFamily: 'var(--theme-font-body)' }}
-        >
+        <h3 className="mb-2 opacity-60" style={recipe('eyebrow')}>
           {heading}
         </h3>
       )}

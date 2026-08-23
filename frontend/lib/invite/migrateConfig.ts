@@ -73,9 +73,10 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
   // Title Tile (Required)
   if (config.hero?.title || eventTitle) {
     const titleSettings: TitleTileSettings = {
+      // No font or colour copied down: the tile reads the page's title recipe
+      // and ink. Handing it a snapshot is how a migrated tile used to keep the
+      // face a config had when it was migrated, long after the host changed it.
       text: config.hero?.title || eventTitle || 'Event Title',
-      font: config.customFonts?.titleFont,
-      color: config.customColors?.fontColor,
     }
     tiles.push({
       id: `tile-${order}`,

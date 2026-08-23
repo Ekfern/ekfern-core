@@ -30,17 +30,12 @@ export type TileType = 'title' | 'gallery' | 'poster' | 'timer' | 'event-details
 
 export interface TitleTileSettings {
   text: string
-  font?: string // Font family from FONT_OPTIONS
-  color?: string // Hex color
   size?: 'small' | 'medium' | 'large' | 'xlarge' // Title size option (preset)
   textAlign?: 'left' | 'center' | 'right' // Default: center
   // Small kicker/label line rendered above the headline (e.g. "SAVE THE DATE", editorial masthead style)
   eyebrow?: string
-  eyebrowColor?: string // Hex color; defaults to theme primary accent
   // Optional second line (e.g. "Request the pleasure of your company…")
   subtitle?: string
-  subtitleFont?: string
-  subtitleColor?: string
   subtitleSize?: 'small' | 'medium' | 'large'
   overlayPosition?: { x: number; y: number } // % position when overlaying on image tile
 }
@@ -150,10 +145,7 @@ export interface EventDetailsTileSettings {
   } // Optional precise coordinates (auto-verifies when provided)
   showMap?: boolean // Option to display embedded map (only works if mapUrl is provided and valid and location is verified)
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
-  fontColor?: string // Font color for event details text (hex color, e.g., "#000000")
   buttonColor?: string // Hex color for Save the Date button (e.g., "#1F2937")
-  headerFontFamily?: string
-  contentFontFamily?: string
   buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'glass' | 'link' // Save the Date button style (default: classic)
   buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill' // Save the Date button corner radius (default: round)
   textAlign?: 'left' | 'center' | 'right' // Default: center
@@ -191,13 +183,11 @@ export interface DirectionsTileSettings {
   zoom?: number
   /** How the map is treated. See lib/invite/mapStyles.ts. */
   mapStyle?: 'standard' | 'vintage' | 'muted'
-  fontColor?: string
   textAlign?: 'left' | 'center' | 'right'
 }
 
 export interface DescriptionTileSettings {
   content: string // Rich text/markdown content
-  fontColor?: string // Hex color; use for contrast on dark themes
   textAlign?: 'left' | 'center' | 'right' // Default: center
 }
 
@@ -218,7 +208,6 @@ export interface FeatureButtonsTileSettings {
 
 export interface FooterTileSettings {
   text: string
-  fontColor?: string // Hex color; use theme fg on dark backgrounds for contrast
   showDivider?: boolean // Hairline top border above the footer text (default: true)
 }
 

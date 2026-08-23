@@ -124,11 +124,10 @@ const DEFAULT_TILES: Tile[] = [
 // `frameColor` and the timer's `textColor`: those fall back to hardcoded
 // literals, so clearing them would swap one fixed colour for another rather
 // than handing anything back to the page.
-// Tile font settings that fall back to a page token when absent. `font` is the
-// title's headline face and `contentFontFamily` the details tile's; both land
-// on --theme-font-title / --theme-font-body once removed. `subtitleFont` is
-// included because it now falls back to the body face too.
-const FONT_LINKED_TILE_KEYS = ['font', 'subtitleFont', 'contentFontFamily'] as const
+// Tiles no longer carry a face of their own, so there is nothing to match back
+// to the page. The list is kept empty rather than deleted because the carousel
+// still has `subEventTitleStyling.font` to give up.
+const FONT_LINKED_TILE_KEYS = [] as const
 
 type FontRoleName = 'title' | 'header' | 'body'
 type PageFonts = NonNullable<InviteConfig['customFonts']>
@@ -159,11 +158,9 @@ function withRoleFamily(
   return next
 }
 
+// What is left after the text colours went. Each of these still overrides the
+// page, and each leaves in a later pass.
 const PALETTE_LINKED_TILE_KEYS = [
-  'color',          // title      -> --theme-fg
-  'fontColor',      // details, directions, description -> --theme-fg; footer -> --theme-muted
-  'eyebrowColor',   // title      -> --theme-primary
-  'subtitleColor',  // title      -> the title's own colour, which is --theme-fg
   'buttonColor',    // details, feature-buttons -> --theme-primary
   'circleColor',    // timer      -> --theme-primary
   'borderColor',    // details    -> --theme-muted

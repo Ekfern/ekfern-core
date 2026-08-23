@@ -21,19 +21,6 @@ const CONSUMER_DIRS = ['components/invite', 'app/invite', 'lib/invite']
  * Adding one is a deliberate act and should be argued for in review.
  */
 const PENDING_ADOPTION = new Set([
-  // PR 4 - typography adoption
-  '--font-title-family', '--font-title-weight', '--font-title-size',
-  '--font-title-tracking', '--font-title-transform', '--font-title-style',
-  '--font-header-family', '--font-header-weight', '--font-header-size',
-  '--font-header-tracking', '--font-header-transform', '--font-header-style',
-  '--font-body-family', '--font-body-weight', '--font-body-size',
-  '--font-body-tracking', '--font-body-transform', '--font-body-style',
-  '--font-eyebrow-family', '--font-eyebrow-weight', '--font-eyebrow-size',
-  '--font-eyebrow-tracking', '--font-eyebrow-transform', '--font-eyebrow-style',
-  '--font-caption-family', '--font-caption-weight', '--font-caption-size',
-  '--font-caption-tracking', '--font-caption-transform', '--font-caption-style',
-  '--font-data-family', '--font-data-weight', '--font-data-size',
-  '--font-data-tracking', '--font-data-transform', '--font-data-style',
   // PR 5 - material adoption
   '--surface-fill', '--surface-border', '--surface-blur', '--surface-inset',
   // PR 6 - alignment
@@ -43,7 +30,7 @@ const PENDING_ADOPTION = new Set([
   // pass and read by nothing. Listed here so the check can run green, not
   // because they are fine. (`--theme-bg` and `--theme-overlay-opacity` were on
   // this list too; nothing needed them, so they were deleted instead.)
-  '--measure-text',      // PR 4  - running text gets a measure
+  '--measure-text',      // PR 6  - running text gets a measure
   '--inset-page',        // PR 6  - replaces each tile's own px-4
   '--space-chapter',     // PR 6  - the breath before the footer
 ])
@@ -75,10 +62,24 @@ const consumers = CONSUMER_DIRS.flatMap(walk)
   .join('\n')
 
 /**
+ * Which text roles some tile actually asks for.
+ *
+ * Tiles do not spell out `var(--font-eyebrow-family)`; they call
+ * `recipe('eyebrow')` and the helper spends all six properties at once. That
+ * indirection is the point - a tile naming the job rather than the look - so
+ * the check has to follow it rather than report the whole set as unread.
+ */
+const requestedRecipes = new Set(
+  [...consumers.matchAll(/\brecipe(?:AtSize)?\(\s*'([a-z]+)'/g)].map((m) => m[1]),
+)
+
+/**
  * `var(--x)` and `var(--x, fallback)` are both reads. Matching only the first
  * spelling reported half the adopted tokens as orphans.
  */
 function isConsumed(token) {
+  const viaRecipe = /^--font-([a-z]+)-[a-z]+$/.exec(token)
+  if (viaRecipe && requestedRecipes.has(viaRecipe[1])) return true
   return new RegExp(`var\\(\\s*${token}\\s*[,)]`).test(consumers)
 }
 
@@ -103,8 +104,43 @@ if (adopted.length) {
   process.exit(1)
 }
 
+/**
+ * No tile may state a typeface, a tracking or a weight in its own words.
+ *
+ * The tokens check catches a page talking to nobody. This catches the other
+ * direction: a tile answering a question it was never supposed to ask. Both
+ * failures produced the same page - four labels doing one job, four different
+ * answers - and only one of them was visible from the provider.
+ */
+const TYPOGRAPHY_LITERALS = [
+  [/fontFamily:\s*['"`](?!var\()/, 'a literal fontFamily'],
+  [/tracking-\[/, 'a hand-set letter-spacing'],
+  [/letterSpacing:\s*['"`](?!var\()/, 'a literal letterSpacing'],
+]
+
+const tileFiles = walk('components/invite/tiles').filter(
+  (f) => f.endsWith('.tsx') && !f.includes('Settings'),
+)
+const offences = []
+for (const file of tileFiles) {
+  const lines = readFileSync(file, 'utf8').split('\n')
+  lines.forEach((line, index) => {
+    for (const [pattern, what] of TYPOGRAPHY_LITERALS) {
+      if (pattern.test(line)) offences.push(`  ${file}:${index + 1} - ${what}`)
+    }
+  })
+}
+
+if (offences.length) {
+  console.error('Tiles deciding what text looks like:\n')
+  for (const offence of offences) console.error(offence)
+  console.error('\nAsk for a role with recipe(...) instead.')
+  process.exit(1)
+}
+
 console.log(
   `invite tokens: ${published.size} published, ` +
   `${published.size - PENDING_ADOPTION.size} consumed, ` +
-  `${PENDING_ADOPTION.size} pending adoption`,
+  `${PENDING_ADOPTION.size} pending adoption; ` +
+  `${tileFiles.length} tiles stating no typography of their own`,
 )

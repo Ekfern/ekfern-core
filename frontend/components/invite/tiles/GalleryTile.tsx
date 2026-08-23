@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { GalleryTileSettings } from '@/lib/invite/schema'
+import { recipe } from '@/lib/invite/recipes'
 import {
   INVITE_MEDIA_MAX_WIDTH,
   INVITE_VIEWPORT_H,
@@ -233,23 +234,15 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
   // Covers the frame too: a dark photo in a bright border reads as broken.
   const veilRadius = frame === 'polaroid' ? '2px' : radius
 
-  // Matches the title tile's eyebrow so the two read as the same device: a
-  // spaced-out label in the accent colour over a headline in the title face.
+  // The same two devices the title tile uses, now by the same names rather than
+  // by coincidence. This comment used to claim they matched; they did not - this
+  // eyebrow inherited the body face and the title tile's inherited the title
+  // face, so one page showed the same label in two typefaces.
   const header = hasHeader ? (
     <div className="w-full px-4 text-center">
-      {eyebrow && (
-        <p
-          className="text-xs font-semibold uppercase tracking-[0.3em]"
-          style={{ color: 'var(--theme-primary, #D4A017)' }}
-        >
-          {eyebrow}
-        </p>
-      )}
+      {eyebrow && <p style={recipe('eyebrow', { color: 'var(--theme-primary)' })}>{eyebrow}</p>}
       {title && (
-        <h2
-          className="mt-2 text-3xl font-light leading-tight tracking-wide md:text-4xl"
-          style={{ fontFamily: 'var(--theme-font-title, inherit)', color: 'var(--theme-fg, inherit)' }}
-        >
+        <h2 className="mt-2 leading-tight" style={recipe('header', { color: 'var(--theme-fg)' })}>
           {title}
         </h2>
       )}
@@ -310,13 +303,16 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
           <figcaption
             className="text-center"
             style={{
-              // The polaroid's lower band is the whole point of the frame, so it
-              // keeps its height whether or not the host wrote anything.
+              // The caption recipe first, then the two things the *frame*
+              // decides: a polaroid's lower band writes larger and darker than
+              // a caption under a bare print, and keeps its height whether or
+              // not the host wrote anything. Size and colour here are structure,
+              // not a second opinion about type.
+              ...recipe('caption'),
               padding: frame === 'polaroid' ? '0.7rem 0.25rem 0.9rem' : '0.4rem 0 0',
               fontSize: frame === 'polaroid' ? '0.95rem' : '0.78rem',
               lineHeight: 1.3,
               color: frame === 'polaroid' ? '#3b332c' : 'var(--theme-muted)',
-              fontFamily: 'var(--theme-font-body)',
               minHeight: frame === 'polaroid' ? '2.2rem' : undefined,
               flex: fill ? '0 0 auto' : undefined,
             }}

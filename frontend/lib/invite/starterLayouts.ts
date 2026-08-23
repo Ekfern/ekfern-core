@@ -49,11 +49,7 @@ function buildTitleTile(
     settings: {
       text: STARTER_TITLE,
       subtitle: STARTER_SUBTITLE,
-      font: TITLE_FONT,
-      color: palette.textColor,
       size: opts?.size ?? 'large',
-      subtitleFont: BODY_FONT,
-      subtitleColor: palette.textColor,
       subtitleSize: 'medium',
     },
   }
@@ -81,7 +77,6 @@ function buildEventDetailsTile(order: number, palette: StarterPalette): Tile {
     settings: {
       location: '',
       date: '',
-      fontColor: palette.textColor,
       buttonColor: palette.accentColor,
       borderStyle: 'elegant',
     },
@@ -149,6 +144,14 @@ function buildConfigForArchetype(archetype: StarterArchetype, palette: StarterPa
   return {
     tileSetComplete: true,
     customColors: palette.customColors,
+    // The starter's faces belong to the page, not to its title tile. Setting
+    // them on the tile is what let a layout disagree with the invitation it
+    // was starting.
+    customFonts: {
+      title: { family: TITLE_FONT },
+      header: { family: BODY_FONT },
+      body: { family: BODY_FONT },
+    },
     tiles,
   }
 }

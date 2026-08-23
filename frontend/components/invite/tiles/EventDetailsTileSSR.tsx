@@ -1,8 +1,8 @@
 import React from 'react'
 import { MapPin } from 'lucide-react'
+import { recipe } from '@/lib/invite/recipes'
 import { EventDetailsTileSettings } from '@/lib/invite/schema'
 import { getTimezoneLabel } from '@/lib/invite/timezone'
-import { getAutomaticLabelColor } from '@/lib/invite/colorUtils'
 import { isValidMapUrl, getEmbedUrl, canShowMap, generateMapUrlFromLocation, generateMapUrlFromCoordinates } from '@/lib/invite/mapUtils'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 
@@ -213,8 +213,10 @@ export default function EventDetailsTileSSR({
   const buttonRadius = settings.buttonRadius ?? 'var(--radius-control, 8px)'
   const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
 
-  const labelColor = getAutomaticLabelColor(settings.fontColor)
-  const fontColor = settings.fontColor || 'var(--theme-fg, #1F2937)'
+  // Labels are the page's Secondary; with no per-tile ink there is nothing
+    // left for getAutomaticLabelColor to derive from.
+    const labelColor = 'var(--theme-muted)'
+  const fontColor = 'var(--theme-fg)'
 
   // Get border settings with defaults
   const borderStyle = settings.borderStyle || 'elegant'
@@ -263,18 +265,18 @@ export default function EventDetailsTileSSR({
           </div>
         )}
 
-        <div className="space-y-6" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+        <div className="space-y-6" style={recipe('body')}>
           {settings.date && (
             <div className="space-y-2">
               <div
-                className="text-xs uppercase tracking-widest font-light italic mb-3"
-                style={{ color: labelColor, fontFamily: settings.headerFontFamily }}
+                className="mb-3"
+                style={recipe('eyebrow', { color: labelColor })}
               >
                 Date
               </div>
               <div
                 className="text-xl md:text-2xl font-normal leading-relaxed"
-                style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                style={recipe('data', { color: fontColor })}
               >
                 {formatDate(settings.date)}
               </div>
@@ -284,14 +286,14 @@ export default function EventDetailsTileSSR({
           {settings.time && (
             <div className="space-y-2">
               <div
-                className="text-xs uppercase tracking-widest font-light italic mb-3"
-                style={{ color: labelColor, fontFamily: settings.headerFontFamily }}
+                className="mb-3"
+                style={recipe('eyebrow', { color: labelColor })}
               >
                 Time
               </div>
               <div
                 className="text-xl md:text-2xl font-normal leading-relaxed"
-                style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                style={recipe('data', { color: fontColor })}
               >
                 {formatTime(settings.time)}
               </div>
@@ -311,14 +313,14 @@ export default function EventDetailsTileSSR({
             return (
               <div className="space-y-2">
                 <div
-                  className="text-xs uppercase tracking-widest font-light italic mb-3"
-                  style={{ color: labelColor, fontFamily: settings.headerFontFamily }}
+                  className="mb-3"
+                  style={recipe('eyebrow', { color: labelColor })}
                 >
                   Location
                 </div>
                 <div
                   className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`}
-                  style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                  style={recipe('data', { color: fontColor })}
                 >
                   <span>{settings.location}</span>
                   {canDisplay && mapUrl && (
@@ -398,14 +400,14 @@ export default function EventDetailsTileSSR({
           {settings.dressCode && (
             <div className="space-y-2">
               <div
-                className="text-xs uppercase tracking-widest font-light italic mb-3"
-                style={{ color: labelColor, fontFamily: settings.headerFontFamily }}
+                className="mb-3"
+                style={recipe('eyebrow', { color: labelColor })}
               >
                 Dress Code
               </div>
               <div
                 className="text-xl md:text-2xl font-normal leading-relaxed italic"
-                style={{ color: fontColor, fontFamily: settings.contentFontFamily }}
+                style={recipe('data', { color: fontColor })}
               >
                 {settings.dressCode}
               </div>

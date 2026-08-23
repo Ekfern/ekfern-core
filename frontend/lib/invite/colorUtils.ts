@@ -110,33 +110,6 @@ export function rgbToHex(r: number, g: number, b: number): string {
  * @param fontColor - Font color hex string (e.g., "#1F2937") or undefined
  * @returns A CSS colour value - a hex when derived, otherwise a var() reference
  */
-export function getAutomaticLabelColor(fontColor: string | undefined): string {
-  // No ink of its own: use the page's Secondary, falling back to the old grey
-  // outside the provider.
-  if (!fontColor) {
-    return 'var(--theme-muted, #6B7280)'
-  }
-  
-  // Convert hex to RGB
-  const rgb = hexToRgb(fontColor)
-  if (!rgb) {
-    // Invalid hex format, same fallback as having none at all
-    return 'var(--theme-muted, #6B7280)'
-  }
-  
-  // Calculate brightness percentage
-  const brightness = getBrightnessPercentage(rgb.r, rgb.g, rgb.b)
-  
-  // Determine if we should lighten or darken
-  const shouldLighten = brightness <= 50 // 0-50% = darker side, lighten labels
-  const shouldDarken = brightness > 50 // >50-100% = lighter side, darken labels
-  
-  // Adjust brightness by 5 tones
-  const adjustedRgb = adjustBrightness(rgb.r, rgb.g, rgb.b, 5, shouldLighten)
-  
-  // Convert back to hex
-  return rgbToHex(adjustedRgb.r, adjustedRgb.g, adjustedRgb.b)
-}
 
 
 
