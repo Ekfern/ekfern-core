@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { surface } from '@/lib/invite/surfaces'
 import { FeatureButtonsTileSettings } from '@/lib/invite/schema'
 import Link from 'next/link'
 import {
@@ -22,6 +23,8 @@ export interface FeatureButtonsTileProps {
   catalogPurpose?: CatalogPurpose
   eventSlug?: string
   guestToken?: string | null
+  /** Its own id, so the page can single this card out under `featured`. */
+  tileId?: string
 }
 
 export default function FeatureButtonsTile({
@@ -34,13 +37,14 @@ export default function FeatureButtonsTile({
   catalogPurpose = 'general',
   eventSlug,
   guestToken,
+  tileId,
 }: FeatureButtonsTileProps) {
-  const buttonColor = settings.buttonColor || 'var(--theme-primary, #D4A017)'
+  const buttonColor = 'var(--theme-primary)'
   const pageDesign = usePageDesign()
   // The page decides how buttons look, so Save the Date and the RSVP buttons
   // cannot end up drawn differently. A tile may still override it.
-  const variant = settings.buttonVariant ?? pageDesign?.buttonStyle ?? 'classic'
-  const radius  = settings.buttonRadius  ?? 'var(--radius-control)'
+  const variant = pageDesign?.buttonStyle ?? 'classic'
+  const radius = 'var(--radius-control)'
   const { extraClass, style: btnStyle } = getButtonStyles(buttonColor, variant, radius)
 
   const buttons: Array<{ label: string; href: string }> = []
@@ -78,27 +82,13 @@ export default function FeatureButtonsTile({
 
   if (preview) {
     const ctaCardStyle = settings.ctaCardStyle ?? 'none'
-    const ctaCardShadow = settings.ctaCardShadow ?? true
+    // Whether there is a card is this tile's decision; what the card is made of
+    // and how high it sits are the page's. The two branches used to differ on
+    // that: `bordered` already read --shadow-lift while `glass` hardcoded its
+    // own, so the same page drew the same card at two different heights
+    // depending on which style was chosen.
     const cardWrapperStyle: React.CSSProperties =
-      ctaCardStyle === 'bordered'
-        ? {
-            backgroundColor: settings.ctaCardBackgroundColor || '#FFFFFF',
-            border: `1px solid ${settings.ctaCardBorderColor || 'rgba(0,0,0,0.1)'}`,
-            borderRadius: 'var(--radius-surface)',
-            boxShadow: ctaCardShadow ? 'var(--shadow-lift)' : undefined,
-            padding: '20px 24px',
-          }
-        : ctaCardStyle === 'glass'
-          ? {
-              backgroundColor: 'rgba(255,255,255,0.14)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.28)',
-              borderRadius: 'var(--radius-surface)',
-              boxShadow: ctaCardShadow ? '0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25)' : undefined,
-              padding: '20px 24px',
-            }
-          : {}
+      ctaCardStyle === 'none' ? {} : { ...surface(tileId), padding: '20px 24px' }
 
     const buttonsRow = (
       buttons.length === 1 ? (

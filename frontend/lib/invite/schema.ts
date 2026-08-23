@@ -99,8 +99,6 @@ export interface GalleryTileSettings {
   frameWidth?: number // 'simple' only, pixels
   // Shared vocabulary with the event carousel, so hosts learn one set of words.
   spacing?: 'tight' | 'normal' | 'spacious'
-  cornerRadius?: number
-  shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl'
 }
 
 export interface PosterTileSettings {
@@ -128,8 +126,6 @@ export interface PosterTileSettings {
 export interface TimerTileSettings {
   enabled: boolean
   format: 'circle' | 'inline' // Circle format: (12) Days (20) Hours | Inline: Days:Hours:Mins
-  circleColor?: string // Color for circles (hex color or 'transparent')
-  textColor?: string // Color for timer text (hex color)
 }
 
 export interface EventDetailsTileSettings {
@@ -145,19 +141,11 @@ export interface EventDetailsTileSettings {
   } // Optional precise coordinates (auto-verifies when provided)
   showMap?: boolean // Option to display embedded map (only works if mapUrl is provided and valid and location is verified)
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
-  buttonColor?: string // Hex color for Save the Date button (e.g., "#1F2937")
-  buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'glass' | 'link' // Save the Date button style (default: classic)
-  buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill' // Save the Date button corner radius (default: round)
   textAlign?: 'left' | 'center' | 'right' // Default: center
   // Date block layout: single-line (default) or day-prominent (large day number, smaller weekday/month/year/time)
   dateLayout?: 'single-line' | 'day-prominent'
   // Border styling options ('glass' = frosted blur card, ignores decorative border/symbol rendering)
   borderStyle?: 'elegant' | 'minimal' | 'ornate' | 'modern' | 'classic' | 'vintage' | 'none' | 'glass'
-  borderColor?: string // Hex color for borders (default: based on borderStyle)
-  borderWidth?: number // 1-4 pixels (default: 1)
-  decorativeSymbol?: string // Custom symbol (❦, ✿, ✤, ✦, •, —, or empty)
-  backgroundColor?: string // Background color for the tile (default: transparent or gray-50)
-  borderRadius?: number // 0-24 pixels (default: 0 for preview, 4 for non-preview)
 }
 
 export interface DirectionsTileSettings {
@@ -192,23 +180,16 @@ export interface DescriptionTileSettings {
 }
 
 export interface FeatureButtonsTileSettings {
-  buttonColor?: string // Hex color for buttons
   rsvpLabel?: string // Custom label for RSVP button (default: "RSVP")
   registryLabel?: string // Custom label for catalog button on invite (optional override)
-  buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'glass' | 'link'
-  buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill'
   // Optional boxed "card" treatment around the whole buttons tile (Luma-style "Get Tickets" card).
   // Unset/'none' preserves today's borderless look exactly.
   ctaCardStyle?: 'none' | 'bordered' | 'glass'
-  ctaCardBackgroundColor?: string // Hex color for 'bordered' card fill (default: '#FFFFFF')
-  ctaCardBorderColor?: string // Hex color for 'bordered' card border
-  ctaCardShadow?: boolean // Drop shadow on the card (default: true when ctaCardStyle is set)
   ctaCardLabel?: string // Small heading inside the card, e.g. "Get Tickets"
 }
 
 export interface FooterTileSettings {
   text: string
-  showDivider?: boolean // Hairline top border above the footer text (default: true)
 }
 
 export interface EventCarouselTileSettings {

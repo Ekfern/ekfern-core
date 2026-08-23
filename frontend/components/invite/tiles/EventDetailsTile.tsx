@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { MapPin, ChevronDown, Calendar, Download } from 'lucide-react'
 import { recipe } from '@/lib/invite/recipes'
+import { surface } from '@/lib/invite/surfaces'
 import { EventDetailsTileSettings } from '@/lib/invite/schema'
 import { getTimezoneLabel } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
@@ -16,6 +17,8 @@ export interface EventDetailsTileProps {
   eventTitle?: string
   eventDate?: string
   eventTimezone?: string
+  /** Its own id, so the page can single this card out under `featured`. */
+  tileId?: string
 }
 
 // Border style configurations
@@ -158,7 +161,7 @@ function renderDecorativeBorder(
   return null
 }
 
-export default function EventDetailsTile({ settings, preview = false, eventSlug, eventTitle, eventDate, eventTimezone }: EventDetailsTileProps) {
+export default function EventDetailsTile({ settings, preview = false, eventSlug, eventTitle, eventDate, eventTimezone, tileId }: EventDetailsTileProps) {
   const [showCalendarMenu, setShowCalendarMenu] = useState(false)
   const tz = eventTimezone || 'Asia/Kolkata'
 
@@ -167,12 +170,15 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   // Kept identical to FeatureButtonsTile on purpose: one invitation should not
   // have two button shapes. #D4A017 is the real --theme-primary default; the
   // #1F2937 that used to sit here was a near-black that matched nothing.
-  const buttonColor = settings.buttonColor || 'var(--theme-primary, #D4A017)'
+  const buttonColor = 'var(--theme-primary)'
   const pageDesign = usePageDesign()
   // The page decides how buttons look, so Save the Date and the RSVP buttons
   // cannot end up drawn differently. A tile may still override it.
-  const buttonVariant = settings.buttonVariant ?? pageDesign?.buttonStyle ?? 'classic'
-  const buttonRadius = settings.buttonRadius ?? 'var(--radius-control)'
+  // Both come from the invitation. A Save the Date drawn differently from the
+  // RSVP beside it was never a decision anyone made; it was two tiles each
+  // carrying their own answer.
+  const buttonVariant = pageDesign?.buttonStyle ?? 'classic'
+  const buttonRadius = 'var(--radius-control)'
   const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
   const formatDate = (dateString: string) => {
     try {
@@ -291,11 +297,12 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   if (preview) {
     // Get border settings with defaults
     const borderStyle = settings.borderStyle || 'elegant'
-    const borderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
-    const borderWidth = settings.borderWidth || 1
-    const decorativeSymbol = settings.decorativeSymbol
-    const backgroundColor = settings.backgroundColor
-    const borderRadius = settings.borderRadius ?? 0
+    // Colour and width come from the invitation. All eight border styles stay -
+    // they are what the card *is* - but an ornate rule in an arbitrary hex was
+    // a second opinion about the palette.
+    const borderColor = 'var(--theme-muted)'
+    const borderWidth = 1
+    const decorativeSymbol = pageDesign?.dividerSymbol || '\u2766'
     const textAlign = settings.textAlign || 'center'
     const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
     const marginClass = textAlign === 'left' ? 'mr-auto' : textAlign === 'right' ? 'ml-auto' : 'mx-auto'
@@ -306,22 +313,12 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     const topBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
     const bottomBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
 
+    // Glass is a material now, not a height. This used to carry a 120px white
+    // bloom and a 60px drop shadow of its own, which is why a page set flat
+    // still had this card floating above it.
     const wrapperStyle: React.CSSProperties = isGlass
-      ? {
-          backgroundColor: 'rgba(255,255,255,0.12)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.28)',
-          boxShadow: '0 0 120px 40px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
-          borderRadius: borderRadius ? `${borderRadius}px` : 'var(--radius-surface)',
-          maxWidth: '420px',
-          marginLeft: 'auto',
-          marginRight: 'auto',
-        }
-      : {
-          backgroundColor: backgroundColor || 'transparent',
-          borderRadius: `${borderRadius}px`,
-        }
+      ? { ...surface(tileId), maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }
+      : { borderRadius: 'var(--radius-surface)' }
 
     return (
       <div
@@ -529,12 +526,10 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     // left for getAutomaticLabelColor to derive from.
     const labelColor = 'var(--theme-muted)'
 
-  // Get border settings with defaults for non-preview mode
+  // Non-preview mode - the stand-in shown in the editor's tile list.
   const borderStyle = settings.borderStyle || 'elegant'
-  const borderColor = settings.borderColor || 'var(--theme-muted, #E5E7EB)'
-  const borderWidth = settings.borderWidth || 1
-  const borderRadius = settings.borderRadius ?? 4
-  const backgroundColor = settings.backgroundColor || '#F9FAFB'
+  const borderColor = 'var(--theme-muted)'
+  const borderWidth = 1
 
   // Apply conditional border classes
   const borderClasses =
@@ -548,10 +543,9 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     <div
       className={`w-full py-6 px-4 ${borderClasses}`}
       style={{
-        borderRadius: `${borderRadius}px`,
+        borderRadius: 'var(--radius-surface)',
         borderWidth: borderStyle === 'none' ? '0' : borderStyle === 'classic' ? '2px' : `${borderWidth}px`,
         borderColor: borderStyle === 'none' ? 'transparent' : borderColor,
-        backgroundColor,
       }}
     >
       <div className="space-y-3 text-sm" style={recipe('body')}>

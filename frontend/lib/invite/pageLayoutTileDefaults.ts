@@ -22,14 +22,14 @@ export function buildDefaultTileSettingsRecord(
       backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)',
       textOverlays: [],
     },
-    timer: { enabled: true, format: 'circle', circleColor: '#0D6EFD', textColor: '#000000' },
+    timer: { enabled: true, format: 'circle' },
     'event-details': {
       location: ctx.city ?? '',
       date: fallbackDate,
     },
     directions: { mapUrl: ctx.city ?? '' },
     description: { content: '' },
-    'feature-buttons': { buttonColor: '#0D6EFD' },
+    'feature-buttons': {},
     footer: { text: '' },
     'event-carousel': {
       showFields: { image: true, title: true, dateTime: true, location: true, cta: true },

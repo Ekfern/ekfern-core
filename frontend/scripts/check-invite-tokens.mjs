@@ -21,8 +21,6 @@ const CONSUMER_DIRS = ['components/invite', 'app/invite', 'lib/invite']
  * Adding one is a deliberate act and should be argued for in review.
  */
 const PENDING_ADOPTION = new Set([
-  // PR 5 - material adoption
-  '--surface-fill', '--surface-border', '--surface-blur', '--surface-inset',
   // PR 6 - alignment
   '--invite-align',
 
@@ -59,6 +57,11 @@ for (const [, name] of provider.matchAll(/`--font-\$\{name\}-([a-z]+)`/g)) {
 const consumers = CONSUMER_DIRS.flatMap(walk)
   .filter((f) => !f.endsWith(PROVIDER))
   .map((f) => readFileSync(f, 'utf8'))
+  // Tokens the provider builds other tokens out of are consumed too. Under
+  // `featured` the page publishes `--lift-<id>: var(--shadow-lift)`, so the
+  // shadow is spent composing rather than read by a tile directly - which is
+  // composition, not an orphan.
+  .concat(provider.match(/var\(--[a-z0-9-]+[,)]/g)?.join('\n') ?? '')
   .join('\n')
 
 /**

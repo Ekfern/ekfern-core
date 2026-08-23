@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { GalleryTileSettings } from '@/lib/invite/schema'
 import { recipe } from '@/lib/invite/recipes'
+import { surfaceShadow } from '@/lib/invite/surfaces'
 import {
   INVITE_MEDIA_MAX_WIDTH,
   INVITE_VIEWPORT_H,
@@ -21,14 +22,8 @@ import {
 export interface GalleryTileProps {
   settings: GalleryTileSettings
   preview?: boolean
-}
-
-const SHADOW: Record<NonNullable<GalleryTileSettings['shadow']>, string> = {
-  none: 'none',
-  sm: '0 1px 2px rgba(0,0,0,.08)',
-  md: '0 4px 10px -2px rgba(0,0,0,.15)',
-  lg: '0 10px 20px -6px rgba(0,0,0,.2)',
-  xl: '0 20px 34px -10px rgba(0,0,0,.28)',
+  /** Its own id, so the page can single these prints out under `featured`. */
+  tileId?: string
 }
 
 /**
@@ -107,7 +102,7 @@ function veilAt(depth: number): number {
   return from + (to - from) * into
 }
 
-export default function GalleryTile({ settings }: GalleryTileProps) {
+export default function GalleryTile({ settings, tileId }: GalleryTileProps) {
   const sectionRef = useRef<HTMLElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLDivElement>(null)
@@ -220,13 +215,12 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
     return null
   }
 
-  const radius =
-    settings.cornerRadius !== undefined ? `${settings.cornerRadius}px` : 'var(--radius-surface)'
-  const innerRadius =
-    settings.cornerRadius !== undefined
-      ? `${Math.max(settings.cornerRadius - 2, 0)}px`
-      : 'calc(var(--radius-surface) - 2px)'
-  const shadow = settings.shadow ? SHADOW[settings.shadow] : 'var(--shadow-rest)'
+  // The gallery kept a shadow scale of its own whose `sm` and `md` were
+  // byte-identical copies of the page's two depths - the same values, spelled
+  // twice, so a page turned flat left the photographs raised.
+  const radius = 'var(--radius-surface)'
+  const innerRadius = 'calc(var(--radius-surface) - 2px)'
+  const shadow = surfaceShadow(tileId)
 
   // Portrait for a pile, square for a grid so the rows come out level.
   const aspect = isStacked ? '5 / 7' : '1 / 1'
@@ -260,8 +254,9 @@ export default function GalleryTile({ settings }: GalleryTileProps) {
             background: '#fff',
             padding: '0.75rem 0.75rem 0',
             borderRadius: 2,
-            // A polaroid keeps a shadow even when the gallery asked for none.
-            boxShadow: shadow === 'none' ? 'var(--shadow-lift)' : shadow,
+            // A polaroid is white card stock rather than the invitation's
+            // material, so it keeps its own paper and takes only the height.
+            boxShadow: shadow,
           }
         : frame === 'simple'
           ? {

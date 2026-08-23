@@ -83,7 +83,9 @@ const MATERIAL_SCALE: Record<InviteMaterial, {
   blur: string
   inset: string
 }> = {
-  solid: { fill: 'transparent', border: '1px solid transparent', blur: 'none', inset: 'none' },
+  // A no-op shadow rather than `none`, because the inset is appended to the
+  // elevation shadow and `box-shadow: none, ...` is not a valid list.
+  solid: { fill: 'transparent', border: '1px solid transparent', blur: 'none', inset: '0 0 0 0 transparent' },
   glass: {
     fill: 'rgba(255,255,255,0.14)',
     border: '1px solid rgba(255,255,255,0.28)',

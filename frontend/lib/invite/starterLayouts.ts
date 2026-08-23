@@ -77,7 +77,6 @@ function buildEventDetailsTile(order: number, palette: StarterPalette): Tile {
     settings: {
       location: '',
       date: '',
-      buttonColor: palette.accentColor,
       borderStyle: 'elegant',
     },
   }
@@ -90,7 +89,6 @@ function buildFeatureButtonsTile(order: number, palette: StarterPalette): Tile {
     enabled: true,
     order,
     settings: {
-      buttonColor: palette.accentColor,
     },
   }
 }

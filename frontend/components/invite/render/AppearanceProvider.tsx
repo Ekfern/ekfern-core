@@ -149,6 +149,15 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
 
         // The six text recipes.
         ...recipeVars,
+
+        // Under `featured`, one surface rises and the rest lie flat. Publishing
+        // it against the tile's own id means a tile asks the same question
+        // wherever it is rendered - inside the renderer, inside the editor's
+        // preview, or server-side - and never has to be told it is the special
+        // one.
+        ...(colors.depth === 'featured' && colors.featuredTileId
+          ? { [`--lift-${colors.featuredTileId}`]: 'var(--shadow-lift)' }
+          : {}),
       } as React.CSSProperties}
     >
       {children}

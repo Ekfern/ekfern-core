@@ -318,41 +318,9 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
             </select>
           </div>
 
-          <div>
-            <label htmlFor={fieldId('shadow')} className="block text-sm font-medium">
-              Shadow
-            </label>
-            <select
-              id={fieldId('shadow')}
-              value={settings.shadow ?? 'sm'}
-              onChange={(e) => update({ shadow: e.target.value as GalleryTileSettings['shadow'] })}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              {(['none', 'sm', 'md', 'lg', 'xl'] as const).map((value) => (
-                <option key={value} value={value}>
-                  {value === 'none' ? 'None' : value.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {settings.frame !== 'polaroid' && (
-            <div>
-              <label htmlFor={fieldId('radius')} className="block text-sm font-medium">
-                Corner radius
-              </label>
-              <input
-                id={fieldId('radius')}
-                type="range"
-                min={0}
-                max={24}
-                value={settings.cornerRadius ?? 8}
-                onChange={(e) => update({ cornerRadius: Number(e.target.value) })}
-                className="mt-1 w-full"
-              />
-              <p className="text-xs text-gray-500">{settings.cornerRadius ?? 8}px</p>
-            </div>
-          )}
+          {/* Shadow and corner radius were here. Depth and shape are the
+              invitation's decision now: a gallery that kept its own meant a page
+              turned flat still had the photographs raised. */}
         </div>
       </details>
     </div>

@@ -208,23 +208,21 @@ export default function EventDetailsTileSSR({
   // Same defaults as the client tile. The literals inside each var() matter
   // here: this renders outside AppearanceProvider, where a bare custom property
   // resolves to nothing. 8px is what RADIUS_MAP.round produced before.
-  const buttonColor = settings.buttonColor || 'var(--theme-primary, #D4A017)'
-  const buttonVariant = settings.buttonVariant ?? 'classic'
-  const buttonRadius = settings.buttonRadius ?? 'var(--radius-control, 8px)'
+  const buttonColor = 'var(--theme-primary, #D4A017)'
+  const buttonVariant = 'classic'
+  const buttonRadius = 'var(--radius-control, 8px)'
   const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
 
-  // Labels are the page's Secondary; with no per-tile ink there is nothing
-    // left for getAutomaticLabelColor to derive from.
-    const labelColor = 'var(--theme-muted)'
+  const labelColor = 'var(--theme-muted)'
   const fontColor = 'var(--theme-fg)'
 
-  // Get border settings with defaults
+  // All eight border styles stay; their colour, width and symbol come from the
+  // invitation. Rendering outside AppearanceProvider is why each var() carries
+  // a literal - a bare custom property resolves to nothing here.
   const borderStyle = settings.borderStyle || 'elegant'
-  const borderColor = settings.borderColor || 'var(--theme-muted, #D1D5DB)'
-  const borderWidth = settings.borderWidth || 1
-  const decorativeSymbol = settings.decorativeSymbol
-  const backgroundColor = settings.backgroundColor
-  const borderRadius = settings.borderRadius ?? 0
+  const borderColor = 'var(--theme-muted, #D1D5DB)'
+  const borderWidth = 1
+  const decorativeSymbol = '\u2766'
   const textAlign = settings.textAlign || 'center'
   const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
   const marginClass = textAlign === 'left' ? 'mr-auto' : textAlign === 'right' ? 'ml-auto' : 'mx-auto'
@@ -235,22 +233,21 @@ export default function EventDetailsTileSSR({
   const topBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
   const bottomBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
 
+  // Glass is a material, not a height - the same untangling as the client twin,
+  // which carried the same hardcoded bloom and drop shadow.
   const wrapperStyle: React.CSSProperties = isGlass
     ? {
-        backgroundColor: 'rgba(255,255,255,0.12)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.28)',
-        boxShadow: '0 0 120px 40px rgba(255,255,255,0.12), 0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
-        borderRadius: `${borderRadius || 24}px`,
+        background: 'var(--surface-fill, rgba(255,255,255,0.14))',
+        border: 'var(--surface-border, 1px solid rgba(255,255,255,0.28))',
+        backdropFilter: 'var(--surface-blur, blur(20px))',
+        WebkitBackdropFilter: 'var(--surface-blur, blur(20px))',
+        boxShadow: 'var(--shadow-rest, none)',
+        borderRadius: 'var(--radius-surface, 12px)',
         maxWidth: '420px',
         marginLeft: 'auto',
         marginRight: 'auto',
       }
-    : {
-        backgroundColor: backgroundColor || 'transparent',
-        borderRadius: `${borderRadius}px`,
-      }
+    : { borderRadius: 'var(--radius-surface, 12px)' }
 
   return (
     <div
@@ -341,9 +338,10 @@ export default function EventDetailsTileSSR({
                   const embedUrl = getEmbedUrl(mapUrl, settings.coordinates, settings.mapZoom)
                   
                   if (embedUrl) {
-                    // Get border settings to match tile styling
-                    const mapBackgroundColor = settings.backgroundColor || '#FFFFFF'
-                    const mapBorderRadius = settings.borderRadius ?? 8
+                    // The map is a surface like any other, so it takes the
+                    // invitation's corner rather than a number of its own.
+                    const mapBackgroundColor = 'transparent'
+                    const mapBorderRadius = 'var(--radius-surface, 12px)'
                     
                     return (
                       <div className="mt-6">
@@ -352,7 +350,7 @@ export default function EventDetailsTileSSR({
                           className="w-full rounded-xl overflow-hidden"
                           style={{
                             border: `${borderWidth * 2}px solid ${borderColor}`,
-                            borderRadius: `${mapBorderRadius}px`,
+                            borderRadius: mapBorderRadius,
                             backgroundColor: mapBackgroundColor,
                             boxShadow: `0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)`,
                           }}
