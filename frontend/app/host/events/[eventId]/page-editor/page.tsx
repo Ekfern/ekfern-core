@@ -143,7 +143,10 @@ function roleFamily(fonts: InviteConfig['customFonts'], role: FontRoleName): str
   if (!fonts) return undefined
   if (role === 'title') return fonts.title?.family ?? fonts.titleFont
   if (role === 'body') return fonts.body?.family ?? fonts.bodyFont
-  return fonts.header?.family ?? fonts.bodyFont
+  // Nothing when unset, so the control can say "Same as headline" - which is
+  // what actually happens. Falling back to the body face here showed Courier in
+  // a picker whose headings were rendering in Pacifico.
+  return fonts.header?.family
 }
 
 /** Set one role's family, leaving the rest of its recipe alone. */
@@ -2348,8 +2351,8 @@ export default function DesignInvitationPage(): JSX.Element {
                         <div className="grid grid-cols-3 gap-2">
                           {([
                             ['title', 'Headline', 'The names on your invitation, plus the small lines that go with them \u2014 kickers like "You\u2019re invited", and photo captions.'],
-                            ['header', 'Section headings', 'The heading over your photos, and your sub-event titles. Follows the headline font until you change it.'],
-                            ['body', 'Everything else', 'Dates, location, description, buttons and footer \u2014 all the running text.'],
+                            ['header', 'Section headings', 'The heading over your photos, and your sub-event titles.'],
+                            ['body', 'Main text', 'Dates, location, description, buttons and footer \u2014 all the running text.'],
                           ] as const).map(([key, label, hint]) => (
                             <div key={key} className="relative group">
                               <label
@@ -2373,7 +2376,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                   ...prev,
                                   customFonts: withRoleFamily(prev.customFonts, key, family),
                                 }))}
-                                defaultLabel="Layout default"
+                                defaultLabel={key === 'header' ? 'Same as headline' : 'Layout default'}
                               />
                             </div>
                           ))}
@@ -2385,7 +2388,7 @@ export default function DesignInvitationPage(): JSX.Element {
                           note is telling them. */}
                       <div className="border-t border-gray-200 pt-4 mt-4">
                         <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium">Text &amp; accent colours</label>
+                          <label className="block text-sm font-medium">Colours</label>
                           {config.customColors?.source === 'custom' ? (
                             <button
                               type="button"
@@ -2435,11 +2438,11 @@ export default function DesignInvitationPage(): JSX.Element {
                           {/* Each hint names what the colour actually paints, so a host can
                               tell which swatch to move without guessing from its name. */}
                           {([
-                            ['fontColor', 'Text', '#1F1B16',
-                              'Your title, event details, description and directions text.'],
+                            ['fontColor', 'Main text', '#1F1B16',
+                              'Your headline, event details, description and directions text.'],
                             ['primaryColor', 'Accent', '#A6815B',
-                              'The small line above your title, the countdown circles, and buttons like RSVP and Save the Date.'],
-                            ['mutedColor', 'Secondary', '#8B5E3C',
+                              'The small line above your headline, the countdown circles, and buttons like RSVP and Save the Date.'],
+                            ['mutedColor', 'Supporting text', '#8B5E3C',
                               'Footer text, photo captions, the fine lines around your event details, and supporting text in your registry.'],
                           ] as const).map(([key, label, fallback, hint]) => (
                             <div key={key} className="relative group">
