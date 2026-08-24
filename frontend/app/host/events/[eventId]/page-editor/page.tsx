@@ -2356,9 +2356,9 @@ export default function DesignInvitationPage(): JSX.Element {
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           {([
-                            ['title', 'Headline', 'The names on your invitation, plus the small lines that go with them \u2014 kickers like "You\u2019re invited", and photo captions.'],
-                            ['header', 'Section headings', 'The heading over your photos, and your sub-event titles.'],
-                            ['body', 'Main text', 'Dates, location, description, buttons and footer \u2014 all the running text.'],
+                            ['title', 'Title', 'The names on your invitation, plus the small lines that go with them \u2014 kickers like "You\u2019re invited", and photo captions.'],
+                            ['header', 'Header', 'The heading over your photos, and your sub-event titles. Follows the title until you change it.'],
+                            ['body', 'Content text', 'Dates, location, description, buttons and footer \u2014 all the running text.'],
                           ] as const).map(([key, label, hint]) => (
                             <div key={key} className="relative group">
                               <label
@@ -2382,7 +2382,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                   ...prev,
                                   customFonts: withRoleFamily(prev.customFonts, key, family),
                                 }))}
-                                defaultLabel={key === 'header' ? 'Same as headline' : 'Layout default'}
+                                defaultLabel={key === 'header' ? 'Same as title' : 'Layout default'}
                               />
                             </div>
                           ))}
@@ -2444,14 +2444,22 @@ export default function DesignInvitationPage(): JSX.Element {
                           {/* Each hint names what the colour actually paints, so a host can
                               tell which swatch to move without guessing from its name. */}
                           {([
-                            ['titleColor', 'Headline', '#1F1B16',
-                              'The same text the Headline font sets \u2014 your names, the kicker above them, and photo captions.'],
-                            ['headerColor', 'Section headings', '#1F1B16',
-                              'The same text the Section headings font sets. Follows the headline until you change it.'],
-                            ['fontColor', 'Main text', '#1F1B16',
-                              'The same text the Main text font sets \u2014 dates, location, description, buttons and footer.'],
+                            ['titleColor', 'Title', '#1F1B16',
+                              'The same text the Title font sets \u2014 your names, the kicker above them, and photo captions.'],
+                            ['headerColor', 'Header', '#1F1B16',
+                              'The same text the Header font sets. Follows the title until you change it.'],
+                            ['fontColor', 'Content text', '#1F1B16',
+                              'The same text the Content text font sets \u2014 dates, location, description and footer.'],
+                            // Accent sits in the Header column: it is the same
+                            // register of the invitation, used where a heading
+                            // would be if it were a control rather than words.
+                            ['primaryColor', 'Accent', '#A6815B',
+                              'Buttons like RSVP and Save the Date, and the countdown circles.'],
                           ] as const).map(([key, label, fallback, hint]) => (
-                            <div key={key} className="relative group">
+                            <div
+                              key={key}
+                              className={`relative group ${key === 'primaryColor' ? 'col-start-2' : ''}`}
+                            >
                               <label
                                 htmlFor={`page-${key}`}
                                 tabIndex={0}
@@ -2667,7 +2675,11 @@ export default function DesignInvitationPage(): JSX.Element {
                               </select>
                             </div>
                             <div>
-                              <label className="block text-sm font-medium mb-2">Border Color</label>
+                              <label className="block text-sm font-medium mb-2">Border colour</label>
+                              <p className="text-xs text-gray-500 mb-2">
+                                Also colours the fine rules inside your event details card, so
+                                every line on the invitation matches.
+                              </p>
                               <div className="flex items-center gap-2">
                                 <input
                                   type="color"

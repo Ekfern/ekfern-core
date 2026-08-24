@@ -307,7 +307,10 @@ export default function GalleryTile({ settings, tileId }: GalleryTileProps) {
               padding: frame === 'polaroid' ? '0.7rem 0.25rem 0.9rem' : '0.4rem 0 0',
               fontSize: frame === 'polaroid' ? '0.95rem' : '0.78rem',
               lineHeight: 1.3,
-              color: frame === 'polaroid' ? '#3b332c' : 'var(--theme-muted)',
+              // A polaroid's band is ink on white card stock, so it keeps a
+              // colour of its own - that is the frame, not the page. Any other
+              // caption takes its role's ink, which is the Title colour.
+              ...(frame === 'polaroid' ? { color: '#3b332c' } : {}),
               minHeight: frame === 'polaroid' ? '2.2rem' : undefined,
               flex: fill ? '0 0 auto' : undefined,
             }}

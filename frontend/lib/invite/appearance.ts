@@ -342,7 +342,17 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
     backgroundGradient: colors.backgroundGradient,
     fontColor: colors.fontColor ?? INVITE_APPEARANCE_DEFAULTS.fontColor,
     primaryColor: colors.primaryColor ?? INVITE_APPEARANCE_DEFAULTS.primaryColor,
-    mutedColor: colors.mutedColor ?? INVITE_APPEARANCE_DEFAULTS.mutedColor,
+    // The quiet colour is not a text colour any more. Every label, caption and
+    // footer line it used to paint now takes its own role's ink, and what is
+    // left is rules: the decorative border inside the details card.
+    //
+    // So it follows the border colour the host already sets for the page frame.
+    // One choice, and every rule on the invitation agrees with it - rather than
+    // a separate swatch whose only remaining job was a hairline.
+    mutedColor:
+      colors.mutedColor
+      ?? config?.pageBorder?.color
+      ?? INVITE_APPEARANCE_DEFAULTS.mutedColor,
     titleFont: titleFamily,
     bodyFont: bodyFamily,
     radiusSurface: shape.surface,

@@ -145,3 +145,20 @@ describe('ink follows the same three parts as family', () => {
     expect(withTitle.recipes.header.color).toBe('#ABCDEF')
   })
 })
+
+describe('the quiet colour', () => {
+  it('follows the page border, because rules are all it paints now', () => {
+    expect(resolveAppearance({ pageBorder: { color: '#2864BD' } }).mutedColor).toBe('#2864BD')
+  })
+
+  it('still honours a colour a host set before the control went', () => {
+    expect(
+      resolveAppearance({ customColors: { mutedColor: '#736A5F' }, pageBorder: { color: '#2864BD' } })
+        .mutedColor,
+    ).toBe('#736A5F')
+  })
+
+  it('has a last resort when there is no border at all', () => {
+    expect(resolveAppearance({}).mutedColor).toBe('#8B5E3C')
+  })
+})
