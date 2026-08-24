@@ -133,6 +133,13 @@ export interface ResolvedRecipe {
   tracking: string
   transform: 'none' | 'uppercase'
   italic: boolean
+  /**
+   * Ink, carried by the recipe for the same reason the family is: so that the
+   * Headline colour moves exactly what the Headline font moves. Two rows of
+   * three controls that name the same three things and act on the same three
+   * things.
+   */
+  color: string
 }
 
 /**
@@ -265,6 +272,7 @@ function resolveRole(role: FontRole | undefined, fallbackFamily: string): FontRo
 
 function resolveRecipes(
   roles: { title: FontRole; header: FontRole; body: FontRole },
+  inks: { title: string; header: string; body: string },
 ): Record<RecipeName, ResolvedRecipe> {
   const out = {} as Record<RecipeName, ResolvedRecipe>
 
@@ -285,6 +293,7 @@ function resolveRecipes(
       tracking: suppress ? '0.04em' : role.tracking ?? recipe.tracking,
       transform: suppress ? 'none' : role.transform ?? recipe.transform,
       italic: role.italic ?? false,
+      color: inks[recipe.role],
     }
   }
 
@@ -318,6 +327,13 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
     header: resolveRole(fonts?.header, headerFamily),
     body: resolveRole(fonts?.body, bodyFamily),
   }
+
+  // Ink follows the same three-part shape as family, and falls back the same
+  // way: a heading follows the headline until it is given its own, and the
+  // headline falls back to the page's main ink.
+  const bodyInk = colors.fontColor ?? INVITE_APPEARANCE_DEFAULTS.fontColor
+  const titleInk = colors.titleColor ?? bodyInk
+  const headerInk = colors.headerColor ?? titleInk
   const rhythm = RHYTHM_SCALE[config?.spacing ?? INVITE_APPEARANCE_DEFAULTS.spacing]
     ?? RHYTHM_SCALE[INVITE_APPEARANCE_DEFAULTS.spacing]
 
@@ -349,6 +365,10 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
     dividerStyle: config?.ornament?.divider ?? 'hairline',
     dividerSymbol: config?.ornament?.symbol ?? '',
     textAlign: config?.textAlign ?? INVITE_APPEARANCE_DEFAULTS.textAlign,
-    recipes: resolveRecipes(roles),
+    recipes: resolveRecipes(roles, {
+      title: titleInk,
+      header: headerInk,
+      body: bodyInk,
+    }),
   }
 }

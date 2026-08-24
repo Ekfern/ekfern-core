@@ -35,7 +35,7 @@ export default function FooterTile({ settings, preview = false }: FooterTileProp
   const divider = design?.dividerStyle ?? 'hairline'
   const symbol = design?.dividerSymbol || '❦'
   const text = (
-    <p style={recipe('caption', { color: 'var(--theme-muted)' })}>{settings.text}</p>
+    <p style={recipe('caption')}>{settings.text}</p>
   )
 
   if (preview) {
@@ -44,7 +44,7 @@ export default function FooterTile({ settings, preview = false }: FooterTileProp
         className={`w-full py-6 px-4 text-center ${divider === 'hairline' ? 'border-t border-current/10' : ''}`}
       >
         {divider === 'symbol' && (
-          <p aria-hidden className="mb-3" style={recipe('caption', { color: 'var(--theme-primary)' })}>
+          <p aria-hidden className="mb-3" style={recipe('caption')}>
             {symbol}
           </p>
         )}

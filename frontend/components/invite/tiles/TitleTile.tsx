@@ -42,7 +42,7 @@ export default function TitleTile({ settings, preview = false }: TitleTileProps)
         style={{ color: 'var(--theme-fg)' }}
       >
         {eyebrow && (
-          <p className={`mb-3 ${textAlignClass}`} style={recipe('eyebrow', { color: 'var(--theme-primary)' })}>
+          <p className={`mb-3 ${textAlignClass}`} style={recipe('eyebrow')}>
             {eyebrow}
           </p>
         )}

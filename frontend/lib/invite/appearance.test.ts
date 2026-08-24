@@ -119,3 +119,29 @@ describe('the three families', () => {
     expect([recipes.title.family, recipes.header.family, recipes.body.family]).toEqual(['Script', 'Script', 'Mono'])
   })
 })
+
+describe('ink follows the same three parts as family', () => {
+  it('moves exactly what the matching font control moves', () => {
+    // Two rows of three controls in the editor. Slot one of Colours has to act
+    // on slot one of Fonts, or the pairing is a lie.
+    const config: InviteConfig = {
+      customColors: { titleColor: '#AA0000', headerColor: '#00AA00', fontColor: '#0000AA' },
+    }
+    const { recipes } = resolveAppearance(config)
+    expect([recipes.title.color, recipes.eyebrow.color, recipes.caption.color]).toEqual([
+      '#AA0000', '#AA0000', '#AA0000',
+    ])
+    expect(recipes.header.color).toBe('#00AA00')
+    expect([recipes.body.color, recipes.data.color]).toEqual(['#0000AA', '#0000AA'])
+  })
+
+  it('falls back the way the families do', () => {
+    // Heading follows headline; headline follows the page's main ink.
+    const { recipes } = resolveAppearance({ customColors: { fontColor: '#123456' } })
+    expect(recipes.title.color).toBe('#123456')
+    expect(recipes.header.color).toBe('#123456')
+
+    const withTitle = resolveAppearance({ customColors: { fontColor: '#123456', titleColor: '#ABCDEF' } })
+    expect(withTitle.recipes.header.color).toBe('#ABCDEF')
+  })
+})

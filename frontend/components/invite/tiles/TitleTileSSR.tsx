@@ -57,7 +57,7 @@ export default function TitleTileSSR({ settings, overlayMode = false }: TitleTil
       style={{ color: 'var(--theme-fg)' }}
     >
       {eyebrow && (
-        <p className={`mb-3 ${textAlignClass}`} style={recipe('eyebrow', { color: 'var(--theme-primary)' })}>
+        <p className={`mb-3 ${textAlignClass}`} style={recipe('eyebrow')}>
           {eyebrow}
         </p>
       )}

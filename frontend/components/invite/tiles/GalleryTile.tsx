@@ -234,9 +234,9 @@ export default function GalleryTile({ settings, tileId }: GalleryTileProps) {
   // face, so one page showed the same label in two typefaces.
   const header = hasHeader ? (
     <div className="w-full px-4 text-center">
-      {eyebrow && <p style={recipe('eyebrow', { color: 'var(--theme-primary)' })}>{eyebrow}</p>}
+      {eyebrow && <p style={recipe('eyebrow')}>{eyebrow}</p>}
       {title && (
-        <h2 className="mt-2 leading-tight" style={recipe('header', { color: 'var(--theme-fg)' })}>
+        <h2 className="mt-2 leading-tight" style={recipe('header')}>
           {title}
         </h2>
       )}

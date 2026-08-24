@@ -25,6 +25,9 @@ export function recipe(name: RecipeName, overrides?: CSSProperties): CSSProperti
     letterSpacing: `var(--font-${name}-tracking)`,
     textTransform: `var(--font-${name}-transform)`,
     fontStyle: `var(--font-${name}-style)`,
+    // Ink comes with the role. A tile that took the family here and its colour
+    // from somewhere else would put the two rows of controls back out of step.
+    color: `var(--font-${name}-color)`,
     ...overrides,
   } as CSSProperties
 }

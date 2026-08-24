@@ -213,8 +213,6 @@ export default function EventDetailsTileSSR({
   const buttonRadius = 'var(--radius-control, 8px)'
   const { extraClass: btnExtraClass, style: btnStyle } = getButtonStyles(buttonColor, buttonVariant, buttonRadius)
 
-  const labelColor = 'var(--theme-muted)'
-  const fontColor = 'var(--theme-fg)'
 
   // All eight border styles stay; their colour, width and symbol come from the
   // invitation. Rendering outside AppearanceProvider is why each var() carries
@@ -267,13 +265,13 @@ export default function EventDetailsTileSSR({
             <div className="space-y-2">
               <div
                 className="mb-3"
-                style={recipe('eyebrow', { color: labelColor })}
+                style={recipe('eyebrow')}
               >
                 Date
               </div>
               <div
                 className="text-xl md:text-2xl font-normal leading-relaxed"
-                style={recipe('data', { color: fontColor })}
+                style={recipe('data')}
               >
                 {formatDate(settings.date)}
               </div>
@@ -284,13 +282,13 @@ export default function EventDetailsTileSSR({
             <div className="space-y-2">
               <div
                 className="mb-3"
-                style={recipe('eyebrow', { color: labelColor })}
+                style={recipe('eyebrow')}
               >
                 Time
               </div>
               <div
                 className="text-xl md:text-2xl font-normal leading-relaxed"
-                style={recipe('data', { color: fontColor })}
+                style={recipe('data')}
               >
                 {formatTime(settings.time)}
               </div>
@@ -311,13 +309,13 @@ export default function EventDetailsTileSSR({
               <div className="space-y-2">
                 <div
                   className="mb-3"
-                  style={recipe('eyebrow', { color: labelColor })}
+                  style={recipe('eyebrow')}
                 >
                   Location
                 </div>
                 <div
                   className={`text-xl md:text-2xl font-normal leading-relaxed flex items-center ${justifyClass} gap-2`}
-                  style={recipe('data', { color: fontColor })}
+                  style={recipe('data')}
                 >
                   <span>{settings.location}</span>
                   {canDisplay && mapUrl && (
@@ -399,13 +397,13 @@ export default function EventDetailsTileSSR({
             <div className="space-y-2">
               <div
                 className="mb-3"
-                style={recipe('eyebrow', { color: labelColor })}
+                style={recipe('eyebrow')}
               >
                 Dress Code
               </div>
               <div
                 className="text-xl md:text-2xl font-normal leading-relaxed italic"
-                style={recipe('data', { color: fontColor })}
+                style={recipe('data')}
               >
                 {settings.dressCode}
               </div>

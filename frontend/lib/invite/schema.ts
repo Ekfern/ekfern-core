@@ -350,7 +350,16 @@ export interface InviteConfig {
     source?: 'derived' | 'custom'
     backgroundColor?: string // Overrides theme.palette.bg
     backgroundGradient?: string // CSS gradient string e.g. 'linear-gradient(160deg, #E8D8C3 0%, #C4A882 100%)' — takes precedence over backgroundColor
-    fontColor?: string // Overrides theme.palette.fg
+    /**
+     * Ink for the headline and the small lines that go with it - the kicker
+     * above it and the caption under a photograph. Paired with the Headline
+     * font: one row of controls, one set of things they move.
+     */
+    titleColor?: string
+    /** Ink for section headings. Follows the headline until set, as the font does. */
+    headerColor?: string
+    /** Ink for running text. Also the last-resort ink for everything else. */
+    fontColor?: string
     primaryColor?: string // Overrides theme.palette.primary
     mutedColor?: string // Overrides theme.palette.muted
   }

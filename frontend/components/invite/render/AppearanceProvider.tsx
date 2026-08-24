@@ -98,6 +98,7 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
       [`--font-${name}-tracking`, recipe.tracking],
       [`--font-${name}-transform`, recipe.transform],
       [`--font-${name}-style`, recipe.italic ? 'italic' : 'normal'],
+      [`--font-${name}-color`, recipe.color],
     ]),
   )
 
