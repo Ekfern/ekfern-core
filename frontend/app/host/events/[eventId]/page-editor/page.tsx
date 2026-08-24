@@ -2347,9 +2347,9 @@ export default function DesignInvitationPage(): JSX.Element {
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           {([
-                            ['title', 'Headline', 'The names on your invitation, and the small line above them.'],
-                            ['header', 'Section headings', 'The heading over your photos, and your sub-event titles.'],
-                            ['body', 'Normal text', 'Dates, location, description, buttons, captions and footer \u2014 all the running text.'],
+                            ['title', 'Headline', 'The names on your invitation, plus the small lines that go with them \u2014 kickers like "You\u2019re invited", and photo captions.'],
+                            ['header', 'Section headings', 'The heading over your photos, and your sub-event titles. Follows the headline font until you change it.'],
+                            ['body', 'Everything else', 'Dates, location, description, buttons and footer \u2014 all the running text.'],
                           ] as const).map(([key, label, hint]) => (
                             <div key={key} className="relative group">
                               <label

@@ -115,10 +115,12 @@ const RECIPE_DEFAULTS = {
   title: { role: 'title', weight: 400, size: 'xl', tracking: '0.01em', transform: 'none' },
   header: { role: 'header', weight: 500, size: 'lg', tracking: '0.02em', transform: 'none' },
   body: { role: 'body', weight: 400, size: 'md', tracking: 'normal', transform: 'none' },
-  // Borrows the title family, so the kicker over a headline and the kicker over
-  // a gallery finally read as the same device.
+  // Three families, and the small display type belongs to the first of them.
+  // Eyebrow, kicker and caption are all the invitation's voice at small sizes -
+  // the line above a headline, the label on a photograph - so they draw on the
+  // title face rather than the body one.
   eyebrow: { role: 'title', weight: 600, size: 'xs', tracking: '0.3em', transform: 'uppercase' },
-  caption: { role: 'body', weight: 400, size: 'sm', tracking: '0.01em', transform: 'none' },
+  caption: { role: 'title', weight: 400, size: 'sm', tracking: '0.01em', transform: 'none' },
   data: { role: 'body', weight: 500, size: 'md', tracking: '0.02em', transform: 'none' },
 } as const
 
@@ -183,7 +185,6 @@ export const INVITE_APPEARANCE_DEFAULTS = {
   spacing: 'normal' as InviteSpacing,
   material: 'solid' as InviteMaterial,
   textAlign: 'center' as InviteTextAlign,
-  headerFont: "Georgia, 'Times New Roman', serif",
   /** Roughly 65 characters, the point past which running text gets hard to track. */
   measure: '36rem',
 } as const
@@ -307,7 +308,11 @@ export function resolveAppearance(config?: Partial<InviteConfig> | null): Invite
   // header face should not suddenly grow a second one.
   const titleFamily = fonts?.title?.family ?? fonts?.titleFont ?? INVITE_APPEARANCE_DEFAULTS.titleFont
   const bodyFamily = fonts?.body?.family ?? fonts?.bodyFont ?? INVITE_APPEARANCE_DEFAULTS.bodyFont
-  const headerFamily = fonts?.header?.family ?? fonts?.bodyFont ?? INVITE_APPEARANCE_DEFAULTS.headerFont
+  // A heading is display type, so an unset header follows the title face rather
+  // than the body one. Falling back to body sent every section heading to the
+  // running-text family, which turned a script "Forever Us" into a monospaced
+  // one on pages that had never chosen a header font at all.
+  const headerFamily = fonts?.header?.family ?? titleFamily
   const roles = {
     title: resolveRole(fonts?.title, titleFamily),
     header: resolveRole(fonts?.header, headerFamily),

@@ -87,3 +87,35 @@ describe('material', () => {
     expect(resolveAppearance({}).surfaceInset).not.toBe('none')
   })
 })
+
+describe('the three families', () => {
+  const config: InviteConfig = { customFonts: { title: { family: 'Script' }, body: { family: 'Mono' } } }
+
+  it('gives the small display type to the title face', () => {
+    // Title, and the lines that belong with it: kickers and captions.
+    const { recipes } = resolveAppearance(config)
+    expect(recipes.title.family).toBe('Script')
+    expect(recipes.eyebrow.family).toBe('Script')
+    expect(recipes.caption.family).toBe('Script')
+  })
+
+  it('gives running text to the body face', () => {
+    const { recipes } = resolveAppearance(config)
+    expect(recipes.body.family).toBe('Mono')
+    expect(recipes.data.family).toBe('Mono')
+  })
+
+  it('lets a heading follow the headline until a host says otherwise', () => {
+    // Falling back to body is what turned a script "Forever Us" monospaced on
+    // a page that had never chosen a header font.
+    expect(resolveAppearance(config).recipes.header.family).toBe('Script')
+    const chosen: InviteConfig = { customFonts: { ...config.customFonts, header: { family: 'Slab' } } }
+    expect(resolveAppearance(chosen).recipes.header.family).toBe('Slab')
+  })
+
+  it('reads the version 1 spelling for all three', () => {
+    const v1: InviteConfig = { customFonts: { titleFont: 'Script', bodyFont: 'Mono' } }
+    const { recipes } = resolveAppearance(v1)
+    expect([recipes.title.family, recipes.header.family, recipes.body.family]).toEqual(['Script', 'Script', 'Mono'])
+  })
+})
