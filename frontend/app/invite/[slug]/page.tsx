@@ -45,7 +45,7 @@ class RequestLifecycleTracker {
     const stepDuration = previousStep ? now - previousStep[1] : elapsed
 
     this.steps.set(name, now)
-    
+
     devLog(`[Lifecycle] STEP: ${name}`, {
       description,
       elapsed: `${elapsed}ms`,
@@ -114,86 +114,86 @@ function getFrontendUrl(): string {
 // Fetch invite page data (supports guest token and preview mode)
 // Single attempt - no retries for simple page rendering
 async function fetchInviteData(slug: string, guestToken?: string, isPreview?: boolean): Promise<any | null> {
-    // CRITICAL: Always use slug, never event ID for public invite pages
-    // The public endpoint is /api/events/invite/{slug}/, NOT /api/events/{id}/invite/
-    if (!slug || typeof slug !== 'string') {
-      console.error('[InvitePage SSR] Invalid slug:', slug)
-      return null
-    }
-    
-    const apiBase = getApiBase()
-    // Build query parameters
-    const queryParams = new URLSearchParams()
-    if (guestToken) {
-      queryParams.append('g', guestToken)
-    }
-    if (isPreview) {
-      queryParams.append('preview', 'true')
-    }
-    const queryString = queryParams.toString()
-    
-    // ALWAYS use the public invite endpoint with slug (never event ID)
-    const url = queryString
-      ? `${apiBase}/api/events/invite/${slug}/?${queryString}`
-      : `${apiBase}/api/events/invite/${slug}/`
-    
-    // Validate URL format - must use /api/events/invite/{slug}/ pattern
-    if (!url.includes('/api/events/invite/')) {
-      console.error('[InvitePage SSR] Invalid invite URL format:', url)
-      return null
-    }
-  
-    // Detailed logging for diagnosis
-    const requestStartTime = Date.now()
-    const performanceTimings: any = {
-      requestStart: requestStartTime,
-      dnsLookup: null,
-      tcpConnection: null,
-      requestSent: null,
-      firstByte: null,
-      responseComplete: null,
-      totalDuration: null,
-    }
+  // CRITICAL: Always use slug, never event ID for public invite pages
+  // The public endpoint is /api/events/invite/{slug}/, NOT /api/events/{id}/invite/
+  if (!slug || typeof slug !== 'string') {
+    console.error('[InvitePage SSR] Invalid slug:', slug)
+    return null
+  }
 
-    // Log request initiation
-    devLog('[InvitePage SSR] Starting fetch request', {
-      timestamp: new Date().toISOString(),
-      slug,
-      url,
-      apiBase,
-      hasGuestToken: !!guestToken,
-      timeout: 15000,
-      nodeEnv: process.env.NODE_ENV,
-      backendApiBase: process.env.BACKEND_API_BASE || 'NOT SET',
-      publicApiBase: process.env.NEXT_PUBLIC_API_BASE || 'NOT SET',
+  const apiBase = getApiBase()
+  // Build query parameters
+  const queryParams = new URLSearchParams()
+  if (guestToken) {
+    queryParams.append('g', guestToken)
+  }
+  if (isPreview) {
+    queryParams.append('preview', 'true')
+  }
+  const queryString = queryParams.toString()
+
+  // ALWAYS use the public invite endpoint with slug (never event ID)
+  const url = queryString
+    ? `${apiBase}/api/events/invite/${slug}/?${queryString}`
+    : `${apiBase}/api/events/invite/${slug}/`
+
+  // Validate URL format - must use /api/events/invite/{slug}/ pattern
+  if (!url.includes('/api/events/invite/')) {
+    console.error('[InvitePage SSR] Invalid invite URL format:', url)
+    return null
+  }
+
+  // Detailed logging for diagnosis
+  const requestStartTime = Date.now()
+  const performanceTimings: any = {
+    requestStart: requestStartTime,
+    dnsLookup: null,
+    tcpConnection: null,
+    requestSent: null,
+    firstByte: null,
+    responseComplete: null,
+    totalDuration: null,
+  }
+
+  // Log request initiation
+  devLog('[InvitePage SSR] Starting fetch request', {
+    timestamp: new Date().toISOString(),
+    slug,
+    url,
+    apiBase,
+    hasGuestToken: !!guestToken,
+    timeout: 15000,
+    nodeEnv: process.env.NODE_ENV,
+    backendApiBase: process.env.BACKEND_API_BASE || 'NOT SET',
+    publicApiBase: process.env.NEXT_PUBLIC_API_BASE || 'NOT SET',
+  })
+
+  // Try to resolve DNS (if possible in Node.js environment)
+  let dnsResolved = false
+  try {
+    const urlObj = new URL(url)
+    const hostname = urlObj.hostname
+    // In Node.js, we can't easily test DNS without dns module, but we can log the hostname
+    devLog('[InvitePage SSR] DNS Info', {
+      hostname,
+      protocol: urlObj.protocol,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? '443' : '80'),
     })
-
-    // Try to resolve DNS (if possible in Node.js environment)
-    let dnsResolved = false
-    try {
-      const urlObj = new URL(url)
-      const hostname = urlObj.hostname
-      // In Node.js, we can't easily test DNS without dns module, but we can log the hostname
-      devLog('[InvitePage SSR] DNS Info', {
-        hostname,
-        protocol: urlObj.protocol,
-        port: urlObj.port || (urlObj.protocol === 'https:' ? '443' : '80'),
-      })
-      dnsResolved = true
-    } catch (e) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[InvitePage SSR] Could not parse URL for DNS info:', e)
-      }
+    dnsResolved = true
+  } catch (e) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[InvitePage SSR] Could not parse URL for DNS info:', e)
     }
+  }
 
-    const dnsTime = Date.now()
-    performanceTimings.dnsLookup = dnsTime - requestStartTime
+  const dnsTime = Date.now()
+  performanceTimings.dnsLookup = dnsTime - requestStartTime
 
   try {
     const controller = new AbortController()
     // Increase timeout for production (ALB + network latency)
     const timeout = process.env.NODE_ENV === 'production' ? 30000 : 15000 // 30s in prod, 15s in dev
-    
+
     // Log timeout setup
     devLog('[InvitePage SSR] Setting up fetch with timeout', {
       timeout,
@@ -213,7 +213,7 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
       })
       controller.abort()
     }, timeout)
-  
+
     const tcpStartTime = Date.now()
     performanceTimings.tcpConnection = tcpStartTime - dnsTime
 
@@ -234,7 +234,7 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
     const urlObj = new URL(url)
     const protocol = urlObj.protocol === 'https:' ? https : http
     const isAborted = { value: false }
-    
+
     // Set up abort handler
     if (controller.signal) {
       controller.signal.addEventListener('abort', () => {
@@ -264,13 +264,13 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
       }, (res) => {
         const firstByteTime = Date.now()
         performanceTimings.firstByte = firstByteTime - requestSentTime
-    clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
 
         let data = ''
         res.on('data', (chunk) => {
           data += chunk
         })
-        
+
         res.on('end', () => {
           const jsonEndTime = Date.now()
           performanceTimings.responseComplete = jsonEndTime - firstByteTime
@@ -281,7 +281,7 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
 
           // Check if response is HTML (starts with <) - indicates error page
           const isHtml = data.trim().startsWith('<')
-          
+
           // If it's an error status or HTML response, handle it appropriately
           if (!isSuccess || isHtml) {
             const errorDetails = {
@@ -294,21 +294,21 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
               dataSize: data.length,
               isHtml,
             }
-            
+
             console.error('[InvitePage SSR] ❌ Error response received', errorDetails)
-            
+
             // If it's HTML, try to extract error message or provide helpful error
             if (isHtml) {
-              const errorMsg = statusCode === 404 
+              const errorMsg = statusCode === 404
                 ? `Invite page not found for slug: ${slug}`
                 : statusCode === 500
-                ? `Server error (500) - backend may be experiencing issues`
-                : `Received HTML response instead of JSON (status: ${statusCode})`
-              
+                  ? `Server error (500) - backend may be experiencing issues`
+                  : `Received HTML response instead of JSON (status: ${statusCode})`
+
               reject(new Error(errorMsg))
               return
             }
-            
+
             // If it's not HTML but still an error, try to parse as JSON error response
             try {
               const errorData = JSON.parse(data)
@@ -322,7 +322,7 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
           // Success response - try to parse JSON
           try {
             const jsonData = JSON.parse(data)
-            
+
             devLog('[InvitePage SSR] ✅ Request successful', {
               slug,
               url,
@@ -418,8 +418,8 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
 
     const errorDetails = {
       type: 'HTTP_ERROR',
-        status: response.status,
-        statusText: response.statusText,
+      status: response.status,
+      statusText: response.statusText,
       url,
       slug,
       responseBody: errorBody.substring(0, 1000),
@@ -465,12 +465,12 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
       console.error('[InvitePage SSR] ⚠️ TIMEOUT ERROR DETAILS', timeoutError)
       throw new Error(JSON.stringify(timeoutError, null, 2))
     }
-    
+
     // If already our formatted error, re-throw
     if (error.message && error.message.includes('HTTP_ERROR')) {
       throw error
     }
-    
+
     // Network or other error
     const networkError = {
       type: 'NETWORK_ERROR',
@@ -493,21 +493,21 @@ async function fetchInviteData(slug: string, guestToken?: string, isPreview?: bo
 
 // Fetch event data on the server (fallback when invite endpoint fails)
 async function fetchEventData(slug: string): Promise<Event | null> {
-    const apiBase = getApiBase()
+  const apiBase = getApiBase()
   const url = `${apiBase}/api/catalog/${slug}/`
   const requestStartTime = Date.now()
-  
+
   try {
     const controller = new AbortController()
     // Increase timeout for production (ALB + network latency)
     const timeout = process.env.NODE_ENV === 'production' ? 30000 : 15000 // 30s in prod, 15s in dev
     const timeoutId = setTimeout(() => controller.abort(), timeout)
-  
+
     // Use Node's native http/https to bypass Next.js fetch wrapper issues
     const urlObj = new URL(url)
     const protocol = urlObj.protocol === 'https:' ? https : http
     const isAborted = { value: false }
-    
+
     if (controller.signal) {
       controller.signal.addEventListener('abort', () => {
         isAborted.value = true
@@ -522,9 +522,9 @@ async function fetchEventData(slug: string): Promise<Event | null> {
 
       const req = protocol.request(url, {
         method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         timeout: timeout,
       }, (res) => {
         clearTimeout(timeoutId)
@@ -539,7 +539,7 @@ async function fetchEventData(slug: string): Promise<Event | null> {
               statusText: res.statusMessage,
               json: async () => jsonData,
               data: jsonData,
-    })
+            })
           } catch (parseError) {
             reject(new Error(`Failed to parse JSON: ${parseError}`))
           }
@@ -595,8 +595,8 @@ async function fetchEventData(slug: string): Promise<Event | null> {
 
     const errorDetails = {
       type: 'HTTP_ERROR',
-        status: response.status,
-        statusText: response.statusText,
+      status: response.status,
+      statusText: response.statusText,
       url,
       slug,
       responseBody: errorBody.substring(0, 1000),
@@ -616,12 +616,12 @@ async function fetchEventData(slug: string): Promise<Event | null> {
       }
       throw new Error(JSON.stringify(timeoutError, null, 2))
     }
-    
+
     // If already our formatted error, re-throw
     if (error.message && error.message.includes('HTTP_ERROR')) {
       throw error
     }
-    
+
     // Network or other error
     const networkError = {
       type: 'NETWORK_ERROR',
@@ -636,15 +636,15 @@ async function fetchEventData(slug: string): Promise<Event | null> {
 }
 
 // Generate metadata for Open Graph and Twitter Cards
-export async function generateMetadata({ 
-  params 
-}: { 
-  params: { slug: string } 
+export async function generateMetadata({
+  params
+}: {
+  params: { slug: string }
 }): Promise<Metadata> {
   try {
     const tracker = new RequestLifecycleTracker()
     tracker.step('METADATA_START', 'generateMetadata called')
-    
+
     devLog('[InvitePage Metadata] ====== METADATA GENERATION START ======', {
       slug: params.slug,
       timestamp: new Date().toISOString(),
@@ -665,7 +665,7 @@ export async function generateMetadata({
       // Continue with null inviteData - will use fallback metadata
     }
     const fetchEnd = Date.now()
-    
+
     tracker.step('METADATA_FETCH_COMPLETE', 'Invite data fetched for metadata')
     devLog('[InvitePage Metadata] Invite data fetch', {
       slug: params.slug,
@@ -673,173 +673,173 @@ export async function generateMetadata({
       inviteDataFound: !!inviteData,
     })
 
-  // Pulled-back (unpublished) invite pages render a Coming Soon placeholder and
-  // must never be indexed.
-  if (inviteData && inviteData.status === 'coming_soon') {
-    return {
-      title: 'Coming soon',
-      description: 'This invitation will be available soon.',
-      robots: { index: false, follow: false },
+    // Pulled-back (unpublished) invite pages render a Coming Soon placeholder and
+    // must never be indexed.
+    if (inviteData && inviteData.status === 'coming_soon') {
+      return {
+        title: 'Coming soon',
+        description: 'This invitation will be available soon.',
+        robots: { index: false, follow: false },
+      }
     }
-  }
 
-  // Get frontend URL for absolute URL conversion
-  const frontendUrl = getFrontendUrl()
-  const baseUrl = frontendUrl.replace('/api', '')
-  const pageUrl = `${baseUrl}/invite/${params.slug}`
+    // Get frontend URL for absolute URL conversion
+    const frontendUrl = getFrontendUrl()
+    const baseUrl = frontendUrl.replace('/api', '')
+    const pageUrl = `${baseUrl}/invite/${params.slug}`
 
-  if (!inviteData) {
+    if (!inviteData) {
       tracker.step('METADATA_COMPLETE', 'Metadata object created (fallback)')
-    return {
-      title: 'Event Invitation',
-      description: 'Join us for a special celebration',
-      robots: {
-        index: false, // Don't index 404 pages
-        follow: false,
-      },
-      openGraph: {
+      return {
         title: 'Event Invitation',
         description: 'Join us for a special celebration',
+        robots: {
+          index: false, // Don't index 404 pages
+          follow: false,
+        },
+        openGraph: {
+          title: 'Event Invitation',
+          description: 'Join us for a special celebration',
+          type: 'website',
+          url: pageUrl,
+        },
+        twitter: {
+          card: 'summary_large_image',
+          title: 'Event Invitation',
+          description: 'Join us for a special celebration',
+        },
+      }
+    }
+
+    // Check for custom link metadata first (user-defined)
+    const customMetadata = inviteData.config?.linkMetadata
+
+    // Extract title: custom metadata > auto-generated from tiles/event
+    let baseTitle = inviteData.title || 'Event Invitation'
+    if (inviteData.config?.tiles) {
+      const titleTile = inviteData.config.tiles.find(
+        (tile: any) => tile.type === 'title' && tile.settings?.text
+      ) as any
+      if (titleTile?.settings?.text) {
+        baseTitle = titleTile.settings.text
+      }
+    }
+
+    // Resolve title based on previewTitleSource
+    // 'auto' → skip custom title, use auto-generated; 'custom' or undefined → use custom if set
+    const titleSource = customMetadata?.previewTitleSource
+    const title = (titleSource !== 'auto' && customMetadata?.title)
+      ? customMetadata.title
+      : baseTitle
+
+    // Extract description: custom metadata > auto-generated from tiles/event
+    let description = inviteData.description || 'Join us for a special celebration'
+    if (inviteData.config?.tiles) {
+      const descTile = inviteData.config.tiles.find(
+        (tile: any) => tile.type === 'description' && tile.settings?.content
+      ) as any
+      if (descTile?.settings?.content) {
+        // Strip HTML tags and limit length for description
+        description = descTile.settings.content.replace(/<[^>]*>/g, '').substring(0, 200)
+      }
+    }
+
+    // Resolve description based on previewDescriptionSource
+    // 'auto' → skip custom description, use auto-generated; 'custom' or undefined → use custom if set
+    const descSource = customMetadata?.previewDescriptionSource
+    const finalDescription = (descSource !== 'auto' && customMetadata?.description)
+      ? customMetadata.description
+      : description
+
+    // Resolve banner image based on previewImageSource
+    const imageSource = customMetadata?.previewImageSource
+    let bannerImage: string | undefined
+
+    if (imageSource === 'upload') {
+      // Explicit upload source: use the uploaded image only
+      bannerImage = customMetadata?.image
+    } else if (imageSource === 'greeting-card') {
+      // Use first enabled greeting-card tile with a src
+      if (inviteData.config?.tiles) {
+        const gcTile = inviteData.config.tiles.find(
+          (tile: any) => tile.type === 'design' && tile.enabled !== false && tile.settings?.src
+        ) as any
+        bannerImage = gcTile?.settings?.src
+      }
+    } else if (imageSource === 'image-tile') {
+      // Use first enabled image tile with a src
+      if (inviteData.config?.tiles) {
+        const imgTile = inviteData.config.tiles.find(
+          (tile: any) => tile.type === 'image' && tile.enabled !== false && tile.settings?.src
+        ) as any
+        bannerImage = imgTile?.settings?.src
+      }
+    } else {
+      // No source set — existing waterfall: upload → first image/GC tile → generic envelope
+      bannerImage = customMetadata?.image
+      if (!bannerImage && inviteData.config?.tiles) {
+        const imageTile = inviteData.config.tiles.find(
+          (tile: any) => (tile.type === 'image' || tile.type === 'design') && tile.enabled !== false && tile.settings?.src
+        ) as any
+        if (imageTile?.settings?.src) {
+          bannerImage = imageTile.settings.src
+        }
+      }
+    }
+
+    // Priority final: Generic envelope image (common fallback for everyone)
+    if (!bannerImage) {
+      bannerImage = GENERIC_ENVELOPE_IMAGE
+    }
+
+    // Ensure banner image URL is absolute for Open Graph
+    let absoluteBannerImage: string | undefined = bannerImage
+    if (bannerImage) {
+      if (!bannerImage.startsWith('http://') && !bannerImage.startsWith('https://')) {
+        // If relative URL (local dev), make it absolute using frontend URL
+        absoluteBannerImage = bannerImage.startsWith('/')
+          ? `${baseUrl}${bannerImage}`
+          : `${baseUrl}/${bannerImage}`
+      } else {
+        // Already absolute - convert S3 URLs to CloudFront if configured
+        absoluteBannerImage = convertToCloudFrontUrl(bannerImage)
+      }
+    }
+
+    const metadata: Metadata = {
+      title,
+      description: finalDescription,
+      openGraph: {
+        title,
+        description: finalDescription,
         type: 'website',
         url: pageUrl,
+        ...(absoluteBannerImage && {
+          images: [{
+            url: absoluteBannerImage,
+            alt: title,
+            width: 1200,
+            height: 630,
+          }]
+        }),
       },
       twitter: {
         card: 'summary_large_image',
-        title: 'Event Invitation',
-        description: 'Join us for a special celebration',
+        title,
+        description: finalDescription,
+        ...(absoluteBannerImage && { images: [absoluteBannerImage] }),
       },
     }
-  }
-
-  // Check for custom link metadata first (user-defined)
-  const customMetadata = inviteData.config?.linkMetadata
-  
-  // Extract title: custom metadata > auto-generated from tiles/event
-  let baseTitle = inviteData.title || 'Event Invitation'
-  if (inviteData.config?.tiles) {
-    const titleTile = inviteData.config.tiles.find(
-      (tile: any) => tile.type === 'title' && tile.settings?.text
-    ) as any
-    if (titleTile?.settings?.text) {
-      baseTitle = titleTile.settings.text
-    }
-  }
-  
-  // Resolve title based on previewTitleSource
-  // 'auto' → skip custom title, use auto-generated; 'custom' or undefined → use custom if set
-  const titleSource = customMetadata?.previewTitleSource
-  const title = (titleSource !== 'auto' && customMetadata?.title)
-    ? customMetadata.title
-    : baseTitle
-
-  // Extract description: custom metadata > auto-generated from tiles/event
-  let description = inviteData.description || 'Join us for a special celebration'
-  if (inviteData.config?.tiles) {
-    const descTile = inviteData.config.tiles.find(
-      (tile: any) => tile.type === 'description' && tile.settings?.content
-    ) as any
-    if (descTile?.settings?.content) {
-      // Strip HTML tags and limit length for description
-      description = descTile.settings.content.replace(/<[^>]*>/g, '').substring(0, 200)
-    }
-  }
-
-  // Resolve description based on previewDescriptionSource
-  // 'auto' → skip custom description, use auto-generated; 'custom' or undefined → use custom if set
-  const descSource = customMetadata?.previewDescriptionSource
-  const finalDescription = (descSource !== 'auto' && customMetadata?.description)
-    ? customMetadata.description
-    : description
-
-  // Resolve banner image based on previewImageSource
-  const imageSource = customMetadata?.previewImageSource
-  let bannerImage: string | undefined
-
-  if (imageSource === 'upload') {
-    // Explicit upload source: use the uploaded image only
-    bannerImage = customMetadata?.image
-  } else if (imageSource === 'greeting-card') {
-    // Use first enabled greeting-card tile with a src
-    if (inviteData.config?.tiles) {
-      const gcTile = inviteData.config.tiles.find(
-        (tile: any) => tile.type === 'design' && tile.enabled !== false && tile.settings?.src
-      ) as any
-      bannerImage = gcTile?.settings?.src
-    }
-  } else if (imageSource === 'image-tile') {
-    // Use first enabled image tile with a src
-    if (inviteData.config?.tiles) {
-      const imgTile = inviteData.config.tiles.find(
-        (tile: any) => tile.type === 'image' && tile.enabled !== false && tile.settings?.src
-      ) as any
-      bannerImage = imgTile?.settings?.src
-    }
-  } else {
-    // No source set — existing waterfall: upload → first image/GC tile → generic envelope
-    bannerImage = customMetadata?.image
-    if (!bannerImage && inviteData.config?.tiles) {
-      const imageTile = inviteData.config.tiles.find(
-        (tile: any) => (tile.type === 'image' || tile.type === 'design') && tile.enabled !== false && tile.settings?.src
-      ) as any
-      if (imageTile?.settings?.src) {
-        bannerImage = imageTile.settings.src
-      }
-    }
-  }
-
-  // Priority final: Generic envelope image (common fallback for everyone)
-  if (!bannerImage) {
-    bannerImage = GENERIC_ENVELOPE_IMAGE
-  }
-
-  // Ensure banner image URL is absolute for Open Graph
-  let absoluteBannerImage: string | undefined = bannerImage
-  if (bannerImage) {
-    if (!bannerImage.startsWith('http://') && !bannerImage.startsWith('https://')) {
-      // If relative URL (local dev), make it absolute using frontend URL
-      absoluteBannerImage = bannerImage.startsWith('/') 
-        ? `${baseUrl}${bannerImage}`
-        : `${baseUrl}/${bannerImage}`
-    } else {
-      // Already absolute - convert S3 URLs to CloudFront if configured
-      absoluteBannerImage = convertToCloudFrontUrl(bannerImage)
-    }
-  }
-
-  const metadata: Metadata = {
-    title,
-    description: finalDescription,
-    openGraph: {
-      title,
-      description: finalDescription,
-      type: 'website',
-      url: pageUrl,
-      ...(absoluteBannerImage && { 
-        images: [{ 
-          url: absoluteBannerImage, 
-          alt: title,
-          width: 1200,
-          height: 630,
-        }] 
-      }),
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description: finalDescription,
-      ...(absoluteBannerImage && { images: [absoluteBannerImage] }),
-    },
-  }
 
     tracker.step('METADATA_COMPLETE', 'Metadata object created')
     tracker.logSummary('METADATA GENERATION')
-    
+
     devLog('[InvitePage Metadata] ====== METADATA GENERATION COMPLETE ======', {
       slug: params.slug,
       totalDuration: tracker.getSummary().totalDuration,
     })
 
-  return metadata
+    return metadata
   } catch (error: any) {
     console.error('[InvitePage Metadata] ❌ ERROR in generateMetadata', {
       slug: params.slug,
@@ -847,7 +847,7 @@ export async function generateMetadata({
       errorType: error.name,
       stack: error.stack,
     })
-    
+
     // Return fallback metadata on error
     return {
       title: 'Event Invitation',
@@ -861,10 +861,10 @@ export async function generateMetadata({
 }
 
 // Server component that fetches initial data and renders client component
-export default async function InvitePage({ 
+export default async function InvitePage({
   params,
   searchParams
-}: { 
+}: {
   params: { slug: string }
   searchParams: { g?: string; preview?: string }
 }) {
@@ -873,11 +873,11 @@ export default async function InvitePage({
   if (isPreview) {
     unstable_noStore()
   }
-  
+
   let tracker: RequestLifecycleTracker | null = null
   const startTime = Date.now()
   const slug = params.slug
-  
+
   // Initialize tracker with error handling
   try {
     tracker = new RequestLifecycleTracker()
@@ -888,16 +888,16 @@ export default async function InvitePage({
     })
     // Continue without tracker - don't break the page
   }
-  
+
   // STEP 1: Route Entry - Next.js calls this component
   tracker?.step('ROUTE_ENTRY', 'Next.js route handler called')
   devLog('[InvitePage SSR] ====== PAGE RENDER START ======', {
     timestamp: new Date().toISOString(),
-        slug,
-        hasGuestToken: !!searchParams.g,
+    slug,
+    hasGuestToken: !!searchParams.g,
     guestToken: searchParams.g ? 'present' : 'none',
     nodeEnv: process.env.NODE_ENV,
-        apiBase: getApiBase(),
+    apiBase: getApiBase(),
     backendApiBase: process.env.BACKEND_API_BASE || 'NOT SET',
     publicApiBase: process.env.NEXT_PUBLIC_API_BASE || 'NOT SET',
     processUptime: process.uptime(),
@@ -911,12 +911,12 @@ export default async function InvitePage({
       hasGuestToken: !!searchParams.g,
       apiBase: getApiBase(),
     })
-    
+
     // STEP 3: Fetch invite page data (supports guest token via ?g= parameter)
     tracker?.step('FETCH_START', 'Starting backend API call')
     let inviteData: any = null
     let inviteError: any = null
-    
+
     try {
       devLog('[InvitePage SSR] 📡 COMMUNICATION: Initiating backend API call', {
         slug,
@@ -925,17 +925,17 @@ export default async function InvitePage({
         endpoint: `/api/events/invite/${slug}/`,
         hasGuestToken: !!searchParams.g,
       })
-      
+
       const isPreview = searchParams.preview === 'true'
       inviteData = await fetchInviteData(slug, searchParams.g, isPreview)
-      
+
       tracker?.step('FETCH_COMPLETE', 'Backend API call completed successfully')
       devLog('[InvitePage SSR] ✅ COMMUNICATION: Backend API call succeeded', {
         slug,
         hasData: !!inviteData,
         dataSize: inviteData ? JSON.stringify(inviteData).length : 0,
       })
-      
+
       // Log if fetch took too long
       if (tracker) {
         const fetchStep = tracker.getSummary().steps.find((s: any) => s.name === 'FETCH_COMPLETE')
@@ -973,8 +973,8 @@ export default async function InvitePage({
         )
       }
     }
-    
-    
+
+
     // Pulled-back (unpublished) page: the backend returns 200 with a coming_soon
     // status instead of a 404. Render the branded placeholder. The client keeps
     // polling so the page flips back to live automatically on re-publish.
@@ -991,7 +991,7 @@ export default async function InvitePage({
     // STEP 4: Data Processing - Transform invite data to event format
     tracker?.step('DATA_PROCESSING_START', 'Processing and transforming data')
     let event: Event | null = null
-    
+
     // Try to construct event from inviteData if it has the necessary fields
     if (inviteData) {
       devLog('[InvitePage SSR] 🔄 DATA PROCESSING: Transforming invite data to event format', {
@@ -999,7 +999,7 @@ export default async function InvitePage({
         hasInviteData: !!inviteData,
         inviteDataKeys: inviteData ? Object.keys(inviteData) : [],
       })
-      
+
       // If inviteData has event info, use it
       if (inviteData.event_slug || inviteData.slug) {
         event = {
@@ -1015,7 +1015,7 @@ export default async function InvitePage({
           timezone: inviteData.event_timezone,
           rsvp_count: inviteData.rsvp_count,
         } as Event
-        
+
         tracker?.step('DATA_PROCESSING_COMPLETE', 'Event object constructed from invite data')
         devLog('[InvitePage SSR] ✅ DATA PROCESSING: Event object created', {
           slug,
@@ -1038,132 +1038,162 @@ export default async function InvitePage({
       })
     }
 
-  // STEP 5: Error Handling - If event not found, render error page
-  if (!event) {
-    tracker?.step('ERROR_RENDER_START', 'Rendering error page')
-    devLog('[InvitePage SSR] ⚠️ RENDERING: Error page (event not found)', {
-      slug,
-      hasInviteData: !!inviteData,
-      hasInviteError: !!inviteError,
-    })
-    
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold text-gray-900 mb-4">
-            Unable to load invite page
-          </h1>
-          <p className="text-gray-600">The invite page could not be loaded. Please check the URL or contact support.</p>
-        </div>
-      </div>
-    )
-  }
+    // STEP 5: Error Handling - If event not found, render error page
+    if (!event) {
+      tracker?.step('ERROR_RENDER_START', 'Rendering error page')
+      devLog('[InvitePage SSR] ⚠️ RENDERING: Error page (event not found)', {
+        slug,
+        hasInviteData: !!inviteData,
+        hasInviteError: !!inviteError,
+      })
 
-  // STEP 6: Config Preparation - Prepare invite configuration
-  tracker?.step('CONFIG_PREP_START', 'Preparing invite configuration')
-  devLog('[InvitePage SSR] ⚙️ CONFIG: Preparing invite configuration', {
-    slug,
-    hasPageConfig: !!event.page_config,
-  })
-  
-  let initialConfig: InviteConfig | null = null
-  // Check if page_config exists and has meaningful content (not just empty object)
-  const pageConfig = event.page_config
-  const hasConfig = pageConfig && 
-    typeof pageConfig === 'object' && 
-    Object.keys(pageConfig).length > 0
-  
-  if (hasConfig && pageConfig) {
-    try {
-      // Migrate old configs to tile-based structure if needed
-      // This handles invitations created before the schema upgrade
-      const migratedConfig = migrateToTileConfig(
-        pageConfig as InviteConfig,
-        event.title,
-        event.date,
-        undefined // city not available in Event interface, will use config.location if available
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-4">
+              Unable to load invite page
+            </h1>
+            <p className="text-gray-600">The invite page could not be loaded. Please check the URL or contact support.</p>
+          </div>
+        </div>
       )
-      
-      initialConfig = {
-        ...migratedConfig,
-        // Ensure themeId is set if it's missing (required by InviteConfig)
-        themeId: migratedConfig.themeId || pageConfig.themeId || 'classic-noir',
-        customColors: pageConfig.customColors !== undefined 
-          ? pageConfig.customColors 
-          : migratedConfig.customColors,
-        customFonts: pageConfig.customFonts !== undefined
-          ? pageConfig.customFonts
-          : migratedConfig.customFonts,
-        texture: pageConfig.texture !== undefined
-          ? pageConfig.texture
-          : migratedConfig.texture,
-        animations: pageConfig.animations !== undefined
-          ? pageConfig.animations
-          : migratedConfig.animations,
-        linkMetadata: pageConfig.linkMetadata !== undefined
-          ? pageConfig.linkMetadata
-          : migratedConfig.linkMetadata,
-      } as InviteConfig
-      
-      // Ensure tiles exist after migration
-      if (!initialConfig.tiles || initialConfig.tiles.length === 0) {
-        // If migration didn't create tiles, create minimal default tiles
-        initialConfig.tiles = [
-          {
-            id: 'tile-title-0',
-            type: 'title',
-            enabled: true,
-            order: 0,
-            settings: { text: event.title || 'Event' },
-          },
-          {
-            id: 'tile-event-details-1',
-            type: 'event-details',
-            enabled: true,
-            order: 1,
-            settings: {
-              location: '',
-              date: event.date || new Date().toISOString().split('T')[0],
+    }
+
+    // STEP 6: Config Preparation - Prepare invite configuration
+    tracker?.step('CONFIG_PREP_START', 'Preparing invite configuration')
+    devLog('[InvitePage SSR] ⚙️ CONFIG: Preparing invite configuration', {
+      slug,
+      hasPageConfig: !!event.page_config,
+    })
+
+    let initialConfig: InviteConfig | null = null
+    // Check if page_config exists and has meaningful content (not just empty object)
+    const pageConfig = event.page_config
+    const hasConfig = pageConfig &&
+      typeof pageConfig === 'object' &&
+      Object.keys(pageConfig).length > 0
+
+    if (hasConfig && pageConfig) {
+      try {
+        // Migrate old configs to tile-based structure if needed
+        // This handles invitations created before the schema upgrade
+        const migratedConfig = migrateToTileConfig(
+          pageConfig as InviteConfig,
+          event.title,
+          event.date,
+          undefined // city not available in Event interface, will use config.location if available
+        )
+
+        initialConfig = {
+          ...migratedConfig,
+          // Ensure themeId is set if it's missing (required by InviteConfig)
+          themeId: migratedConfig.themeId || pageConfig.themeId || 'classic-noir',
+          customColors: pageConfig.customColors !== undefined
+            ? pageConfig.customColors
+            : migratedConfig.customColors,
+          customFonts: pageConfig.customFonts !== undefined
+            ? pageConfig.customFonts
+            : migratedConfig.customFonts,
+          texture: pageConfig.texture !== undefined
+            ? pageConfig.texture
+            : migratedConfig.texture,
+          animations: pageConfig.animations !== undefined
+            ? pageConfig.animations
+            : migratedConfig.animations,
+
+          elements: pageConfig.elements !== undefined
+            ? pageConfig.elements
+            : migratedConfig.elements,
+
+          linkMetadata: pageConfig.linkMetadata !== undefined
+            ? pageConfig.linkMetadata
+            : migratedConfig.linkMetadata,
+        } as InviteConfig
+
+        // Ensure tiles exist after migration
+        if (!initialConfig.tiles || initialConfig.tiles.length === 0) {
+          // If migration didn't create tiles, create minimal default tiles
+          initialConfig.tiles = [
+            {
+              id: 'tile-title-0',
+              type: 'title',
+              enabled: true,
+              order: 0,
+              settings: { text: event.title || 'Event' },
             },
-          },
-        ]
-      }
-      
-      // DEBUG: Log order values received from backend
-      if (isDev && initialConfig.tiles) {
-        devLog('[TILE ORDER DEBUG] Server-side: Order received from backend', {
-          totalTiles: initialConfig.tiles.length,
-          wasMigrated: !pageConfig.tiles || pageConfig.tiles.length === 0,
-          tiles: initialConfig.tiles.map((t: Tile) => ({
-            id: t.id,
-            type: t.type,
-            enabled: t.enabled,
-            order: t.order,
-            previewOrder: (t as any).previewOrder,
-          })),
-          enabledTiles: initialConfig.tiles
-            .filter((t: Tile) => t.enabled)
-            .sort((a: Tile, b: Tile) => a.order - b.order)
-            .map((t: Tile) => ({
+            {
+              id: 'tile-event-details-1',
+              type: 'event-details',
+              enabled: true,
+              order: 1,
+              settings: {
+                location: '',
+                date: event.date || new Date().toISOString().split('T')[0],
+              },
+            },
+          ]
+        }
+
+        // DEBUG: Log order values received from backend
+        if (isDev && initialConfig.tiles) {
+          devLog('[TILE ORDER DEBUG] Server-side: Order received from backend', {
+            totalTiles: initialConfig.tiles.length,
+            wasMigrated: !pageConfig.tiles || pageConfig.tiles.length === 0,
+            tiles: initialConfig.tiles.map((t: Tile) => ({
               id: t.id,
               type: t.type,
+              enabled: t.enabled,
               order: t.order,
+              previewOrder: (t as any).previewOrder,
             })),
-          hasTitle: initialConfig.tiles.some((t: Tile) => t.type === 'title'),
-          hasEventDetails: initialConfig.tiles.some((t: Tile) => t.type === 'event-details'),
-          hasDescription: initialConfig.tiles.some((t: Tile) => t.type === 'description'),
+            enabledTiles: initialConfig.tiles
+              .filter((t: Tile) => t.enabled)
+              .sort((a: Tile, b: Tile) => a.order - b.order)
+              .map((t: Tile) => ({
+                id: t.id,
+                type: t.type,
+                order: t.order,
+              })),
+            hasTitle: initialConfig.tiles.some((t: Tile) => t.type === 'title'),
+            hasEventDetails: initialConfig.tiles.some((t: Tile) => t.type === 'event-details'),
+            hasDescription: initialConfig.tiles.some((t: Tile) => t.type === 'description'),
+          })
+        }
+      } catch (error: any) {
+        // If config is invalid/malformed, log error and use fallback
+        console.error('[InvitePage SSR] ⚠️ CONFIG: Error processing config, using fallback', {
+          slug,
+          error: error.message,
+          errorType: error.name,
+          pageConfigKeys: pageConfig ? Object.keys(pageConfig) : [],
         })
+
+        // Fallback to default config
+        initialConfig = {
+          themeId: 'classic-noir',
+          tiles: [
+            {
+              id: 'tile-title-0',
+              type: 'title',
+              enabled: true,
+              order: 0,
+              settings: { text: event.title || 'Event' },
+            },
+            {
+              id: 'tile-event-details-1',
+              type: 'event-details',
+              enabled: true,
+              order: 1,
+              settings: {
+                location: '',
+                date: event.date || new Date().toISOString().split('T')[0],
+              },
+            },
+          ],
+        }
       }
-    } catch (error: any) {
-      // If config is invalid/malformed, log error and use fallback
-      console.error('[InvitePage SSR] ⚠️ CONFIG: Error processing config, using fallback', {
-        slug,
-        error: error.message,
-        errorType: error.name,
-        pageConfigKeys: pageConfig ? Object.keys(pageConfig) : [],
-      })
-      
-      // Fallback to default config
+    } else {
+      // No config at all - create default tile-based config
       initialConfig = {
         themeId: 'classic-noir',
         tiles: [
@@ -1187,109 +1217,84 @@ export default async function InvitePage({
         ],
       }
     }
-  } else {
-    // No config at all - create default tile-based config
-    initialConfig = {
-      themeId: 'classic-noir',
-      tiles: [
-        {
-          id: 'tile-title-0',
-          type: 'title',
-          enabled: true,
-          order: 0,
-          settings: { text: event.title || 'Event' },
-        },
-        {
-          id: 'tile-event-details-1',
-          type: 'event-details',
-          enabled: true,
-          order: 1,
-          settings: {
-            location: '',
-            date: event.date || new Date().toISOString().split('T')[0],
-          },
-        },
-      ],
-    }
-  }
-  
-  tracker?.step('CONFIG_PREP_COMPLETE', 'Invite configuration prepared')
-  devLog('[InvitePage SSR] ✅ CONFIG: Configuration prepared', {
-    slug,
-    hasConfig: !!initialConfig,
-    configType: initialConfig?.themeId || 'fallback',
-  })
 
-  // STEP 7: SSR Rendering - Render server-side components
-  tracker?.step('SSR_RENDER_START', 'Rendering server-side components')
-  devLog('[InvitePage SSR] 🎨 SSR RENDERING: Starting server-side component rendering', {
-    slug,
-    hasConfig: !!initialConfig,
-    hasTiles: !!(initialConfig?.tiles && initialConfig.tiles.length > 0),
-  })
+    tracker?.step('CONFIG_PREP_COMPLETE', 'Invite configuration prepared')
+    devLog('[InvitePage SSR] ✅ CONFIG: Configuration prepared', {
+      slug,
+      hasConfig: !!initialConfig,
+      configType: initialConfig?.themeId || 'fallback',
+    })
 
-  // Extract hero tiles (image + title overlay if exists) and event details for SSR
-  let heroSSR: React.ReactNode = null
-  let titleSSR: React.ReactNode = null
-  let eventDetailsSSR: React.ReactNode = null
-  const theme = getTheme(initialConfig?.themeId || 'classic-noir')
-  const backgroundColor = initialConfig?.customColors?.backgroundColor ?? theme.palette.bg
+    // STEP 7: SSR Rendering - Render server-side components
+    tracker?.step('SSR_RENDER_START', 'Rendering server-side components')
+    devLog('[InvitePage SSR] 🎨 SSR RENDERING: Starting server-side component rendering', {
+      slug,
+      hasConfig: !!initialConfig,
+      hasTiles: !!(initialConfig?.tiles && initialConfig.tiles.length > 0),
+    })
 
-  if (initialConfig?.tiles && initialConfig.tiles.length > 0) {
-    // Find image or greeting-card tile (first enabled tile with a src)
-    const imageTile = initialConfig.tiles.find(
-      (t: Tile) => (t.type === 'image' || t.type === 'design') && t.enabled !== false && (t.settings as any)?.src
-    ) as Tile | undefined
+    // Extract hero tiles (image + title overlay if exists) and event details for SSR
+    let heroSSR: React.ReactNode = null
+    let titleSSR: React.ReactNode = null
+    let eventDetailsSSR: React.ReactNode = null
+    const theme = getTheme(initialConfig?.themeId || 'classic-noir')
+    const backgroundColor = initialConfig?.customColors?.backgroundColor ?? theme.palette.bg
 
-    // Find title tile that overlays on image
-    const overlayTitleTile = imageTile ? initialConfig.tiles.find(
-      (t: Tile) => t.type === 'title' && t.enabled && t.overlayTargetId === imageTile.id
-    ) as Tile | undefined : null
+    if (initialConfig?.tiles && initialConfig.tiles.length > 0) {
+      // Find image or greeting-card tile (first enabled tile with a src)
+      const imageTile = initialConfig.tiles.find(
+        (t: Tile) => (t.type === 'image' || t.type === 'design') && t.enabled !== false && (t.settings as any)?.src
+      ) as Tile | undefined
 
-    // Find standalone title tile (not overlaying on any image)
-    const standaloneTitleTile = initialConfig.tiles.find(
-      (t: Tile) => t.type === 'title' && t.enabled && !t.overlayTargetId
-    ) as Tile | undefined
+      // Find title tile that overlays on image
+      const overlayTitleTile = imageTile ? initialConfig.tiles.find(
+        (t: Tile) => t.type === 'title' && t.enabled && t.overlayTargetId === imageTile.id
+      ) as Tile | undefined : null
 
-    // Find event details tile (first enabled)
-    const eventDetailsTile = initialConfig.tiles.find(
-      (t: Tile) => t.type === 'event-details' && t.enabled
-    ) as Tile | undefined
+      // Find standalone title tile (not overlaying on any image)
+      const standaloneTitleTile = initialConfig.tiles.find(
+        (t: Tile) => t.type === 'title' && t.enabled && !t.overlayTargetId
+      ) as Tile | undefined
 
-    // Render hero section server-side (image or greeting-card with overlay title)
-    if (imageTile) {
-      const imageSettings = imageTile.settings as any
-      heroSSR = (
-        <div className="w-full relative">
-          {imageTile.type === 'design' ? (
-            <DesignTileSSR
-              settings={imageSettings}
-              hasTitleOverlay={!!overlayTitleTile}
-            />
-          ) : (
-            <ImageTileSSR
-              settings={imageSettings}
-              hasTitleOverlay={!!overlayTitleTile}
-            />
-          )}
-          {overlayTitleTile && (
-            <TitleTileSSR settings={overlayTitleTile.settings as any} overlayMode={true} />
-          )}
-        </div>
-      )
+      // Find event details tile (first enabled)
+      const eventDetailsTile = initialConfig.tiles.find(
+        (t: Tile) => t.type === 'event-details' && t.enabled
+      ) as Tile | undefined
+
+      // Render hero section server-side (image or greeting-card with overlay title)
+      if (imageTile) {
+        const imageSettings = imageTile.settings as any
+        heroSSR = (
+          <div className="w-full relative">
+            {imageTile.type === 'design' ? (
+              <DesignTileSSR
+                settings={imageSettings}
+                hasTitleOverlay={!!overlayTitleTile}
+              />
+            ) : (
+              <ImageTileSSR
+                settings={imageSettings}
+                hasTitleOverlay={!!overlayTitleTile}
+              />
+            )}
+            {overlayTitleTile && (
+              <TitleTileSSR settings={overlayTitleTile.settings as any} overlayMode={true} />
+            )}
+          </div>
+        )
+      }
+
+      // Don't render standalone title or event-details server-side
+      // Let them render client-side so they respect the order field
+      // Only render hero (image with overlay title) server-side for SEO
     }
 
-    // Don't render standalone title or event-details server-side
-    // Let them render client-side so they respect the order field
-    // Only render hero (image with overlay title) server-side for SEO
-  }
-  
-  tracker?.step('SSR_RENDER_COMPLETE', 'Server-side components rendered')
-  devLog('[InvitePage SSR] ✅ SSR RENDERING: Server-side rendering complete', {
-    slug,
-    hasHeroSSR: !!heroSSR,
-    hasEventDetailsSSR: !!eventDetailsSSR,
-  })
+    tracker?.step('SSR_RENDER_COMPLETE', 'Server-side components rendered')
+    devLog('[InvitePage SSR] ✅ SSR RENDERING: Server-side rendering complete', {
+      slug,
+      hasHeroSSR: !!heroSSR,
+      hasEventDetailsSSR: !!eventDetailsSSR,
+    })
 
     // STEP 8: Final Assembly - Prepare props for client component
     tracker?.step('FINAL_ASSEMBLY_START', 'Assembling final component props')
@@ -1301,16 +1306,16 @@ export default async function InvitePage({
 
     // Extract allowed_sub_events from invite data
     const allowedSubEvents = inviteData?.allowed_sub_events || []
-    
+
     tracker?.step('FINAL_ASSEMBLY_COMPLETE', 'Client component props ready')
     tracker?.step('RENDER_COMPLETE', 'Server-side render complete, returning JSX')
-    
+
     // STEP 9: Final Render - Return JSX to Next.js
     devLog('[InvitePage SSR] 🎯 RENDERING: Returning JSX to Next.js', {
       slug,
       totalSteps: tracker ? tracker.getSummary().steps.length : 0,
     })
-    
+
     if (tracker) {
       tracker.logSummary('PAGE RENDER')
       devLog('[InvitePage SSR] ====== PAGE RENDER COMPLETE ======', {
@@ -1343,7 +1348,7 @@ export default async function InvitePage({
     // STEP X: Unexpected Error - Catch any unexpected errors during SSR
     tracker?.step('UNEXPECTED_ERROR', 'Unexpected error caught')
     const elapsed = tracker ? tracker.getSummary().totalDuration : Date.now() - startTime
-    
+
     console.error('[InvitePage SSR] 💥 UNEXPECTED ERROR: Exception during SSR', {
       slug,
       error: error.message,
@@ -1353,11 +1358,11 @@ export default async function InvitePage({
       errorString: String(error),
       errorKeys: error ? Object.keys(error) : [],
     })
-    
+
     if (tracker) {
       tracker.logSummary('PAGE RENDER (ERROR)')
     }
-    
+
     // Try to parse error message if it's JSON
     let errorDetails: any = null
     try {
@@ -1371,7 +1376,7 @@ export default async function InvitePage({
         stack: error.stack,
       }
     }
-    
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <div className="text-center">

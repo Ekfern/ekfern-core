@@ -287,7 +287,26 @@ export interface Tile {
   settings: TileSettings
   overlayTargetId?: string // If set, this title tile overlays on top of the target tile (image)
 }
+export type InviteElementType =
+  | 'party-popper'
 
+export type InviteElementPlacement =
+  | 'whole-page'
+  | 'top'
+  | 'bottom'
+  | 'corners'
+
+export type InviteElementAnimation =
+  | 'none'
+  | 'pop'
+
+export interface InviteElement {
+  id: string
+  type: InviteElementType
+  placement: InviteElementPlacement
+  animation: InviteElementAnimation
+  enabled: boolean
+}
 export interface InviteConfig {
   themeId: string
   // id of the InvitePageLayout this config was last cloned from (via applyLayout).
@@ -336,6 +355,8 @@ export interface InviteConfig {
   animations?: {
     envelope?: boolean // Enable/disable envelope opening animation (default: true)
   } | null
+  // Decorative elements layered over the invitation page
+  elements?: InviteElement[] | null
   // Link preview metadata (Open Graph, Twitter Cards, WhatsApp)
   linkMetadata?: LinkMetadata | null
   // RSVP form configuration (host-managed)
@@ -373,6 +394,7 @@ export interface InviteConfig {
     lat?: number
     lng?: number
   }
+
 }
 
 export interface InvitePage {

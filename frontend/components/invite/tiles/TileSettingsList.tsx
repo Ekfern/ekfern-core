@@ -22,15 +22,15 @@ import SortableTileSettings from './SortableTileSettings'
 
 // All available tile types with descriptions for the picker
 const TILE_CATALOG: { type: TileType; label: string; description: string }[] = [
-  { type: 'title',           label: 'Title',           description: 'Your event name and subtitle' },
-  { type: 'image',           label: 'Image',           description: 'A hero photo or banner image' },
-  { type: 'design',          label: 'Design',           description: 'A 9:16 card with photo, gradient, and text overlays' },
-  { type: 'event-details',   label: 'Event Details',   description: 'Date, time, and location' },
-  { type: 'description',     label: 'Description',     description: 'A message or story about your event' },
-  { type: 'timer',           label: 'Timer',           description: 'Countdown clock to your event' },
+  { type: 'title', label: 'Title', description: 'Your event name and subtitle' },
+  { type: 'image', label: 'Image', description: 'A hero photo or banner image' },
+  { type: 'design', label: 'Design', description: 'A 9:16 card with photo, gradient, and text overlays' },
+  { type: 'event-details', label: 'Event Details', description: 'Date, time, and location' },
+  { type: 'description', label: 'Description', description: 'A message or story about your event' },
+  { type: 'timer', label: 'Timer', description: 'Countdown clock to your event' },
   { type: 'feature-buttons', label: 'Feature Buttons', description: 'RSVP and catalog links' },
-  { type: 'event-carousel',  label: 'Event Carousel',  description: 'Showcase multiple sub-events' },
-  { type: 'footer',          label: 'Footer',          description: 'Closing note and contact info' },
+  { type: 'event-carousel', label: 'Event Carousel', description: 'Showcase multiple sub-events' },
+  { type: 'footer', label: 'Footer', description: 'Closing note and contact info' },
 ]
 
 interface TileSettingsListProps {
@@ -40,6 +40,7 @@ interface TileSettingsListProps {
   onToggle: (tileId: string, enabled: boolean) => void
   onOverlayToggle?: (tileId: string, targetTileId: string | undefined) => void
   onAddTile?: (type: TileType) => void
+  onOpenElements?: () => void
   onRemoveTile?: (tileId: string) => void
   eventId: number
   hasRsvp?: boolean
@@ -58,6 +59,7 @@ export default function TileSettingsList({
   onUpdate,
   onToggle,
   onAddTile,
+  onOpenElements,
   onRemoveTile,
   eventId,
   hasRsvp = false,
@@ -186,6 +188,28 @@ export default function TileSettingsList({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          {onOpenElements && (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={onOpenElements}
+                className="w-full flex items-center gap-3 border border-gray-200 rounded-lg bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+              >
+                <span className="flex items-center justify-center w-8 h-8 rounded-md bg-eco-green-light/20 text-eco-green">
+                  ✨
+                </span>
+
+                <div>
+                  <p className="text-sm font-medium text-gray-800">
+                    Elements
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Add decorative elements to your invitation
+                  </p>
+                </div>
+              </button>
             </div>
           )}
         </div>

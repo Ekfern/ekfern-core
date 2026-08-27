@@ -7,6 +7,7 @@ import { getTheme } from '@/lib/invite/themes'
 import LivingPosterPage from '@/components/invite/living-poster/LivingPosterPage'
 import { logError, logDebug } from '@/lib/error-handler'
 import api from '@/lib/api'
+import ElementsLayer from '@/components/invite/elements/ElementsLayer'
 import TextureOverlay from '@/components/invite/living-poster/TextureOverlay'
 import EnvelopeAnimation from '@/components/invite/EnvelopeAnimation'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
@@ -51,9 +52,9 @@ interface InvitePageClientProps {
   allowedSubEvents?: any[]
 }
 
-export default function InvitePageClient({ 
-  slug, 
-  initialEvent = null, 
+export default function InvitePageClient({
+  slug,
+  initialEvent = null,
   initialConfig = null,
   heroSSR = null,
   titleSSR = null,
@@ -63,10 +64,10 @@ export default function InvitePageClient({
   // Extract guest token from URL (most efficient - no state/effects needed)
   const searchParams = useSearchParams()
   const guestToken = searchParams.get('g') || searchParams.get('token')
-  
+
   // Client-side lifecycle tracking
   const clientStartTime = typeof window !== 'undefined' ? Date.now() : 0
-  
+
   // Log component mount/hydration
   if (typeof window !== 'undefined') {
     devLog('[InvitePageClient] ====== CLIENT COMPONENT MOUNT ======', {
@@ -80,7 +81,7 @@ export default function InvitePageClient({
       windowLocation: window.location.href,
     })
   }
-  
+
   const [event, setEvent] = useState<Event | null>(initialEvent)
   const [config, setConfig] = useState<InviteConfig | null>(initialConfig)
   const [loading, setLoading] = useState(!initialConfig)
@@ -89,7 +90,7 @@ export default function InvitePageClient({
   // Set when the invite has been pulled back (unpublished). Polling keeps running so
   // the page automatically flips back to live once the host re-publishes.
   const [comingSoon, setComingSoon] = useState<{ title?: string; showBranding: boolean } | null>(null)
-  
+
   // DEBUG: Log initial config order when invite page loads
   useEffect(() => {
     if (initialConfig?.tiles && typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -112,18 +113,18 @@ export default function InvitePageClient({
       })
     }
   }, [initialConfig])
-  
+
   // Always show animation on initial load (EnvelopeAnimation checks per-slug localStorage to skip repeats)
   // Animation should be the FIRST thing users see
   const [showEnvelopeAnimation, setShowEnvelopeAnimation] = useState(true)
-  
+
   // Memoize the animation complete callback to prevent unnecessary re-renders
   // and ensure stable reference for EnvelopeAnimation component
   const handleAnimationComplete = useCallback(() => {
     setShowEnvelopeAnimation(false)
     devLog('[InvitePageClient] ✨ Envelope animation completed')
   }, [])
-  
+
   // Log initial state
   if (typeof window !== 'undefined') {
     devLog('[InvitePageClient] 📦 STATE: Initial state set', {
@@ -149,12 +150,12 @@ export default function InvitePageClient({
         console.error('[InvitePageClient] Invalid slug:', slug)
         throw new Error('Invalid slug provided')
       }
-      
+
       // Extract guest token and preview flag from URL
       const urlParams = new URLSearchParams(window.location.search)
       const guestToken = urlParams.get('g')
       const isPreview = urlParams.get('preview') === 'true'
-      
+
       // Build query parameters
       const queryParams = new URLSearchParams()
       if (guestToken) {
@@ -169,18 +170,18 @@ export default function InvitePageClient({
       // instead of up-to-5-min-stale CDN data.
       queryParams.append('_ts', Date.now().toString())
       const queryString = queryParams.toString()
-      
+
       // ALWAYS use the public invite endpoint with slug (never event ID)
       const inviteUrl = queryString
         ? `/api/events/invite/${slug}/?${queryString}`
         : `/api/events/invite/${slug}/`
-      
+
       // Validate URL format - must use /api/events/invite/{slug}/ pattern
       if (!inviteUrl.startsWith('/api/events/invite/')) {
         console.error('[InvitePageClient] Invalid invite URL format:', inviteUrl)
         throw new Error('Invalid invite URL format - must use /api/events/invite/{slug}/')
       }
-      
+
       devLog('[InvitePageClient] 📡 CLIENT COMMUNICATION: Fetching invite data', {
         slug,
         inviteUrl,
@@ -189,14 +190,14 @@ export default function InvitePageClient({
         guestToken: guestToken ? 'present' : 'none',
         timestamp: new Date().toISOString(),
       })
-      
+
       const apiCallStart = Date.now()
       // Use _ts cache-busting only (no Cache-Control request headers): custom headers
       // trigger a CORS preflight that fails unless the API allows them explicitly.
       const response = await api.get(inviteUrl)
       const apiCallEnd = Date.now()
       const inviteData = response.data
-      
+
       devLog('[InvitePageClient] ✅ CLIENT COMMUNICATION: API call succeeded', {
         slug,
         duration: `${apiCallEnd - apiCallStart}ms`,
@@ -214,19 +215,19 @@ export default function InvitePageClient({
       }
       // Live again (or normal live page) — clear any prior coming-soon state.
       setComingSoon(null)
-      
+
       // Extract event data and allowed_sub_events
       const dataProcessingStart = Date.now()
       devLog('[InvitePageClient] 🔄 CLIENT DATA PROCESSING: Processing response data', {
         slug,
         timestamp: new Date().toISOString(),
       })
-      
+
       const eventData = {
         ...inviteData,
         page_config: inviteData.config,
       }
-      
+
       if (inviteData.allowed_sub_events) {
         setSubEvents(inviteData.allowed_sub_events)
         devLog('[InvitePageClient] ✅ CLIENT DATA PROCESSING: Sub-events set', {
@@ -251,7 +252,7 @@ export default function InvitePageClient({
             customColors = eventData.page_config.customColors
           }
         }
-        
+
         // Preserve all config properties including pageBorder and pageFrame
         const configWithCustomColors = {
           ...eventData.page_config,
@@ -260,16 +261,16 @@ export default function InvitePageClient({
           ...(eventData.page_config.pageFrame && { pageFrame: eventData.page_config.pageFrame }),
           ...(eventData.page_config.cornerDecorations && { cornerDecorations: eventData.page_config.cornerDecorations }),
         }
-        
+
         // Debug: Log image tile settings when loading public page
         const imageTile = configWithCustomColors.tiles?.find((t: any) => t.type === 'image' || t.type === 'design')
         if (imageTile) {
           logDebug('[Public Invite Page] Image tile loaded')
         }
-        
+
         setEvent(eventData)
         setConfig(configWithCustomColors)
-        
+
         const dataProcessingEnd = Date.now()
         devLog('[InvitePageClient] ✅ CLIENT DATA PROCESSING: Config processed and state updated', {
           slug,
@@ -299,15 +300,15 @@ export default function InvitePageClient({
                 eventData.catalog_show_on_event_page,
               )
                 ? [
-                    {
-                      label: getCatalogButtonLabel(
-                        eventData.catalog_title,
-                        eventData.catalog_purpose || 'general',
-                      ) as 'Gift Catalog',
-                      action: 'registry' as const,
-                      href: catalogUrl(slug, { source: 'invite' }),
-                    },
-                  ]
+                  {
+                    label: getCatalogButtonLabel(
+                      eventData.catalog_title,
+                      eventData.catalog_purpose || 'general',
+                    ) as 'Gift Catalog',
+                    action: 'registry' as const,
+                    href: catalogUrl(slug, { source: 'invite' }),
+                  },
+                ]
                 : []),
             ],
           },
@@ -315,7 +316,7 @@ export default function InvitePageClient({
         }
         setEvent(eventData)
         setConfig(fallbackConfig)
-        
+
         const dataProcessingEnd = Date.now()
         devLog('[InvitePageClient] ✅ CLIENT DATA PROCESSING: Fallback config created and state updated', {
           slug,
@@ -333,7 +334,7 @@ export default function InvitePageClient({
         errorType: error.name,
         timestamp: new Date().toISOString(),
       })
-      
+
       // Capture FULL error details for display
       const fullErrorDetails = {
         type: 'CLIENT_FETCH_ERROR',
@@ -351,10 +352,10 @@ export default function InvitePageClient({
         stack: error.stack,
         headers: error.response?.headers,
       }
-      
+
       console.error('[InvitePageClient] Failed to fetch invite:', fullErrorDetails)
       logError('Failed to fetch invite:', error)
-      
+
       // Set error state with full details
       setError(fullErrorDetails)
       setLoading(false)
@@ -372,7 +373,7 @@ export default function InvitePageClient({
       timestamp: new Date().toISOString(),
       elapsedSinceMount: effectStartTime - clientStartTime,
     })
-    
+
     // Always fetch latest config from API. SSR/ISR may serve stale page_config (revalidate=300)
     // even after save/publish; background refresh ensures new tiles (e.g. description) appear.
     devLog('[InvitePageClient] 📡 CLIENT EFFECT: Refreshing invite config from API', {
@@ -388,23 +389,23 @@ export default function InvitePageClient({
   // This must be after fetchInvite is declared
   useEffect(() => {
     if (typeof window === 'undefined') return
-    
+
     // Check if we should listen for updates:
     // 1. Preview mode (always listen)
     // 2. User is authenticated (likely the host viewing their own page)
     const urlParams = new URLSearchParams(window.location.search)
     const isPreview = urlParams.get('preview') === 'true'
     const isAuthenticated = typeof localStorage !== 'undefined' && !!localStorage.getItem('access_token')
-    
+
     // Only listen if in preview mode or user is authenticated (host viewing their page)
     if (!isPreview && !isAuthenticated) {
       return // Guest viewers don't need BroadcastChannel updates (they use polling)
     }
-    
+
     // Use slug-based channel name for targeted updates (industry standard)
     const channelName = `invite-${slug}-updates`
     const channel = new BroadcastChannel(channelName)
-    
+
     const handleMessage = (event: MessageEvent) => {
       // Check if message is to refresh the invite page
       if (event.data?.type === 'REFRESH_INVITE_PAGE' && event.data?.slug === slug) {
@@ -417,7 +418,7 @@ export default function InvitePageClient({
         fetchInvite()
       }
     }
-    
+
     channel.addEventListener('message', handleMessage)
     return () => {
       channel.removeEventListener('message', handleMessage)
@@ -428,21 +429,21 @@ export default function InvitePageClient({
   // Smart polling for guests (industry standard: 30 seconds, only when page visible)
   useEffect(() => {
     if (typeof window === 'undefined') return
-    
+
     const urlParams = new URLSearchParams(window.location.search)
     const isPreview = urlParams.get('preview') === 'true'
     const isAuthenticated = typeof localStorage !== 'undefined' && !!localStorage.getItem('access_token')
-    
+
     // Don't poll if in preview mode or authenticated (they get BroadcastChannel updates)
     if (isPreview || isAuthenticated) return
-    
+
     // Smart polling (industry standard: 15 seconds for faster updates, only when visible)
     let pollInterval: NodeJS.Timeout | null = null
     let lastCheck = Date.now()
-    
+
     const startPolling = () => {
       if (pollInterval) return // Already polling
-      
+
       // Poll every 15 seconds for faster updates (industry standard: 10-60 seconds)
       pollInterval = setInterval(() => {
         // Only poll if page is visible (saves bandwidth)
@@ -457,19 +458,19 @@ export default function InvitePageClient({
         }
       }, 15000) // 15 seconds for faster updates
     }
-    
+
     const stopPolling = () => {
       if (pollInterval) {
         clearInterval(pollInterval)
         pollInterval = null
       }
     }
-    
+
     // Start polling when page is visible
     if (document.visibilityState === 'visible') {
       startPolling()
     }
-    
+
     // Handle visibility changes (industry standard)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -478,9 +479,9 @@ export default function InvitePageClient({
         stopPolling()
       }
     }
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    
+
     return () => {
       stopPolling()
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -501,7 +502,7 @@ export default function InvitePageClient({
       hasBorder: config?.pageBorder?.enabled,
       timestamp: new Date().toISOString(),
     })
-    
+
     // If border is enabled, use a contrasting color for body background so border is visible
     // Otherwise use the page background (solid color or gradient)
     const bodyBackground = config?.pageBorder?.enabled ? '#f5f5f5' : pageBackground
@@ -539,7 +540,7 @@ export default function InvitePageClient({
       timestamp: new Date().toISOString(),
       elapsedSinceMount: Date.now() - clientStartTime,
     })
-    
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <div className="text-center">
@@ -558,10 +559,10 @@ export default function InvitePageClient({
       timestamp: new Date().toISOString(),
       elapsedSinceMount: Date.now() - clientStartTime,
     })
-    
+
     // Get animation config from initialConfig if available, default to enabled
     const animationEnabled = initialConfig?.animations?.envelope !== false
-    
+
     return (
       <EnvelopeAnimation
         showAnimation={true}
@@ -585,7 +586,7 @@ export default function InvitePageClient({
       timestamp: new Date().toISOString(),
       elapsedSinceMount: Date.now() - clientStartTime,
     })
-    
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -605,7 +606,7 @@ export default function InvitePageClient({
     timestamp: new Date().toISOString(),
     elapsedSinceMount: Date.now() - clientStartTime,
   })
-  
+
   const configForClient = heroSSR ? {
     ...config,
     tiles: config.tiles?.filter((tile) => {
@@ -621,7 +622,7 @@ export default function InvitePageClient({
       return true
     }) || []
   } : config
-  
+
   // DEBUG: Log filtered config after SSR filtering
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     console.log('[TILE ORDER DEBUG] Config after SSR filtering:', {
@@ -648,9 +649,9 @@ export default function InvitePageClient({
         enabled: t.enabled,
         order: t.order,
         reason: heroSSR && (t.type === 'image' || t.type === 'design') ? 'heroSSR' :
-                heroSSR && t.type === 'title' && t.overlayTargetId ? 'overlayTitleSSR' :
-                titleSSR && t.type === 'title' && !t.overlayTargetId ? 'titleSSR' :
-                eventDetailsSSR && t.type === 'event-details' ? 'eventDetailsSSR' : 'unknown'
+          heroSSR && t.type === 'title' && t.overlayTargetId ? 'overlayTitleSSR' :
+            titleSSR && t.type === 'title' && !t.overlayTargetId ? 'titleSSR' :
+              eventDetailsSSR && t.type === 'event-details' ? 'eventDetailsSSR' : 'unknown'
       })),
     })
   }
@@ -664,7 +665,7 @@ export default function InvitePageClient({
     totalElapsed: `${renderTime - clientStartTime}ms`,
     timestamp: new Date().toISOString(),
   })
-  
+
   devLog('[InvitePageClient] ====== CLIENT COMPONENT RENDER COMPLETE ======', {
     slug,
     totalDuration: renderTime - clientStartTime,
@@ -683,23 +684,23 @@ export default function InvitePageClient({
       enabled: config?.pageBorder?.enabled,
       fullConfig: config,
     })
-    
-    
+
+
     if (!config.pageBorder?.enabled) {
-      return { 
-        border: undefined, 
-        boxShadow: undefined, 
+      return {
+        border: undefined,
+        boxShadow: undefined,
         outline: undefined,
         outlineOffset: undefined,
         padding: undefined,
       }
     }
-    
+
     const borderStyle = config.pageBorder!.style || 'solid'
     const borderColor = config.pageBorder!.color || '#D1D5DB'
     const borderWidth = config.pageBorder!.width || 2
     const paddingSize = Math.max(borderWidth + 8, 12) // Padding to create space for border
-    
+
     devLog('[InvitePageClient] 🎨 Page Border Enabled - Applying Styles', {
       enabled: config.pageBorder!.enabled,
       style: borderStyle,
@@ -707,7 +708,7 @@ export default function InvitePageClient({
       width: borderWidth,
       paddingSize,
     })
-    
+
     // For intaglio (decorative), use a special pattern with box-shadow
     if (borderStyle === 'intaglio') {
       return {
@@ -718,7 +719,7 @@ export default function InvitePageClient({
         padding: `${paddingSize}px`,
       }
     }
-    
+
     // For standard CSS border styles, use border with padding
     // Note: outline doesn't support all border styles, so we use border
     return {
@@ -742,18 +743,18 @@ export default function InvitePageClient({
     >
       {hasBorder ? (
         // Container with border and padding
-        <div 
+        <div
           className="relative w-full min-h-screen"
           style={{
             backgroundColor: '#f5f5f5', // Light gray background to show border
             padding: borderStyle.padding,
           } as React.CSSProperties}
         >
-          <div 
+          <div
             className="relative overflow-x-hidden w-full"
             style={{
               background: pageBackground,
-              minHeight: '100vh', 
+              minHeight: '100vh',
               height: 'auto',
               border: borderStyle.border,
               boxShadow: borderStyle.boxShadow,
@@ -789,6 +790,9 @@ export default function InvitePageClient({
               guestToken={guestToken}
               rsvpCount={event?.rsvp_count}
             />
+
+            <ElementsLayer elements={configForClient.elements} />
+            
             {/* Branding component at the bottom */}
             {(event?.show_branding ?? true) && <PoweredByBranding />}
           </div>

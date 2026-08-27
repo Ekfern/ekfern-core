@@ -1,9 +1,11 @@
 'use client'
 
+import ElementsLayer from '@/components/invite/elements/ElementsLayer'
 import { ChevronDown } from "lucide-react";
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useParams, useRouter } from 'next/navigation'
+import ElementsSettings from '@/components/invite/elements/ElementsSettings'
 import Link from 'next/link'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
@@ -13,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import PublishModal from '@/components/invite/PublishModal'
 import ImageCropModal from '@/components/invite/ImageCropModal'
 import api, { uploadImage } from '@/lib/api'
-import { InviteConfig, Tile, TileType, InvitePage } from '@/lib/invite/schema'
+import { InviteConfig, Tile, TileType, InvitePage, InviteElement } from '@/lib/invite/schema'
 import { InvitePageState, getInvitePageState } from '@/lib/invite/types'
 import { updateEventPageConfig, getEventPageConfig } from '@/lib/event/api'
 import { getInvitePageLayouts } from '@/lib/invite/api'
@@ -273,6 +275,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const [layoutsLoading, setLayoutsLoading] = useState(true)
   const [showScrollHint, setShowScrollHint] = useState(true);
   const [showInviteBanner, setShowInviteBanner] = useState(true)
+  const [showElements, setShowElements] = useState(false)
 
 
   // Fetch invite page layouts from API (single source of truth)
@@ -863,6 +866,7 @@ export default function DesignInvitationPage(): JSX.Element {
       ...(config.rsvpForm && { rsvpForm: config.rsvpForm }),
       ...(config.tileSetComplete !== undefined && { tileSetComplete: config.tileSetComplete }),
       ...(config.animations !== undefined && { animations: config.animations }),
+      ...(config.elements !== undefined && { elements: config.elements }),
       // Not editable here — just carried through so the Layout step can still
       // find it after a Page Editor save. This endpoint replaces page_config
       // wholesale (see backend update_design), so any field missing from this
@@ -901,6 +905,7 @@ export default function DesignInvitationPage(): JSX.Element {
         rsvpForm: configToSave.rsvpForm ?? null,
         tileSetComplete: configToSave.tileSetComplete ?? null,
         animations: configToSave.animations ?? null,
+        elements: configToSave.elements ?? null,
       }
       const response = await api.put(`/api/events/${eventId}/design/`, {
         page_config: wirePayload,
@@ -1371,6 +1376,15 @@ export default function DesignInvitationPage(): JSX.Element {
     setConfig(prev => ({
       ...prev,
       tiles: prev.tiles?.map(t => t.id === updatedTile.id ? updatedTile : t) || [],
+    }))
+  }
+
+  const handleAddElement = (element: InviteElement) => {
+    pushHistory()
+
+    setConfig(prev => ({
+      ...prev,
+      elements: [...(prev.elements ?? []), element],
     }))
   }
 
@@ -2720,6 +2734,7 @@ export default function DesignInvitationPage(): JSX.Element {
               </div>
               {sortedTiles && sortedTiles.length > 0 ? (
                 <TileSettingsList
+                  onOpenElements={() => setShowElements(true)}
                   tiles={sortedTiles}
                   onReorder={handleTileReorder}
                   onUpdate={handleTileUpdate}
@@ -2735,6 +2750,12 @@ export default function DesignInvitationPage(): JSX.Element {
                 />
               ) : (
                 <p className="text-gray-500 text-sm">No tiles available</p>
+              )}
+              {showElements && (
+                <ElementsSettings
+                  elements={config.elements}
+                  onAddElement={handleAddElement}
+                />
               )}
             </div>
             <div
@@ -2858,6 +2879,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                 </div>
                               )}
                             </div>
+                            <ElementsLayer elements={config.elements} />
                             {/* Home Indicator (iPhone 16) */}
                             <div
                               className="absolute left-1/2 transform -translate-x-1/2 bg-gray-800 rounded-full z-10"
