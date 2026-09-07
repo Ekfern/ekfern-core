@@ -334,7 +334,7 @@ export default function GalleryTile({ settings, tileId }: GalleryTileProps) {
 
     if (!isPile) {
       return (
-        <section ref={sectionRef} className="w-full px-4 py-2" aria-label="Photo gallery">
+        <section ref={sectionRef} className="w-full px-4" aria-label="Photo gallery">
           {header}
           <div
             className="mx-auto flex flex-col items-center"
@@ -425,7 +425,7 @@ export default function GalleryTile({ settings, tileId }: GalleryTileProps) {
   // Grid: a row that fills, then wraps, centred at every count - so one photo
   // sits in the middle and five leave a centred pair rather than a hole.
   return (
-    <section ref={sectionRef} className="w-full px-4 py-2" aria-label="Photo gallery">
+    <section ref={sectionRef} className="w-full px-4" aria-label="Photo gallery">
       {header}
       <div
         className="mx-auto flex flex-wrap justify-center"

@@ -53,7 +53,7 @@ export default function TitleTileSSR({ settings, overlayMode = false }: TitleTil
 
   return (
     <div
-      className={`w-full py-10 px-6 ${textAlignClass} flex flex-col ${alignItemsClass} justify-center`}
+      className={`w-full px-6 ${textAlignClass} flex flex-col ${alignItemsClass} justify-center`}
       style={{ color: 'var(--theme-fg)' }}
     >
       {eyebrow && (

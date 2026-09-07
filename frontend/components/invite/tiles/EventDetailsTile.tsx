@@ -322,7 +322,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
     return (
       <div
-        className={`w-full py-12 px-6 ${textAlignClass}`}
+        className={`w-full px-6 ${textAlignClass}`}
         style={wrapperStyle}
       >
         <div className={`max-w-2xl ${marginClass}`}>

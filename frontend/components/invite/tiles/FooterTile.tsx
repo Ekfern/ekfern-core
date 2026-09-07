@@ -41,7 +41,7 @@ export default function FooterTile({ settings, preview = false }: FooterTileProp
   if (preview) {
     return (
       <div
-        className={`w-full py-6 px-4 text-center ${divider === 'hairline' ? 'border-t border-current/10' : ''}`}
+        className={`w-full px-4 text-center ${divider === 'hairline' ? 'border-t border-current/10' : ''}`}
       >
         {divider === 'symbol' && (
           <p aria-hidden className="mb-3" style={recipe('caption')}>

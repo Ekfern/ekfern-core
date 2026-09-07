@@ -121,7 +121,7 @@ export default function FeatureButtonsTile({
       return (
         <>
           {styleTag}
-          <div className="w-full py-8 px-4">{buttonsRow}</div>
+          <div className="w-full px-4">{buttonsRow}</div>
         </>
       )
     }
@@ -129,7 +129,7 @@ export default function FeatureButtonsTile({
     return (
       <>
         {styleTag}
-        <div className="w-full py-8 px-4 flex justify-center">
+        <div className="w-full px-4 flex justify-center">
           <div className="w-full max-w-sm" style={cardWrapperStyle}>
             {settings.ctaCardLabel && (
               <p

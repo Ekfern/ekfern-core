@@ -692,7 +692,7 @@ export default function EventCarouselTile({
 
   // Responsive container classes
   const getContainerClasses = useCallback(() => {
-    const base = 'w-full py-8'
+    const base = 'w-full'
     const currentLayout = normalizedSettings.cardLayout || 'centered'
     const layoutClasses: Record<string, string> = {
       'full-width': 'px-2 sm:px-4',

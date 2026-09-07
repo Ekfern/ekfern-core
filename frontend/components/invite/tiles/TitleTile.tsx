@@ -38,7 +38,7 @@ export default function TitleTile({ settings, preview = false }: TitleTileProps)
   if (preview) {
     return (
       <div
-        className={`w-full py-10 px-6 ${textAlignClass} flex flex-col ${alignItemsClass} justify-center`}
+        className={`w-full px-6 ${textAlignClass} flex flex-col ${alignItemsClass} justify-center`}
         style={{ color: 'var(--theme-fg)' }}
       >
         {eyebrow && (

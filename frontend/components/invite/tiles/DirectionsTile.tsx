@@ -106,7 +106,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
   return (
     <section
       ref={sectionRef}
-      className="w-full px-4 py-3"
+      className="w-full px-4"
       style={{ ...recipe('body'), color: 'var(--theme-fg)', textAlign }}
     >
       {/* The same kicker the title and the gallery use. It used to set its own

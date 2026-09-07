@@ -159,7 +159,7 @@ export default function DescriptionTile({ settings, preview = false }: Descripti
     return (
       <>
         <style dangerouslySetInnerHTML={{ __html: styleContent }} />
-        <div className="w-full py-1 px-6" style={{ backgroundColor: 'transparent' }}>
+        <div className="w-full px-6" style={{ backgroundColor: 'transparent' }}>
           <div className={`max-w-2xl ${marginClass} ${textAlignClass}`} style={textStyle}>
           {isHTML ? (
             <div 

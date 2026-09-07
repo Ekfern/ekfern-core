@@ -249,7 +249,7 @@ export default function EventDetailsTileSSR({
 
   return (
     <div
-      className={`w-full pt-8 pb-4 px-6 ${textAlignClass}`}
+      className={`w-full px-6 ${textAlignClass}`}
       style={wrapperStyle}
     >
       <div className={`max-w-2xl ${marginClass}`}>

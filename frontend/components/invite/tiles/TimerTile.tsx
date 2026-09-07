@@ -131,7 +131,7 @@ export default function TimerTile({ settings, preview = false, eventDate, eventT
     )
 
     return (
-      <div className="w-full py-8 px-4 flex flex-col items-center gap-6">
+      <div className="w-full px-4 flex flex-col items-center gap-6">
         <div className="flex items-center justify-center gap-3 md:gap-4 flex-wrap">
           <CircleComponent value={timeRemaining.days} label="DAYS" />
           <CircleComponent value={timeRemaining.hours} label="HOURS" />
