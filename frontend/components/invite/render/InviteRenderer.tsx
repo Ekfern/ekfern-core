@@ -25,6 +25,22 @@ interface InviteRendererProps {
   allowedSubEvents?: any[]
   guestToken?: string | null
   rsvpCount?: number
+  /**
+   * Server-rendered markup for particular tiles, keyed by tile id.
+   *
+   * A tile whose image should be in the initial HTML - the poster, for its
+   * first paint and for link previews - used to be rendered above this list
+   * entirely, because putting server markup above a client component is easier
+   * than putting it inside one. The cost was that the tile stopped having a
+   * position: it was pinned to the top however the host had ordered it, and the
+   * page editor's preview, which renders this list over the whole config,
+   * disagreed with the live invitation.
+   *
+   * Passing the markup in by id keeps it server-rendered and gives it back its
+   * place in the sequence. Absent - the editor preview, layout previews - every
+   * tile renders on the client exactly as before.
+   */
+  ssrTiles?: Record<string, React.ReactNode>
 }
 
 function InviteRendererContent({
@@ -42,6 +58,7 @@ function InviteRendererContent({
   allowedSubEvents = [],
   guestToken,
   rsvpCount,
+  ssrTiles,
 }: InviteRendererProps) {
   const appearance = resolveAppearance(config)
   const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
@@ -133,7 +150,7 @@ function InviteRendererContent({
           16 / 32 / 48px these classes produced. */}
       <div className="flex flex-col" style={{ gap: 'var(--space-section)' }}>
         {sortedTiles.map((tile) => {
-          const tileEl = <TilePreview tile={tile} {...sharedProps} />
+          const tileEl = ssrTiles?.[tile.id] ?? <TilePreview tile={tile} {...sharedProps} />
 
           if (tile.type === 'feature-buttons' && hasRsvp && rsvpCount !== undefined && rsvpCount >= 5) {
             const countColor = appearance.fontColor

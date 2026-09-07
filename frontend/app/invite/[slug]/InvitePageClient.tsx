@@ -45,7 +45,8 @@ interface InvitePageClientProps {
   slug: string
   initialEvent?: Event | null
   initialConfig?: InviteConfig | null
-  heroSSR?: React.ReactNode
+  /** Server-rendered markup for particular tiles, keyed by tile id. */
+  ssrTiles?: Record<string, React.ReactNode>
   titleSSR?: React.ReactNode
   eventDetailsSSR?: React.ReactNode
   allowedSubEvents?: any[]
@@ -55,7 +56,7 @@ export default function InvitePageClient({
   slug, 
   initialEvent = null, 
   initialConfig = null,
-  heroSSR = null,
+  ssrTiles,
   titleSSR = null,
   eventDetailsSSR = null,
   allowedSubEvents = [],
@@ -74,8 +75,7 @@ export default function InvitePageClient({
       slug,
       hasInitialEvent: !!initialEvent,
       hasInitialConfig: !!initialConfig,
-      hasHeroSSR: !!heroSSR,
-      hasEventDetailsSSR: !!eventDetailsSSR,
+      ssrTileCount: ssrTiles ? Object.keys(ssrTiles).length : 0,
       allowedSubEventsCount: allowedSubEvents.length,
       windowLocation: window.location.href,
     })
@@ -597,68 +597,29 @@ export default function InvitePageClient({
   devLog('[InvitePageClient] 🎨 CLIENT RENDER: Preparing final render', {
     slug,
     hasConfig: !!config,
-    hasHeroSSR: !!heroSSR,
-    hasEventDetailsSSR: !!eventDetailsSSR,
+    ssrTileCount: ssrTiles ? Object.keys(ssrTiles).length : 0,
     tilesCount: config.tiles?.length || 0,
     timestamp: new Date().toISOString(),
     elapsedSinceMount: Date.now() - clientStartTime,
   })
   
-  const configForClient = heroSSR ? {
+  // The poster is no longer removed from the list - it keeps its place and the
+  // renderer puts its server markup in that slot. The only tile still dropped
+  // is a title that overlays the poster, which is drawn inside the poster's own
+  // markup and would otherwise appear twice.
+  const hasSsrTiles = !!ssrTiles && Object.keys(ssrTiles).length > 0
+  const configForClient = hasSsrTiles ? {
     ...config,
-    tiles: config.tiles?.filter((tile) => {
-      // Skip image/greeting-card tile if heroSSR is provided
-      if (heroSSR && tile.type === 'poster') {
-        return false
-      }
-      // Skip title tile if it's overlaying on image (heroSSR handles it)
-      if (heroSSR && tile.type === 'title' && tile.overlayTargetId) {
-        return false
-      }
-      // Don't skip standalone title or event-details - let them render client-side in correct order
-      return true
-    }) || []
+    tiles: config.tiles?.filter(
+      (tile) => !(tile.type === 'title' && tile.overlayTargetId),
+    ) || []
   } : config
   
-  // DEBUG: Log filtered config after SSR filtering
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('[TILE ORDER DEBUG] Config after SSR filtering:', {
-      hasHeroSSR: !!heroSSR,
-      hasTitleSSR: !!titleSSR,
-      hasEventDetailsSSR: !!eventDetailsSSR,
-      originalTilesCount: config.tiles?.length || 0,
-      filteredTilesCount: configForClient.tiles?.length || 0,
-      filteredTiles: configForClient.tiles?.map(t => ({
-        id: t.id,
-        type: t.type,
-        enabled: t.enabled,
-        order: t.order,
-      })),
-      removedTiles: config.tiles?.filter(t => {
-        if (heroSSR && t.type === 'poster') return true
-        if (heroSSR && t.type === 'title' && t.overlayTargetId) return true
-        if (titleSSR && t.type === 'title' && !t.overlayTargetId) return true
-        if (eventDetailsSSR && t.type === 'event-details') return true
-        return false
-      }).map(t => ({
-        id: t.id,
-        type: t.type,
-        enabled: t.enabled,
-        order: t.order,
-        reason: heroSSR && t.type === 'poster' ? 'heroSSR' :
-                heroSSR && t.type === 'title' && t.overlayTargetId ? 'overlayTitleSSR' :
-                titleSSR && t.type === 'title' && !t.overlayTargetId ? 'titleSSR' :
-                eventDetailsSSR && t.type === 'event-details' ? 'eventDetailsSSR' : 'unknown'
-      })),
-    })
-  }
-
   const renderTime = Date.now()
   devLog('[InvitePageClient] ✅ CLIENT RENDER: Rendering InviteRenderer', {
     slug,
     hasConfig: !!configForClient,
-    hasHeroSSR: !!heroSSR,
-    hasEventDetailsSSR: !!eventDetailsSSR,
+    ssrTileCount: ssrTiles ? Object.keys(ssrTiles).length : 0,
     totalElapsed: `${renderTime - clientStartTime}ms`,
     timestamp: new Date().toISOString(),
   })
@@ -685,51 +646,121 @@ export default function InvitePageClient({
     
     if (!config.pageBorder?.enabled) {
       return { 
-        border: undefined, 
+        borderWidth: undefined,
+        borderStyle: undefined,
+        borderColor: undefined,
         boxShadow: undefined, 
         outline: undefined,
         outlineOffset: undefined,
-        padding: undefined,
+        matte: undefined,
+        mat: undefined,
       }
     }
     
     const borderStyle = config.pageBorder!.style || 'solid'
     const borderColor = config.pageBorder!.color || '#D1D5DB'
     const borderWidth = config.pageBorder!.width || 2
-    const paddingSize = Math.max(borderWidth + 8, 12) // Padding to create space for border
-    
+
+    /**
+     * A frame is ornament, so it scales with the page it frames.
+     *
+     * These used to be fixed pixels: a 7px rule and a `max(width + 8, 12)`
+     * matte, identical on a 1280px desktop and a 320px phone. Held still while
+     * the page shrank, the same rule reads about three times heavier, and the
+     * decoration ate 32% of a small screen's width - enough to wrap the date
+     * onto two lines. The host's chosen width is now the value at a 1280px
+     * page and everything narrower scales down from it.
+     *
+     * The floor is 2px because the intaglio is band / gap / band at one unit
+     * each: under 2px the gap stops resolving on a non-retina screen and two
+     * crisp lines become one grey smudge. Scaling the unit rather than the
+     * total is what keeps that 1:1:1 ratio intact.
+     */
+    const REFERENCE_PAGE_WIDTH = 1280
+    const scaled = (value: number, floor: number) =>
+      `clamp(${floor}px, ${((value / REFERENCE_PAGE_WIDTH) * 100).toFixed(3)}vw, ${value}px)`
+
+    const rule = scaled(borderWidth, 2)
+
+    // Rhythm owns how much air the page keeps, so the frame's margins answer to
+    // the host's spacing choice (12 / 16 / 24px) rather than to a constant.
+    // `--inset-page` is published by AppearanceProvider, which renders inside
+    // InviteRenderer - below this wrapper - so the value is resolved here in JS
+    // instead of read as a custom property that would not be in scope.
+    const insetPage = resolveAppearance(config).insetPage
+    const insetMatch = /^([\d.]+)rem$/.exec(insetPage.trim())
+    const insetPx = insetMatch ? parseFloat(insetMatch[1]) * 16 : 16
+    // Outside the frame and inside it: a frame with content jammed against it
+    // reads as a crop rather than a border.
+    //
+    // The gap you can see is the mat MINUS the frame, because the frame is
+    // painted inside the same box the padding is measured from.
+    //
+    // Getting that backwards is what produced two rounds of wrong answers: a
+    // 21px mat against a 21px rule left a visible gap of zero, which reads as
+    // touching, and trimming it to 14px put the rule's inner band 7px on top of
+    // the first line of text - the frame draws above the tiles, so the eyebrow
+    // was overpainted rather than clipped. So the mat clears the frame first,
+    // and only then adds the air.
+    const gap = scaled(insetPx, 8)
+    const frameExtent = borderStyle === 'intaglio' ? `calc(${rule} * 3)` : rule
+    // Outside the frame there is nothing to clear, so the matte is just the air.
+    const matte = gap
+    const mat = `calc(${frameExtent} + ${gap})`
+
     devLog('[InvitePageClient] 🎨 Page Border Enabled - Applying Styles', {
       enabled: config.pageBorder!.enabled,
       style: borderStyle,
       color: borderColor,
       width: borderWidth,
-      paddingSize,
+      rule,
+      insetPage,
+      matte,
+      mat,
     })
     
     // For intaglio (decorative), use a special pattern with box-shadow
     if (borderStyle === 'intaglio') {
       return {
-        border: undefined,
-        boxShadow: `inset 0 0 0 ${borderWidth}px ${borderColor}, inset 0 0 0 ${borderWidth * 2}px transparent, inset 0 0 0 ${borderWidth * 3}px ${borderColor}`,
+        borderWidth: undefined,
+        borderStyle: undefined,
+        borderColor: undefined,
+        boxShadow: `inset 0 0 0 ${rule} ${borderColor}, inset 0 0 0 calc(${rule} * 2) transparent, inset 0 0 0 calc(${rule} * 3) ${borderColor}`,
         outline: undefined,
         outlineOffset: undefined,
-        padding: `${paddingSize}px`,
+        matte,
+        mat,
       }
     }
     
-    // For standard CSS border styles, use border with padding
-    // Note: outline doesn't support all border styles, so we use border
+    // For standard CSS border styles, use border with padding.
+    // Longhand rather than the `border` shorthand: the width is a clamp(), and
+    // the shorthand is the fragile place to put a function.
     return {
-      border: `${borderWidth}px ${borderStyle} ${borderColor}`,
+      borderWidth: rule,
+      borderStyle,
+      borderColor,
       boxShadow: undefined,
       outline: undefined,
       outlineOffset: undefined,
-      padding: `${paddingSize}px`,
+      matte,
+      mat,
     }
   }
 
   const borderStyle = getPageBorderStyle()
   const hasBorder = config?.pageBorder?.enabled
+
+  /**
+   * The page's rhythm, published here as well as inside `AppearanceProvider`.
+   *
+   * The provider renders inside `InviteRenderer`, and the SSR hero renders
+   * above it, so anything server-rendered read the token's fallback instead of
+   * this page's actual density - a `tight` page sized its poster as if it were
+   * `normal`. The provider still republishes it for the tiles below; this is
+   * only what the hero can see.
+   */
+  const pageRhythm = resolveAppearance(config).spaceSection
 
   return (
     <EnvelopeAnimation
@@ -744,7 +775,7 @@ export default function InvitePageClient({
           className="relative w-full min-h-screen"
           style={{
             backgroundColor: '#f5f5f5', // Light gray background to show border
-            padding: borderStyle.padding,
+            padding: borderStyle.matte,
           } as React.CSSProperties}
         >
           <div 
@@ -754,12 +785,37 @@ export default function InvitePageClient({
               background: pageBackground,
               minHeight: '100vh', 
               height: 'auto',
-              border: borderStyle.border,
-              boxShadow: borderStyle.boxShadow,
-              outline: borderStyle.outline,
-              outlineOffset: borderStyle.outlineOffset,
+              // The mat. An absolutely positioned `inset: 0` child resolves
+              // against the padding box, so the frame below still draws at this
+              // container's outer edge while the tiles sit in from it.
+              padding: borderStyle.mat,
+              // Published so a tile can subtract it from the screen it has to
+              // fit into. Unbordered pages never set it and the poster's own
+              // `0px` fallback is the right answer there.
+              '--page-mat': borderStyle.mat,
+              '--space-section': pageRhythm,
             } as React.CSSProperties}
           >
+            {/* The frame draws above the tiles, not behind them.
+                It used to live on this container as an `inset` box-shadow, and
+                an inset shadow paints under its own element's content - so the
+                first tile, a full-width poster, covered the band on the top,
+                left and right and the page looked unframed at the fold. A
+                border is the edge of the page; nothing the page contains is
+                in front of it. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                zIndex: 10,
+                borderWidth: borderStyle.borderWidth,
+                borderStyle: borderStyle.borderStyle,
+                borderColor: borderStyle.borderColor,
+                boxShadow: borderStyle.boxShadow,
+                outline: borderStyle.outline,
+                outlineOffset: borderStyle.outlineOffset,
+              } as React.CSSProperties}
+            />
             {/* Texture overlay at page level */}
             <TextureOverlay
               type={config.texture?.type || 'none'}
@@ -768,12 +824,11 @@ export default function InvitePageClient({
               textureBlend={config.texture?.textureBlend}
             />
 
-            {/* Server-rendered hero section (image with overlay title for SEO) */}
-            {heroSSR}
-
-            {/* All other tiles (including title and event-details) render client-side in correct order */}
+            {/* Every tile renders in the host's order; the poster's server
+                markup goes into its own slot rather than above the list. */}
             <InviteRenderer
               config={configForClient}
+              ssrTiles={ssrTiles}
               eventSlug={slug}
               eventDate={event?.date}
               eventTimezone={event?.timezone}
@@ -801,6 +856,7 @@ export default function InvitePageClient({
             background: pageBackground,
             minHeight: 'auto',
             height: 'auto',
+            '--space-section': pageRhythm,
           } as React.CSSProperties}
         >
           {/* Texture overlay at page level */}
@@ -811,12 +867,11 @@ export default function InvitePageClient({
             textureBlend={config.texture?.textureBlend}
           />
 
-          {/* Server-rendered hero section (image with overlay title for SEO) */}
-          {heroSSR}
-
-          {/* All other tiles (including title and event-details) render client-side in correct order */}
+          {/* Every tile renders in the host's order; the poster's server
+              markup goes into its own slot rather than above the list. */}
           <InviteRenderer
             config={configForClient}
+            ssrTiles={ssrTiles}
             eventSlug={slug}
             eventDate={event?.date}
             eventTimezone={event?.timezone}
