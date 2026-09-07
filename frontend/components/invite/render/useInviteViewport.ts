@@ -2,6 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 
+export {
+  INVITE_VIEWPORT_H,
+  INVITE_VIEWPORT_W,
+  INVITE_MEDIA_MAX_WIDTH,
+  INVITE_HERO_MAX_WIDTH,
+  INVITE_HERO_MAX_HEIGHT,
+} from './inviteMediaSizes'
+
+export interface InviteViewportSize {
+  height: number
+  width: number
+}
+
 /**
  * Publish the size of the surface a tile is actually being shown on.
  *
@@ -16,23 +29,6 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
  * measurement is also returned, for the few things that need a real number
  * rather than a CSS length - the map has to size its tile grid in pixels.
  */
-export const INVITE_VIEWPORT_H = 'var(--invite-viewport, 100svh)'
-export const INVITE_VIEWPORT_W = 'var(--invite-viewport-w, 100vw)'
-
-/**
- * The widest any piece of media sits on an invitation.
- *
- * One rule, shared: photographs and the map are the same kind of thing to a
- * reader, and a map running edge to edge beside a photo that stops well short
- * of it reads as two designs rather than one.
- */
-export const INVITE_MEDIA_MAX_WIDTH = `min(420px, calc(${INVITE_VIEWPORT_W} * 0.82))`
-
-export interface InviteViewportSize {
-  height: number
-  width: number
-}
-
 export function useInviteViewport(ref: RefObject<HTMLElement>) {
   const [size, setSize] = useState<InviteViewportSize | null>(null)
   // `measure` is called from the gallery's scroll driver, once per animation

@@ -78,13 +78,23 @@ export default function PosterTileSettings({ settings, onChange, eventId: _event
       <div>
         <p className="block text-sm font-medium mb-2">Card preview</p>
         {hasContent ? (
-          // Render at full width (384px = max-w-sm) then scale down so text wraps
-          // identically to the mobile preview — just smaller.
-          <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200, height: Math.round(200 * 16 / 9) }}>
-            <div style={{ width: 384, transformOrigin: 'top left', transform: `scale(${200 / 384})` }}>
+          settings.frameMode === 'full-bleed' ? (
+            // A poster has no shape of its own to preview into - it is whatever
+            // the picture is - so the box takes its height from the render
+            // rather than declaring 9:16 and disagreeing with the real page.
+            <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200 }}>
               <PosterTile settings={settings} preview />
             </div>
-          </div>
+          ) : (
+            // The card does have a declared 9:16 shape. Render at full width
+            // (384px = max-w-sm) then scale down so text wraps identically to
+            // the mobile preview — just smaller.
+            <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200, height: Math.round(200 * 16 / 9) }}>
+              <div style={{ width: 384, transformOrigin: 'top left', transform: `scale(${200 / 384})` }}>
+                <PosterTile settings={settings} preview />
+              </div>
+            </div>
+          )
         ) : (
           <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 px-3 py-8 text-center">
             <p className="text-xs text-gray-500 leading-relaxed">
