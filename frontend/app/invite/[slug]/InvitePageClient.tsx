@@ -47,8 +47,6 @@ interface InvitePageClientProps {
   initialConfig?: InviteConfig | null
   /** Server-rendered markup for particular tiles, keyed by tile id. */
   ssrTiles?: Record<string, React.ReactNode>
-  titleSSR?: React.ReactNode
-  eventDetailsSSR?: React.ReactNode
   allowedSubEvents?: any[]
 }
 
@@ -57,8 +55,6 @@ export default function InvitePageClient({
   initialEvent = null, 
   initialConfig = null,
   ssrTiles,
-  titleSSR = null,
-  eventDetailsSSR = null,
   allowedSubEvents = [],
 }: InvitePageClientProps) {
   // Extract guest token from URL (most efficient - no state/effects needed)

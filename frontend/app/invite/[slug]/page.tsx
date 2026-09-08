@@ -8,7 +8,6 @@ import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import PosterTileSSR from '@/components/invite/tiles/PosterTileSSR'
 import TitleTileSSR from '@/components/invite/tiles/TitleTileSSR'
-import EventDetailsTileSSR from '@/components/invite/tiles/EventDetailsTileSSR'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { BRAND_NAME, GENERIC_ENVELOPE_IMAGE } from '@/lib/brand_utility'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
@@ -1230,8 +1229,6 @@ export default async function InvitePage({
   // its place in the host's order.
   const ssrTiles: Record<string, React.ReactNode> = {}
   let heroSSR: React.ReactNode = null
-  let titleSSR: React.ReactNode = null
-  let eventDetailsSSR: React.ReactNode = null
   const backgroundColor = resolveAppearance(initialConfig).backgroundColor
 
   if (initialConfig?.tiles && initialConfig.tiles.length > 0) {
@@ -1284,7 +1281,6 @@ export default async function InvitePage({
   devLog('[InvitePage SSR] ✅ SSR RENDERING: Server-side rendering complete', {
     slug,
     hasHeroSSR: !!heroSSR,
-    hasEventDetailsSSR: !!eventDetailsSSR,
   })
 
     // STEP 8: Final Assembly - Prepare props for client component
@@ -1330,8 +1326,6 @@ export default async function InvitePage({
         initialEvent={event}
         initialConfig={initialConfig}
         ssrTiles={ssrTiles}
-        titleSSR={titleSSR}
-        eventDetailsSSR={eventDetailsSSR}
         allowedSubEvents={allowedSubEvents}
       />
     )
