@@ -381,9 +381,19 @@ export default function GalleryTile({ settings, tileId }: GalleryTileProps) {
         <div
           ref={stageRef}
           className="sticky flex flex-col items-center justify-center"
-          style={{ top: 0, height: STAGE_HEIGHT, gap: 'var(--space-section, 2rem)' }}
+          style={{ top: 0, height: STAGE_HEIGHT }}
         >
-          {header}
+          {/* The words sit at the top of the stage; only the photographs are
+              centred in it.
+              Centring the pair meant the gallery's first visible line was 155px
+              below the top of its own box, so the tile above it appeared to be
+              followed by half a screen of nothing - a gap that belonged to no
+              tile and answered to no spacing setting. The pile still arrives in
+              the middle of the screen, which is what its animation was tuned
+              against. */}
+          {header && (
+            <div className="absolute inset-x-0 top-0 flex justify-center">{header}</div>
+          )}
           <div className="relative" style={{ width: printWidth, aspectRatio: '5 / 7' }}>
           {images.map((image, index) => (
             <div
