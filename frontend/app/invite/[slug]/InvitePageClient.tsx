@@ -844,7 +844,7 @@ export default function InvitePageClient({
               rsvpCount={event?.rsvp_count}
             />
             {/* Branding component at the bottom */}
-            {(event?.show_branding ?? true) && <PoweredByBranding />}
+            {(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
           </div>
         </div>
       ) : (
@@ -887,7 +887,7 @@ export default function InvitePageClient({
             rsvpCount={event?.rsvp_count}
           />
           {/* Branding component at the bottom */}
-          {(event?.show_branding ?? true) && <PoweredByBranding />}
+          {(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
         </div>
       )}
     </EnvelopeAnimation>

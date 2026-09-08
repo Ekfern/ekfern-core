@@ -12,5 +12,5 @@ import { resolve } from 'node:path'
 export default defineConfig({
   resolve: { alias: { '@': resolve(__dirname, '.') } },
   esbuild: { jsx: 'automatic' },
-  test: { environment: 'node', include: ['lib/**/*.test.ts', 'components/**/*.test.tsx'] },
+  test: { environment: 'node', include: ['lib/**/*.test.ts', 'components/**/*.test.ts', 'components/**/*.test.tsx'] },
 })
