@@ -41,7 +41,17 @@ export default function FooterTile({ settings, preview = false }: FooterTileProp
   if (preview) {
     return (
       <div
-        className={`w-full px-4 text-center ${divider === 'hairline' ? 'border-t border-current/10' : ''}`}
+        className="w-full px-4 text-center"
+        style={
+          divider === 'hairline'
+            // `border-t border-current/10` never applied its opacity modifier,
+            // so the rule rendered in Tailwind's default #E5E7EB - a grey that
+            // belongs to no palette on the page. It takes the invitation's own
+            // line colour now, the same one the details card rules with, which
+            // follows the host's border choice instead of ignoring it.
+            ? { borderTop: '1px solid var(--theme-muted, currentColor)', paddingTop: 'var(--space-cluster, 0.75rem)' }
+            : undefined
+        }
       >
         {divider === 'symbol' && (
           <p aria-hidden className="mb-3" style={recipe('caption')}>
