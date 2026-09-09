@@ -8,7 +8,6 @@ import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import PosterTileSSR from '@/components/invite/tiles/PosterTileSSR'
 import TitleTileSSR from '@/components/invite/tiles/TitleTileSSR'
-import EventDetailsTileSSR from '@/components/invite/tiles/EventDetailsTileSSR'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { BRAND_NAME, GENERIC_ENVELOPE_IMAGE } from '@/lib/brand_utility'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
@@ -1223,10 +1222,13 @@ export default async function InvitePage({
     hasTiles: !!(initialConfig?.tiles && initialConfig.tiles.length > 0),
   })
 
-  // Extract hero tiles (image + title overlay if exists) and event details for SSR
+  // Server-rendered markup for individual tiles, keyed by tile id. The poster
+  // is the only one: its image is what a link preview and the first paint need
+  // in the initial HTML. It is handed to the renderer for its own slot rather
+  // than rendered above the list, so being server-rendered no longer costs it
+  // its place in the host's order.
+  const ssrTiles: Record<string, React.ReactNode> = {}
   let heroSSR: React.ReactNode = null
-  let titleSSR: React.ReactNode = null
-  let eventDetailsSSR: React.ReactNode = null
   const backgroundColor = resolveAppearance(initialConfig).backgroundColor
 
   if (initialConfig?.tiles && initialConfig.tiles.length > 0) {
@@ -1252,10 +1254,11 @@ export default async function InvitePage({
       (t: Tile) => t.type === 'event-details' && t.enabled
     ) as Tile | undefined
 
-    // Render the poster server-side, with its overlaid title if there is one.
+    // Render the poster server-side, with its overlaid title if there is one,
+    // into the slot its own id names.
     if (posterTile) {
       const posterSettings = posterTile.settings as any
-      heroSSR = (
+      ssrTiles[posterTile.id] = (
         <div className="w-full relative">
           <PosterTileSSR
             settings={posterSettings}
@@ -1266,18 +1269,18 @@ export default async function InvitePage({
           )}
         </div>
       )
+      heroSSR = ssrTiles[posterTile.id]
     }
 
-    // Don't render standalone title or event-details server-side
-    // Let them render client-side so they respect the order field
-    // Only render hero (image with overlay title) server-side for SEO
+    // Nothing else is server-rendered. Title and event-details were, once, and
+    // were pulled back for exactly the reason the poster has now been: a tile
+    // rendered above the list stops respecting `order`.
   }
   
   tracker?.step('SSR_RENDER_COMPLETE', 'Server-side components rendered')
   devLog('[InvitePage SSR] ✅ SSR RENDERING: Server-side rendering complete', {
     slug,
     hasHeroSSR: !!heroSSR,
-    hasEventDetailsSSR: !!eventDetailsSSR,
   })
 
     // STEP 8: Final Assembly - Prepare props for client component
@@ -1322,9 +1325,7 @@ export default async function InvitePage({
         slug={params.slug}
         initialEvent={event}
         initialConfig={initialConfig}
-        heroSSR={heroSSR}
-        titleSSR={titleSSR}
-        eventDetailsSSR={eventDetailsSSR}
+        ssrTiles={ssrTiles}
         allowedSubEvents={allowedSubEvents}
       />
     )

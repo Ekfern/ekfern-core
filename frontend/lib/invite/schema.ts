@@ -30,17 +30,12 @@ export type TileType = 'title' | 'gallery' | 'poster' | 'timer' | 'event-details
 
 export interface TitleTileSettings {
   text: string
-  font?: string // Font family from FONT_OPTIONS
-  color?: string // Hex color
   size?: 'small' | 'medium' | 'large' | 'xlarge' // Title size option (preset)
   textAlign?: 'left' | 'center' | 'right' // Default: center
   // Small kicker/label line rendered above the headline (e.g. "SAVE THE DATE", editorial masthead style)
   eyebrow?: string
-  eyebrowColor?: string // Hex color; defaults to theme primary accent
   // Optional second line (e.g. "Request the pleasure of your company…")
   subtitle?: string
-  subtitleFont?: string
-  subtitleColor?: string
   subtitleSize?: 'small' | 'medium' | 'large'
   overlayPosition?: { x: number; y: number } // % position when overlaying on image tile
 }
@@ -81,19 +76,29 @@ export interface GalleryImage {
 export interface GalleryTileSettings {
   images: GalleryImage[]
   /**
+   * Optional heading above the photos, giving them context - "Our Story" over
+   * "Forever Us". Same vocabulary as the title tile: `eyebrow` is the small
+   * spaced-out label, `title` the headline under it. Either may stand alone.
+   */
+  eyebrow?: string
+  title?: string
+  /**
    * vertical   — one per row, full width
    * horizontal — side by side, wrapping onto further rows on narrow screens
    * grid       — two columns
    */
-  arrangement?: 'vertical' | 'horizontal' | 'grid'
+  /**
+   * `stacked` tells a story one photograph at a time: each print sticks while
+   * the next slides over it. `grid` shows the set at once in a wrapping row.
+   * Both are centred.
+   */
+  arrangement?: 'stacked' | 'grid'
   /** One frame for every photo in the gallery; no mixing. */
   frame?: 'none' | 'simple' | 'polaroid'
   frameColor?: string // 'simple' only
   frameWidth?: number // 'simple' only, pixels
   // Shared vocabulary with the event carousel, so hosts learn one set of words.
   spacing?: 'tight' | 'normal' | 'spacious'
-  cornerRadius?: number
-  shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl'
 }
 
 export interface PosterTileSettings {
@@ -121,8 +126,6 @@ export interface PosterTileSettings {
 export interface TimerTileSettings {
   enabled: boolean
   format: 'circle' | 'inline' // Circle format: (12) Days (20) Hours | Inline: Days:Hours:Mins
-  circleColor?: string // Color for circles (hex color or 'transparent')
-  textColor?: string // Color for timer text (hex color)
 }
 
 export interface EventDetailsTileSettings {
@@ -138,22 +141,11 @@ export interface EventDetailsTileSettings {
   } // Optional precise coordinates (auto-verifies when provided)
   showMap?: boolean // Option to display embedded map (only works if mapUrl is provided and valid and location is verified)
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
-  fontColor?: string // Font color for event details text (hex color, e.g., "#000000")
-  buttonColor?: string // Hex color for Save the Date button (e.g., "#1F2937")
-  headerFontFamily?: string
-  contentFontFamily?: string
-  buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'glass' | 'link' // Save the Date button style (default: classic)
-  buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill' // Save the Date button corner radius (default: round)
   textAlign?: 'left' | 'center' | 'right' // Default: center
   // Date block layout: single-line (default) or day-prominent (large day number, smaller weekday/month/year/time)
   dateLayout?: 'single-line' | 'day-prominent'
   // Border styling options ('glass' = frosted blur card, ignores decorative border/symbol rendering)
   borderStyle?: 'elegant' | 'minimal' | 'ornate' | 'modern' | 'classic' | 'vintage' | 'none' | 'glass'
-  borderColor?: string // Hex color for borders (default: based on borderStyle)
-  borderWidth?: number // 1-4 pixels (default: 1)
-  decorativeSymbol?: string // Custom symbol (❦, ✿, ✤, ✦, •, —, or empty)
-  backgroundColor?: string // Background color for the tile (default: transparent or gray-50)
-  borderRadius?: number // 0-24 pixels (default: 0 for preview, 4 for non-preview)
 }
 
 export interface DirectionsTileSettings {
@@ -171,7 +163,6 @@ export interface DirectionsTileSettings {
   heading?: string // Defaults to "Getting there"
   /** Address line shown under the map; falls back to the event's location. */
   addressLine?: string
-  height?: number // Map height in pixels (default 260)
   /**
    * How closely the map frames the venue (default 16 - street and surrounds).
    * The embed is always rebuilt around the destination, so a pasted link that
@@ -180,35 +171,25 @@ export interface DirectionsTileSettings {
   zoom?: number
   /** How the map is treated. See lib/invite/mapStyles.ts. */
   mapStyle?: 'standard' | 'vintage' | 'muted'
-  fontColor?: string
   textAlign?: 'left' | 'center' | 'right'
 }
 
 export interface DescriptionTileSettings {
   content: string // Rich text/markdown content
-  fontColor?: string // Hex color; use for contrast on dark themes
   textAlign?: 'left' | 'center' | 'right' // Default: center
 }
 
 export interface FeatureButtonsTileSettings {
-  buttonColor?: string // Hex color for buttons
   rsvpLabel?: string // Custom label for RSVP button (default: "RSVP")
   registryLabel?: string // Custom label for catalog button on invite (optional override)
-  buttonVariant?: 'classic' | 'gloss' | 'soft' | 'metal' | 'raised' | 'glow' | 'bracket' | 'ornate' | 'glass' | 'link'
-  buttonRadius?: 'sharp' | 'subtle' | 'round' | 'pill'
   // Optional boxed "card" treatment around the whole buttons tile (Luma-style "Get Tickets" card).
   // Unset/'none' preserves today's borderless look exactly.
   ctaCardStyle?: 'none' | 'bordered' | 'glass'
-  ctaCardBackgroundColor?: string // Hex color for 'bordered' card fill (default: '#FFFFFF')
-  ctaCardBorderColor?: string // Hex color for 'bordered' card border
-  ctaCardShadow?: boolean // Drop shadow on the card (default: true when ctaCardStyle is set)
   ctaCardLabel?: string // Small heading inside the card, e.g. "Get Tickets"
 }
 
 export interface FooterTileSettings {
   text: string
-  fontColor?: string // Hex color; use theme fg on dark backgrounds for contrast
-  showDivider?: boolean // Hairline top border above the footer text (default: true)
 }
 
 export interface EventCarouselTileSettings {
@@ -338,6 +319,23 @@ export interface Tile {
   overlayTargetId?: string // If set, this title tile overlays on top of the target tile (image)
 }
 
+/**
+ * One text role, complete.
+ *
+ * Family is what a host picks. The rest is what makes two labels doing the same
+ * job look like the same job - the part that was missing, and the reason an
+ * invitation could read as four fonts while carrying two.
+ */
+export interface FontRole {
+  family: string
+  weight?: number
+  /** A step on the page type scale, not a raw length. */
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  tracking?: string
+  transform?: 'none' | 'uppercase'
+  italic?: boolean
+}
+
 export interface InviteConfig {
   // id of the InvitePageLayout this config was last cloned from (via applyLayout).
   // Lets the Layout step highlight what's currently applied when you revisit it.
@@ -345,9 +343,23 @@ export interface InviteConfig {
   appliedLayoutId?: string
   // Custom overrides (optional - if not set, uses theme defaults)
   customColors?: {
+    // Whether the non-background colours are still derived from the background
+    // or were set by hand. Ink, accent and muted follow the background while
+    // this is absent or 'derived'; once a host picks one of them directly the
+    // palette is theirs and nothing overwrites it again.
+    source?: 'derived' | 'custom'
     backgroundColor?: string // Overrides theme.palette.bg
     backgroundGradient?: string // CSS gradient string e.g. 'linear-gradient(160deg, #E8D8C3 0%, #C4A882 100%)' — takes precedence over backgroundColor
-    fontColor?: string // Overrides theme.palette.fg
+    /**
+     * Ink for the headline and the small lines that go with it - the kicker
+     * above it and the caption under a photograph. Paired with the Headline
+     * font: one row of controls, one set of things they move.
+     */
+    titleColor?: string
+    /** Ink for section headings. Follows the headline until set, as the font does. */
+    headerColor?: string
+    /** Ink for running text. Also the last-resort ink for everything else. */
+    fontColor?: string
     primaryColor?: string // Overrides theme.palette.primary
     mutedColor?: string // Overrides theme.palette.muted
   }
@@ -357,9 +369,23 @@ export interface InviteConfig {
   // clearing a setting actually removes a leftover value from a previous
   // layout/Page Editor session instead of the backend's save-merge (see
   // update_design) preserving it by mistake.
+  /**
+   * The three faces a host picks, as recipes rather than bare families.
+   *
+   * A family alone does not settle how text looks: the four eyebrow-class
+   * labels on a page were already sharing a family and still came out at four
+   * different trackings and two weights. A role carries the whole answer.
+   *
+   * `titleFont` / `bodyFont` are the version 1 spelling and still parse.
+   */
   customFonts?: {
-    titleFont?: string // Overrides theme.fonts.title
-    bodyFont?: string // Overrides theme.fonts.body
+    title?: FontRole
+    header?: FontRole
+    body?: FontRole
+    /** @deprecated version 1; migrates to `title.family`. */
+    titleFont?: string
+    /** @deprecated version 1; migrates to `body.family` and `header.family`. */
+    bodyFont?: string
   } | null
   // Background texture (CSS-based)
   texture?: TextureSettings | null
@@ -395,6 +421,59 @@ export interface InviteConfig {
   tileSetComplete?: boolean
   // Global spacing between tiles
   spacing?: 'tight' | 'normal' | 'spacious' | null
+  // How edges behave. Surfaces (cards, images, the map) and controls (buttons)
+  // move together but are not the same value, so one word sets both.
+  shape?: 'sharp' | 'soft' | 'rounded' | null
+  /**
+   * Whether things rest on the paper or lift off it.
+   *
+   *   flat      nothing casts a shadow
+   *   uniform   every card sits at the same small height
+   *   featured  one surface is raised and the rest lie flat
+   *
+   * `raised` and `lifted` are the previous vocabulary and still parse; both
+   * resolve to `uniform`. There is deliberately no `alternate`: alternating by
+   * index re-shuffles emphasis whenever a host reorders or disables a tile, so
+   * the page would change meaning on an edit that had nothing to do with look.
+   */
+  depth?: 'flat' | 'uniform' | 'featured' | 'raised' | 'lifted' | null
+  /**
+   * Which surface is raised when depth is `featured`. Staff and templates set
+   * this; it is not a host-facing picker, because "pick the special tile" ends
+   * with the gallery raised and the RSVP buried. Unset resolves semantically -
+   * event details, then the buttons, then the poster.
+   */
+  featuredTileId?: string | null
+  /**
+   * What a surface is made of. Orthogonal to depth: glass is a material, not a
+   * height. Elevation still comes from `depth` alone, so a glass card under
+   * `flat` is translucent and casts nothing.
+   */
+  material?: 'solid' | 'glass' | null
+  /**
+   * Rules and flourishes, decided once for the whole invitation. Replaces the
+   * footer's own divider flag and the details card's own symbol, which between
+   * them meant a host could get a fleuron in one place by accident.
+   */
+  ornament?: {
+    divider?: 'none' | 'hairline' | 'symbol'
+    /** Used when divider is `symbol`. One of ❦ ✿ ✤ ✦ • — */
+    symbol?: string
+  } | null
+  /**
+   * How the invitation is set. Centred reads formal, left reads editorial - the
+   * kind of decision that should move the whole page at once rather than being
+   * answered five times by five tiles.
+   */
+  textAlign?: 'left' | 'center' | 'right' | null
+  /**
+   * Which shape of config this is. Absent means version 1: two font fields and
+   * per-tile look settings. See docs/invite-look-ownership.md.
+   */
+  configVersion?: number
+  // How buttons are drawn. Page-level because an invitation with two button
+  // styles looks like a mistake, and every tile that draws one reads this.
+  buttonStyle?: import('./buttonStyles').ButtonVariant | null
   // Legacy structure (for backward compatibility)
   hero?: {
     background?: BackgroundImage | {

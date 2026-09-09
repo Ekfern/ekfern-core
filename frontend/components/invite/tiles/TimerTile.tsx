@@ -103,17 +103,16 @@ export default function TimerTile({ settings, preview = false, eventDate, eventT
 
 
   if (preview) {
-    // Determine circle color and text color
-    const circleColor = settings.circleColor || 'var(--theme-primary, #E55A9E)'
-    const isTransparent = circleColor === 'transparent'
-    const backgroundColor = isTransparent ? 'transparent' : circleColor
-    // Use custom text color if provided, otherwise use default (black for transparent, white for colored)
-    const textColor = settings.textColor || (isTransparent ? '#000000' : '#ffffff')
+    // The countdown is painted in the invitation's accent, on its background.
+    // Two colours of its own were two more ways for a tile to disagree with the
+    // page it sits on.
+    const backgroundColor = 'var(--theme-primary)'
+    const textColor = 'var(--theme-bg-contrast, #ffffff)'
 
     const CircleComponent = ({ value, label }: { value: number; label: string }) => (
       <div className="flex flex-col items-center justify-center">
         <div 
-          className={`w-20 h-20 md:w-24 md:h-24 rounded-full flex flex-col items-center justify-center ${isTransparent ? '' : 'border-2'}`}
+          className="w-20 h-20 md:w-24 md:h-24 rounded-full flex flex-col items-center justify-center"
           style={{ 
             backgroundColor,
             color: textColor,
@@ -132,7 +131,7 @@ export default function TimerTile({ settings, preview = false, eventDate, eventT
     )
 
     return (
-      <div className="w-full py-8 px-4 flex flex-col items-center gap-6">
+      <div className="w-full px-4 flex flex-col items-center gap-6">
         <div className="flex items-center justify-center gap-3 md:gap-4 flex-wrap">
           <CircleComponent value={timeRemaining.days} label="DAYS" />
           <CircleComponent value={timeRemaining.hours} label="HOURS" />

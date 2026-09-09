@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useId, useState } from 'react'
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
+import React, { useId, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, ImagePlus, Trash2 } from 'lucide-react'
 import { GALLERY_MAX_IMAGES, type GalleryImage, type GalleryTileSettings } from '@/lib/invite/schema'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { uploadImage } from '@/lib/api'
@@ -18,9 +18,47 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
   const uid = useId()
   const fieldId = (name: string) => `gallery-${name}-${uid}`
   const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const images = settings.images ?? []
   const isFull = images.length >= GALLERY_MAX_IMAGES
+
+  /**
+   * Ask the browser for a file dialog, at most one at a time.
+   *
+   * A dialog that opens behind the window is indistinguishable from a dead
+   * button, and every further click queued another request the browser then
+   * refused to present - so the button stayed dead until the browser was
+   * restarted. Tracking the outstanding request keeps one bad dialog from
+   * becoming a permanently broken button.
+   *
+   * Released on window focus, which fires when a dialog closes whether a file
+   * was picked or not, and on a timeout so a request the browser never
+   * honoured cannot jam the button for good.
+   */
+  const pickerPending = useRef(false)
+
+  const openPicker = () => {
+    const input = fileInputRef.current
+    if (!input || pickerPending.current) return
+
+    pickerPending.current = true
+    const release = () => {
+      pickerPending.current = false
+    }
+    window.addEventListener('focus', release, { once: true })
+    window.setTimeout(release, 60_000)
+
+    // `showPicker` reports refusal instead of failing silently the way
+    // `click()` does; `click()` remains the fallback for older browsers.
+    const withPicker = input as HTMLInputElement & { showPicker?: () => void }
+    try {
+      if (typeof withPicker.showPicker === 'function') withPicker.showPicker()
+      else input.click()
+    } catch {
+      input.click()
+    }
+  }
 
   const update = (patch: Partial<GalleryTileSettings>) => onChange({ ...settings, ...patch })
   const setImages = (next: GalleryImage[]) => update({ images: next })
@@ -68,18 +106,63 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
   return (
     <div className="space-y-4">
       <div>
-        <label htmlFor={fieldId('upload')} className="block text-sm font-medium">
-          Photos
+        <label htmlFor={fieldId('eyebrow')} className="block text-sm font-medium">
+          Label
         </label>
         <input
+          id={fieldId('eyebrow')}
+          type="text"
+          value={settings.eyebrow ?? ''}
+          onChange={(e) => update({ eyebrow: e.target.value })}
+          placeholder="Our Story"
+          maxLength={40}
+          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div>
+        <label htmlFor={fieldId('title')} className="block text-sm font-medium">
+          Heading
+        </label>
+        <input
+          id={fieldId('title')}
+          type="text"
+          value={settings.title ?? ''}
+          onChange={(e) => update({ title: e.target.value })}
+          placeholder="Forever Us"
+          maxLength={80}
+          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Both are optional, and sit above the photos to give them context. The label is the small
+          spaced-out line; the heading is the larger one under it.
+        </p>
+      </div>
+
+      <div>
+        <span className="block text-sm font-medium">Photos</span>
+        {/* A hidden input driven by a real button, which is how every other
+            upload in this app is built. The gallery was the one place using a
+            bare `<input type="file">` styled through Tailwind's `file:`
+            pseudo-variants, and its button did not reliably open a chooser. */}
+        <input
+          ref={fileInputRef}
           id={fieldId('upload')}
           type="file"
           accept="image/jpeg,image/png,image/webp"
           multiple
-          disabled={uploading || isFull}
+          className="hidden"
           onChange={handleUpload}
-          className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:rounded file:border-0 file:bg-eco-green file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-600 disabled:opacity-50"
         />
+        <button
+          type="button"
+          disabled={uploading || isFull}
+          onClick={openPicker}
+          className="mt-1 inline-flex items-center gap-2 rounded-md bg-eco-green px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <ImagePlus className="h-4 w-4" aria-hidden="true" />
+          {uploading ? 'Uploading\u2026' : images.length > 0 ? 'Add more photos' : 'Choose photos'}
+        </button>
         <p className="mt-1 text-xs text-gray-500">
           {uploading
             ? 'Uploading…'
@@ -155,14 +238,17 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
         </label>
         <select
           id={fieldId('arrangement')}
-          value={settings.arrangement ?? 'vertical'}
+          value={settings.arrangement ?? 'stacked'}
           onChange={(e) => update({ arrangement: e.target.value as GalleryTileSettings['arrangement'] })}
           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
         >
-          <option value="vertical">Vertical — one below the other</option>
-          <option value="horizontal">Horizontal — side by side, wrapping</option>
-          <option value="grid">Grid — two columns</option>
+          <option value="stacked">Stacked &mdash; one photo at a time, as guests scroll</option>
+          <option value="grid">Grid &mdash; all of them at once</option>
         </select>
+        <p className="mt-1 text-xs text-gray-500">
+          Stacked gives each photo its own moment and reads as prints laid down; grid shows the
+          whole set without scrolling. Both stay centred.
+        </p>
       </div>
 
       <div>
@@ -232,41 +318,9 @@ export default function GalleryTileSettings({ settings, onChange, eventId }: Gal
             </select>
           </div>
 
-          <div>
-            <label htmlFor={fieldId('shadow')} className="block text-sm font-medium">
-              Shadow
-            </label>
-            <select
-              id={fieldId('shadow')}
-              value={settings.shadow ?? 'sm'}
-              onChange={(e) => update({ shadow: e.target.value as GalleryTileSettings['shadow'] })}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              {(['none', 'sm', 'md', 'lg', 'xl'] as const).map((value) => (
-                <option key={value} value={value}>
-                  {value === 'none' ? 'None' : value.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {settings.frame !== 'polaroid' && (
-            <div>
-              <label htmlFor={fieldId('radius')} className="block text-sm font-medium">
-                Corner radius
-              </label>
-              <input
-                id={fieldId('radius')}
-                type="range"
-                min={0}
-                max={24}
-                value={settings.cornerRadius ?? 8}
-                onChange={(e) => update({ cornerRadius: Number(e.target.value) })}
-                className="mt-1 w-full"
-              />
-              <p className="text-xs text-gray-500">{settings.cornerRadius ?? 8}px</p>
-            </div>
-          )}
+          {/* Shadow and corner radius were here. Depth and shape are the
+              invitation's decision now: a gallery that kept its own meant a page
+              turned flat still had the photographs raised. */}
         </div>
       </details>
     </div>

@@ -1,10 +1,12 @@
 'use client'
 
-import React from 'react'
+import React, { useRef } from 'react'
 import { MapPin, ArrowUpRight } from 'lucide-react'
 import { DirectionsTileSettings } from '@/lib/invite/schema'
 import { getDestinationLabel, getDirectionsEmbedUrl, getDirectionsHref } from '@/lib/invite/mapUtils'
 import StaticTileMap from './StaticTileMap'
+import { INVITE_MEDIA_MAX_WIDTH, useInviteViewport } from '../render/useInviteViewport'
+import { recipe } from '@/lib/invite/recipes'
 
 export interface DirectionsTileProps {
   settings: DirectionsTileSettings
@@ -29,13 +31,24 @@ export interface DirectionsTileProps {
  * in the app that knows where they are.
  */
 export default function DirectionsTile({ settings, preview = false }: DirectionsTileProps) {
+  const sectionRef = useRef<HTMLElement>(null)
+  const { size: viewport } = useInviteViewport(sectionRef)
+
   const embedUrl = getDirectionsEmbedUrl(settings.mapUrl, settings.coordinates, settings.zoom)
   const directionsHref = getDirectionsHref(settings.mapUrl, settings.coordinates)
   const heading = settings.heading ?? 'Getting there'
   // Always the destination, never a value borrowed from elsewhere: captioning
   // an Agra map with the event's "Mumbai" is worse than no caption at all.
   const addressLine = settings.addressLine?.trim() || getDestinationLabel(settings.mapUrl, settings.coordinates) || ''
-  const height = settings.height ?? 260
+  // A share of the screen, like a photograph, rather than a height in pixels.
+  // A pixel height cannot be predictable: the same 400px is a third of a laptop
+  // and half a phone, so a host choosing it once could not know what a guest
+  // would see. A number rather than a CSS length because the tile grid and the
+  // torn-edge mask are both sized in pixels, and a container the mask does not
+  // match is a tear that falls outside the frame.
+  const height = viewport
+    ? Math.min(Math.max(Math.round(viewport.height * 0.42), 240), 460)
+    : 300
   const textAlign = settings.textAlign ?? 'center'
 
   // Nothing to point at yet, so render nothing - anywhere.
@@ -47,7 +60,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
   if (!embedUrl && !directionsHref) return null
 
   const body = (
-    <>
+    <div className="mx-auto w-full" style={{ maxWidth: INVITE_MEDIA_MAX_WIDTH }}>
       {settings.coordinates ? (
         // Tiles as images: no frame, no script, and the same map the editor's
         // picker shows, so the two surfaces finally look alike.
@@ -64,8 +77,8 @@ export default function DirectionsTile({ settings, preview = false }: Directions
           // Older tiles carry a pasted map link and no coordinates, so there is
           // no point to centre on. Re-picking the address upgrades them.
           <div
-            className="relative w-full overflow-hidden rounded-xl"
-            style={{ height: `${height}px` }}
+            className="relative w-full overflow-hidden"
+            style={{ height: `${height}px`, borderRadius: 'var(--radius-surface)' }}
           >
             <iframe
               src={embedUrl}
@@ -84,26 +97,23 @@ export default function DirectionsTile({ settings, preview = false }: Directions
         style={{ justifyContent: textAlign === 'center' ? 'center' : 'flex-start' }}
       >
         <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="text-sm font-medium">{addressLine || 'View location'}</span>
+        <span style={recipe('caption')}>{addressLine || 'View location'}</span>
         <ArrowUpRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
       </div>
-    </>
+    </div>
   )
 
   return (
     <section
-      className="w-full px-4 py-3"
-      style={{
-        color: settings.fontColor || 'var(--theme-fg)',
-        fontFamily: 'var(--theme-font-body)',
-        textAlign,
-      }}
+      ref={sectionRef}
+      className="w-full px-4"
+      style={{ ...recipe('body'), color: 'var(--theme-fg)', textAlign }}
     >
+      {/* The same kicker the title and the gallery use. It used to set its own
+          0.18em against their 0.3em, which is how one page produced four labels
+          doing one job at four different trackings. */}
       {heading && (
-        <h3
-          className="mb-2 text-xs uppercase tracking-[0.18em] opacity-60"
-          style={{ fontFamily: 'var(--theme-font-body)' }}
-        >
+        <h3 className="mb-2 opacity-60" style={recipe('eyebrow')}>
           {heading}
         </h3>
       )}
@@ -113,7 +123,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
           href={directionsHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2" style={{ borderRadius: 'var(--radius-surface)' }}
           aria-label={
             addressLine ? `Open directions to ${addressLine} in your map app` : 'Open directions in your map app'
           }
@@ -121,7 +131,7 @@ export default function DirectionsTile({ settings, preview = false }: Directions
           {body}
         </a>
       ) : (
-        <div className="block rounded-xl">{body}</div>
+        <div className="block" style={{ borderRadius: 'var(--radius-surface)' }}>{body}</div>
       )}
     </section>
   )

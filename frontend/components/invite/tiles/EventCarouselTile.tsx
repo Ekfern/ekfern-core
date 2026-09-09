@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Calendar, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
 import { EventCarouselTileSettings } from '@/lib/invite/schema'
-import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import { 
   getImageDimensions, 
   calculateOptimalDimensions, 
@@ -33,28 +32,15 @@ export interface EventCarouselTileProps {
 }
 
 // Design tokens
+// A local scale for the one thing the page has no opinion about. This object
+// used to also carry spacing, shadows and breakpoints - a private design system
+// inside a single tile, none of it referenced. Spacing and depth belong to the
+// invitation now; the dead entries are gone.
 const designTokens = {
   transitions: {
     default: '400ms cubic-bezier(0.4, 0, 0.2, 1)',
     fast: '200ms ease-in-out',
     slow: '600ms ease-in-out',
-  },
-  spacing: {
-    cardPadding: { tight: 16, normal: 24, spacious: 32 },
-    elementGap: 12,
-    iconGap: 8,
-  },
-  shadows: {
-    none: 'none',
-    sm: '0 1px 2px rgba(0,0,0,0.05)',
-    md: '0 4px 6px rgba(0,0,0,0.1)',
-    lg: '0 10px 15px rgba(0,0,0,0.1)',
-    xl: '0 20px 25px rgba(0,0,0,0.15)',
-  },
-  breakpoints: {
-    mobile: 640,
-    tablet: 1024,
-    desktop: 1280,
   },
 }
 
@@ -410,7 +396,9 @@ export default function EventCarouselTile({
     const titleStyling = normalizedSettings.subEventTitleStyling || {}
     const detailsStyling = normalizedSettings.subEventDetailsStyling || {}
     
-    const titleFont = titleStyling.font || FONT_OPTIONS[0].family
+    // Falls back to the invitation's display face, not FONT_OPTIONS[0] -
+    // which is Helvetica, and has nothing to do with this invitation.
+    const titleFont = titleStyling.font || 'var(--theme-font-title, inherit)'
     const titleColor = titleStyling.color || '#111827' // gray-900
     const titleSize = titleStyling.size || 'medium'
     const detailsColor = detailsStyling.fontColor || '#4B5563' // gray-600
@@ -429,7 +417,10 @@ export default function EventCarouselTile({
     const cardPaddingClass = getCardPaddingClass()
 
     const cardStyle: React.CSSProperties = {
-      borderRadius: `${normalizedSettings.cardBorderRadius ?? 12}px`,
+      borderRadius:
+        normalizedSettings.cardBorderRadius !== undefined
+          ? `${normalizedSettings.cardBorderRadius}px`
+          : 'var(--radius-surface)',
       backgroundColor: normalizedSettings.cardBackgroundColor || '#ffffff',
       borderWidth: normalizedSettings.cardBorderWidth ?? 0,
       borderColor: normalizedSettings.cardBorderColor || 'transparent',
@@ -701,7 +692,7 @@ export default function EventCarouselTile({
 
   // Responsive container classes
   const getContainerClasses = useCallback(() => {
-    const base = 'w-full py-8'
+    const base = 'w-full'
     const currentLayout = normalizedSettings.cardLayout || 'centered'
     const layoutClasses: Record<string, string> = {
       'full-width': 'px-2 sm:px-4',

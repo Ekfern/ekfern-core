@@ -214,13 +214,24 @@ export default function TileList({
     return true
   })
 
-  // Invite-style preview: no cards, no drag handles — matches live invite page so template preview matches final result
+  // Invite-style preview: no cards, no drag handles. The gap comes from
+  // --space-section, the same variable the live renderer uses, so this preview
+  // matches the invitation by construction rather than by claim. It used to be
+  // space-y-0 while the live page rendered 16/32/48px, which is how the editor
+  // could promise "matches your live invite" and be wrong.
   if (variant === 'invite') {
     const sortedForInvite = [...tilesToRender].sort(
       (a, b) => (a.order ?? 0) - (b.order ?? 0)
     )
+    // `clip`, never `hidden`: CSS computes the other axis to `auto` when one
+    // axis is `hidden`, which quietly turns this into a scroll container. It
+    // then becomes the nearest scrollport for anything sticky inside the
+    // preview - and because it is as tall as its content it never scrolls, so
+    // sticky pins to it and never moves. That is how the gallery's stack
+    // animated on the invitation and sat frozen in the editor. `clip` clips the
+    // same way without creating a scroll container.
     return (
-      <div className="space-y-0 w-full overflow-x-hidden">
+      <div className="flex flex-col w-full" style={{ gap: 'var(--space-section)', overflowX: 'clip' }}>
         {sortedForInvite.map((tile) => {
           const titleOverlay = tiles.find(t => t.type === 'title' && t.overlayTargetId === tile.id)
           if (tile.type === 'poster' && titleOverlay) {

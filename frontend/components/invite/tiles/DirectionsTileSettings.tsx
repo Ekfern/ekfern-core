@@ -384,23 +384,6 @@ export default function DirectionsTileSettings({ settings, onChange }: Direction
           </div>
 
           <div>
-            <label htmlFor={fieldId('height')} className="block text-sm font-medium">
-              Map height
-            </label>
-            <input
-              id={fieldId('height')}
-              type="range"
-              min={160}
-              max={420}
-              step={20}
-              value={settings.height ?? 260}
-              onChange={(e) => update({ height: Number(e.target.value) })}
-              className="mt-1 w-full"
-            />
-            <p className="text-xs text-gray-500">{settings.height ?? 260}px</p>
-          </div>
-
-          <div>
             <label htmlFor={fieldId('zoom')} className="block text-sm font-medium">
               Zoom
             </label>

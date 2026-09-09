@@ -7,6 +7,7 @@ import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
+import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 
 export interface DummyEventLike {
@@ -98,12 +99,18 @@ export default function PageLayoutStudioCanvas({
         city: eventLike.city,
       })
       setConfig((prev) => {
-        const maxOrder = Math.max(...(prev.tiles?.map((t) => t.order ?? 0) ?? [0]), 0)
+        // The footer is always last, so it is not counted when working out where
+        // a new tile goes. Counting it puts every later tile after the footer -
+        // and a layout authored that way carries the problem to every host who
+        // applies it.
+        const positions = (prev.tiles ?? [])
+          .filter((t) => t.type !== 'footer')
+          .map((t) => t.order ?? 0)
         const newTile: Tile = {
           id: `tile-${type}-${Date.now().toString(36)}`,
           type,
           enabled: true,
-          order: maxOrder + 1,
+          order: positions.length > 0 ? Math.max(...positions) + 1 : 0,
           settings: defaultSettings[type],
         }
         return { ...prev, tiles: [...(prev.tiles ?? []), newTile] }
@@ -567,7 +574,13 @@ export default function PageLayoutStudioCanvas({
                       className="overflow-y-auto flex-1 w-full overflow-x-hidden"
                       style={{ paddingBottom: '24px' }}
                     >
+                      {/* The canvas has to publish the layout's own colours and
+                          fonts. Without this the tiles below fall through to
+                          their hardcoded fallbacks, so a layout was authored
+                          against #1F2937 on Georgia and only revealed its real
+                          palette on the preview screen. */}
                       {sortedTiles.length > 0 ? (
+                        <AppearanceProvider config={config}>
                         <TileList
                           tiles={sortedTiles}
                           onReorder={handleTileReorder}
@@ -581,6 +594,7 @@ export default function PageLayoutStudioCanvas({
                           hasRegistry={eventLike.has_registry}
                           allowedSubEvents={[]}
                         />
+                        </AppearanceProvider>
                       ) : (
                         <div className="p-8 text-center text-gray-500">
                           <p>No tiles</p>

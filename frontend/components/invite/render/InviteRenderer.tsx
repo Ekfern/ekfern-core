@@ -25,6 +25,22 @@ interface InviteRendererProps {
   allowedSubEvents?: any[]
   guestToken?: string | null
   rsvpCount?: number
+  /**
+   * Server-rendered markup for particular tiles, keyed by tile id.
+   *
+   * A tile whose image should be in the initial HTML - the poster, for its
+   * first paint and for link previews - used to be rendered above this list
+   * entirely, because putting server markup above a client component is easier
+   * than putting it inside one. The cost was that the tile stopped having a
+   * position: it was pinned to the top however the host had ordered it, and the
+   * page editor's preview, which renders this list over the whole config,
+   * disagreed with the live invitation.
+   *
+   * Passing the markup in by id keeps it server-rendered and gives it back its
+   * place in the sequence. Absent - the editor preview, layout previews - every
+   * tile renders on the client exactly as before.
+   */
+  ssrTiles?: Record<string, React.ReactNode>
 }
 
 function InviteRendererContent({
@@ -42,6 +58,7 @@ function InviteRendererContent({
   allowedSubEvents = [],
   guestToken,
   rsvpCount,
+  ssrTiles,
 }: InviteRendererProps) {
   const appearance = resolveAppearance(config)
   const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
@@ -68,9 +85,19 @@ function InviteRendererContent({
     [config, eventDate],
   )
 
-  const sortedTiles = [...(effectiveConfig.tiles || [])]
+  // The footer is a closing note, so it is last by structure rather than by
+  // number - exactly what TileList has always done, which is why the editor's
+  // list showed it correctly while this page did not. Pulling it out here means
+  // a config whose footer carries a middling `order` still renders it last,
+  // including every config already saved that way.
+  const orderedTiles = [...(effectiveConfig.tiles || [])]
     .filter(tile => tile.enabled !== false)
     .sort((a, b) => a.order - b.order)
+  const footerTile = orderedTiles.find(tile => tile.type === 'footer')
+  const sortedTiles = [
+    ...orderedTiles.filter(tile => tile.type !== 'footer'),
+    ...(footerTile ? [footerTile] : []),
+  ]
 
   const sharedProps = {
     eventDate,
@@ -87,7 +114,13 @@ function InviteRendererContent({
   }
 
   return (
-    <div className="w-full relative overflow-x-hidden" style={skipBackgroundColor ? {} : { background: pageBackground } as React.CSSProperties}>
+    <div
+      className="w-full relative"
+      style={{
+        overflowX: 'clip',
+        ...(skipBackgroundColor ? {} : { background: pageBackground }),
+      } as React.CSSProperties}
+    >
       {!skipTextureOverlay && (
         <TextureOverlay
           type={effectiveConfig.texture?.type || 'none'}
@@ -112,17 +145,12 @@ function InviteRendererContent({
           )}
         </div>
       )}
-      <div
-        className={
-          effectiveConfig.spacing === 'tight'
-            ? 'flex flex-col gap-4'
-            : effectiveConfig.spacing === 'spacious'
-              ? 'flex flex-col gap-12'
-              : 'flex flex-col gap-8'
-        }
-      >
+      {/* The gap is a token, not a class, so the editor preview and this page
+          cannot drift apart again. --space-section resolves to the same
+          16 / 32 / 48px these classes produced. */}
+      <div className="flex flex-col" style={{ gap: 'var(--space-section)' }}>
         {sortedTiles.map((tile) => {
-          const tileEl = <TilePreview tile={tile} {...sharedProps} />
+          const tileEl = ssrTiles?.[tile.id] ?? <TilePreview tile={tile} {...sharedProps} />
 
           if (tile.type === 'feature-buttons' && hasRsvp && rsvpCount !== undefined && rsvpCount >= 5) {
             const countColor = appearance.fontColor

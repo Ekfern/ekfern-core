@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react'
 import { DescriptionTileSettings } from '@/lib/invite/schema'
+import { recipe } from '@/lib/invite/recipes'
 
 export interface DescriptionTileProps {
   settings: DescriptionTileSettings
@@ -144,14 +145,21 @@ export default function DescriptionTile({ settings, preview = false }: Descripti
         text-align: justify !important;
       }
     `
-    const textStyle = { backgroundColor: 'transparent' as const, color: settings.fontColor || 'var(--theme-fg, inherit)' }
+    // Normal text is where a description starts. It is rich text, so anything
+    // the host set inline - a face, a weight, a colour - sits on the element
+    // itself and still wins; this only decides what untouched text looks like.
+    const textStyle = {
+      ...recipe('body'),
+      backgroundColor: 'transparent' as const,
+      color: 'var(--theme-fg)',
+    }
     const textAlign = settings.textAlign || 'center'
     const textAlignClass = textAlign === 'left' ? 'text-left' : textAlign === 'right' ? 'text-right' : 'text-center'
     const marginClass = textAlign === 'left' ? 'mr-auto' : textAlign === 'right' ? 'ml-auto' : 'mx-auto'
     return (
       <>
         <style dangerouslySetInnerHTML={{ __html: styleContent }} />
-        <div className="w-full py-1 px-6" style={{ backgroundColor: 'transparent' }}>
+        <div className="w-full px-6" style={{ backgroundColor: 'transparent' }}>
           <div className={`max-w-2xl ${marginClass} ${textAlignClass}`} style={textStyle}>
           {isHTML ? (
             <div 
@@ -250,12 +258,7 @@ export default function DescriptionTile({ settings, preview = false }: Descripti
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: styleContent }} />
-      <div 
-        className="w-full py-1 px-4"
-        style={{
-          backgroundColor: '#F9FAFB', // Match EventDetailsTile default background
-        }}
-      >
+      <div className="w-full py-1 px-4" style={{ ...recipe('body'), backgroundColor: '#F9FAFB' }}>
         <div className="max-w-2xl mx-auto">
         {isHTML ? (
           <div 

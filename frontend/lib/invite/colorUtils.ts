@@ -95,37 +95,21 @@ export function rgbToHex(r: number, g: number, b: number): string {
  * Get automatic label color based on font color using relative brightness scale
  * - If font brightness is 0-50% (darker side): Add 5 tones (make label lighter)
  * - If font brightness is >50-100% (lighter side): Subtract 5 tones (make label darker)
- * - No font color set → default medium gray
- * 
+ * - No font color set → the invitation's Secondary colour
+ *
+ * The labels above each fact ("Date", "Location") are exactly what Secondary is
+ * for, so when the tile has no ink of its own they should take the page's.
+ * They used to fall to a hardcoded gray-500 instead, which meant that once a
+ * tile stopped carrying its own fontColor - which is now the normal state -
+ * nothing a host could touch reached these labels.
+ *
+ * The literal stays inside the `var()` because the server-rendered hero is
+ * mounted outside AppearanceProvider, where a bare custom property would not
+ * resolve. There it keeps the colour it has always had.
+ *
  * @param fontColor - Font color hex string (e.g., "#1F2937") or undefined
- * @returns Label color hex string
+ * @returns A CSS colour value - a hex when derived, otherwise a var() reference
  */
-export function getAutomaticLabelColor(fontColor: string | undefined): string {
-  // Default label color if no font color is set
-  if (!fontColor) {
-    return '#6B7280' // Medium gray (gray-500)
-  }
-  
-  // Convert hex to RGB
-  const rgb = hexToRgb(fontColor)
-  if (!rgb) {
-    // Invalid hex format, return default
-    return '#6B7280'
-  }
-  
-  // Calculate brightness percentage
-  const brightness = getBrightnessPercentage(rgb.r, rgb.g, rgb.b)
-  
-  // Determine if we should lighten or darken
-  const shouldLighten = brightness <= 50 // 0-50% = darker side, lighten labels
-  const shouldDarken = brightness > 50 // >50-100% = lighter side, darken labels
-  
-  // Adjust brightness by 5 tones
-  const adjustedRgb = adjustBrightness(rgb.r, rgb.g, rgb.b, 5, shouldLighten)
-  
-  // Convert back to hex
-  return rgbToHex(adjustedRgb.r, adjustedRgb.g, adjustedRgb.b)
-}
 
 
 

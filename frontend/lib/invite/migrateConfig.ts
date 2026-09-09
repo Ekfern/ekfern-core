@@ -28,10 +28,23 @@ function normalizeLegacyTile(tile: Tile): Tile {
     const legacy = (tile.settings ?? {}) as { src?: string }
     const settings: GalleryTileSettings = {
       images: legacy.src ? [{ id: `${tile.id}-1`, src: legacy.src }] : [],
-      arrangement: 'vertical',
+      arrangement: 'stacked',
       frame: 'none',
     }
     return { ...tile, type: 'gallery', settings } as Tile
+  }
+
+  // The gallery once offered `vertical` and `horizontal`. A vertical column of
+  // photographs is what `stacked` does, and a wrapping row is what `grid` does,
+  // so each maps to the arrangement that kept its behaviour.
+  if (type === 'gallery') {
+    const settings = (tile.settings ?? {}) as { arrangement?: string }
+    const legacyArrangement =
+      settings.arrangement === 'vertical' ? 'stacked' :
+      settings.arrangement === 'horizontal' ? 'grid' : null
+    if (legacyArrangement) {
+      return { ...tile, settings: { ...settings, arrangement: legacyArrangement } } as Tile
+    }
   }
 
   return tile
@@ -60,9 +73,10 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
   // Title Tile (Required)
   if (config.hero?.title || eventTitle) {
     const titleSettings: TitleTileSettings = {
+      // No font or colour copied down: the tile reads the page's title recipe
+      // and ink. Handing it a snapshot is how a migrated tile used to keep the
+      // face a config had when it was migrated, long after the host changed it.
       text: config.hero?.title || eventTitle || 'Event Title',
-      font: config.customFonts?.titleFont,
-      color: config.customColors?.fontColor,
     }
     tiles.push({
       id: `tile-${order}`,
@@ -78,7 +92,7 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
     const bg = config.hero.background as any
     const gallerySettings: GalleryTileSettings = {
       images: [{ id: `tile-${order}-1`, src: bg.src }],
-      arrangement: 'vertical',
+      arrangement: 'stacked',
       frame: 'none',
     }
     tiles.push({
@@ -111,7 +125,6 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
     date: eventDate || config.hero?.eventDate || new Date().toISOString().split('T')[0],
     time: undefined,
     dressCode: undefined,
-    buttonColor: config.customColors?.primaryColor || undefined,
   }
   tiles.push({
     id: `tile-${order}`,
@@ -137,7 +150,6 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
 
   // Feature Buttons Tile
   const featureButtonsSettings: FeatureButtonsTileSettings = {
-    buttonColor: config.customColors?.primaryColor,
   }
   tiles.push({
     id: `tile-${order}`,
