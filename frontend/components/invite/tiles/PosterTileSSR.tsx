@@ -2,6 +2,7 @@ import React from 'react'
 import { PosterTileSettings } from '@/lib/invite/schema'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import { INVITE_HERO_MAX_HEIGHT, INVITE_HERO_MAX_WIDTH } from '@/components/invite/render/inviteMediaSizes'
 
 interface PosterTileSSRProps {
   settings: PosterTileSettings
@@ -24,10 +25,14 @@ export default function PosterTileSSR({ settings }: PosterTileSSRProps) {
   const isFullBleed = settings.frameMode === 'full-bleed'
   const fullBleedAspectRatio = settings.aspectRatio || '4 / 5'
   const outerClassName = 'w-full flex justify-center'
+  // The print centres differently: its box must shrink-wrap the picture, and a
+  // shrink-wrapping box has to be an inline-block rather than a flex item, so
+  // this one centres with text-align instead of justify-content.
+  const printOuterClassName = 'w-full text-center'
   // Keep in sync with PosterTile.tsx (client) — same cap for the same reason,
   // so the server-rendered first paint and the client hydration agree and
   // there's no visible size jump when JS takes over.
-  const boxClassName = isFullBleed ? 'relative w-full max-w-4xl overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
+  const boxClassName = isFullBleed ? 'relative w-full max-w-2xl overflow-hidden' : 'relative w-full max-w-sm overflow-hidden'
   const boxStyle = isFullBleed ? { aspectRatio: fullBleedAspectRatio } : { aspectRatio: '9 / 16' }
 
   const renderTextOverlays = () => {
@@ -88,6 +93,43 @@ export default function PosterTileSSR({ settings }: PosterTileSSRProps) {
     return (
       <div className={outerClassName}>
         <div className={boxClassName} style={{ ...boxStyle, background: settings.backgroundGradient }}>
+          {heroTexture}
+          {renderTextOverlays()}
+        </div>
+      </div>
+    )
+  }
+
+  // Keep in sync with PosterTile.tsx: a full-bleed poster is a print of the
+  // picture, so the picture sets its own shape under a width and a height cap
+  // and nothing is cropped. The card below keeps its declared 9:16 frame.
+  if (isFullBleed) {
+    return (
+      <div className={printOuterClassName}>
+        {/* inline-block, not a flex item: a flex item is sized by max-content,
+            which is the width the picture would take at its max-height and
+            ignores its max-width entirely - so the box came out 1047px wide
+            around an 860px image and left it flush left, 93px off centre. An
+            inline-block shrink-wraps instead, but its shrink-to-fit width is
+            still the picture's width at its max-height, so the box carries the
+            same width cap as the image: under either cap the two agree, the box
+            is exactly the picture, and `text-align: center` centres it. */}
+        <div className="relative inline-block align-top" style={{ maxWidth: INVITE_HERO_MAX_WIDTH }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={convertToCloudFrontUrl(settings.src!)}
+            alt="Poster"
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+            className="block"
+            style={{
+              maxWidth: INVITE_HERO_MAX_WIDTH,
+              maxHeight: INVITE_HERO_MAX_HEIGHT,
+              width: 'auto',
+              height: 'auto',
+            }}
+          />
           {heroTexture}
           {renderTextOverlays()}
         </div>

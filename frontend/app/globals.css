@@ -14,7 +14,11 @@
 
 html,
 body {
-  overflow-x: hidden;
+  /* `clip`, not `hidden`. Both clip the same, but `hidden` makes the element a
+     scroll container, and a scroll container anywhere above a `position: sticky`
+     element silently stops it sticking. That is five ancestors deep on an
+     invitation, and it is why the stacked gallery did nothing. */
+  overflow-x: clip;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;

@@ -6,6 +6,7 @@ import api from '@/lib/api'
 import { createDesignSample, uploadDesignImage, type AspectRatio } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
 import { logError } from '@/lib/error-handler'
+import FontPicker from '@/components/invite/FontPicker'
 
 const ASPECT_RATIO_OPTIONS: { value: AspectRatio; label: string }[] = [
   { value: '9:16', label: '9:16 — Portrait' },
@@ -376,13 +377,13 @@ export default function NewDesignSamplePage(): React.ReactElement {
             <div className="w-px h-5 bg-gray-200 flex-none" />
 
             <div className={`flex items-center gap-2 flex-wrap transition-opacity ${selectedBox ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-              <select
-                value={selectedBox?.fontFamily ?? FONT_OPTIONS[0]!.family}
-                onChange={(e) => selectedBox && updateBox(selectedBox.id, 'fontFamily', e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white max-w-[130px]"
-              >
-                {FONT_OPTIONS.map((f) => (<option key={f.id} value={f.family}>{f.name}</option>))}
-              </select>
+              <div className="w-[150px]">
+                    <FontPicker
+                      value={selectedBox?.fontFamily ?? FONT_OPTIONS[0]!.family}
+                      onChange={(family) => selectedBox && family && updateBox(selectedBox.id, 'fontFamily', family)}
+                      ariaLabel="Text font"
+                    />
+                  </div>
 
               <div className="flex items-center gap-1">
                 <input

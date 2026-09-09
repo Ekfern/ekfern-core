@@ -60,6 +60,7 @@ export default function TilePreview({
           <GalleryTile
             settings={tile.settings as any}
             preview
+            tileId={tile.id}
           />
         )
       case 'poster':
@@ -82,7 +83,7 @@ export default function TilePreview({
         const timerDate = eventDetailsDate || eventDate
         return <TimerTile settings={tile.settings as any} preview eventDate={timerDate} eventTime={eventTime} eventSlug={eventSlug} eventTitle={eventTitle} />
       case 'event-details':
-        return <EventDetailsTile settings={tile.settings as any} preview eventSlug={eventSlug} eventTitle={eventTitle} eventDate={eventDate} eventTimezone={eventTimezone} />
+        return <EventDetailsTile settings={tile.settings as any} preview tileId={tile.id} eventSlug={eventSlug} eventTitle={eventTitle} eventDate={eventDate} eventTimezone={eventTimezone} />
       case 'directions':
         return <DirectionsTile settings={tile.settings as any} preview />
       case 'description':
@@ -99,6 +100,7 @@ export default function TilePreview({
             catalogPurpose={catalogPurpose}
             eventSlug={eventSlug}
             guestToken={guestToken}
+            tileId={tile.id}
           />
         )
       case 'footer':
@@ -124,7 +126,7 @@ export default function TilePreview({
   }
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-w-0">
+    <div className="w-full max-w-full min-w-0" style={{ overflowX: 'clip' }}>
       {renderTile()}
     </div>
   )

@@ -29,8 +29,10 @@ import { AppearanceProvider } from '@/components/invite/render/AppearanceProvide
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage, extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
+import { deriveInk, representativeColorFromGradient } from '@/lib/invite/paletteUtils'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
+import FontPicker from '@/components/invite/FontPicker'
 import WizardProgress from '@/components/host/WizardProgress'
 
 interface Event {
@@ -81,14 +83,14 @@ const DEFAULT_TILES: Tile[] = [
     type: 'timer',
     enabled: false,
     order: 4,
-    settings: { enabled: true, format: 'circle', circleColor: '#D4A017', textColor: '#0B3D2E' },
+    settings: { enabled: true, format: 'circle' },
   },
   {
     id: 'tile-feature-buttons-5',
     type: 'feature-buttons',
     enabled: true,
     order: 5,
-    settings: { buttonColor: '#D4A017' },
+    settings: {},
   },
   {
     id: 'tile-event-carousel-7',
@@ -116,6 +118,57 @@ const DEFAULT_TILES: Tile[] = [
 
 // The tile types the editor knows how to render. Anything else is legacy/orphan
 // junk in a saved config (renders no label and no settings) and is filtered out.
+// Tile colour settings that fall back to a page token when absent, so removing
+// one returns that tile to the invitation's palette. Deliberately excludes
+// `backgroundColor`, `ctaCardBackgroundColor`, `ctaCardBorderColor`,
+// `frameColor` and the timer's `textColor`: those fall back to hardcoded
+// literals, so clearing them would swap one fixed colour for another rather
+// than handing anything back to the page.
+// Tiles no longer carry a face of their own, so there is nothing to match back
+// to the page. The list is kept empty rather than deleted because the carousel
+// still has `subEventTitleStyling.font` to give up.
+const FONT_LINKED_TILE_KEYS = [] as const
+
+type FontRoleName = 'title' | 'header' | 'body'
+type PageFonts = NonNullable<InviteConfig['customFonts']>
+
+/**
+ * The face a role is set to.
+ *
+ * Reads the version 1 spelling when the role itself has not been written yet.
+ * `header` falls back to the body face on purpose: a config that never had a
+ * header face should not look like it already chose one.
+ */
+function roleFamily(fonts: InviteConfig['customFonts'], role: FontRoleName): string | undefined {
+  if (!fonts) return undefined
+  if (role === 'title') return fonts.title?.family ?? fonts.titleFont
+  if (role === 'body') return fonts.body?.family ?? fonts.bodyFont
+  // Nothing when unset, so the control can say "Same as headline" - which is
+  // what actually happens. Falling back to the body face here showed Courier in
+  // a picker whose headings were rendering in Pacifico.
+  return fonts.header?.family
+}
+
+/** Set one role's family, leaving the rest of its recipe alone. */
+function withRoleFamily(
+  fonts: InviteConfig['customFonts'],
+  role: FontRoleName,
+  family: string | undefined,
+): PageFonts {
+  const next: PageFonts = { ...(fonts ?? {}) }
+  if (family) next[role] = { ...(next[role] ?? {}), family }
+  else delete next[role]
+  return next
+}
+
+// What is left after the text colours went. Each of these still overrides the
+// page, and each leaves in a later pass.
+const PALETTE_LINKED_TILE_KEYS = [
+  'buttonColor',    // details, feature-buttons -> --theme-primary
+  'circleColor',    // timer      -> --theme-primary
+  'borderColor',    // details    -> --theme-muted
+] as const
+
 const KNOWN_TILE_TYPES = new Set<TileType>([
   'title', 'gallery', 'poster', 'timer', 'event-details', 'directions',
   'description', 'feature-buttons', 'footer', 'event-carousel',
@@ -408,14 +461,14 @@ export default function DesignInvitationPage(): JSX.Element {
             type: 'timer',
             enabled: false,
             order: 4,
-            settings: { enabled: true, format: 'circle', circleColor: '#D4A017', textColor: '#0B3D2E' },
+            settings: { enabled: true, format: 'circle' },
           },
           {
             id: 'tile-feature-buttons-5',
             type: 'feature-buttons',
             enabled: true,
             order: 5,
-            settings: { buttonColor: '#D4A017' },
+            settings: {},
           },
           {
             id: 'tile-event-carousel-7',
@@ -805,7 +858,6 @@ export default function DesignInvitationPage(): JSX.Element {
             showMap: eventDetailsSettings.showMap,
             mapZoom: eventDetailsSettings.mapZoom,
             fontColor: eventDetailsSettings.fontColor,
-            buttonColor: eventDetailsSettings.buttonColor,
             borderStyle: eventDetailsSettings.borderStyle,
             borderColor: eventDetailsSettings.borderColor,
             borderWidth: eventDetailsSettings.borderWidth,
@@ -1332,12 +1384,25 @@ export default function DesignInvitationPage(): JSX.Element {
       'footer': {},
       'event-carousel': {},
     }
-    const maxOrder = Math.max(...(config.tiles?.map(t => t.order ?? 0) ?? [0]), 0)
+    // A new tile goes after everything except the footer, which is always last.
+    // Counting the footer here is how tiles ended up numbered past it: the
+    // footer sat at 4, so the next tile took 5 and saving made that permanent.
+    //
+    // `tile.order` and `previewOrder` are two separate numbering systems that
+    // every sort reads through the same fallback chain, so they have to agree
+    // about where a new tile goes. Both are computed the same way below - same
+    // function, same exclusion - rather than each working it out for itself.
+    const footerIds = new Set((config.tiles ?? []).filter(t => t.type === 'footer').map(t => t.id))
+    const nextPositionAfter = (positions: number[]) =>
+      positions.length > 0 ? Math.max(...positions) + 1 : 0
+
     const newTile: Tile = {
       id: `tile-${type}-${Date.now().toString(36)}`,
       type,
       enabled: true,
-      order: maxOrder + 1,
+      order: nextPositionAfter(
+        (config.tiles ?? []).filter(t => t.type !== 'footer').map(t => t.order ?? 0),
+      ),
       settings: defaultSettings[type],
     }
     setConfig(prev => ({
@@ -1346,9 +1411,12 @@ export default function DesignInvitationPage(): JSX.Element {
     }))
     setPreviewOrder((prev) => {
       const next = new Map(prev)
-      const position =
-        next.size > 0 ? Math.max(...Array.from(next.values())) + 1 : (newTile.order ?? 0)
-      next.set(newTile.id, position)
+      next.set(
+        newTile.id,
+        nextPositionAfter(
+          Array.from(next.entries()).filter(([id]) => !footerIds.has(id)).map(([, position]) => position),
+        ),
+      )
       return next
     })
     setSelectedTileId(newTile.id)
@@ -1368,6 +1436,65 @@ export default function DesignInvitationPage(): JSX.Element {
     setConfig(prev => ({
       ...prev,
       tiles: prev.tiles?.map(t => t.id === updatedTile.id ? updatedTile : t) || [],
+    }))
+  }
+
+  // How many tiles carry a font of their own and would therefore ignore the
+  // page selection. Shown only when there are any, so the offer to sweep them
+  // appears exactly when it is useful.
+  const tilesOverridingFonts = (config.tiles ?? []).filter(tile => {
+    const settings = tile.settings as Record<string, unknown> | undefined
+    return !!settings && FONT_LINKED_TILE_KEYS.some(key => settings[key])
+  }).length
+
+  // Every background change goes through here.
+  //
+  // A palette is a set that has to agree with itself: a preset picks ground,
+  // ink, accent and muted together. The editor used to let a host change only
+  // the ground, which guaranteed the other three would stop matching the moment
+  // it was used - a lilac accent left over from a near-black page, sitting on
+  // cream.
+  //
+  // So the other three follow the background, unless the host has set one by
+  // hand. At that point the palette is theirs and we stop touching it.
+  const applyBackground = (patch: { backgroundColor?: string; backgroundGradient?: string }) => {
+    setConfig(prev => {
+      const colors = prev.customColors ?? {}
+      if (colors.source === 'custom') {
+        return { ...prev, customColors: { ...colors, ...patch } }
+      }
+      const merged = { ...colors, ...patch }
+      if (!merged.backgroundGradient && !merged.backgroundColor) {
+        return { ...prev, customColors: merged }
+      }
+      // The whole background, not a representative colour from it: a gradient
+      // has two ends and ink has to be legible at both. Material goes too,
+      // because text on a frosted card sits on the blend, not on the page.
+      return {
+        ...prev,
+        customColors: {
+          ...merged,
+          ...deriveInk({
+            backgroundColor: merged.backgroundColor,
+            backgroundGradient: merged.backgroundGradient,
+            material: prev.material,
+          }),
+        },
+      }
+    })
+  }
+
+  // A host touching any ink directly takes ownership of the set.
+  const applyInkColor = (patch: {
+    titleColor?: string
+    headerColor?: string
+    fontColor?: string
+    primaryColor?: string
+    mutedColor?: string
+  }) => {
+    setConfig(prev => ({
+      ...prev,
+      customColors: { ...(prev.customColors ?? {}), ...patch, source: 'custom' as const },
     }))
   }
 
@@ -1923,7 +2050,7 @@ export default function DesignInvitationPage(): JSX.Element {
                     <div className="flex rounded-lg overflow-hidden border border-gray-300 w-fit">
                       <button
                         type="button"
-                        onClick={() => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: undefined } }))}
+                        onClick={() => applyBackground({ backgroundGradient: undefined })}
                         className={`px-3 py-1.5 text-sm font-medium transition-colors ${!isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                       >
                         Solid
@@ -1932,7 +2059,7 @@ export default function DesignInvitationPage(): JSX.Element {
                         type="button"
                         onClick={() => {
                           const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
-                          setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                          applyBackground({ backgroundGradient: g })
                         }}
                         className={`px-3 py-1.5 text-sm font-medium transition-colors ${isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                       >
@@ -1961,9 +2088,9 @@ export default function DesignInvitationPage(): JSX.Element {
                             setGradientColor1(hex1)
                             setGradientColor2(hex2)
                             const g = `linear-gradient(${gradientAngle}deg, ${hex1} 0%, ${hex2} 100%)`
-                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                            applyBackground({ backgroundGradient: g })
                           } else {
-                            setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: hex1 } }))
+                            applyBackground({ backgroundColor: hex1 })
                           }
                         }}
                         className="px-3 py-1.5 text-sm font-medium bg-eco-beige text-eco-green border border-eco-green-light rounded hover:bg-eco-green hover:text-white transition-colors"
@@ -1978,7 +2105,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             if (!raw) return
                             try {
                               const prev = JSON.parse(raw) as { backgroundColor?: string; backgroundGradient?: string }
-                              setConfig(p => ({ ...p, customColors: { ...p.customColors, backgroundColor: prev.backgroundColor, backgroundGradient: prev.backgroundGradient } }))
+                              applyBackground({ backgroundColor: prev.backgroundColor, backgroundGradient: prev.backgroundGradient })
                               if (prev.backgroundGradient) {
                                 const m = prev.backgroundGradient.match(/linear-gradient\((\d+)deg,\s*(#[0-9a-fA-F]{3,8})\s+0%,\s*(#[0-9a-fA-F]{3,8})\s+100%\)/)
                                 if (m) { setGradientAngle(parseInt(m[1], 10)); setGradientColor1(m[2]); setGradientColor2(m[3]) }
@@ -2000,13 +2127,13 @@ export default function DesignInvitationPage(): JSX.Element {
                         <input
                           type="color"
                           value={displayBackgroundColor}
-                          onChange={(e) => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: e.target.value } }))}
+                          onChange={(e) => applyBackground({ backgroundColor: e.target.value })}
                           className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
                         />
                         <Input
                           type="text"
                           value={displayBackgroundColor}
-                          onChange={(e) => setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundColor: e.target.value } }))}
+                          onChange={(e) => applyBackground({ backgroundColor: e.target.value })}
                           placeholder="#E8D8C3"
                           className="w-32 font-mono text-sm"
                         />
@@ -2023,7 +2150,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             onChange={(e) => {
                               setGradientColor1(e.target.value)
                               const g = `linear-gradient(${gradientAngle}deg, ${e.target.value} 0%, ${gradientColor2} 100%)`
-                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                              applyBackground({ backgroundGradient: g })
                             }}
                             className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
                           />
@@ -2034,7 +2161,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             onChange={(e) => {
                               setGradientColor2(e.target.value)
                               const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${e.target.value} 100%)`
-                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                              applyBackground({ backgroundGradient: g })
                             }}
                             className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
                           />
@@ -2050,7 +2177,7 @@ export default function DesignInvitationPage(): JSX.Element {
                               const a = parseInt(e.target.value, 10)
                               setGradientAngle(a)
                               const g = `linear-gradient(${a}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
-                              setConfig(prev => ({ ...prev, customColors: { ...prev.customColors, backgroundGradient: g } }))
+                              applyBackground({ backgroundGradient: g })
                             }}
                             className="w-full mt-1"
                           />
@@ -2172,6 +2299,196 @@ export default function DesignInvitationPage(): JSX.Element {
                         <p className="text-xs text-gray-500 mt-1">Image texture (e.g. marble photo). Intensity above applies to it.</p>
                       </div>
 
+                      {/* Button style is page-level: an invitation with two button
+                          shapes reads as a mistake. Both the RSVP buttons and Save
+                          the Date take this unless a tile overrides it. */}
+                      <div className="border-t border-gray-200 pt-4 mt-4">
+                        <label htmlFor="page-buttonStyle" className="block text-sm font-medium mb-2">
+                          Button style
+                        </label>
+                        <select
+                          id="page-buttonStyle"
+                          value={config.buttonStyle ?? 'classic'}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            buttonStyle: e.target.value as NonNullable<typeof prev.buttonStyle>,
+                          }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          {([
+                            ['classic', 'Classic'], ['soft', 'Soft'], ['raised', 'Raised'],
+                            ['gloss', 'Gloss'], ['metal', 'Metal'], ['glow', 'Glow'],
+                            ['glass', 'Glass'], ['bracket', 'Bracket'], ['ornate', 'Ornate'],
+                            ['link', 'Link (text only)'],
+                          ] as const).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Applies to RSVP, Registry and Save the Date together.
+                        </p>
+                      </div>
+
+                      {/* Two faces, because that is how many an invitation has: the
+                          one the names are set in, and the one everything else uses. */}
+                      <div className="border-t border-gray-200 pt-4 mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium">Fonts</label>
+                          {tilesOverridingFonts > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setConfig(prev => ({
+                                ...prev,
+                                tiles: (prev.tiles ?? []).map(tile => {
+                                  const settings = tile.settings as Record<string, unknown> | undefined
+                                  if (!settings) return tile
+                                  const cleared = { ...settings }
+                                  for (const key of FONT_LINKED_TILE_KEYS) delete cleared[key]
+                                  return { ...tile, settings: cleared } as typeof tile
+                                }),
+                              }))}
+                              title="Some tiles have a font of their own, so they ignore the choices above. This returns them to these fonts."
+                              className="text-xs text-eco-green underline hover:no-underline"
+                            >
+                              Match {tilesOverridingFonts} {tilesOverridingFonts === 1 ? 'tile' : 'tiles'} to these fonts
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([
+                            ['title', 'Title', 'The names on your invitation, plus the small lines that go with them \u2014 kickers like "You\u2019re invited", and photo captions.'],
+                            ['header', 'Header', 'The heading over your photos, and your sub-event titles. Follows the title until you change it.'],
+                            ['body', 'Content text', 'Dates, location, description, buttons and footer \u2014 all the running text.'],
+                          ] as const).map(([key, label, hint]) => (
+                            <div key={key} className="relative group">
+                              <label
+                                htmlFor={`page-${key}`}
+                                tabIndex={0}
+                                className="block text-xs text-gray-600 mb-1 cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-eco-green rounded"
+                              >
+                                {label}
+                              </label>
+                              <div
+                                role="tooltip"
+                                className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-52 rounded-md bg-gray-900 px-2.5 py-2 text-xs leading-snug text-white shadow-lg group-hover:block group-focus-within:block"
+                              >
+                                {hint}
+                              </div>
+                              <FontPicker
+                                id={`page-${key}`}
+                                ariaLabel={`${label} font. ${hint}`}
+                                value={roleFamily(config.customFonts, key)}
+                                onChange={(family) => setConfig(prev => ({
+                                  ...prev,
+                                  customFonts: withRoleFamily(prev.customFonts, key, family),
+                                }))}
+                                defaultLabel={key === 'header' ? 'Same as title' : 'Layout default'}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Ink, accent and muted. These follow the background until a
+                          host sets one, which is what the "Following the background"
+                          note is telling them. */}
+                      <div className="border-t border-gray-200 pt-4 mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium">Colours</label>
+                          {config.customColors?.source === 'custom' ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ground = config.customColors?.backgroundGradient
+                                  ? representativeColorFromGradient(config.customColors.backgroundGradient)
+                                  : config.customColors?.backgroundColor
+                                if (!ground) return
+                                setConfig(prev => ({
+                                  ...prev,
+                                  customColors: {
+                                    ...(prev.customColors ?? {}),
+                                    ...deriveInk({
+                                      backgroundColor: prev.customColors?.backgroundColor,
+                                      backgroundGradient: prev.customColors?.backgroundGradient,
+                                      material: prev.material,
+                                    }),
+                                    source: 'derived' as const,
+                                  },
+                                  // Tiles carrying their own colour would keep
+                                  // overriding the page, so matching the page
+                                  // alone would appear to do nothing. Clearing
+                                  // these hands each tile back to the palette:
+                                  // every one of them already falls back to a
+                                  // theme token, so each lands on the right
+                                  // colour for its own job - the footer on
+                                  // Secondary, the buttons on Accent.
+                                  tiles: (prev.tiles ?? []).map(tile => {
+                                    const settings = tile.settings as Record<string, unknown> | undefined
+                                    if (!settings) return tile
+                                    const cleared = { ...settings }
+                                    for (const key of PALETTE_LINKED_TILE_KEYS) delete cleared[key]
+                                    return { ...tile, settings: cleared } as typeof tile
+                                  }),
+                                }))
+                              }}
+                              title="Puts the text and accent colours back in step with the background, and returns any tile you have recoloured to the page colours."
+                              className="text-xs text-eco-green underline hover:no-underline"
+                            >
+                              Match to background
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400">Following the background</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {/* Each hint names what the colour actually paints, so a host can
+                              tell which swatch to move without guessing from its name. */}
+                          {([
+                            ['titleColor', 'Title', '#1F1B16',
+                              'The same text the Title font sets \u2014 your names, the kicker above them, and photo captions.'],
+                            ['headerColor', 'Header', '#1F1B16',
+                              'The same text the Header font sets. Follows the title until you change it.'],
+                            ['fontColor', 'Content text', '#1F1B16',
+                              'The same text the Content text font sets \u2014 dates, location, description and footer.'],
+                            // Accent sits in the Header column: it is the same
+                            // register of the invitation, used where a heading
+                            // would be if it were a control rather than words.
+                            ['primaryColor', 'Accent', '#A6815B',
+                              'Buttons like RSVP and Save the Date, and the countdown circles.'],
+                          ] as const).map(([key, label, fallback, hint]) => (
+                            <div
+                              key={key}
+                              className={`relative group ${key === 'primaryColor' ? 'col-start-2' : ''}`}
+                            >
+                              <label
+                                htmlFor={`page-${key}`}
+                                tabIndex={0}
+                                className="block text-xs text-gray-600 mb-1 cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-eco-green rounded"
+                              >
+                                {label}
+                              </label>
+                              {/* Shown on hover and on keyboard focus. A native `title`
+                                  needs a second of hovering and renders inconsistently,
+                                  which reads as "nothing happened". */}
+                              <div
+                                role="tooltip"
+                                className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-52 rounded-md bg-gray-900 px-2.5 py-2 text-xs leading-snug text-white shadow-lg group-hover:block group-focus-within:block"
+                              >
+                                {hint}
+                              </div>
+                              <input
+                                id={`page-${key}`}
+                                type="color"
+                                aria-label={`${label} colour. ${hint}`}
+                                value={colorInputValue(config.customColors?.[key], fallback)}
+                                onChange={(e) => applyInkColor({ [key]: e.target.value })}
+                                className="h-9 w-full rounded border border-gray-300"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-sm font-medium mb-2">Spacing between tiles</label>
                         <select
@@ -2183,6 +2500,113 @@ export default function DesignInvitationPage(): JSX.Element {
                           <option value="normal">Normal</option>
                           <option value="spacious">Spacious</option>
                         </select>
+                      </div>
+
+                      {/* Shape, depth, material, alignment and rules. All five were
+                          already answerable in the config and none had a control, so
+                          the only way to set them was to author a layout - which is
+                          how an invitation ended up with two cards raised by accident.
+                          Every label says what a host would say, not what CSS calls it. */}
+                      <div>
+                        <label htmlFor="page-shape" className="block text-sm font-medium mb-2">Corners</label>
+                        <select
+                          id="page-shape"
+                          value={config.shape ?? 'soft'}
+                          onChange={(e) => setConfig(prev => ({ ...prev, shape: e.target.value as NonNullable<typeof prev.shape> }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="sharp">Square</option>
+                          <option value="soft">Softly rounded</option>
+                          <option value="rounded">Fully rounded</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Cards, photos and buttons together.</p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="page-depth" className="block text-sm font-medium mb-2">Card shadows</label>
+                        <select
+                          id="page-depth"
+                          value={config.depth === 'raised' || config.depth === 'lifted' ? 'uniform' : config.depth ?? 'uniform'}
+                          onChange={(e) => setConfig(prev => ({ ...prev, depth: e.target.value as NonNullable<typeof prev.depth> }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="flat">None &mdash; everything sits flat</option>
+                          <option value="uniform">Every card lifts a little</option>
+                          <option value="featured">One card stands out</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {config.depth === 'featured'
+                            ? 'Your event details lift off the page; everything else lies flat.'
+                            : 'Applies to every card on the invitation, so none of them lifts by accident.'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="page-material" className="block text-sm font-medium mb-2">Card style</label>
+                        <select
+                          id="page-material"
+                          value={config.material ?? 'solid'}
+                          onChange={(e) => setConfig(prev => ({ ...prev, material: e.target.value as NonNullable<typeof prev.material> }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="solid">Plain</option>
+                          <option value="glass">Frosted glass</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label htmlFor="page-textAlign" className="block text-sm font-medium mb-2">Text alignment</label>
+                        <select
+                          id="page-textAlign"
+                          value={config.textAlign ?? 'center'}
+                          onChange={(e) => setConfig(prev => ({ ...prev, textAlign: e.target.value as NonNullable<typeof prev.textAlign> }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="center">Centred</option>
+                          <option value="left">Left</option>
+                          <option value="right">Right</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Centred reads formal; left reads like a magazine.</p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="page-divider" className="block text-sm font-medium mb-2">Dividers</label>
+                        <select
+                          id="page-divider"
+                          value={config.ornament?.divider ?? 'hairline'}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            ornament: { ...(prev.ornament ?? {}), divider: e.target.value as 'none' | 'hairline' | 'symbol' },
+                          }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                        >
+                          <option value="none">None</option>
+                          <option value="hairline">Thin line</option>
+                          <option value="symbol">Small symbol</option>
+                        </select>
+                        {config.ornament?.divider === 'symbol' && (
+                          <div className="mt-2 flex gap-1">
+                            {['\u2766', '\u273F', '\u2724', '\u2726', '\u2022', '\u2014'].map((symbol) => (
+                              <button
+                                key={symbol}
+                                type="button"
+                                aria-label={`Use ${symbol} as the divider`}
+                                aria-pressed={(config.ornament?.symbol ?? '\u2766') === symbol}
+                                onClick={() => setConfig(prev => ({
+                                  ...prev,
+                                  ornament: { ...(prev.ornament ?? {}), divider: 'symbol', symbol },
+                                }))}
+                                className={`h-8 w-8 rounded border text-sm ${
+                                  (config.ornament?.symbol ?? '\u2766') === symbol
+                                    ? 'border-eco-green bg-green-50'
+                                    : 'border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {symbol}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Opening Animation */}
@@ -2251,7 +2675,11 @@ export default function DesignInvitationPage(): JSX.Element {
                               </select>
                             </div>
                             <div>
-                              <label className="block text-sm font-medium mb-2">Border Color</label>
+                              <label className="block text-sm font-medium mb-2">Border colour</label>
+                              <p className="text-xs text-gray-500 mb-2">
+                                Also colours the fine rules inside your event details card, so
+                                every line on the invitation matches.
+                              </p>
                               <div className="flex items-center gap-2">
                                 <input
                                   type="color"

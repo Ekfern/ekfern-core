@@ -333,3 +333,17 @@ export function findFontByFamily(family: string | undefined | null): FontOption 
 
   return font
 }
+
+/**
+ * Whether a family is a display or script face.
+ *
+ * Matters for the eyebrow recipe. A kicker is conventionally set in caps with
+ * wide tracking, which is fine for a serif or a grotesque and close to
+ * unreadable for a script - Pacifico at 0.3em in capitals is the artifact that
+ * started this. Those faces keep the family and lose the transform.
+ */
+export function isDisplayFamily(family?: string): boolean {
+  if (!family) return false
+  const option = FONT_OPTIONS.find((candidate) => candidate.family === family)
+  return option?.category === 'script' || option?.category === 'display'
+}

@@ -6,6 +6,7 @@ import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { Input } from '@/components/ui/input'
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { FONT_OPTIONS, findFontByFamily } from '@/lib/invite/fonts'
+import FontPicker from '@/components/invite/FontPicker'
 
 interface EventCarouselTileSettingsProps {
   settings: EventCarouselTileSettings
@@ -159,22 +160,14 @@ export default function EventCarouselTileSettingsComponent({
           <div className="space-y-4 pl-2">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Sub-Event Title Font</label>
-              <select
-                value={findFontByFamily(settings.subEventTitleStyling?.font)?.id || FONT_OPTIONS[0].id}
-                onChange={(e) => {
-                  const font = FONT_OPTIONS.find(f => f.id === e.target.value)
-                  handleTitleStylingUpdate({ font: font?.family })
-                }}
-                className="w-full text-sm border rounded px-3 py-2"
-              >
-                {FONT_OPTIONS.map((font) => (
-                  <option key={font.id} value={font.id}>
-                    {font.name} ({font.category})
-                  </option>
-                ))}
-              </select>
+              <FontPicker
+                value={settings.subEventTitleStyling?.font}
+                onChange={(family) => handleTitleStylingUpdate({ font: family })}
+                defaultLabel="Page headline font"
+                ariaLabel="Sub-event title font"
+              />
               <p className="text-xs text-gray-500 mt-1">
-                Preview: <span style={{ fontFamily: settings.subEventTitleStyling?.font || FONT_OPTIONS[0].family }}>Sub-Event Title</span>
+                Preview: <span style={{ fontFamily: settings.subEventTitleStyling?.font || 'var(--theme-font-title, inherit)' }}>Sub-Event Title</span>
               </p>
             </div>
 

@@ -35,8 +35,6 @@ const HERO_TITLE_TILE: Tile = {
   order: 0,
   settings: {
     text: 'The Annual Retreat',
-    font: 'Cormorant Garamond',
-    color: '#2D5F3F',
     size: 'large',
     subtitle: 'You are warmly invited to join us',
     subtitleSize: 'small',
