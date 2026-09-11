@@ -4,6 +4,7 @@ import React from 'react'
 import InvitePageClient from './InvitePageClient'
 import ComingSoon from '@/components/invite/ComingSoon'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
+import { eventFromInvitePayload, type InviteEvent } from '@/lib/invite/inviteEvent'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import PosterTileSSR from '@/components/invite/tiles/PosterTileSSR'
@@ -82,20 +83,7 @@ class RequestLifecycleTracker {
   }
 }
 
-interface Event {
-  id: number
-  title: string
-  date?: string
-  description?: string
-  banner_image?: string
-  page_config?: InviteConfig
-  has_rsvp?: boolean
-  has_registry?: boolean
-  show_branding?: boolean
-  country?: string
-  timezone?: string
-  rsvp_count?: number
-}
+
 
 // Get API base URL for server-side fetching
 // Uses NEXT_PUBLIC_API_BASE (set at build time or runtime)
@@ -988,7 +976,7 @@ export default async function InvitePage({
 
     // STEP 4: Data Processing - Transform invite data to event format
     tracker?.step('DATA_PROCESSING_START', 'Processing and transforming data')
-    let event: Event | null = null
+    let event: InviteEvent | null = null
     
     // Try to construct event from inviteData if it has the necessary fields
     if (inviteData) {
@@ -1000,19 +988,7 @@ export default async function InvitePage({
       
       // If inviteData has event info, use it
       if (inviteData.event_slug || inviteData.slug) {
-        event = {
-          id: inviteData.id || 0,
-          title: inviteData.title || 'Event',
-          date: inviteData.date,
-          description: inviteData.description,
-          banner_image: inviteData.background_url,
-          page_config: inviteData.config,
-          has_rsvp: inviteData.has_rsvp,
-          has_registry: inviteData.has_registry,
-          country: inviteData.event_country,
-          timezone: inviteData.event_timezone,
-          rsvp_count: inviteData.rsvp_count,
-        } as Event
+        event = eventFromInvitePayload(inviteData)
         
         tracker?.step('DATA_PROCESSING_COMPLETE', 'Event object constructed from invite data')
         devLog('[InvitePage SSR] ✅ DATA PROCESSING: Event object created', {
