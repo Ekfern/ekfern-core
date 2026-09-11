@@ -8,8 +8,23 @@ export interface CalendarEvent {
   title: string
   details?: string
   location?: string
+  /**
+   * Where the invitation lives. A guest who saved this three months ago has no
+   * other route back to the RSVP, the venue or the aarti - the calendar entry
+   * is the only thing they kept.
+   */
+  url?: string
   startISO: string
   endISO: string
+}
+
+/**
+ * The body of the entry: whatever the host wrote, then the link.
+ *
+ * Shared by both exports so Google and .ics show a guest the same thing.
+ */
+function buildDescription(event: CalendarEvent): string {
+  return [event.details, event.url].filter(Boolean).join('\n\n')
 }
 
 /**
@@ -22,8 +37,9 @@ export function getGoogleCalendarHref(event: CalendarEvent): string {
     dates: `${formatGoogleDate(event.startISO)}/${formatGoogleDate(event.endISO)}`,
   })
 
-  if (event.details) {
-    params.append('details', event.details)
+  const details = buildDescription(event)
+  if (details) {
+    params.append('details', details)
   }
 
   if (event.location) {
@@ -69,8 +85,15 @@ export function generateICS(event: CalendarEvent): string {
     `SUMMARY:${escapeICS(event.title)}`,
   ]
 
-  if (event.details) {
-    lines.push(`DESCRIPTION:${escapeICS(event.details)}`)
+  const description = buildDescription(event)
+  if (description) {
+    lines.push(`DESCRIPTION:${escapeICS(description)}`)
+  }
+
+  // A URI value, not text - escaping its commas would corrupt the link. Sent
+  // alongside DESCRIPTION because plenty of clients never surface URL.
+  if (event.url) {
+    lines.push(`URL:${event.url}`)
   }
 
   if (event.location) {

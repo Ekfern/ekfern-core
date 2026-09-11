@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateICS } from '@/lib/calendar'
 import { zonedTimeToUtc } from '@/lib/invite/timezone'
+import { getSiteUrl } from '@/lib/site-url'
 import type { EventDetailsTileSettings, InviteConfig, Tile } from '@/lib/invite/schema'
 
 // Get API base URL for server-side fetching
@@ -78,6 +79,9 @@ export async function GET(request: NextRequest) {
     const icsContent = generateICS({
       title: payload.title || 'Event',
       location: details?.location || undefined,
+      // No guest token: a downloaded .ics gets forwarded, and one guest's
+      // personal link should not travel with it.
+      url: `${getSiteUrl()}/invite/${slug}`,
       startISO: startDate.toISOString(),
       endISO: endDate.toISOString(),
     })

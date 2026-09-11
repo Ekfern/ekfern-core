@@ -268,10 +268,16 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     // No end time exists on the tile yet, so assume four hours.
     const endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000)
 
+    // The public invitation, deliberately without the `?g=` token the guest is
+    // reading under - a calendar entry gets forwarded, and a personal token
+    // should not travel with it.
+    const inviteUrl = eventSlug ? `${window.location.origin}/invite/${eventSlug}` : undefined
+
     window.open(
       getGoogleCalendarHref({
         title: eventTitle || 'Event',
         location: settings.location || undefined,
+        url: inviteUrl,
         startISO: startDate.toISOString(),
         endISO: endDate.toISOString(),
       }),
