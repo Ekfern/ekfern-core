@@ -80,6 +80,43 @@ function formatGoogleDate(isoString: string): string {
 }
 
 /**
+ * RFC 5545 §3.1: no content line may exceed 75 octets.
+ *
+ * Longer ones are folded - split across lines, each continuation starting with
+ * a single space that the reader strips again. Nothing here folded before,
+ * which went unnoticed while the only long line was a SUMMARY. A URL on a real
+ * domain with a real slug clears 75 comfortably.
+ *
+ * Counted in octets, not characters, and split on code points so a multi-byte
+ * character is never cut in half. `TextEncoder` rather than `Buffer` because
+ * this module is imported by client components too.
+ */
+function foldLine(line: string): string {
+  const encoder = new TextEncoder()
+  if (encoder.encode(line).length <= 75) return line
+
+  const folded: string[] = []
+  let current = ''
+  let octets = 0
+
+  for (const char of line) {
+    const size = encoder.encode(char).length
+    if (octets + size > 75) {
+      folded.push(current)
+      // The leading space is part of the continuation line's 75.
+      current = ` ${char}`
+      octets = 1 + size
+    } else {
+      current += char
+      octets += size
+    }
+  }
+  folded.push(current)
+
+  return folded.join('\r\n')
+}
+
+/**
  * Generate ICS file content
  */
 export function generateICS(event: CalendarEvent): string {
@@ -123,7 +160,7 @@ export function generateICS(event: CalendarEvent): string {
     'END:VCALENDAR',
   )
 
-  return lines.join('\r\n')
+  return lines.map(foldLine).join('\r\n')
 }
 
 /**
