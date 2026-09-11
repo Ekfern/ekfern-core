@@ -4,12 +4,14 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { InviteConfig } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
+import { resolveAnimations } from '@/lib/invite/animations/resolve'
 import { eventFromInvitePayload, type InviteEvent } from '@/lib/invite/inviteEvent'
 import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import { logError, logDebug } from '@/lib/error-handler'
 import api from '@/lib/api'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
-import EnvelopeAnimation from '@/components/invite/EnvelopeAnimation'
+import OpeningLayer from '@/components/invite/animations/OpeningLayer'
+import ExperienceLayer from '@/components/invite/animations/ExperienceLayer'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
 import ComingSoon from '@/components/invite/ComingSoon'
 import {
@@ -91,17 +93,6 @@ export default function InvitePageClient({
       })
     }
   }, [initialConfig])
-  
-  // Always show animation on initial load (EnvelopeAnimation checks per-slug localStorage to skip repeats)
-  // Animation should be the FIRST thing users see
-  const [showEnvelopeAnimation, setShowEnvelopeAnimation] = useState(true)
-  
-  // Memoize the animation complete callback to prevent unnecessary re-renders
-  // and ensure stable reference for EnvelopeAnimation component
-  const handleAnimationComplete = useCallback(() => {
-    setShowEnvelopeAnimation(false)
-    devLog('[InvitePageClient] ✨ Envelope animation completed')
-  }, [])
   
   // Log initial state
   if (typeof window !== 'undefined') {
@@ -532,24 +523,18 @@ export default function InvitePageClient({
       timestamp: new Date().toISOString(),
       elapsedSinceMount: Date.now() - clientStartTime,
     })
-    
-    // Get animation config from initialConfig if available, default to enabled
-    const animationEnabled = initialConfig?.animations?.envelope !== false
-    
+
+    // Do NOT mount OpeningLayer here. If the opening runs over the spinner and
+    // marks itself seen, the real invite remounts a fresh layer and skips —
+    // which is how Curtain Reveal looked like a no-op. Openings start only once
+    // the invite content is ready below.
     return (
-      <EnvelopeAnimation
-        showAnimation={true}
-        enabled={animationEnabled}
-        slug={slug}
-        onAnimationComplete={handleAnimationComplete}
-      >
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <div className="text-4xl mb-4">🌿</div>
-            <p className="text-gray-600">Loading invitation...</p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🌿</div>
+          <p className="text-gray-600">Loading invitation...</p>
         </div>
-      </EnvelopeAnimation>
+      </div>
     )
   }
 
@@ -606,8 +591,18 @@ export default function InvitePageClient({
     timestamp: new Date().toISOString(),
   })
 
-  // Get animation config, default to enabled
-  const animationEnabled = config.animations?.envelope !== false
+  // Resolve module IDs — guest page never branches on envelope / petals by name.
+  const { opening, experience } = resolveAnimations(config.animations)
+  const coverColor = pageBackground || '#E8D8C3'
+
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    devLog('[InvitePageClient] 🎬 Resolved animations', {
+      slug,
+      opening,
+      experience,
+      raw: config.animations,
+    })
+  }
 
   // Get page border styles
   const getPageBorderStyle = () => {
@@ -739,11 +734,11 @@ export default function InvitePageClient({
   const pageRhythm = resolveAppearance(config).spaceSection
 
   return (
-    <EnvelopeAnimation
-      showAnimation={showEnvelopeAnimation}
-      enabled={animationEnabled}
+    <OpeningLayer
+      key={`opening:${opening ?? 'none'}:${slug}`}
+      id={opening}
       slug={slug}
-      onAnimationComplete={handleAnimationComplete}
+      coverColor={coverColor}
     >
       {hasBorder ? (
         // Container with border and padding
@@ -866,7 +861,8 @@ export default function InvitePageClient({
           {(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
         </div>
       )}
-    </EnvelopeAnimation>
+      <ExperienceLayer id={experience} slug={slug} />
+    </OpeningLayer>
   )
 }
 

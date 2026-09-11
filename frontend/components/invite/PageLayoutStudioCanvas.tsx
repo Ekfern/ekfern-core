@@ -5,6 +5,11 @@ import { InviteConfig, Tile, TileType } from '@/lib/invite/schema'
 import { buildDefaultTileSettingsRecord } from '@/lib/invite/pageLayoutTileDefaults'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { resolveAppearance } from '@/lib/invite/appearance'
+import {
+  OPENING_ANIMATIONS,
+  EXPERIENCE_ANIMATIONS,
+} from '@/lib/invite/animations/catalog'
+import { resolveAnimations } from '@/lib/invite/animations/resolve'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
@@ -36,6 +41,7 @@ export default function PageLayoutStudioCanvas({
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
+  const [showInviteAnimations, setShowInviteAnimations] = useState(false)
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
 
   useEffect(() => {
@@ -172,37 +178,183 @@ export default function PageLayoutStudioCanvas({
                   className="flex-1"
                 />
               </div>
-            </div>
-            <div className="border-t border-gray-200 pt-4 mt-4 space-y-4">
-              <p className="text-sm font-semibold text-eco-green">Guest motions</p>
-              <p className="text-xs text-gray-500 -mt-2">
-                Saved on the template and applied when hosts use this design (hosts can still override on their event).
-              </p>
-              <div className="flex items-center justify-between gap-3">
+              <div className="mt-3 space-y-3">
                 <div>
-                  <label className="block text-sm font-medium">Opening animation</label>
-                  <p className="text-xs text-gray-500 mt-0.5">Envelope when guests open the invite</p>
+                  <label className="block text-sm font-medium mb-2">Background Texture</label>
+                  <select
+                    value={config.texture?.type || 'none'}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        texture: {
+                          ...prev.texture,
+                          type: e.target.value as any,
+                          intensity: prev.texture?.intensity || 40,
+                        },
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
+                  >
+                    <option value="none">None</option>
+                    <option value="paper-grain">Paper Grain</option>
+                    <option value="linen">Linen</option>
+                    <option value="canvas">Canvas</option>
+                    <option value="parchment">Parchment</option>
+                    <option value="vintage-paper">Vintage Paper</option>
+                    <option value="silk">Silk</option>
+                    <option value="marble">Marble</option>
+                  </select>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={config.animations?.envelope !== false}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      animations: { ...prev.animations, envelope: e.target.checked },
-                    }))
-                  }
-                  className="w-4 h-4 shrink-0 text-eco-green focus:ring-eco-green border-gray-300 rounded"
-                />
+                {config.texture?.type && config.texture.type !== 'none' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Texture Intensity: {config.texture?.intensity || 40}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={config.texture?.intensity || 40}
+                      onChange={(e) =>
+                        setConfig((prev) => ({
+                          ...prev,
+                          texture: {
+                            ...prev.texture!,
+                            intensity: parseInt(e.target.value, 10),
+                          },
+                        }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Texture image (optional)</label>
+                  <Input
+                    type="url"
+                    value={config.texture?.imageUrl || ''}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        texture: {
+                          ...prev.texture,
+                          type: prev.texture?.type || 'none',
+                          intensity: prev.texture?.intensity || 40,
+                          imageUrl: e.target.value.trim() || undefined,
+                        },
+                      }))
+                    }
+                    placeholder="https://… (e.g. marble, watercolor)"
+                    className="w-full"
+                  />
+                  {config.texture?.imageUrl && (
+                    <div className="mt-2">
+                      <label className="text-xs font-medium text-gray-600">Blend</label>
+                      <select
+                        value={config.texture?.textureBlend || 'overlay'}
+                        onChange={(e) =>
+                          setConfig((prev) => ({
+                            ...prev,
+                            texture: { ...prev.texture!, textureBlend: e.target.value as 'overlay' | 'replace' },
+                          }))
+                        }
+                        className="w-full text-sm border rounded px-2 py-1 mt-0.5"
+                      >
+                        <option value="overlay">Overlay on CSS texture</option>
+                        <option value="replace">Replace CSS texture</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowInviteAnimations(!showInviteAnimations)}
+                className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md"
+              >
+                <span className="text-sm font-medium">Invite Animations</span>
+                <svg
+                  className={`w-4 h-4 text-gray-500 transition-transform ${showInviteAnimations ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showInviteAnimations && (
+                <div className="mt-3 space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Saved on the template and applied when hosts use this design (hosts can still override on their event).
+                  </p>
+                  <div className="space-y-1">
+                    <label className="block text-sm font-medium" htmlFor="layout-opening-animation">
+                      Opening
+                    </label>
+                    <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
+                    <select
+                      id="layout-opening-animation"
+                      value={resolveAnimations(config.animations).opening ?? ''}
+                      onChange={(e) =>
+                        setConfig((prev) => ({
+                          ...prev,
+                          animations: {
+                            ...prev.animations,
+                            opening: e.target.value || null,
+                          },
+                        }))
+                      }
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
+                    >
+                      <option value="">None</option>
+                      {OPENING_ANIMATIONS.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-sm font-medium" htmlFor="layout-experience-animation">
+                      While reading
+                    </label>
+                    <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
+                    <select
+                      id="layout-experience-animation"
+                      value={resolveAnimations(config.animations).experience ?? ''}
+                      onChange={(e) =>
+                        setConfig((prev) => ({
+                          ...prev,
+                          animations: {
+                            ...prev.animations,
+                            experience: e.target.value || null,
+                          },
+                        }))
+                      }
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
+                    >
+                      <option value="">None</option>
+                      {EXPERIENCE_ANIMATIONS.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="border-t border-gray-200 pt-4 mt-4">
               <button
                 type="button"
                 onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
                 className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md p-2 -m-2"
               >
-                <h3 className="text-sm font-semibold text-eco-green">Advanced Settings</h3>
+                <h3 className="text-sm font-semibold text-eco-green">Look &amp; Style</h3>
                 <svg
                   className={`w-5 h-5 text-gray-500 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`}
                   fill="none"
@@ -214,93 +366,6 @@ export default function PageLayoutStudioCanvas({
               </button>
               {showAdvancedSettings && (
                 <div className="mt-4 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Background Texture</label>
-                    <select
-                      value={config.texture?.type || 'none'}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          texture: {
-                            ...prev.texture,
-                            type: e.target.value as any,
-                            intensity: prev.texture?.intensity || 40,
-                          },
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                    >
-                      <option value="none">None</option>
-                      <option value="paper-grain">Paper Grain</option>
-                      <option value="linen">Linen</option>
-                      <option value="canvas">Canvas</option>
-                      <option value="parchment">Parchment</option>
-                      <option value="vintage-paper">Vintage Paper</option>
-                      <option value="silk">Silk</option>
-                      <option value="marble">Marble</option>
-                    </select>
-                  </div>
-                  {config.texture?.type && config.texture.type !== 'none' && (
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Texture Intensity: {config.texture?.intensity || 40}%
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={config.texture?.intensity || 40}
-                        onChange={(e) =>
-                          setConfig((prev) => ({
-                            ...prev,
-                            texture: {
-                              ...prev.texture!,
-                              intensity: parseInt(e.target.value, 10),
-                            },
-                          }))
-                        }
-                        className="w-full"
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Texture image (optional)</label>
-                    <Input
-                      type="url"
-                      value={config.texture?.imageUrl || ''}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          texture: {
-                            ...prev.texture,
-                            type: prev.texture?.type || 'none',
-                            intensity: prev.texture?.intensity || 40,
-                            imageUrl: e.target.value.trim() || undefined,
-                          },
-                        }))
-                      }
-                      placeholder="https://… (e.g. marble, watercolor)"
-                      className="w-full"
-                    />
-                    {config.texture?.imageUrl && (
-                      <div className="mt-2">
-                        <label className="text-xs font-medium text-gray-600">Blend</label>
-                        <select
-                          value={config.texture?.textureBlend || 'overlay'}
-                          onChange={(e) =>
-                            setConfig((prev) => ({
-                              ...prev,
-                              texture: { ...prev.texture!, textureBlend: e.target.value as 'overlay' | 'replace' },
-                            }))
-                          }
-                          className="w-full text-sm border rounded px-2 py-1 mt-0.5"
-                        >
-                          <option value="overlay">Overlay on CSS texture</option>
-                          <option value="replace">Replace CSS texture</option>
-                        </select>
-                      </div>
-                    )}
-                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Spacing between tiles</label>
                     <select

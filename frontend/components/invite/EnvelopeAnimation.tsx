@@ -11,39 +11,50 @@ interface EnvelopeAnimationProps {
   slug?: string // Per-invite key so "already seen" is scoped to this invite
 }
 
-const ANIMATION_STORAGE_KEY_BASE = 'envelope_animation_shown'
+const LEGACY_STORAGE_KEY_BASE = 'envelope_animation_shown'
+const MODULE_STORAGE_KEY_BASE = 'invite_opening:envelope_reveal'
 
 // The envelope plays once per device per invite, then is skipped on every later
 // visit — so the "seen" flag lives in localStorage (survives tab close / a new
 // session), keyed per slug so viewing one invite doesn't suppress the animation
 // on a different one. localStorage can throw (private mode, storage disabled);
 // every access is wrapped so a failure just replays the animation, never crashes.
-function animationSeenKey(slug?: string): string {
-  return slug ? `${ANIMATION_STORAGE_KEY_BASE}:${slug}` : ANIMATION_STORAGE_KEY_BASE
+// Both the namespaced module key and the legacy key are checked/written so guests
+// who already saw the envelope under the old key are not shown it again.
+function animationSeenKeys(slug?: string): string[] {
+  const suffix = slug ? `:${slug}` : ''
+  return [
+    `${MODULE_STORAGE_KEY_BASE}${suffix}`,
+    `${LEGACY_STORAGE_KEY_BASE}${suffix}`,
+  ]
 }
 
-function hasSeenAnimation(key: string): boolean {
+function hasSeenAnimation(slug?: string): boolean {
   try {
-    return localStorage.getItem(key) === 'true'
+    return animationSeenKeys(slug).some((key) => localStorage.getItem(key) === 'true')
   } catch {
     return false
   }
 }
 
-function markAnimationSeen(key: string): void {
-  try {
-    localStorage.setItem(key, 'true')
-  } catch {
-    // Storage unavailable (private mode / quota) — non-fatal; the animation
-    // simply won't be suppressed on the next visit.
+function markAnimationSeen(slug?: string): void {
+  for (const key of animationSeenKeys(slug)) {
+    try {
+      localStorage.setItem(key, 'true')
+    } catch {
+      // Storage unavailable (private mode / quota) — non-fatal; the animation
+      // simply won't be suppressed on the next visit.
+    }
   }
 }
 
-function clearAnimationSeen(key: string): void {
-  try {
-    localStorage.removeItem(key)
-  } catch {
-    // ignore
+function clearAnimationSeen(slug?: string): void {
+  for (const key of animationSeenKeys(slug)) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -54,7 +65,6 @@ export default function EnvelopeAnimation({
   enabled = true,
   slug
 }: EnvelopeAnimationProps) {
-  const storageKey = animationSeenKey(slug)
   const [animationStage, setAnimationStage] = useState<'envelope' | 'extracting' | 'splitting' | 'revealing' | 'complete'>('envelope')
   const [showContent, setShowContent] = useState(false)
   // Start with shouldShow as false to match server render (prevents hydration mismatch)
@@ -65,6 +75,7 @@ export default function EnvelopeAnimation({
   const [isHydrated, setIsHydrated] = useState(false)
   const [hasUserInteracted, setHasUserInteracted] = useState(false)
   const animationStartedRef = React.useRef(false)
+  const completeNotifiedRef = React.useRef(false)
 
   // Store the latest callback in a ref to avoid stale closures and prevent hook order issues
   // Initialize ref with the callback prop value
@@ -77,6 +88,14 @@ export default function EnvelopeAnimation({
     onAnimationCompleteRef.current = onAnimationComplete
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Opening-module contract: notify once on every completion path (played, skipped,
+  // reduced-motion, already seen, or disabled).
+  useEffect(() => {
+    if (!isComplete || completeNotifiedRef.current) return
+    completeNotifiedRef.current = true
+    onAnimationCompleteRef.current?.()
+  }, [isComplete])
 
   // Helper function for subtle haptic feedback on mobile
   // Only works after user interaction (browser security requirement)
@@ -153,7 +172,7 @@ export default function EnvelopeAnimation({
     
     if (forceAnimation) {
       // Force show animation, clear the persisted "seen" flag
-      clearAnimationSeen(storageKey)
+      clearAnimationSeen(slug)
       setShouldShow(true)
       setIsComplete(false)
       return
@@ -169,7 +188,7 @@ export default function EnvelopeAnimation({
     }
 
     // Check if animation has already been shown on this device for this invite
-    const hasBeenShown = hasSeenAnimation(storageKey)
+    const hasBeenShown = hasSeenAnimation(slug)
     if (hasBeenShown) {
       setShouldShow(false)
       setShowContent(true)
@@ -183,7 +202,7 @@ export default function EnvelopeAnimation({
       setShouldShow(true)
       setIsComplete(false)
     }, 0)
-  }, [enabled, showAnimation, isHydrated])
+  }, [enabled, showAnimation, isHydrated, slug])
 
   // Animation sequence - 5 seconds total, envelope splits to top/bottom
   useEffect(() => {
@@ -233,9 +252,7 @@ export default function EnvelopeAnimation({
       setAnimationStage('complete')
       setIsComplete(true)
       // Persist so the animation is skipped on later visits to this invite
-      markAnimationSeen(storageKey)
-      // Use ref to always call latest callback
-      onAnimationCompleteRef.current?.()
+      markAnimationSeen(slug)
     }, 4000) // Complete at 4s total (0.5s envelope + 1s splitting before overlap + 2.5s overlap/revealing)
 
     return () => {
@@ -256,9 +273,7 @@ export default function EnvelopeAnimation({
     setShowContent(true)
     setAnimationStage('complete')
     setIsComplete(true)
-    markAnimationSeen(storageKey)
-    // Use ref for consistency
-    onAnimationCompleteRef.current?.()
+    markAnimationSeen(slug)
   }
 
   // Always render the container, but control visibility

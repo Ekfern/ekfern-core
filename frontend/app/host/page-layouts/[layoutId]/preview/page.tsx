@@ -5,7 +5,9 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { InviteConfig } from '@/lib/invite/schema'
 import { getInvitePageLayout } from '@/lib/invite/api'
+import { resolveAnimations } from '@/lib/invite/animations/resolve'
 import InviteRenderer from '@/components/invite/render/InviteRenderer'
+import ExperienceLayer from '@/components/invite/animations/ExperienceLayer'
 import {
   PREVIEW_SAMPLE,
   enrichConfigWithSampleData,
@@ -107,6 +109,7 @@ export default function PageLayoutPreviewPage() {
   }
 
   const enrichedConfig = enrichConfigWithSampleData(config)
+  const { experience } = resolveAnimations(enrichedConfig.animations)
 
   return (
     <div className="min-h-screen">
@@ -136,7 +139,7 @@ export default function PageLayoutPreviewPage() {
       </div>
 
       {/* Full-size invite render, offset below the banner */}
-      <div className="pt-10">
+      <div className="pt-10 relative">
         <InviteRenderer
           config={enrichedConfig}
           eventSlug="preview"
@@ -145,6 +148,8 @@ export default function PageLayoutPreviewPage() {
           hasRegistry={true}
           allowedSubEvents={[]}
         />
+        {/* Experience only — openings are for the live guest page, not the studio preview. */}
+        <ExperienceLayer id={experience} slug="preview" />
       </div>
     </div>
   )
