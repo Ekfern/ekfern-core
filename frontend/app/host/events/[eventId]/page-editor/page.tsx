@@ -22,6 +22,11 @@ import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
+import {
+  OPENING_ANIMATIONS,
+  EXPERIENCE_ANIMATIONS,
+} from '@/lib/invite/animations/catalog'
+import { resolveAnimations } from '@/lib/invite/animations/resolve'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
@@ -293,6 +298,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const previewImageInputRef = useRef<HTMLInputElement>(null)
   const previewWindowRef = useRef<Window | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
+  const [showInviteAnimations, setShowInviteAnimations] = useState(false)
   const [showPageBackground, setShowPageBackground] = useState(false)
   const [showLinkMetadata, setShowLinkMetadata] = useState(false)
   const [gradientColor1, setGradientColor1] = useState('#E8D8C3')
@@ -2184,29 +2190,9 @@ export default function DesignInvitationPage(): JSX.Element {
                         </div>
                       </div>
                     )}
-                  </div>
-                </div>
 
-                {/* Advanced Settings - Collapsible */}
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md p-2 -m-2"
-                  >
-                    <h3 className="text-sm font-semibold text-eco-green">Advanced Settings</h3>
-                    <svg
-                      className={`w-5 h-5 text-gray-500 transition-transform ${showAdvancedSettings ? 'transform rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {showAdvancedSettings && (
-                    <div className="mt-4 space-y-4">
+                    {/* Texture belongs with the background — it coats the same surface. */}
+                    <div className="border-t border-gray-100 pt-3 space-y-3">
                       <div>
                         <label className="block text-sm font-medium mb-2">Background Texture</label>
                         <select
@@ -2231,7 +2217,7 @@ export default function DesignInvitationPage(): JSX.Element {
                           <option value="marble">Marble</option>
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
-                          CSS-based texture overlay for a vintage, textured paper effect
+                          A paper-like overlay over the page colour
                         </p>
                       </div>
 
@@ -2254,9 +2240,6 @@ export default function DesignInvitationPage(): JSX.Element {
                             }))}
                             className="w-full"
                           />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Adjust the opacity of the texture overlay (0-100%)
-                          </p>
                         </div>
                       )}
 
@@ -2298,11 +2281,105 @@ export default function DesignInvitationPage(): JSX.Element {
                         )}
                         <p className="text-xs text-gray-500 mt-1">Image texture (e.g. marble photo). Intensity above applies to it.</p>
                       </div>
+                    </div>
+                  </div>
+                </div>
 
+                {/* Invite Animations — opening + ambient experience */}
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteAnimations(!showInviteAnimations)}
+                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md"
+                  >
+                    <span className="text-sm font-medium">Invite Animations</span>
+                    <svg className={`w-4 h-4 text-gray-500 transition-transform ${showInviteAnimations ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {showInviteAnimations && (
+                    <div className="mt-3 space-y-4">
+                      <p className="text-xs text-gray-500">
+                        How the invite opens and what drifts while guests read. Save, then use Preview or Publish to see openings — the editor canvas does not play them.
+                      </p>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium" htmlFor="opening-animation">
+                          Opening
+                        </label>
+                        <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
+                        <select
+                          id="opening-animation"
+                          value={resolveAnimations(config.animations).opening ?? ''}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            animations: {
+                              ...prev.animations,
+                              opening: e.target.value || null,
+                            },
+                          }))}
+                          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
+                        >
+                          <option value="">None</option>
+                          {OPENING_ANIMATIONS.map((entry) => (
+                            <option key={entry.id} value={entry.id}>
+                              {entry.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium" htmlFor="experience-animation">
+                          While reading
+                        </label>
+                        <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
+                        <select
+                          id="experience-animation"
+                          value={resolveAnimations(config.animations).experience ?? ''}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            animations: {
+                              ...prev.animations,
+                              experience: e.target.value || null,
+                            },
+                          }))}
+                          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
+                        >
+                          <option value="">None</option>
+                          {EXPERIENCE_ANIMATIONS.map((entry) => (
+                            <option key={entry.id} value={entry.id}>
+                              {entry.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Look & Style - Collapsible */}
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md p-2 -m-2"
+                  >
+                    <h3 className="text-sm font-semibold text-eco-green">Look &amp; Style</h3>
+                    <svg
+                      className={`w-5 h-5 text-gray-500 transition-transform ${showAdvancedSettings ? 'transform rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {showAdvancedSettings && (
+                    <div className="mt-4 space-y-4">
                       {/* Button style is page-level: an invitation with two button
                           shapes reads as a mistake. Both the RSVP buttons and Save
                           the Date take this unless a tile overrides it. */}
-                      <div className="border-t border-gray-200 pt-4 mt-4">
+                      <div>
                         <label htmlFor="page-buttonStyle" className="block text-sm font-medium mb-2">
                           Button style
                         </label>
@@ -2607,25 +2684,6 @@ export default function DesignInvitationPage(): JSX.Element {
                             ))}
                           </div>
                         )}
-                      </div>
-
-                      {/* Opening Animation */}
-                      <div className="border-t border-gray-200 pt-4 mt-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <label className="block text-sm font-medium">Opening animation</label>
-                            <p className="text-xs text-gray-500 mt-0.5">Envelope when guests open the invite</p>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={config.animations?.envelope !== false}
-                            onChange={(e) => setConfig(prev => ({
-                              ...prev,
-                              animations: { ...prev.animations, envelope: e.target.checked },
-                            }))}
-                            className="w-4 h-4 accent-eco-green border-gray-300 rounded"
-                          />
-                        </div>
                       </div>
 
                       {/* Page Border Settings */}
