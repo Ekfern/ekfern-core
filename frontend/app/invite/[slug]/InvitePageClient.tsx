@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { InviteConfig } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
+import { eventFromInvitePayload, type InviteEvent } from '@/lib/invite/inviteEvent'
 import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import { logError, logDebug } from '@/lib/error-handler'
 import api from '@/lib/api'
@@ -16,7 +17,6 @@ import {
   shouldShowCatalogOnEventPage,
 } from '@/lib/catalog/placement'
 import { catalogUrl } from '@/lib/catalog/source'
-import type { CatalogPurpose } from '@/lib/catalog/types'
 
 // Helper for development-only logging
 const isDev = process.env.NODE_ENV === 'development'
@@ -24,26 +24,9 @@ const devLog = (...args: any[]) => {
   if (isDev) console.log(...args)
 }
 
-interface Event {
-  id: number
-  title: string
-  date?: string
-  page_config?: InviteConfig
-  has_rsvp?: boolean
-  has_registry?: boolean
-  catalog_show_on_event_page?: boolean
-  catalog_show_on_rsvp_confirmation?: boolean
-  catalog_title?: string
-  catalog_purpose?: CatalogPurpose
-  show_branding?: boolean
-  country?: string
-  timezone?: string
-  rsvp_count?: number
-}
-
 interface InvitePageClientProps {
   slug: string
-  initialEvent?: Event | null
+  initialEvent?: InviteEvent | null
   initialConfig?: InviteConfig | null
   /** Server-rendered markup for particular tiles, keyed by tile id. */
   ssrTiles?: Record<string, React.ReactNode>
@@ -77,7 +60,7 @@ export default function InvitePageClient({
     })
   }
   
-  const [event, setEvent] = useState<Event | null>(initialEvent)
+  const [event, setEvent] = useState<InviteEvent | null>(initialEvent)
   const [config, setConfig] = useState<InviteConfig | null>(initialConfig)
   const [loading, setLoading] = useState(!initialConfig)
   const [subEvents, setSubEvents] = useState<any[]>(allowedSubEvents)
@@ -218,10 +201,7 @@ export default function InvitePageClient({
         timestamp: new Date().toISOString(),
       })
       
-      const eventData = {
-        ...inviteData,
-        page_config: inviteData.config,
-      }
+      const eventData = eventFromInvitePayload(inviteData)
       
       if (inviteData.allowed_sub_events) {
         setSubEvents(inviteData.allowed_sub_events)

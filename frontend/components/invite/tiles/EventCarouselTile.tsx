@@ -293,7 +293,7 @@ export default function EventCarouselTile({
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-        timeZone: eventTimezone || 'Asia/Kolkata',
+        timeZone: eventTimezone || undefined,
       })
     } catch {
       return dateString
@@ -304,14 +304,19 @@ export default function EventCarouselTile({
     try {
       const date = new Date(dateString)
 
-      const tz = eventTimezone || 'Asia/Kolkata'
+      // No fallback zone: a sub-event whose event has no timezone prints the
+      // time without a label rather than claiming a zone it does not know.
+      const tz = eventTimezone
       const time = date.toLocaleTimeString('en-US', {
-        timeZone: tz,
+        timeZone: tz || undefined,
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
       })
-      return `${time} ${getTimezoneLabel(tz)}`
+      // Resolved against this sub-event's own date, so a January session reads
+      // CST and a July one CDT.
+      const label = tz ? getTimezoneLabel(tz, date) : ''
+      return label ? `${time} ${label}` : time
     } catch {
       return ''
     }
