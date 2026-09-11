@@ -57,6 +57,32 @@ describe('generateICS', () => {
     expect(lineOf(ics, 'SUMMARY')).toBe('SUMMARY:Bare')
   })
 
+  it('reuses the caller\'s uid, so a second download updates rather than duplicates', () => {
+    const first = generateICS({ ...base, uid: 'meera-arjun@example.com' })
+    const second = generateICS({ ...base, uid: 'meera-arjun@example.com' })
+    expect(lineOf(first, 'UID')).toBe('UID:meera-arjun@example.com')
+    expect(lineOf(second, 'UID')).toBe(lineOf(first, 'UID'))
+  })
+
+  it('falls back to a unique uid when the caller has no stable identity', () => {
+    const a = lineOf(generateICS(base), 'UID')
+    const b = lineOf(generateICS(base), 'UID')
+    expect(a).toBeDefined()
+    expect(a).not.toBe(b)
+  })
+
+  it('carries the sequence so a calendar can tell a newer copy from the one it holds', () => {
+    expect(lineOf(generateICS({ ...base, uid: 'x@y', sequence: 29_700_123 }), 'SEQUENCE'))
+      .toBe('SEQUENCE:29700123')
+  })
+
+  it('defaults the sequence to zero and never emits a negative or fractional one', () => {
+    expect(lineOf(generateICS(base), 'SEQUENCE')).toBe('SEQUENCE:0')
+    expect(lineOf(generateICS({ ...base, sequence: -5 }), 'SEQUENCE')).toBe('SEQUENCE:0')
+    expect(lineOf(generateICS({ ...base, sequence: 12.9 }), 'SEQUENCE')).toBe('SEQUENCE:12')
+    expect(lineOf(generateICS({ ...base, sequence: NaN }), 'SEQUENCE')).toBe('SEQUENCE:0')
+  })
+
   it('produces a well-formed, CRLF-delimited calendar', () => {
     const ics = generateICS(base)
     expect(ics.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true)

@@ -14,6 +14,22 @@ export interface CalendarEvent {
    * is the only thing they kept.
    */
   url?: string
+  /**
+   * Stable identity for this event, e.g. `meera-arjun@example.com`.
+   *
+   * Calendars key on UID: the same one twice is one event updated, a new one
+   * each time is a second event. This was generated from `Date.now()` and a
+   * random suffix, so a guest who tapped Download twice - or came back after
+   * the host moved the ceremony - collected duplicates rather than a
+   * correction. Falls back to a random UID when the caller has no stable
+   * identity to offer.
+   */
+  uid?: string
+  /**
+   * Bumped whenever the event's details change. A calendar that already holds
+   * this UID uses it to tell a newer copy from the one it has.
+   */
+  sequence?: number
   startISO: string
   endISO: string
 }
@@ -78,7 +94,7 @@ export function generateICS(event: CalendarEvent): string {
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
-    `UID:${generateUID()}`,
+    `UID:${event.uid || generateUID()}`,
     `DTSTAMP:${now}`,
     `DTSTART:${startDate}`,
     `DTEND:${endDate}`,
@@ -100,7 +116,12 @@ export function generateICS(event: CalendarEvent): string {
     lines.push(`LOCATION:${escapeICS(event.location)}`)
   }
 
-  lines.push('STATUS:CONFIRMED', 'SEQUENCE:0', 'END:VEVENT', 'END:VCALENDAR')
+  lines.push(
+    'STATUS:CONFIRMED',
+    `SEQUENCE:${Number.isFinite(event.sequence) ? Math.max(0, Math.trunc(event.sequence as number)) : 0}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  )
 
   return lines.join('\r\n')
 }
@@ -131,7 +152,10 @@ function escapeICS(text: string): string {
 }
 
 /**
- * Generate unique ID for ICS event
+ * Last-resort identity, for callers with nothing stable to key on.
+ *
+ * Random, so every call is a distinct event to a calendar. Prefer passing
+ * `uid`.
  */
 function generateUID(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}@event-registry`

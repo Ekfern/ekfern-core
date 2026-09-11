@@ -75,13 +75,31 @@ export async function GET(request: NextRequest) {
 
     const endDate = new Date(startDate.getTime() + DEFAULT_DURATION_MS)
 
+    const siteUrl = getSiteUrl()
+    // Keyed on the slug, which is what makes this invitation *this* invitation,
+    // so a guest who downloads twice ends up with one entry rather than two.
+    const uidHost = (() => {
+      try {
+        return new URL(siteUrl).host
+      } catch {
+        return 'invite'
+      }
+    })()
+    // Minutes since the epoch at the invite's last edit: monotonic, comfortably
+    // inside the 32-bit range calendars expect, and it moves whenever the host
+    // republishes - which is exactly when a held copy has gone stale.
+    const updatedMs = Date.parse(payload.updated_at ?? '')
+    const sequence = Number.isFinite(updatedMs) ? Math.floor(updatedMs / 60000) : 0
+
     // Generate ICS content
     const icsContent = generateICS({
       title: payload.title || 'Event',
       location: details?.location || undefined,
       // No guest token: a downloaded .ics gets forwarded, and one guest's
       // personal link should not travel with it.
-      url: `${getSiteUrl()}/invite/${slug}`,
+      url: `${siteUrl}/invite/${slug}`,
+      uid: `${slug}@${uidHost}`,
+      sequence,
       startISO: startDate.toISOString(),
       endISO: endDate.toISOString(),
     })
