@@ -8,8 +8,39 @@ export interface CalendarEvent {
   title: string
   details?: string
   location?: string
+  /**
+   * Where the invitation lives. A guest who saved this three months ago has no
+   * other route back to the RSVP, the venue or the aarti - the calendar entry
+   * is the only thing they kept.
+   */
+  url?: string
+  /**
+   * Stable identity for this event, e.g. `meera-arjun@example.com`.
+   *
+   * Calendars key on UID: the same one twice is one event updated, a new one
+   * each time is a second event. This was generated from `Date.now()` and a
+   * random suffix, so a guest who tapped Download twice - or came back after
+   * the host moved the ceremony - collected duplicates rather than a
+   * correction. Falls back to a random UID when the caller has no stable
+   * identity to offer.
+   */
+  uid?: string
+  /**
+   * Bumped whenever the event's details change. A calendar that already holds
+   * this UID uses it to tell a newer copy from the one it has.
+   */
+  sequence?: number
   startISO: string
   endISO: string
+}
+
+/**
+ * The body of the entry: whatever the host wrote, then the link.
+ *
+ * Shared by both exports so Google and .ics show a guest the same thing.
+ */
+function buildDescription(event: CalendarEvent): string {
+  return [event.details, event.url].filter(Boolean).join('\n\n')
 }
 
 /**
@@ -22,8 +53,9 @@ export function getGoogleCalendarHref(event: CalendarEvent): string {
     dates: `${formatGoogleDate(event.startISO)}/${formatGoogleDate(event.endISO)}`,
   })
 
-  if (event.details) {
-    params.append('details', event.details)
+  const details = buildDescription(event)
+  if (details) {
+    params.append('details', details)
   }
 
   if (event.location) {
@@ -48,6 +80,43 @@ function formatGoogleDate(isoString: string): string {
 }
 
 /**
+ * RFC 5545 §3.1: no content line may exceed 75 octets.
+ *
+ * Longer ones are folded - split across lines, each continuation starting with
+ * a single space that the reader strips again. Nothing here folded before,
+ * which went unnoticed while the only long line was a SUMMARY. A URL on a real
+ * domain with a real slug clears 75 comfortably.
+ *
+ * Counted in octets, not characters, and split on code points so a multi-byte
+ * character is never cut in half. `TextEncoder` rather than `Buffer` because
+ * this module is imported by client components too.
+ */
+function foldLine(line: string): string {
+  const encoder = new TextEncoder()
+  if (encoder.encode(line).length <= 75) return line
+
+  const folded: string[] = []
+  let current = ''
+  let octets = 0
+
+  for (const char of line) {
+    const size = encoder.encode(char).length
+    if (octets + size > 75) {
+      folded.push(current)
+      // The leading space is part of the continuation line's 75.
+      current = ` ${char}`
+      octets = 1 + size
+    } else {
+      current += char
+      octets += size
+    }
+  }
+  folded.push(current)
+
+  return folded.join('\r\n')
+}
+
+/**
  * Generate ICS file content
  */
 export function generateICS(event: CalendarEvent): string {
@@ -62,24 +131,36 @@ export function generateICS(event: CalendarEvent): string {
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
-    `UID:${generateUID()}`,
+    `UID:${event.uid || generateUID()}`,
     `DTSTAMP:${now}`,
     `DTSTART:${startDate}`,
     `DTEND:${endDate}`,
     `SUMMARY:${escapeICS(event.title)}`,
   ]
 
-  if (event.details) {
-    lines.push(`DESCRIPTION:${escapeICS(event.details)}`)
+  const description = buildDescription(event)
+  if (description) {
+    lines.push(`DESCRIPTION:${escapeICS(description)}`)
+  }
+
+  // A URI value, not text - escaping its commas would corrupt the link. Sent
+  // alongside DESCRIPTION because plenty of clients never surface URL.
+  if (event.url) {
+    lines.push(`URL:${event.url}`)
   }
 
   if (event.location) {
     lines.push(`LOCATION:${escapeICS(event.location)}`)
   }
 
-  lines.push('STATUS:CONFIRMED', 'SEQUENCE:0', 'END:VEVENT', 'END:VCALENDAR')
+  lines.push(
+    'STATUS:CONFIRMED',
+    `SEQUENCE:${Number.isFinite(event.sequence) ? Math.max(0, Math.trunc(event.sequence as number)) : 0}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  )
 
-  return lines.join('\r\n')
+  return lines.map(foldLine).join('\r\n')
 }
 
 /**
@@ -108,7 +189,10 @@ function escapeICS(text: string): string {
 }
 
 /**
- * Generate unique ID for ICS event
+ * Last-resort identity, for callers with nothing stable to key on.
+ *
+ * Random, so every call is a distinct event to a calendar. Prefer passing
+ * `uid`.
  */
 function generateUID(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}@event-registry`

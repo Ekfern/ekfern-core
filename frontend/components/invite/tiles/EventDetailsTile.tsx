@@ -5,7 +5,7 @@ import { MapPin, ChevronDown, Calendar, Download } from 'lucide-react'
 import { recipe } from '@/lib/invite/recipes'
 import { surface } from '@/lib/invite/surfaces'
 import { EventDetailsTileSettings } from '@/lib/invite/schema'
-import { getTimezoneLabel } from '@/lib/invite/timezone'
+import { formatEventTime, zonedTimeToUtc } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
@@ -163,7 +163,17 @@ function renderDecorativeBorder(
 
 export default function EventDetailsTile({ settings, preview = false, eventSlug, eventTitle, eventDate, eventTimezone, tileId }: EventDetailsTileProps) {
   const [showCalendarMenu, setShowCalendarMenu] = useState(false)
-  const tz = eventTimezone || 'Asia/Kolkata'
+  // No fallback. An invitation that does not know its zone prints no zone,
+  // rather than telling a Chicago guest their event is in IST.
+  const tz = eventTimezone
+  // Which abbreviation applies depends on the date - America/Chicago is CST in
+  // January and CDT in July - so the label is resolved against the event day.
+  const zoneLabelDate = (() => {
+    const d = settings.date || eventDate
+    if (!d) return undefined
+    const parsed = new Date(`${String(d).slice(0, 10)}T12:00:00Z`)
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed
+  })()
 
   // Save the Date button styling — shares the same variant system as FeatureButtonsTile
   // so every layout's CTAs look consistent instead of a fixed hardcoded outline.
@@ -207,14 +217,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     }
   }
 
-  const formatTime = (timeString: string) => {
-    if (!timeString) return timeString
-    const [hours, minutes] = timeString.split(':').map(Number)
-    if (Number.isNaN(hours) || Number.isNaN(minutes)) return timeString
-    const hour12 = ((hours + 11) % 12) + 1
-    const ampm = hours >= 12 ? 'PM' : 'AM'
-    return `${hour12}:${String(minutes).padStart(2, '0')} ${ampm} ${getTimezoneLabel(tz)}`
-  }
+  // Deliberately not a conversion: the guest is shown the time on the wall at
+  // the venue, which is the number the hosts will say. Converting to the
+  // reader's own zone is the calendar's job, below.
+  const formatTime = (timeString: string) =>
+    formatEventTime(timeString, tz, zoneLabelDate)
 
   const parseDateParts = (dateString: string): { day: number; weekday: string; month: string; year: number } | null => {
     try {
@@ -246,43 +253,36 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   const handleGoogleCalendar = (e?: React.MouseEvent<HTMLButtonElement>) => {
     e?.preventDefault()
     e?.stopPropagation()
-    const dateToUse = settings.date || eventDate
-    if (dateToUse) {
-      let startDate: Date
-      try {
-        if (dateToUse.includes('T')) {
-          startDate = new Date(dateToUse)
-        } else {
-          const [year, month, day] = dateToUse.split('-').map(Number)
-          startDate = new Date(year, month - 1, day)
-        }
-
-        // Add time if available
-        if (settings.time) {
-          const [hours, minutes] = settings.time.split(':').map(Number)
-          if (!isNaN(hours) && !isNaN(minutes)) {
-            startDate.setHours(hours, minutes || 0, 0, 0)
-          }
-        } else {
-          startDate.setHours(0, 0, 0, 0)
-        }
-
-        const endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000) // 4 hours later
-
-        const googleUrl = getGoogleCalendarHref({
-          title: eventTitle || 'Event',
-          startISO: startDate.toISOString(),
-          endISO: endDate.toISOString(),
-        })
-
-        window.open(googleUrl, '_blank')
-      } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error creating calendar event:', error)
-        }
-      }
-    }
     setShowCalendarMenu(false)
+
+    const dateToUse = settings.date || eventDate
+    if (!dateToUse || !tz) return
+
+    // The host typed a wall clock at the venue. Turning it into a moment needs
+    // the event's zone - the previous code used `new Date(y, m, d)` and
+    // `setHours`, both of which read the *guest's* browser zone, so the same
+    // invitation produced a different instant for every guest who tapped it.
+    const startDate = zonedTimeToUtc(dateToUse, settings.time, tz)
+    if (!startDate) return
+
+    // No end time exists on the tile yet, so assume four hours.
+    const endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000)
+
+    // The public invitation, deliberately without the `?g=` token the guest is
+    // reading under - a calendar entry gets forwarded, and a personal token
+    // should not travel with it.
+    const inviteUrl = eventSlug ? `${window.location.origin}/invite/${eventSlug}` : undefined
+
+    window.open(
+      getGoogleCalendarHref({
+        title: eventTitle || 'Event',
+        location: settings.location || undefined,
+        url: inviteUrl,
+        startISO: startDate.toISOString(),
+        endISO: endDate.toISOString(),
+      }),
+      '_blank',
+    )
   }
 
   const handleDownloadICS = (e?: React.MouseEvent<HTMLButtonElement>) => {
