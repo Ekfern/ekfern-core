@@ -407,9 +407,15 @@ export interface InviteConfig {
     bottomLeft?: string
     bottomRight?: string
   } | null
-  // Animation settings
+  // Animation settings — hosts pick module IDs; Ekfern owns module internals.
+  // `envelope` is read-compat only (legacy boolean). Prefer `opening` / `experience`.
   animations?: {
-    envelope?: boolean // Enable/disable envelope opening animation (default: true)
+    /** Opening module id (e.g. 'envelope_reveal'), or null for none */
+    opening?: string | null
+    /** Invite-experience module id (e.g. 'rose_petals'), or null for none */
+    experience?: string | null
+    /** @deprecated Prefer `opening`. Still read when `opening` is unset. */
+    envelope?: boolean
   } | null
   // Link preview metadata (Open Graph, Twitter Cards, WhatsApp)
   linkMetadata?: LinkMetadata | null
