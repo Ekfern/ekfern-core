@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { InviteConfig } from '@/lib/invite/schema'
 import { getInvitePageLayout } from '@/lib/invite/api'
 import { resolveAnimations } from '@/lib/invite/animations/resolve'
+import { primaryAnimationId } from '@/lib/invite/animations/types'
 import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import ExperienceLayer from '@/components/invite/animations/ExperienceLayer'
 import {
@@ -109,7 +110,9 @@ export default function PageLayoutPreviewPage() {
   }
 
   const enrichedConfig = enrichConfigWithSampleData(config)
-  const { experience } = resolveAnimations(enrichedConfig.animations)
+  const experience = primaryAnimationId(
+    resolveAnimations(enrichedConfig.animations).experience,
+  )
 
   return (
     <div className="min-h-screen">

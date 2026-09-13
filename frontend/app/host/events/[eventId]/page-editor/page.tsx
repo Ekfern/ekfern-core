@@ -22,11 +22,9 @@ import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import {
-  OPENING_ANIMATIONS,
-  EXPERIENCE_ANIMATIONS,
-} from '@/lib/invite/animations/catalog'
-import { resolveAnimations } from '@/lib/invite/animations/resolve'
+import { resolveAnimations, clampAnimationSlot } from '@/lib/invite/animations/resolve'
+import { primaryAnimationId } from '@/lib/invite/animations/types'
+import { useAnimationRegistryPicker } from '@/lib/invite/animations/useAnimationRegistryPicker'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
@@ -299,6 +297,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const previewWindowRef = useRef<Window | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showInviteAnimations, setShowInviteAnimations] = useState(false)
+  const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
   const [showPageBackground, setShowPageBackground] = useState(false)
   const [showLinkMetadata, setShowLinkMetadata] = useState(false)
   const [gradientColor1, setGradientColor1] = useState('#E8D8C3')
@@ -2309,19 +2308,21 @@ export default function DesignInvitationPage(): JSX.Element {
                         <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
                         <select
                           id="opening-animation"
-                          value={resolveAnimations(config.animations).opening ?? ''}
+                          value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
                             animations: {
                               ...prev.animations,
-                              opening: e.target.value || null,
+                              opening: clampAnimationSlot(
+                                e.target.value ? [e.target.value] : [],
+                              ),
                             },
                           }))}
                           className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
                         >
                           <option value="">None</option>
-                          {OPENING_ANIMATIONS.map((entry) => (
-                            <option key={entry.id} value={entry.id}>
+                          {openingOptions.map((entry) => (
+                            <option key={entry.moduleId} value={entry.moduleId}>
                               {entry.label}
                             </option>
                           ))}
@@ -2334,19 +2335,21 @@ export default function DesignInvitationPage(): JSX.Element {
                         <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
                         <select
                           id="experience-animation"
-                          value={resolveAnimations(config.animations).experience ?? ''}
+                          value={primaryAnimationId(resolveAnimations(config.animations).experience) ?? ''}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
                             animations: {
                               ...prev.animations,
-                              experience: e.target.value || null,
+                              experience: clampAnimationSlot(
+                                e.target.value ? [e.target.value] : [],
+                              ),
                             },
                           }))}
                           className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
                         >
                           <option value="">None</option>
-                          {EXPERIENCE_ANIMATIONS.map((entry) => (
-                            <option key={entry.id} value={entry.id}>
+                          {experienceOptions.map((entry) => (
+                            <option key={entry.moduleId} value={entry.moduleId}>
                               {entry.label}
                             </option>
                           ))}

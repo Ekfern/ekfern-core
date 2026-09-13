@@ -19,6 +19,7 @@ from .models import (
     LLMPlatformSettings,
     WhatsAppSettings,
     WaitlistEntry,
+    AnimationRegistryEntry,
 )
 
 
@@ -135,6 +136,17 @@ class GreetingCardSampleAdmin(admin.ModelAdmin):
     raw_id_fields = ('created_by',)
 
 
+class AnimationRegistryEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        'name', 'slug', 'slot', 'category', 'module_id', 'status',
+        'price', 'creator_name', 'published_at',
+    )
+    list_filter = ('slot', 'category', 'status')
+    search_fields = ('name', 'slug', 'module_id', 'creator_name', 'description')
+    readonly_fields = ('created_at', 'updated_at', 'published_at')
+    prepopulated_fields = {'slug': ('name',)}
+
+
 # Register with custom admin site
 admin_site.register(Event, EventAdmin)
 admin_site.register(Guest, GuestAdmin)
@@ -145,6 +157,7 @@ admin_site.register(GuestSubEventInvite, GuestSubEventInviteAdmin)
 admin_site.register(MessageTemplate, MessageTemplateAdmin)
 admin_site.register(AnalyticsBatchRun, AnalyticsBatchRunAdmin)
 admin_site.register(GreetingCardSample, GreetingCardSampleAdmin)
+admin_site.register(AnimationRegistryEntry, AnimationRegistryEntryAdmin)
 
 
 @admin.register(HostSendQuota)
