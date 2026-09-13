@@ -37,6 +37,11 @@ import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import FontPicker from '@/components/invite/FontPicker'
 import WizardProgress from '@/components/host/WizardProgress'
+import {
+  InviteMobileAnimationShell,
+  PlayOpeningButton,
+  useInvitePreviewAnimationState,
+} from '@/components/invite/InviteMobileAnimationPreview'
 
 interface Event {
   id: number
@@ -1582,6 +1587,19 @@ export default function DesignInvitationPage(): JSX.Element {
   const displayBackgroundColor = resolveAppearance(config).backgroundColor
   const displayBackground = config.customColors?.backgroundGradient || displayBackgroundColor
   const isGradientBg = !!config.customColors?.backgroundGradient
+  const previewAnim = useInvitePreviewAnimationState(
+    config,
+    `editor-preview-${eventId || 'new'}`,
+  )
+  const mobilePreviewSectionRef = useRef<HTMLDivElement>(null)
+
+  const playOpeningInPreview = useCallback(() => {
+    previewAnim.replayOpening()
+    // On stacked (mobile) layout the preview is below settings — bring it into view.
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+      mobilePreviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [previewAnim.replayOpening])
 
   if (loading) {
     return (
@@ -2299,34 +2317,41 @@ export default function DesignInvitationPage(): JSX.Element {
                   {showInviteAnimations && (
                     <div className="mt-3 space-y-4">
                       <p className="text-xs text-gray-500">
-                        How the invite opens and what drifts while guests read. Save, then use Preview or Publish to see openings — the editor canvas does not play them.
+                        How the invite opens and what drifts while guests read. Use Play to watch the opening in the Mobile Preview.
                       </p>
                       <div className="space-y-1">
                         <label className="block text-sm font-medium" htmlFor="opening-animation">
                           Opening
                         </label>
                         <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
-                        <select
-                          id="opening-animation"
-                          value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            animations: {
-                              ...prev.animations,
-                              opening: clampAnimationSlot(
-                                e.target.value ? [e.target.value] : [],
-                              ),
-                            },
-                          }))}
-                          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
-                        >
-                          <option value="">None</option>
-                          {openingOptions.map((entry) => (
-                            <option key={entry.moduleId} value={entry.moduleId}>
-                              {entry.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="mt-1 flex gap-2 items-stretch">
+                          <select
+                            id="opening-animation"
+                            value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
+                            onChange={(e) => setConfig(prev => ({
+                              ...prev,
+                              animations: {
+                                ...prev.animations,
+                                opening: clampAnimationSlot(
+                                  e.target.value ? [e.target.value] : [],
+                                ),
+                              },
+                            }))}
+                            className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
+                          >
+                            <option value="">None</option>
+                            {openingOptions.map((entry) => (
+                              <option key={entry.moduleId} value={entry.moduleId}>
+                                {entry.label}
+                              </option>
+                            ))}
+                          </select>
+                          <PlayOpeningButton
+                            visible={!!previewAnim.openingId}
+                            onPlay={playOpeningInPreview}
+                            variant="inline"
+                          />
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <label className="block text-sm font-medium" htmlFor="experience-animation">
@@ -3244,6 +3269,7 @@ export default function DesignInvitationPage(): JSX.Element {
             >
 
               <div
+                ref={mobilePreviewSectionRef}
                 className="relative lg:z-40 bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden"
                 style={{
                   height: `calc(100vh - 1rem)`,
@@ -3260,6 +3286,12 @@ export default function DesignInvitationPage(): JSX.Element {
                   )}
                 </h2>
                 <p className="text-xs text-gray-600 mb-3 sm:mb-4">This preview matches your live invite. Reorder tiles using the drag handles in Tile Settings (left).</p>
+                <PlayOpeningButton
+                  visible={!!previewAnim.openingId}
+                  onPlay={playOpeningInPreview}
+                  variant="abovePreview"
+                  className="lg:hidden"
+                />
                 {/* iPhone 16 Frame - Responsive */}
                 <div className="flex justify-center items-start w-full overflow-x-hidden">
                   <div className="relative w-full flex justify-center" style={{ maxWidth: '100%' }}>
@@ -3291,16 +3323,23 @@ export default function DesignInvitationPage(): JSX.Element {
                           }}
                         ></div>
                         {/* Screen - iPhone 16 aspect ratio (1179:2556 ≈ 0.461) */}
-                        <AppearanceProvider config={config}>
-                          <div
-                            className="relative overflow-hidden bg-white flex flex-col w-full"
-                            style={{
-                              width: '100%',
-                              aspectRatio: '1179 / 2556',
-                              background: displayBackground,
-                              borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
-                            }}
-                          >
+                        <InviteMobileAnimationShell
+                          openingId={previewAnim.openingId}
+                          experienceId={previewAnim.experienceId}
+                          slug={previewAnim.slug}
+                          layerKey={previewAnim.layerKey}
+                          coverColor={typeof displayBackground === 'string' && displayBackground.startsWith('#')
+                            ? displayBackground
+                            : displayBackgroundColor}
+                          className="relative overflow-hidden bg-white flex flex-col w-full"
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1179 / 2556',
+                            background: displayBackground,
+                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
+                          }}
+                        >
+                          <AppearanceProvider config={config}>
                             <TextureOverlay
                               type={config.texture?.type ?? 'none'}
                               intensity={config.texture?.intensity ?? 40}
@@ -3355,8 +3394,8 @@ export default function DesignInvitationPage(): JSX.Element {
                                 height: 'clamp(3px, 0.8vw, 5px)'
                               }}
                             ></div>
-                          </div>
-                        </AppearanceProvider>
+                          </AppearanceProvider>
+                        </InviteMobileAnimationShell>
                       </div>
                     </div>
                   </div>

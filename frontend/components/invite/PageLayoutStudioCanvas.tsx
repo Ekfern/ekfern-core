@@ -12,6 +12,11 @@ import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
+import {
+  InviteMobileAnimationShell,
+  PlayOpeningButton,
+  useInvitePreviewAnimationState,
+} from '@/components/invite/InviteMobileAnimationPreview'
 
 export interface DummyEventLike {
   title: string
@@ -143,6 +148,15 @@ export default function PageLayoutStudioCanvas({
 
   const displayBackgroundColor =
     config.customColors?.backgroundColor ?? resolveAppearance(config).backgroundColor
+  const previewAnim = useInvitePreviewAnimationState(config, 'layout-studio-preview')
+  const mobilePreviewSectionRef = React.useRef<HTMLDivElement>(null)
+
+  const playOpeningInPreview = useCallback(() => {
+    previewAnim.replayOpening()
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+      mobilePreviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [previewAnim.replayOpening])
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">
@@ -294,29 +308,36 @@ export default function PageLayoutStudioCanvas({
                       Opening
                     </label>
                     <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
-                    <select
-                      id="layout-opening-animation"
-                      value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          animations: {
-                            ...prev.animations,
-                            opening: clampAnimationSlot(
-                              e.target.value ? [e.target.value] : [],
-                            ),
-                          },
-                        }))
-                      }
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
-                    >
-                      <option value="">None</option>
-                      {openingOptions.map((entry) => (
-                        <option key={entry.moduleId} value={entry.moduleId}>
-                          {entry.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1 flex gap-2 items-stretch">
+                      <select
+                        id="layout-opening-animation"
+                        value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
+                        onChange={(e) =>
+                          setConfig((prev) => ({
+                            ...prev,
+                            animations: {
+                              ...prev.animations,
+                              opening: clampAnimationSlot(
+                                e.target.value ? [e.target.value] : [],
+                              ),
+                            },
+                          }))
+                        }
+                        className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
+                      >
+                        <option value="">None</option>
+                        {openingOptions.map((entry) => (
+                          <option key={entry.moduleId} value={entry.moduleId}>
+                            {entry.label}
+                          </option>
+                        ))}
+                      </select>
+                      <PlayOpeningButton
+                        visible={!!previewAnim.openingId}
+                        onPlay={playOpeningInPreview}
+                        variant="inline"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label className="block text-sm font-medium" htmlFor="layout-experience-animation">
@@ -575,7 +596,7 @@ export default function PageLayoutStudioCanvas({
         </div>
       </div>
 
-      <div className="lg:col-span-2 w-full min-w-0 overflow-x-hidden">
+      <div ref={mobilePreviewSectionRef} className="lg:col-span-2 w-full min-w-0 overflow-x-hidden">
         <div className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden">
           <h2 className="text-base sm:text-lg font-semibold text-eco-green mb-2">
             Mobile Preview
@@ -586,8 +607,14 @@ export default function PageLayoutStudioCanvas({
             )}
           </h2>
           <p className="text-xs text-gray-600 mb-3 sm:mb-4">
-            Drag tiles to reorder. Sample event data is used for preview.
+            Drag tiles to reorder. Sample event data is used for preview. Selected animations play in this phone.
           </p>
+          <PlayOpeningButton
+            visible={!!previewAnim.openingId}
+            onPlay={playOpeningInPreview}
+            variant="abovePreview"
+            className="lg:hidden"
+          />
           <div className="flex justify-center items-start w-full overflow-x-hidden">
             <div className="relative w-full flex justify-center" style={{ maxWidth: '100%' }}>
               <div
@@ -614,7 +641,12 @@ export default function PageLayoutStudioCanvas({
                       height: 'clamp(24px, 7.5vw, 37px)',
                     }}
                   />
-                  <div
+                  <InviteMobileAnimationShell
+                    openingId={previewAnim.openingId}
+                    experienceId={previewAnim.experienceId}
+                    slug={previewAnim.slug}
+                    layerKey={previewAnim.layerKey}
+                    coverColor={displayBackgroundColor}
                     className="relative overflow-hidden bg-white flex flex-col w-full"
                     style={{
                       width: '100%',
@@ -677,7 +709,7 @@ export default function PageLayoutStudioCanvas({
                         height: 'clamp(3px, 0.8vw, 5px)',
                       }}
                     />
-                  </div>
+                  </InviteMobileAnimationShell>
                 </div>
               </div>
             </div>
