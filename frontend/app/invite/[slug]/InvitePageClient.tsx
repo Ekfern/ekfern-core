@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { InviteConfig } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import { resolveAnimations } from '@/lib/invite/animations/resolve'
+import { primaryAnimationId } from '@/lib/invite/animations/types'
 import { eventFromInvitePayload, type InviteEvent } from '@/lib/invite/inviteEvent'
 import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import { logError, logDebug } from '@/lib/error-handler'
@@ -592,7 +593,10 @@ export default function InvitePageClient({
   })
 
   // Resolve module IDs — guest page never branches on envelope / petals by name.
-  const { opening, experience } = resolveAnimations(config.animations)
+  // Config stores arrays; layers still take a single id (cap 1) via primaryAnimationId.
+  const resolved = resolveAnimations(config.animations)
+  const opening = primaryAnimationId(resolved.opening)
+  const experience = primaryAnimationId(resolved.experience)
   const coverColor = pageBackground || '#E8D8C3'
 
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {

@@ -354,3 +354,38 @@ export async function uploadDesignImage(file: File): Promise<DesignImageUploadRe
   throw new Error('Upload failed')
 }
 
+/** One row from GET /api/events/animation-registry/ */
+export interface AnimationRegistryEntry {
+  id: number
+  slug: string
+  name: string
+  description: string
+  category: 'free' | 'premium' | 'internal' | string
+  slot: 'opening' | 'experience' | string
+  path: string
+  module_id: string
+  creator_name: string
+  status: 'draft' | 'published' | 'disabled' | string
+  published_at: string | null
+  price: string | number
+}
+
+/**
+ * Fetch published animation registry entries for host pickers.
+ * Guests never call this — invite config already stores module ids.
+ */
+export async function getAnimationRegistry(options?: {
+  slot?: 'opening' | 'experience'
+  status?: string
+}): Promise<AnimationRegistryEntry[]> {
+  const params: Record<string, string> = {}
+  if (options?.slot) params.slot = options.slot
+  if (options?.status) params.status = options.status
+  const response = await api.get<AnimationRegistryEntry[]>(
+    '/api/events/animation-registry/',
+    { params },
+  )
+  return Array.isArray(response.data) ? response.data : []
+}
+
+

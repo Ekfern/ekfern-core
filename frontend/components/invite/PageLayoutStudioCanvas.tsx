@@ -5,11 +5,9 @@ import { InviteConfig, Tile, TileType } from '@/lib/invite/schema'
 import { buildDefaultTileSettingsRecord } from '@/lib/invite/pageLayoutTileDefaults'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import {
-  OPENING_ANIMATIONS,
-  EXPERIENCE_ANIMATIONS,
-} from '@/lib/invite/animations/catalog'
-import { resolveAnimations } from '@/lib/invite/animations/resolve'
+import { resolveAnimations, clampAnimationSlot } from '@/lib/invite/animations/resolve'
+import { primaryAnimationId } from '@/lib/invite/animations/types'
+import { useAnimationRegistryPicker } from '@/lib/invite/animations/useAnimationRegistryPicker'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
@@ -42,6 +40,7 @@ export default function PageLayoutStudioCanvas({
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showInviteAnimations, setShowInviteAnimations] = useState(false)
+  const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
 
   useEffect(() => {
@@ -297,21 +296,23 @@ export default function PageLayoutStudioCanvas({
                     <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
                     <select
                       id="layout-opening-animation"
-                      value={resolveAnimations(config.animations).opening ?? ''}
+                      value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
                       onChange={(e) =>
                         setConfig((prev) => ({
                           ...prev,
                           animations: {
                             ...prev.animations,
-                            opening: e.target.value || null,
+                            opening: clampAnimationSlot(
+                              e.target.value ? [e.target.value] : [],
+                            ),
                           },
                         }))
                       }
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
                     >
                       <option value="">None</option>
-                      {OPENING_ANIMATIONS.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
+                      {openingOptions.map((entry) => (
+                        <option key={entry.moduleId} value={entry.moduleId}>
                           {entry.label}
                         </option>
                       ))}
@@ -324,21 +325,23 @@ export default function PageLayoutStudioCanvas({
                     <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
                     <select
                       id="layout-experience-animation"
-                      value={resolveAnimations(config.animations).experience ?? ''}
+                      value={primaryAnimationId(resolveAnimations(config.animations).experience) ?? ''}
                       onChange={(e) =>
                         setConfig((prev) => ({
                           ...prev,
                           animations: {
                             ...prev.animations,
-                            experience: e.target.value || null,
+                            experience: clampAnimationSlot(
+                              e.target.value ? [e.target.value] : [],
+                            ),
                           },
                         }))
                       }
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
                     >
                       <option value="">None</option>
-                      {EXPERIENCE_ANIMATIONS.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
+                      {experienceOptions.map((entry) => (
+                        <option key={entry.moduleId} value={entry.moduleId}>
                           {entry.label}
                         </option>
                       ))}

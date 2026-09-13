@@ -408,12 +408,13 @@ export interface InviteConfig {
     bottomRight?: string
   } | null
   // Animation settings — hosts pick module IDs; Ekfern owns module internals.
-  // `envelope` is read-compat only (legacy boolean). Prefer `opening` / `experience`.
+  // `envelope` is read-compat only (legacy boolean). Prefer `opening` / `experience` arrays.
+  // Arrays allow future multi-per-slot; product enforces max 1 until stacking is tested.
   animations?: {
-    /** Opening module id (e.g. 'envelope_reveal'), or null for none */
-    opening?: string | null
-    /** Invite-experience module id (e.g. 'rose_petals'), or null for none */
-    experience?: string | null
+    /** Opening module ids (e.g. ['envelope_reveal']), or null/[] for none. Legacy scalar string still resolved. */
+    opening?: string | string[] | null
+    /** Experience module ids (e.g. ['rose_petals']), or null/[]. Legacy scalar string still resolved. */
+    experience?: string | string[] | null
     /** @deprecated Prefer `opening`. Still read when `opening` is unset. */
     envelope?: boolean
   } | null

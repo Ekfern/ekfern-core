@@ -1,6 +1,7 @@
 /**
  * Host-facing animation catalogs — labels only, no React / module imports.
- * Guest pages resolve IDs via lazy loader maps; the editor only needs these lists.
+ * Guest pages resolve IDs via lazy loader maps; the editor prefers the
+ * Postgres animation registry API and falls back to these lists.
  */
 
 import type { AnimationCatalogEntry } from './types'
