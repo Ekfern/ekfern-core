@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timezone as dt_timezone
 from decimal import Decimal
 
 from django.db import models, IntegrityError
@@ -803,6 +804,31 @@ class AttributionClick(models.Model):
         return f"{self.attribution_link.token} @ {self.clicked_at}"
 
 
+#: How long one guest's repeat requests collapse into a single recorded view.
+INVITE_VIEW_DEDUPE_MINUTES = 30
+
+
+def invite_view_bucket(moment, minutes=INVITE_VIEW_DEDUPE_MINUTES):
+    """
+    Floor a moment to the start of its dedupe window.
+
+    The invite payload is fetched far more often than a guest actually looks at
+    the invitation: once server-side, once when the client mounts, again every
+    15 seconds while the tab is visible, and again if they open the catalog.
+    Each of those used to write its own row, so a guest who left a tab open for
+    an hour registered ~240 "views".
+
+    Flooring to a window turns that into a key a unique constraint can enforce,
+    which is what makes the count independent of how the client behaves.
+
+    Computed on the epoch rather than by zeroing fields, so a window that does
+    not divide evenly into an hour still lands on consistent boundaries.
+    """
+    size = minutes * 60
+    epoch = int(moment.timestamp())
+    return datetime.fromtimestamp(epoch - (epoch % size), tz=dt_timezone.utc)
+
+
 class InvitePageView(models.Model):
     """Track when personalized invite links are opened"""
     guest = models.ForeignKey(Guest, on_delete=models.CASCADE, related_name='invite_views')
@@ -818,6 +844,16 @@ class InvitePageView(models.Model):
     viewed_at = models.DateTimeField(
         help_text='When the guest actually viewed the page (from cached timestamp)'
     )
+    view_bucket = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            'Start of the dedupe window this view falls in. Carries the unique '
+            'constraint so repeat requests within the window collapse into one '
+            'row. Null on rows recorded before de-duplication existed.'
+        ),
+    )
 
     class Meta:
         db_table = 'invite_page_views'
@@ -828,9 +864,13 @@ class InvitePageView(models.Model):
             models.Index(fields=['event', 'guest'], name='invite_views_event_guest_idx'),
         ]
         constraints = [
+            # Was on `viewed_at`, which is microsecond-precision and therefore
+            # could never collide - the constraint looked like de-duplication
+            # while permitting unlimited duplicates. `view_bucket` is the same
+            # idea with a key that actually repeats.
             models.UniqueConstraint(
-                fields=['guest', 'event', 'viewed_at'],
-                name='invite_views_unique_guest_event_time',
+                fields=['guest', 'event', 'view_bucket'],
+                name='invite_views_unique_guest_event_bucket',
             ),
         ]
         ordering = ['-viewed_at']
