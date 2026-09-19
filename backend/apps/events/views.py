@@ -27,7 +27,6 @@ from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
 from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, CustomField
-from .models import invite_view_bucket
 from .serializers import (
     EventSerializer, EventCreateSerializer, EventListSerializer,
     RSVPSerializer, RSVPCreateSerializer,
@@ -45,6 +44,12 @@ from .serializers import (
     BookingScheduleSerializer, BookingSlotSerializer, SlotBookingSerializer,
     MetaApprovedTemplateSerializer,
 )
+
+# Kept off the long `from .models import ...` line above: that line is a
+# frequent merge target, and a second branch appending to it turns an unrelated
+# feature into a conflict.
+from .models import invite_view_bucket
+
 from .utils import get_country_code, format_phone_with_country_code, normalize_csv_header, upload_to_s3, parse_phone_number
 from .guest_import import (
     MAX_JSON_IMPORT_GUESTS,
