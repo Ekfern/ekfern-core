@@ -27,6 +27,7 @@ from apps.events.models import (
     InvitePage,
     InvitePageView,
     INVITE_VIEW_DEDUPE_MINUTES,
+    deduped_invite_view_count,
     invite_view_bucket,
 )
 from apps.users.models import User
@@ -244,3 +245,63 @@ class InviteViewEndpointDedupeTests(TestCase):
         with patch("apps.events.views.timezone.now", return_value=later):
             client.get(self.url)
         self.assertEqual(InvitePageView.objects.filter(event=self.event).count(), 2)
+
+
+class DedupedInviteViewCountTests(TestCase):
+    """
+    Repairing the historical numbers on read.
+
+    Rows written before de-duplication existed have no bucket and are inflated
+    - one per fetch. Deriving their window from `viewed_at` at read time makes
+    the reported figure honest without deleting anyone's data.
+    """
+
+    def setUp(self):
+        self.event, self.guest = _fixture("counted")
+
+    def _legacy(self, when):
+        return InvitePageView.objects.create(
+            guest=self.guest, event=self.event, viewed_at=when, view_bucket=None,
+        )
+
+    def test_collapses_legacy_rows_within_one_window(self):
+        start = timezone.now().replace(minute=0, second=0, microsecond=0)
+        # What an hour with a tab open used to record.
+        for seconds in range(0, 1500, 15):
+            self._legacy(start + timedelta(seconds=seconds))
+
+        self.assertEqual(InvitePageView.objects.filter(event=self.event).count(), 100)
+        self.assertEqual(deduped_invite_view_count(self.event.id), 1)
+
+    def test_legacy_rows_in_separate_windows_count_separately(self):
+        start = timezone.now().replace(minute=0, second=0, microsecond=0)
+        self._legacy(start)
+        self._legacy(start + timedelta(minutes=INVITE_VIEW_DEDUPE_MINUTES + 1))
+        self.assertEqual(deduped_invite_view_count(self.event.id), 2)
+
+    def test_counts_legacy_and_new_rows_together_without_double_counting(self):
+        start = timezone.now().replace(minute=0, second=0, microsecond=0)
+        self._legacy(start)
+        self._legacy(start + timedelta(seconds=30))
+        # A new row in the same window as the legacy pair.
+        InvitePageView.objects.create(
+            guest=self.guest, event=self.event,
+            viewed_at=start + timedelta(seconds=45),
+            view_bucket=invite_view_bucket(start),
+        )
+        self.assertEqual(InvitePageView.objects.filter(event=self.event).count(), 3)
+        self.assertEqual(deduped_invite_view_count(self.event.id), 1)
+
+    def test_separate_guests_are_not_collapsed(self):
+        other = Guest.objects.create(
+            event=self.event, name="Ravi", phone="+919800000003", guest_token="tok-3",
+        )
+        now = timezone.now()
+        self._legacy(now)
+        InvitePageView.objects.create(
+            guest=other, event=self.event, viewed_at=now, view_bucket=None,
+        )
+        self.assertEqual(deduped_invite_view_count(self.event.id), 2)
+
+    def test_an_event_with_no_views_counts_zero(self):
+        self.assertEqual(deduped_invite_view_count(self.event.id), 0)

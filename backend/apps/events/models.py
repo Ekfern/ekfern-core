@@ -829,6 +829,37 @@ def invite_view_bucket(moment, minutes=INVITE_VIEW_DEDUPE_MINUTES):
     return datetime.fromtimestamp(epoch - (epoch % size), tz=dt_timezone.utc)
 
 
+
+def deduped_invite_view_count(event_id, minutes=INVITE_VIEW_DEDUPE_MINUTES):
+    """
+    Invite views for an event, counting each guest once per window.
+
+    New rows already carry `view_bucket`, so for them this is just a count. Rows
+    written before de-duplication existed have a null bucket and are inflated -
+    one per fetch rather than one per visit - so their window is derived from
+    `viewed_at` here instead. That repairs the historical numbers on read
+    without rewriting or deleting anything.
+
+    Postgres-specific: `COUNT(DISTINCT (a, b))` over a row constructor.
+    """
+    from django.db import connection
+
+    window_seconds = minutes * 60
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COUNT(DISTINCT (guest_id, COALESCE(
+                view_bucket,
+                to_timestamp(floor(extract(epoch FROM viewed_at) / %s) * %s)
+            )))
+            FROM invite_page_views
+            WHERE event_id = %s
+            """,
+            [window_seconds, window_seconds, event_id],
+        )
+        return cursor.fetchone()[0] or 0
+
+
 class InvitePageView(models.Model):
     """Track when personalized invite links are opened"""
     guest = models.ForeignKey(Guest, on_delete=models.CASCADE, related_name='invite_views')

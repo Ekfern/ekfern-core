@@ -48,7 +48,7 @@ from .serializers import (
 # Kept off the long `from .models import ...` line above: that line is a
 # frequent merge target, and a second branch appending to it turns an unrelated
 # feature into a conflict.
-from .models import invite_view_bucket
+from .models import invite_view_bucket, deduped_invite_view_count
 
 from .utils import get_country_code, format_phone_with_country_code, normalize_csv_header, upload_to_s3, parse_phone_number
 from .guest_import import (
@@ -683,7 +683,11 @@ class EventViewSet(viewsets.ModelViewSet):
             ).distinct().count()
             
             # Get total view counts
-            total_invite_views = InvitePageView.objects.filter(event=event).count()
+            # Counted per guest per window, not per request. A raw row count
+            # reports how many times the payload was fetched - polling, the
+            # server render, the catalog - rather than how many times anyone
+            # looked at the invitation.
+            total_invite_views = deduped_invite_view_count(event.id)
             total_rsvp_views = RSVPPageView.objects.filter(event=event).count()
             
             # Calculate rates
