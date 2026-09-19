@@ -65,7 +65,7 @@ def unseed_builtin_animations(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0104_drop_map_height'),
+        ('events', '0106_catalog_page_view'),
     ]
 
     operations = [
