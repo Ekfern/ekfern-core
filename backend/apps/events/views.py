@@ -48,7 +48,7 @@ from .serializers import (
 # Kept off the long `from .models import ...` line above: that line is a
 # frequent merge target, and a second branch appending to it turns an unrelated
 # feature into a conflict.
-from .models import invite_view_bucket, deduped_invite_view_count
+from .models import invite_view_bucket, deduped_invite_view_count, CatalogPageView
 
 from .utils import get_country_code, format_phone_with_country_code, normalize_csv_header, upload_to_s3, parse_phone_number
 from .guest_import import (
@@ -703,9 +703,18 @@ class EventViewSet(viewsets.ModelViewSet):
             ).distinct().count()
             engagement_rate = (guests_with_both / total_guests * 100) if total_guests > 0 else 0
             
+            # The registry is its own surface, so it gets its own number rather
+            # than being folded into the invitation's.
+            total_catalog_views = CatalogPageView.objects.filter(event=event).count()
+            guests_with_catalog_views = Guest.objects.filter(
+                event=event, is_removed=False, catalog_views__isnull=False,
+            ).distinct().count()
+
             data = {
                 'total_guests': total_guests,
                 'guests_with_invite_views': guests_with_invite_views,
+                'guests_with_catalog_views': guests_with_catalog_views,
+                'total_catalog_views': total_catalog_views,
                 'guests_with_rsvp_views': guests_with_rsvp_views,
                 'total_invite_views': total_invite_views,
                 'total_rsvp_views': total_rsvp_views,
@@ -2075,7 +2084,14 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         # Record invite page view directly to DB (fire-and-forget, never breaks response)
-        if guest is not None and not is_preview:
+        #
+        # `surface` lets a caller say which page it is rendering. The catalog
+        # needs this payload too - for the registry title, the host's banner and
+        # the guest's name - but a registry visit is not an invitation view, and
+        # counting it as one is what put catalog traffic in the invite number.
+        # The catalog's own view is recorded by PublicCatalogView.
+        is_other_surface = request.query_params.get('surface', '') == 'catalog'
+        if guest is not None and not is_preview and not is_other_surface:
             try:
                 source = request.query_params.get('source', '')
                 channel = normalize_source_channel(source)

@@ -91,7 +91,14 @@ export default function PublicCatalogPage() {
       setNeedsPhone(false)
 
       const invitePromise = api
-        .get(`/api/events/invite/${slug}/`, { params: guestToken ? { g: guestToken } : {} })
+        .get(`/api/events/invite/${slug}/`, {
+          // This page needs the invite payload for the registry title, banner
+          // and guest name - but opening the registry is not viewing the
+          // invitation. Saying which surface this is keeps catalog traffic out
+          // of the invite count; the catalog's own view is recorded by the
+          // catalog endpoint.
+          params: { surface: 'catalog', ...(guestToken ? { g: guestToken } : {}) },
+        })
         .catch(() => null)
 
       const [inviteRes, catalogResult] = await Promise.all([
