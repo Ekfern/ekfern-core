@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, Http404, HttpResponseRedirect
 from django.conf import settings
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import F, Sum, Q, Count
 import csv
 import re
@@ -44,6 +44,12 @@ from .serializers import (
     BookingScheduleSerializer, BookingSlotSerializer, SlotBookingSerializer,
     MetaApprovedTemplateSerializer,
 )
+
+# Kept off the long `from .models import ...` line above: that line is a
+# frequent merge target, and a second branch appending to it turns an unrelated
+# feature into a conflict.
+from .models import invite_view_bucket, deduped_invite_view_count
+
 from .utils import get_country_code, format_phone_with_country_code, normalize_csv_header, upload_to_s3, parse_phone_number
 from .guest_import import (
     MAX_JSON_IMPORT_GUESTS,
@@ -677,7 +683,11 @@ class EventViewSet(viewsets.ModelViewSet):
             ).distinct().count()
             
             # Get total view counts
-            total_invite_views = InvitePageView.objects.filter(event=event).count()
+            # Counted per guest per window, not per request. A raw row count
+            # reports how many times the payload was fetched - polling, the
+            # server render, the catalog - rather than how many times anyone
+            # looked at the invitation.
+            total_invite_views = deduped_invite_view_count(event.id)
             total_rsvp_views = RSVPPageView.objects.filter(event=event).count()
             
             # Calculate rates
@@ -2075,14 +2085,39 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                     attribution_link = AttributionLink.objects.filter(
                         token=attribution_token, event=event
                     ).first()
-                InvitePageView.objects.create(
-                    guest=guest,
-                    event=event,
-                    viewed_at=timezone.now(),
-                    source_channel=channel,
-                    attribution_link=attribution_link,
-                )
-                logger.info(f"[Analytics] Recorded invite view: guest_id={guest.id}, event_id={event.id}")
+                # One row per guest per window, enforced by the database.
+                #
+                # This endpoint is a data fetch, not a page view: the server
+                # render calls it, the client calls it again on mount, the
+                # polling loop calls it every 15 seconds for as long as the tab
+                # stays visible, and the catalog page calls it too. Counting
+                # each of those as a person looking at the invitation is what
+                # turned one guest with a tab open into hundreds of views.
+                #
+                # Insert-and-catch rather than check-then-insert: two polls
+                # arriving together both pass an `exists()` check, and neither
+                # can fool a unique constraint.
+                now = timezone.now()
+                try:
+                    with transaction.atomic():
+                        InvitePageView.objects.create(
+                            guest=guest,
+                            event=event,
+                            viewed_at=now,
+                            view_bucket=invite_view_bucket(now),
+                            source_channel=channel,
+                            attribution_link=attribution_link,
+                        )
+                    logger.info(f"[Analytics] Recorded invite view: guest_id={guest.id}, event_id={event.id}")
+                except IntegrityError:
+                    # Already counted this guest in this window. The first
+                    # request of the window keeps its attribution, which is the
+                    # one carrying the `source`/`al` parameters - polls have
+                    # neither.
+                    logger.debug(
+                        f"[Analytics] Duplicate invite view suppressed: "
+                        f"guest_id={guest.id}, event_id={event.id}"
+                    )
             except Exception as e:
                 logger.error(
                     f"[Analytics] Failed to record invite view: {str(e)}",
