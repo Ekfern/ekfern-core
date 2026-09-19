@@ -909,6 +909,56 @@ class InvitePageView(models.Model):
         return f"{self.guest.name} viewed invite at {self.viewed_at}"
 
 
+
+class CatalogPageView(models.Model):
+    """
+    Track when guests open the gift catalog.
+
+    Its own model rather than a flag on InvitePageView, because a registry
+    visit is not an invitation view. The catalog page used to fetch the invite
+    payload - purely to read the theme - and every one of those fetches was
+    recorded as somebody looking at the invitation, which inflated the invite
+    number and left the catalog with no number at all.
+
+    Deduped the same way as invite views: the window carries the unique
+    constraint, so repeat loads by one guest count once.
+
+    Only recorded for an identified guest. A public event can be browsed with
+    no token at all, and an anonymous row attributable to nobody would neither
+    dedupe nor tell a host anything.
+    """
+    guest = models.ForeignKey(Guest, on_delete=models.CASCADE, related_name='catalog_views')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='catalog_views')
+    source_channel = models.CharField(
+        max_length=20,
+        choices=[('qr', 'QR Code'), ('link', 'Web Link'), ('manual', 'Manual')],
+        default='link'
+    )
+    viewed_at = models.DateTimeField(help_text='When the guest opened the catalog')
+    view_bucket = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Start of the dedupe window this view falls in; carries the unique constraint.',
+    )
+
+    class Meta:
+        db_table = 'catalog_page_views'
+        indexes = [
+            models.Index(fields=['event', '-viewed_at'], name='catalog_views_event_idx'),
+            models.Index(fields=['guest', '-viewed_at'], name='catalog_views_guest_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['guest', 'event', 'view_bucket'],
+                name='catalog_views_unique_guest_event_bucket',
+            ),
+        ]
+        ordering = ['-viewed_at']
+
+    def __str__(self):
+        return f"{self.guest.name} viewed catalog at {self.viewed_at}"
+
+
 class RSVPPageView(models.Model):
     """Track when guests open RSVP pages"""
     guest = models.ForeignKey(Guest, on_delete=models.CASCADE, related_name='rsvp_views')

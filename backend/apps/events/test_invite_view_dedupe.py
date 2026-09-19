@@ -305,3 +305,39 @@ class DedupedInviteViewCountTests(TestCase):
 
     def test_an_event_with_no_views_counts_zero(self):
         self.assertEqual(deduped_invite_view_count(self.event.id), 0)
+
+
+class CatalogSurfaceTests(TestCase):
+    """
+    A registry visit is not an invitation view.
+
+    The catalog page needs the invite payload - for the registry title, the
+    banner and the guest's name - so it cannot simply stop asking for it. It
+    says which surface it is instead, and its own view is recorded by the
+    catalog endpoint.
+    """
+
+    def setUp(self):
+        self.event, self.guest = _fixture("surface")
+        self.event.is_public = True
+        self.event.save()
+        InvitePage.objects.create(
+            event=self.event, slug="surface", config={"tiles": []},
+            published_config={"tiles": []}, is_published=True,
+            published_at=timezone.now(),
+        )
+        self.base = f"/api/events/invite/surface/?g={self.guest.guest_token}"
+
+    def test_a_catalog_request_records_no_invite_view(self):
+        response = Client().get(f"{self.base}&surface=catalog")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(InvitePageView.objects.filter(event=self.event).count(), 0)
+
+    def test_it_still_returns_the_payload_the_catalog_needs(self):
+        response = Client().get(f"{self.base}&surface=catalog")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('config', response.json())
+
+    def test_a_normal_request_still_records_one(self):
+        Client().get(self.base)
+        self.assertEqual(InvitePageView.objects.filter(event=self.event).count(), 1)
