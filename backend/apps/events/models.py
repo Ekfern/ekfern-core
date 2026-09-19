@@ -847,7 +847,6 @@ class InvitePageView(models.Model):
     view_bucket = models.DateTimeField(
         null=True,
         blank=True,
-        db_index=True,
         help_text=(
             'Start of the dedupe window this view falls in. Carries the unique '
             'constraint so repeat requests within the window collapse into one '

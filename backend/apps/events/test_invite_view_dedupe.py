@@ -15,14 +15,16 @@ check-then-insert implementation would quietly fail.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone as dt_timezone
+from unittest.mock import patch
 
 from django.db import IntegrityError, connection, transaction
-from django.test import TestCase, TransactionTestCase
+from django.test import Client, TestCase, TransactionTestCase
 from django.utils import timezone
 
 from apps.events.models import (
     Event,
     Guest,
+    InvitePage,
     InvitePageView,
     INVITE_VIEW_DEDUPE_MINUTES,
     invite_view_bucket,
@@ -191,3 +193,54 @@ class InviteViewConcurrencyTests(TransactionTestCase):
         self.assertEqual(InvitePageView.objects.filter(event=event).count(), 1)
         self.assertEqual(len(created), 1)
         self.assertEqual(len(conflicts), 7)
+
+
+class InviteViewEndpointDedupeTests(TestCase):
+    """
+    The guarantee through the real request path.
+
+    The tests above exercise the write in the shape the view performs it, which
+    would stay green if someone refactored the view and dropped the bucket. This
+    one goes through the URL a guest actually hits, so the promise is pinned to
+    the endpoint rather than to a helper.
+    """
+
+    def setUp(self):
+        self.event, self.guest = _fixture("endpoint")
+        self.event.is_public = True
+        self.event.save()
+        InvitePage.objects.create(
+            event=self.event,
+            slug="endpoint",
+            config={"tiles": []},
+            published_config={"tiles": []},
+            is_published=True,
+            published_at=timezone.now(),
+        )
+        self.url = f"/api/events/invite/endpoint/?g={self.guest.guest_token}"
+
+    def test_repeated_requests_record_one_view(self):
+        client = Client()
+        for _ in range(20):
+            response = client.get(self.url)
+            self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(InvitePageView.objects.filter(event=self.event).count(), 1)
+
+    def test_the_recorded_row_carries_a_bucket(self):
+        Client().get(self.url)
+        row = InvitePageView.objects.get(event=self.event)
+        self.assertIsNotNone(row.view_bucket)
+        self.assertEqual(row.view_bucket, invite_view_bucket(row.viewed_at))
+
+    def test_a_request_without_a_guest_token_records_nothing(self):
+        Client().get("/api/events/invite/endpoint/")
+        self.assertEqual(InvitePageView.objects.filter(event=self.event).count(), 0)
+
+    def test_a_second_window_records_a_second_view(self):
+        client = Client()
+        client.get(self.url)
+        later = timezone.now() + timedelta(minutes=INVITE_VIEW_DEDUPE_MINUTES + 1)
+        with patch("apps.events.views.timezone.now", return_value=later):
+            client.get(self.url)
+        self.assertEqual(InvitePageView.objects.filter(event=self.event).count(), 2)
