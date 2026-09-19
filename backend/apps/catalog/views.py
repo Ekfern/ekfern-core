@@ -1,13 +1,15 @@
 import logging
 
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.events.models import Event, Guest, RSVP
+from apps.events.models import CatalogPageView, Event, Guest, RSVP, invite_view_bucket
 from apps.events.utils import upload_to_s3
 
 from .models import CatalogItem, CatalogResponse, HostCatalog
@@ -298,6 +300,41 @@ class CatalogResponseDetailView(APIView):
 # Public views (AllowAny)
 # ---------------------------------------------------------------------------
 
+
+def _invite_theme(event):
+    """The published invitation's palette, or None if it has never been published."""
+    invite_page = getattr(event, 'invite_page', None)
+    published = getattr(invite_page, 'published_config', None) if invite_page else None
+    if not isinstance(published, dict):
+        return None
+    theme = published.get('theme')
+    return theme if isinstance(theme, dict) else None
+
+
+def _record_catalog_view(event, guest):
+    """
+    One catalog view per guest per window.
+
+    Fire-and-forget: analytics must never be the reason a guest cannot see the
+    registry, so every failure here is swallowed after logging.
+    """
+    if guest is None:
+        return
+    try:
+        now = timezone.now()
+        with transaction.atomic():
+            CatalogPageView.objects.create(
+                guest=guest,
+                event=event,
+                viewed_at=now,
+                view_bucket=invite_view_bucket(now),
+            )
+    except IntegrityError:
+        pass  # already counted in this window
+    except Exception:
+        logger.exception('[Analytics] Failed to record catalog view')
+
+
 class PublicCatalogView(APIView):
     permission_classes = [AllowAny]
 
@@ -324,6 +361,9 @@ class PublicCatalogView(APIView):
             return _catalog_access_denied_response(error_msg, code)
 
         items = CatalogItem.objects.filter(catalog=catalog, status='published')
+
+        _record_catalog_view(event, guest)
+
         response = Response({
             'catalog': HostCatalogSerializer(catalog).data,
             'items': PublicCatalogItemSerializer(items, many=True).data,
@@ -333,6 +373,12 @@ class PublicCatalogView(APIView):
                 'slug': event.slug,
                 'is_public': event.is_public,
             },
+            # The catalog page dresses itself in the invitation's colours. It
+            # used to get them by fetching the whole invite payload, which
+            # recorded an invite view every time somebody opened the registry.
+            # Six strings, served from the endpoint the page was already
+            # calling.
+            'invite_theme': _invite_theme(event),
             # Sliding window: browsing a gift list easily outlasts the pass, and
             # being bounced mid-decision is exactly the failure this design set
             # out to avoid. Every accepted request buys another 15 minutes.
