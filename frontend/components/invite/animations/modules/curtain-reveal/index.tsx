@@ -139,9 +139,27 @@ export default function CurtainRevealModule({
   return (
     <>
       <style>{`
+        /*
+          Both wrappers stay layout-neutral: they sit between a host's container
+          and the invite, so they pass the host's height through instead of
+          collapsing to content height. The mobile preview frames the invite in
+          a fixed-height flex column whose scroller relies on flex-1; an
+          auto-height block here left that scroller unbounded, so the preview
+          clipped the invite and would not scroll. min-height:100% keeps the
+          full-page guest behaviour, where flex-1 is inert.
+        */
         .fern-curtain-root {
           position: relative;
           min-height: 100%;
+          display: flex;
+          flex-direction: column;
+          flex: 1 1 0%;
+        }
+        .fern-curtain-content {
+          display: flex;
+          flex-direction: column;
+          flex: 1 1 0%;
+          min-height: 0;
         }
         .fern-curtain-content[data-locked="true"] {
           pointer-events: none;

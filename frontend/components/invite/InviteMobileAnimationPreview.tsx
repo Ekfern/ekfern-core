@@ -48,7 +48,12 @@ interface InviteMobileAnimationShellProps {
   style?: React.CSSProperties
 }
 
-/** Phone-screen wrapper: OpeningLayer + ExperienceLayer, contained overlays. */
+/**
+ * Phone-screen wrapper. This element IS the flex column the preview used to
+ * scroll with — OpeningLayer uses display:contents so it does not insert a box
+ * between the frame and the scroller. Experience overlays sit on top and ignore
+ * pointer events.
+ */
 export function InviteMobileAnimationShell({
   openingId,
   experienceId,
@@ -72,9 +77,15 @@ export function InviteMobileAnimationShell({
         id={openingId}
         slug={slug}
         coverColor={coverColor}
+        className="contents"
       >
         {children}
-        <ExperienceLayer id={experienceId} slug={slug} />
+        <div
+          className="pointer-events-none absolute inset-0 z-20 overflow-hidden"
+          aria-hidden
+        >
+          <ExperienceLayer id={experienceId} slug={slug} />
+        </div>
       </OpeningLayer>
     </div>
   )

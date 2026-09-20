@@ -42,6 +42,16 @@ function catalogFallback(slot: 'opening' | 'experience'): AnimationPickerOption[
   }))
 }
 
+/** Keep newly shipped catalog modules visible even if the registry API is stale. */
+function mergeWithCatalog(
+  api: AnimationPickerOption[],
+  catalog: AnimationPickerOption[],
+): AnimationPickerOption[] {
+  const seen = new Set(api.map((o) => o.moduleId))
+  const missing = catalog.filter((o) => !seen.has(o.moduleId))
+  return missing.length === 0 ? api : [...api, ...missing]
+}
+
 export function useAnimationRegistryPicker(): {
   openingOptions: AnimationPickerOption[]
   experienceOptions: AnimationPickerOption[]
@@ -63,8 +73,12 @@ export function useAnimationRegistryPicker(): {
         if (cancelled) return
         const opening = toOptions(rows.filter((r) => r.slot === 'opening'))
         const experience = toOptions(rows.filter((r) => r.slot === 'experience'))
-        if (opening.length > 0) setOpeningOptions(opening)
-        if (experience.length > 0) setExperienceOptions(experience)
+        if (opening.length > 0) {
+          setOpeningOptions(mergeWithCatalog(opening, catalogFallback('opening')))
+        }
+        if (experience.length > 0) {
+          setExperienceOptions(mergeWithCatalog(experience, catalogFallback('experience')))
+        }
       } catch {
         // Keep catalog fallback
       } finally {

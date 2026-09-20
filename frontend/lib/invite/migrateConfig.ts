@@ -107,7 +107,6 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
   // Timer Tile (Optional)
   if (config.hero?.showTimer && eventDate) {
     const timerSettings: TimerTileSettings = {
-      enabled: true,
       format: 'circle',
     }
     tiles.push({

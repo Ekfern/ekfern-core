@@ -124,7 +124,8 @@ export interface PosterTileSettings {
 }
 
 export interface TimerTileSettings {
-  enabled: boolean
+  // No `enabled` here: a countdown is switched off by switching its tile off,
+  // like every other tile. See migration 0109_timer_gate_collapse.
   format: 'circle' | 'inline' // Circle format: (12) Days (20) Hours | Inline: Days:Hours:Mins
 }
 
@@ -413,7 +414,7 @@ export interface InviteConfig {
   animations?: {
     /** Opening module ids (e.g. ['envelope_reveal']), or null/[] for none. Legacy scalar string still resolved. */
     opening?: string | string[] | null
-    /** Experience module ids (e.g. ['rose_petals']), or null/[]. Legacy scalar string still resolved. */
+    /** Experience module ids (e.g. ['rose_petals', 'chinese_lanterns']), or null/[]. Legacy scalar string still resolved. */
     experience?: string | string[] | null
     /** @deprecated Prefer `opening`. Still read when `opening` is unset. */
     envelope?: boolean

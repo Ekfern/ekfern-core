@@ -54,6 +54,10 @@ describe('resolveAnimations', () => {
       opening: [],
       experience: ['rose_petals'],
     })
+    expect(resolveAnimations({ opening: null, experience: 'chinese_lanterns' })).toEqual({
+      opening: [],
+      experience: ['chinese_lanterns'],
+    })
     expect(resolveAnimations({ opening: null, experience: 'balloons' })).toEqual({
       opening: [],
       experience: [],

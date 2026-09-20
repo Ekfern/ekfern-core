@@ -91,7 +91,7 @@ const DEFAULT_TILES: Tile[] = [
     type: 'timer',
     enabled: false,
     order: 4,
-    settings: { enabled: true, format: 'circle' },
+    settings: { format: 'circle' },
   },
   {
     id: 'tile-feature-buttons-5',
@@ -471,7 +471,7 @@ export default function DesignInvitationPage(): JSX.Element {
             type: 'timer',
             enabled: false,
             order: 4,
-            settings: { enabled: true, format: 'circle' },
+            settings: { format: 'circle' },
           },
           {
             id: 'tile-feature-buttons-5',
@@ -3323,6 +3323,7 @@ export default function DesignInvitationPage(): JSX.Element {
                           }}
                         ></div>
                         {/* Screen - iPhone 16 aspect ratio (1179:2556 ≈ 0.461) */}
+                        <AppearanceProvider config={config}>
                         <InviteMobileAnimationShell
                           openingId={previewAnim.openingId}
                           experienceId={previewAnim.experienceId}
@@ -3339,7 +3340,6 @@ export default function DesignInvitationPage(): JSX.Element {
                             borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
                           }}
                         >
-                          <AppearanceProvider config={config}>
                             <TextureOverlay
                               type={config.texture?.type ?? 'none'}
                               intensity={config.texture?.intensity ?? 40}
@@ -3394,8 +3394,8 @@ export default function DesignInvitationPage(): JSX.Element {
                                 height: 'clamp(3px, 0.8vw, 5px)'
                               }}
                             ></div>
-                          </AppearanceProvider>
                         </InviteMobileAnimationShell>
+                        </AppearanceProvider>
                       </div>
                     </div>
                   </div>

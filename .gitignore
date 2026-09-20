@@ -54,3 +54,7 @@ docker-compose.override.yml
 # Playwright MCP debug artifacts
 .playwright-mcp/
 
+
+# Local animation/design tuning benches. Anything under app/ becomes a real
+# route, so these stay out of the repo rather than shipping as public pages.
+frontend/app/dev/

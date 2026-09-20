@@ -28,6 +28,12 @@ export const EXPERIENCE_ANIMATIONS: AnimationCatalogEntry[] = [
     description: 'Soft petals drift while guests read the invite',
     slot: 'experience',
   },
+  {
+    id: 'chinese_lanterns',
+    label: 'Chinese Lanterns',
+    description: 'Sky lanterns glow and rise while guests read the invite',
+    slot: 'experience',
+  },
 ]
 
 const OPENING_IDS = new Set(OPENING_ANIMATIONS.map((e) => e.id))

@@ -65,9 +65,10 @@ export function usePageDesign(): PageDesign | undefined {
 interface AppearanceProviderProps {
   config?: InviteConfig
   children: React.ReactNode
+  className?: string
 }
 
-export function AppearanceProvider({ config, children }: AppearanceProviderProps) {
+export function AppearanceProvider({ config, children, className }: AppearanceProviderProps) {
   const colors = resolveAppearance(config)
   const design = useMemo<PageDesign>(
     () => ({
@@ -105,6 +106,7 @@ export function AppearanceProvider({ config, children }: AppearanceProviderProps
   return (
     <PageDesignContext.Provider value={design}>
     <div
+      className={className}
       style={{
         // Applied, not just published. Tiles that never mention a font used to
         // inherit whatever the document gave them - Tailwind's sans stack - so

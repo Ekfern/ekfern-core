@@ -113,6 +113,12 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Docker for Mac does not forward host filesystem events into the
+      # container, so next dev's watcher misses edits and keeps serving the
+      # chunk it compiled earlier - source correct, browser stale, no error
+      # anywhere. Polling costs a little CPU and is the only thing that makes
+      # edits take reliably.
+      - WATCHPACK_POLLING=true
       - NEXT_PUBLIC_API_BASE=http://host.docker.internal:8000
       - NEXT_PUBLIC_RAZORPAY_KEY_ID=${NEXT_PUBLIC_RAZORPAY_KEY_ID:-}
       - NEXT_PUBLIC_BRAND_NAME=${NEXT_PUBLIC_BRAND_NAME:-Ekfern}

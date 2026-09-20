@@ -21,7 +21,7 @@ export default function TimerTile({ settings, preview = false, eventDate, eventT
   } | null>(null)
 
   useEffect(() => {
-    if (!eventDate || !settings.enabled) {
+    if (!eventDate) {
       setTimeRemaining(null)
       return
     }
@@ -90,16 +90,14 @@ export default function TimerTile({ settings, preview = false, eventDate, eventT
     const interval = setInterval(calculateTimeRemaining, 1000)
 
     return () => clearInterval(interval)
-  }, [eventDate, eventTime, settings.enabled])
+  }, [eventDate, eventTime])
 
-  if (!settings.enabled || !timeRemaining) {
-    if (preview) return null
-    return (
-      <div className="w-full py-4 px-4 text-center border rounded bg-gray-50">
-        <p className="text-gray-400">Timer disabled</p>
-      </div>
-    )
-  }
+  // A countdown is switched off by switching its tile off, like every other
+  // tile. There is no second gate: this tile used to carry `settings.enabled`
+  // as well, which the settings checkbox and this component read with opposite
+  // rules for a missing value - a tile saved without the key showed a ticked
+  // box and rendered nothing. Migration 0109 folded that flag into tile.enabled.
+  if (!timeRemaining) return null
 
 
   if (preview) {

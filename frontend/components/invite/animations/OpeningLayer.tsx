@@ -34,6 +34,8 @@ interface OpeningLayerProps {
   children: React.ReactNode
   /** Cheap cover while the opening chunk loads (no module JS). */
   coverColor?: string
+  /** Layout class for the load wrapper (phone preview needs a bounded flex column). */
+  className?: string
 }
 
 export default function OpeningLayer({
@@ -41,6 +43,7 @@ export default function OpeningLayer({
   slug,
   children,
   coverColor = '#E8D8C3',
+  className,
 }: OpeningLayerProps) {
   const loader =
     id && id in openingLoaders
@@ -94,7 +97,7 @@ export default function OpeningLayer({
   // transparent and the phone chrome showed through for a frame.
   return (
     <OpeningCompleteContext.Provider value={Module ? complete : false}>
-      <div className="relative min-h-full w-full">
+      <div className={className ?? 'relative min-h-full w-full'}>
         {Module ? (
           <Module slug={slug} onComplete={handleComplete}>
             {children}
