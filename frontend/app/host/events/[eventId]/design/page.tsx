@@ -1803,12 +1803,8 @@ export default function DesignPage(): React.ReactElement {
                       }}
                       style={{
                         position: 'absolute',
-                        // Inside the corner, not hanging off it: the canvas is
-                        // `overflow-hidden`, so an outside handle gets sliced in
-                        // half on a box sitting flush to the card edge — and
-                        // clipped away entirely on one dragged right up to it.
-                        top: 2,
-                        right: 2,
+                        top: -10,
+                        right: -10,
                         width: 22,
                         height: 22,
                         padding: 0,
