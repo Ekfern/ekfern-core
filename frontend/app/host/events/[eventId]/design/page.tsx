@@ -80,14 +80,6 @@ const GRADIENT_DIRECTIONS = [
   { label: '↗ Up-right', value: '45deg' },
 ]
 
-const SUBTITLE_MAP: Record<string, string> = {
-  wedding: "We're getting married!",
-  birthday: 'Come celebrate with us!',
-  baby_shower: 'A little one is on the way!',
-  engagement: 'We said yes!',
-  anniversary: 'Celebrating our love',
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -100,46 +92,6 @@ function makeId(): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
-}
-
-function buildInitialBoxes(title: string, eventType: string): TextBox[] {
-  const subtitle = SUBTITLE_MAP[eventType] ?? 'Join us for a special celebration!'
-  return [
-    {
-      id: makeId(),
-      text: title || 'Your Names Here',
-      x: 10,
-      y: 30,
-      width: 80,
-      height: null,
-      fontFamily: "'Playfair Display', serif",
-      fontSize: 40,
-      color: '#ffffff',
-      bold: false,
-      italic: false,
-      underline: false,
-      strikethrough: false,
-      textAlign: 'center',
-      verticalAlign: 'middle',
-    },
-    {
-      id: makeId(),
-      text: subtitle,
-      x: 10,
-      y: 60,
-      width: 80,
-      height: null,
-      fontFamily: 'Georgia, serif',
-      fontSize: 20,
-      color: '#f0f0f0',
-      bold: false,
-      italic: false,
-      underline: false,
-      strikethrough: false,
-      textAlign: 'center',
-      verticalAlign: 'middle',
-    },
-  ]
 }
 
 // ---------------------------------------------------------------------------
@@ -515,10 +467,10 @@ export default function DesignPage(): React.ReactElement {
           setTextBoxes(JSON.parse(savedBoxesRaw) as TextBox[])
           setUserHasEditedText(true)
         } catch {
-          setTextBoxes(buildInitialBoxes(data.title, data.event_type))
+          setTextBoxes([])
         }
       } else {
-        setTextBoxes(buildInitialBoxes(data.title, data.event_type))
+        setTextBoxes([])
       }
     }).catch((err: unknown) => {
       logError('DesignPage: failed to load', err)
