@@ -3,7 +3,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
-from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, AttributionLink, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota
+from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, AttributionLink, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, AnimationRegistryEntry
 from apps.users.serializers import UserSerializer
 from .utils import get_country_code, format_phone_with_country_code, normalize_csv_header, normalize_phone_for_match, phones_loosely_match
 import re
@@ -1244,6 +1244,28 @@ class InvitePageLayoutSerializer(serializers.ModelSerializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError("config must be a JSON object.")
         return value
+
+
+class AnimationRegistryEntrySerializer(serializers.ModelSerializer):
+    """Host-facing animation registry catalog (above the module runtime)."""
+
+    class Meta:
+        model = AnimationRegistryEntry
+        fields = (
+            'id',
+            'slug',
+            'name',
+            'description',
+            'category',
+            'slot',
+            'path',
+            'module_id',
+            'creator_name',
+            'status',
+            'published_at',
+            'price',
+        )
+        read_only_fields = fields
 
 
 class GreetingCardSampleSerializer(serializers.ModelSerializer):

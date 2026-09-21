@@ -9,7 +9,12 @@ interface TimerTileSettingsProps {
 }
 
 /**
- * Whether there is a countdown, and how it is arranged.
+ * How the countdown is arranged.
+ *
+ * Whether there is one is the tile's own checkbox, as it is for every tile.
+ * This panel used to carry a second "Show countdown" switch that meant the same
+ * thing, and the two read a missing value oppositely: absent drew the box
+ * ticked and rendered nothing. Migration 0109 folded it into tile.enabled.
  *
  * The circle colour and the text colour used to live here. They were two more
  * ways for one tile to disagree with the invitation around it - a magenta
@@ -19,19 +24,6 @@ interface TimerTileSettingsProps {
 export default function TimerTileSettingsPanel({ settings, onChange }: TimerTileSettingsProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <label className="block text-sm font-medium">Show countdown</label>
-          <p className="text-xs text-gray-500 mt-0.5">Counts down to the event date</p>
-        </div>
-        <input
-          type="checkbox"
-          checked={settings.enabled !== false}
-          onChange={(e) => onChange({ ...settings, enabled: e.target.checked })}
-          className="w-4 h-4 accent-eco-green border-gray-300 rounded"
-        />
-      </div>
-
       <div>
         <label htmlFor="timer-format" className="block text-sm font-medium mb-2">Layout</label>
         <select

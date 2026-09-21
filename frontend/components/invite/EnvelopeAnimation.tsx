@@ -550,7 +550,18 @@ export default function EnvelopeAnimation({
         )}
       </motion.div>
 
-      {/* Content - fades in as blank screen (envelope overlay) fades out during revealing stage */}
+      {/*
+        Content - fades in as blank screen (envelope overlay) fades out during
+        revealing stage.
+
+        Layout-neutral on purpose: this box sits between a host's container and
+        the invite, so it must not swallow the height the host handed down. The
+        mobile preview frames the invite in a fixed-height flex column whose
+        scroller sizes itself with flex-1; an auto-height block here (it used to
+        be height: fit-content) left that scroller unbounded, so the preview
+        clipped the invite and could not scroll. On the guest page the document
+        scrolls and flex-1 / min-h-0 are inert.
+      */}
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ 
@@ -561,8 +572,7 @@ export default function EnvelopeAnimation({
           ease: 'easeInOut',
           delay: 0
         }}
-        className={isAnimationActive && (animationStage === 'envelope' || animationStage === 'splitting') ? 'pointer-events-none' : ''}
-        style={{ height: 'fit-content', minHeight: 'auto' }}
+        className={`flex min-h-0 flex-1 flex-col${isAnimationActive && (animationStage === 'envelope' || animationStage === 'splitting') ? ' pointer-events-none' : ''}`}
       >
         {children}
       </motion.div>

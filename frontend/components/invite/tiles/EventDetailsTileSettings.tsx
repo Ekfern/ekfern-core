@@ -56,7 +56,7 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
           className="w-full text-sm border rounded px-3 py-2"
         >
           <option value="single-line">Single line (e.g. Saturday, June 14, 2025)</option>
-          <option value="day-prominent">Day prominent (large day number, then weekday · time, month year)</option>
+          <option value="day-prominent">Day prominent (large 2nd, then month year, then weekday · time)</option>
         </select>
       </div>
 

@@ -47,14 +47,14 @@ function shouldForceReplay(): boolean {
   )
 }
 
-type Stage = 'boot' | 'closed' | 'opening' | 'complete'
+type Stage = 'closed' | 'opening' | 'complete'
 
 export default function CurtainRevealModule({
   children,
   slug,
   onComplete,
 }: OpeningModuleProps) {
-  const [stage, setStage] = useState<Stage>('boot')
+  const [stage, setStage] = useState<Stage>('closed')
   const [showOverlay, setShowOverlay] = useState(true) // cover immediately; hide if we skip
   const completedRef = useRef(false)
   const onCompleteRef = useRef(onComplete)
@@ -86,7 +86,9 @@ export default function CurtainRevealModule({
       return
     }
 
-    const force = shouldForceReplay()
+    // Editor / preview slugs always replay; URL flags force guest replay.
+    const previewSlug = typeof slug === 'string' && slug.includes('preview')
+    const force = shouldForceReplay() || previewSlug
     if (force) clearSeen(slug)
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -137,9 +139,27 @@ export default function CurtainRevealModule({
   return (
     <>
       <style>{`
+        /*
+          Both wrappers stay layout-neutral: they sit between a host's container
+          and the invite, so they pass the host's height through instead of
+          collapsing to content height. The mobile preview frames the invite in
+          a fixed-height flex column whose scroller relies on flex-1; an
+          auto-height block here left that scroller unbounded, so the preview
+          clipped the invite and would not scroll. min-height:100% keeps the
+          full-page guest behaviour, where flex-1 is inert.
+        */
         .fern-curtain-root {
           position: relative;
           min-height: 100%;
+          display: flex;
+          flex-direction: column;
+          flex: 1 1 0%;
+        }
+        .fern-curtain-content {
+          display: flex;
+          flex-direction: column;
+          flex: 1 1 0%;
+          min-height: 0;
         }
         .fern-curtain-content[data-locked="true"] {
           pointer-events: none;
@@ -151,7 +171,15 @@ export default function CurtainRevealModule({
           overflow: hidden;
           cursor: pointer;
           pointer-events: auto;
-          /* Transparent — the invite sits underneath and shows through the gap. */
+          /*
+            Closed: solid velvet so one paint frame never flashes the black
+            phone chrome / empty page through a transparent stage.
+            Open: transparent so the invite shows in the parting gap.
+          */
+          background: #2a040c;
+          transition: background-color 0.2s linear;
+        }
+        .fern-curtain-stage[data-open="true"] {
           background: transparent;
         }
         .fern-curtain-panel {

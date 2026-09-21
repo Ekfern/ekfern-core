@@ -5,6 +5,7 @@ from .views import (
     InvitePageViewSet, PublicInviteViewSet, upload_image,
     SubEventViewSet, GuestInviteViewSet, MessageTemplateViewSet,
     InvitePageLayoutViewSet,
+    AnimationRegistryViewSet,
     GreetingCardSampleViewSet, upload_greeting_card_image,
     whatsapp_template_preview, whatsapp_template_duplicate,
     whatsapp_template_archive, whatsapp_template_activate,
@@ -31,6 +32,9 @@ urlpatterns = [
     # Invite page layouts (Page Layout Studio) - list/create and retrieve/update/delete
     path('invite-page-layouts/', InvitePageLayoutViewSet.as_view({'get': 'list', 'post': 'create'}), name='invite-page-layouts-list'),
     path('invite-page-layouts/<int:id>/', InvitePageLayoutViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='invite-page-layout-detail'),
+    # Animation registry (catalog above module runtime)
+    path('animation-registry/', AnimationRegistryViewSet.as_view({'get': 'list'}), name='animation-registry-list'),
+    path('animation-registry/<slug:slug>/', AnimationRegistryViewSet.as_view({'get': 'retrieve'}), name='animation-registry-detail'),
     # Meta-approved WhatsApp templates (staff-managed)
     path('meta-approved-templates/', MetaApprovedTemplateViewSet.as_view({'get': 'list', 'post': 'create'}), name='meta-approved-templates-list'),
     path('meta-approved-templates/<int:pk>/', MetaApprovedTemplateViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='meta-approved-template-detail'),

@@ -1,5 +1,5 @@
 """
-Tests for the tile-rename data migrations (0100 poster, 0101 gallery).
+Tests for the tile data migrations (0100 poster, 0101 gallery, 0109 timer gate).
 
 These exercise the transform functions directly rather than running the
 migrations against a database. What can go wrong here is the rewriting of one
@@ -20,6 +20,9 @@ poster_migration = importlib.import_module(
 )
 gallery_migration = importlib.import_module(
     'apps.events.migrations.0101_image_tile_becomes_gallery'
+)
+timer_migration = importlib.import_module(
+    'apps.events.migrations.0109_timer_gate_collapse'
 )
 
 
@@ -123,3 +126,82 @@ class ImageToGalleryTests(SimpleTestCase):
     def test_junk_is_left_alone(self):
         self.assertFalse(gallery_migration._migrate_config(None))
         self.assertFalse(gallery_migration._migrate_config({'tiles': 'not a list'}))
+
+
+class TimerGateCollapseTests(SimpleTestCase):
+    """
+    The countdown's two switches become one.
+
+    What matters here is the missing key. `settings.enabled` absent always meant
+    "show the countdown" to the checkbox that wrote it, so collapsing must not
+    read absence as off and hide a timer a host can still see ticked.
+    """
+
+    def test_settings_gate_off_disables_the_tile(self):
+        config = {'tiles': [{
+            'id': 't', 'type': 'timer', 'order': 4, 'enabled': True,
+            'settings': {'enabled': False, 'format': 'circle'},
+        }]}
+        self.assertTrue(timer_migration._migrate_config(config))
+        tile = config['tiles'][0]
+        self.assertFalse(tile['enabled'])
+        self.assertNotIn('enabled', tile['settings'])
+        self.assertEqual(tile['settings']['format'], 'circle')
+
+    def test_settings_gate_on_only_drops_the_key(self):
+        config = {'tiles': [{
+            'id': 't', 'type': 'timer', 'order': 4, 'enabled': True,
+            'settings': {'enabled': True, 'format': 'inline'},
+        }]}
+        self.assertTrue(timer_migration._migrate_config(config))
+        tile = config['tiles'][0]
+        self.assertTrue(tile['enabled'])
+        self.assertNotIn('enabled', tile['settings'])
+
+    def test_a_disabled_tile_stays_disabled_when_the_gate_was_on(self):
+        config = {'tiles': [{
+            'id': 't', 'type': 'timer', 'order': 4, 'enabled': False,
+            'settings': {'enabled': True, 'format': 'circle'},
+        }]}
+        timer_migration._migrate_config(config)
+        self.assertFalse(config['tiles'][0]['enabled'])
+
+    def test_absent_gate_is_left_showing(self):
+        # The shape that caused the bug: ticked box, no countdown. It must come
+        # out of the migration visible, not hidden.
+        config = {'tiles': [{
+            'id': 't', 'type': 'timer', 'order': 4, 'enabled': True,
+            'settings': {'format': 'circle'},
+        }]}
+        self.assertFalse(timer_migration._migrate_config(config))
+        self.assertTrue(config['tiles'][0]['enabled'])
+
+    def test_every_timer_tile_is_visited(self):
+        # `any(... for ...)` here would stop at the first tile it changed.
+        config = {'tiles': [
+            {'id': 'a', 'type': 'timer', 'order': 0, 'enabled': True,
+             'settings': {'enabled': False, 'format': 'circle'}},
+            {'id': 'b', 'type': 'timer', 'order': 1, 'enabled': True,
+             'settings': {'enabled': False, 'format': 'inline'}},
+        ]}
+        self.assertTrue(timer_migration._migrate_config(config))
+        self.assertFalse(config['tiles'][0]['enabled'])
+        self.assertFalse(config['tiles'][1]['enabled'])
+        self.assertNotIn('enabled', config['tiles'][1]['settings'])
+
+    def test_other_tiles_are_untouched(self):
+        config = {'tiles': [
+            {'id': 'f', 'type': 'feature-buttons', 'order': 0, 'enabled': True,
+             'settings': {'enabled': False}},
+        ]}
+        self.assertFalse(timer_migration._migrate_config(config))
+        self.assertTrue(config['tiles'][0]['enabled'])
+        self.assertIs(config['tiles'][0]['settings']['enabled'], False)
+
+    def test_junk_is_left_alone(self):
+        self.assertFalse(timer_migration._migrate_config(None))
+        self.assertFalse(timer_migration._migrate_config({'tiles': 'not a list'}))
+        self.assertFalse(timer_migration._migrate_config({'tiles': [None, 'x']}))
+        self.assertFalse(timer_migration._migrate_config(
+            {'tiles': [{'id': 't', 'type': 'timer', 'settings': None}]}
+        ))
