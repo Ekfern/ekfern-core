@@ -618,6 +618,32 @@ export default function DesignPage(): React.ReactElement {
     if (editingId === id) setEditingId(null)
   }
 
+  // Delete / Backspace removes the selected box — the gesture every canvas
+  // editor answers to, and the one a host reaches for before hunting the
+  // toolbar. Deliberately inert while text is being edited or any other field
+  // has focus, so it never eats a character the host meant to type.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      if (!selectedId || editingId) return
+      const active = document.activeElement as HTMLElement | null
+      if (
+        active &&
+        (active.isContentEditable ||
+          active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.tagName === 'SELECT')
+      ) {
+        return
+      }
+      e.preventDefault()
+      deleteBox(selectedId)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, editingId])
+
   function addTextBox(): void {
     hasUserEditedRef.current = true
     pushHistory(textBoxesRef.current)
@@ -1551,15 +1577,22 @@ export default function DesignPage(): React.ReactElement {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => selectedBox && deleteBox(selectedBox.id)}
-              className="text-red-500 hover:bg-red-50 px-2 py-1 rounded text-sm transition-colors"
-              title="Delete text box"
-            >
-              Delete
-            </button>
-
           </div>
+
+          {/* Delete lives OUTSIDE the dimmed group. Inside it, the group's
+              `pointer-events-none` made the only way to remove a text box
+              silently inert the moment the selection was lost — the button
+              looked present but swallowed every click. A real `disabled`
+              says "select something first" instead of doing nothing. */}
+          <button
+            type="button"
+            disabled={!selectedBox}
+            onClick={() => selectedBox && deleteBox(selectedBox.id)}
+            className="px-2 py-1 rounded text-sm transition-colors text-red-500 hover:bg-red-50 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+            title={selectedBox ? 'Delete text box' : 'Select a text box first'}
+          >
+            Delete
+          </button>
 
         </div>
       </div>
@@ -1734,6 +1767,49 @@ export default function DesignPage(): React.ReactElement {
                   >
                     {isEditing ? undefined : box.text}
                   </div>
+
+                  {/* Remove handle — the direct way out, sitting on the box
+                      itself so getting rid of unwanted text never depends on
+                      finding the toolbar or keeping the selection alive.
+                      Paired with the resize handle on the opposite corner. */}
+                  {isSelected && !isEditing && (
+                    <button
+                      type="button"
+                      title="Remove this text"
+                      aria-label="Remove this text"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteBox(box.id)
+                      }}
+                      style={{
+                        position: 'absolute',
+                        // Inside the corner, not hanging off it: the canvas is
+                        // `overflow-hidden`, so an outside handle gets sliced in
+                        // half on a box sitting flush to the card edge — and
+                        // clipped away entirely on one dragged right up to it.
+                        top: 2,
+                        right: 2,
+                        width: 22,
+                        height: 22,
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: '#ffffff',
+                        border: '2px solid #ef4444',
+                        borderRadius: '9999px',
+                        color: '#ef4444',
+                        fontSize: 14,
+                        lineHeight: 1,
+                        cursor: 'pointer',
+                        zIndex: 21,
+                        touchAction: 'none',
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
 
                   {/* Corner resize handles — visible only when selected and not editing */}
                   {isSelected && !isEditing && (
