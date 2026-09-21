@@ -9,7 +9,6 @@ import { updateInvitePage, createInvitePage, getInvitePage, type DesignSample } 
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import type { PosterTileSettings } from '@/lib/invite/schema'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
-import WizardProgress from '@/components/host/WizardProgress'
 import { logError } from '@/lib/error-handler'
 import { Input } from '@/components/ui/input'
 import DesignCatalogGrid, { useDesignCatalog } from '@/components/invite/DesignCatalogGrid'
@@ -1017,12 +1016,6 @@ export default function DesignPage(): React.ReactElement {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
-        <WizardProgress
-          currentStep="design"
-          eventId={eventId}
-          includeSubEvents={event?.event_structure === 'ENVELOPE'}
-        />
-
         <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
             <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Choose your background</h1>
@@ -1175,12 +1168,6 @@ export default function DesignPage(): React.ReactElement {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Google Fonts */}
       <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
-
-      <WizardProgress
-        currentStep="design"
-        eventId={eventId}
-        includeSubEvents={event?.event_structure === 'ENVELOPE'}
-      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Sticky header: background bar + always-visible text toolbar         */}
