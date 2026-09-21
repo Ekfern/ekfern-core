@@ -124,7 +124,7 @@ function InviteRendererContent({
       {!skipTextureOverlay && (
         <TextureOverlay
           type={effectiveConfig.texture?.type || 'none'}
-          intensity={effectiveConfig.texture?.intensity || 40}
+          intensity={effectiveConfig.texture?.intensity ?? 40}
           imageUrl={effectiveConfig.texture?.imageUrl}
           textureBlend={effectiveConfig.texture?.textureBlend}
         />

@@ -11,10 +11,6 @@ export interface TextureOverlayProps {
 }
 
 /**
- * CSS-based texture overlay that sits underneath all content.
- * When imageUrl is set, can render an image texture (overlay or replace CSS texture).
- */
-/**
  * Modern film-grain/noise overlay using an SVG turbulence filter — reads as
  * analog photographic grain over a rich gradient, unlike the repeating-CSS
  * craft-material patterns used by the other texture types.
@@ -62,6 +58,174 @@ function GrainOverlay({ opacity }: { opacity: number }) {
   )
 }
 
+/**
+ * Lit fractal-noise surface. Reads as stone or plaster, not paper —
+ * raking light and high relief carved the folds into a wall.
+ */
+function StoneOverlay({ opacity }: { opacity: number }) {
+  const filterId = `fern-stone-${React.useId().replace(/:/g, '')}`
+  return (
+    <div
+      aria-hidden
+      data-texture-type="stone"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 1,
+        opacity,
+        mixBlendMode: 'overlay',
+      }}
+    >
+      <svg width="100%" height="100%" preserveAspectRatio="none">
+        <filter id={filterId} colorInterpolationFilters="sRGB" x="-5%" y="-5%" width="110%" height="110%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.016 0.022"
+            numOctaves="5"
+            seed="4"
+            result="folds"
+          />
+          <feDiffuseLighting in="folds" lightingColor="#fff6e8" surfaceScale="5.5" result="lit">
+            <feDistantLight azimuth="145" elevation="32" />
+          </feDiffuseLighting>
+        </filter>
+        <rect width="100%" height="100%" filter={`url(#${filterId})`} />
+      </svg>
+    </div>
+  )
+}
+
+type Star = {
+  x: number
+  y: number
+  r: number
+  opacity: number
+  duration: number
+  delay: number
+  glow: boolean
+}
+
+function mulberry32(seed: number) {
+  return () => {
+    seed |= 0
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+const PAGE_STARS: Star[] = (() => {
+  const rand = mulberry32(0x5a17a1)
+  return Array.from({ length: 120 }, () => {
+    const r = rand
+    const glow = r() < 0.18
+    return {
+      x: r() * 100,
+      y: r() * 100,
+      r: glow ? 1.9 + r() * 1.5 : 1.15 + r() * 1.2,
+      opacity: 0.55 + r() * 0.45,
+      duration: 2.2 + r() * 3.4,
+      delay: r() * 4,
+      glow,
+    }
+  })
+})()
+
+/**
+ * Night-sky starfield. CSS dots (not SVG user-units) so they stay 1–3px on a
+ * phone preview. No mix-blend: overflow/transform on the invite shell isolates
+ * the backdrop and made screen-blend stars disappear. Seeded for SSR.
+ */
+function StarsOverlay({ opacity }: { opacity: number }) {
+  return (
+    <div
+      aria-hidden
+      data-texture-type="stars"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 1,
+        overflow: 'hidden',
+        opacity,
+      }}
+    >
+      <style>{`
+        @keyframes fern-star-twinkle {
+          0% { opacity: calc(var(--star-base, 1) * 0.45); }
+          100% { opacity: var(--star-base, 1); }
+        }
+        .fern-page-star {
+          position: absolute;
+          border-radius: 50%;
+          background: #FFF8EC;
+          animation-name: fern-star-twinkle;
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
+          animation-direction: alternate;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .fern-page-star { animation: none; opacity: var(--star-base, 1); }
+        }
+      `}</style>
+      {PAGE_STARS.map((star, i) => (
+        <span
+          key={i}
+          className="fern-page-star"
+          style={{
+            left: `${star.x}%`,
+            top: `${star.y}%`,
+            width: star.r * 2,
+            height: star.r * 2,
+            marginLeft: -star.r,
+            marginTop: -star.r,
+            ['--star-base' as string]: String(star.opacity),
+            boxShadow: star.glow
+              ? `0 0 ${star.r * 5}px ${star.r * 1.6}px rgba(255, 248, 236, 0.9)`
+              : `0 0 ${star.r * 2}px ${star.r * 0.5}px rgba(255, 248, 236, 0.65)`,
+            animationDuration: `${star.duration}s`,
+            animationDelay: `${star.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Photographed crumpled sheet, blended over the page colour so folds keep
+ * their highlights and valleys. Named texture — not a host-supplied URL.
+ */
+function CrumpledPaperOverlay({ opacity }: { opacity: number }) {
+  return (
+    <div
+      aria-hidden
+      data-texture-type="crumpled-paper"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 1,
+        overflow: 'hidden',
+        opacity,
+        mixBlendMode: 'multiply',
+        filter: 'contrast(1.15)',
+        backgroundImage: 'url(/textures/crumpled-paper.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    />
+  )
+}
+
+/**
+ * CSS-based texture overlay that sits underneath all content.
+ * When imageUrl is set (legacy saved configs), can render an image texture
+ * (overlay or replace CSS texture). Hosts pick named types only.
+ */
 export default function TextureOverlay({ type, intensity = 40, imageUrl, textureBlend = 'overlay' }: TextureOverlayProps) {
   const opacity = intensity / 100
   const showCssTexture = type !== 'none' && (!imageUrl || textureBlend !== 'replace')
@@ -73,6 +237,18 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
 
   if (type === 'grain' && showCssTexture) {
     return <GrainOverlay opacity={opacity} />
+  }
+
+  if (type === 'stars') {
+    return <StarsOverlay opacity={opacity} />
+  }
+
+  if (type === 'stone') {
+    return <StoneOverlay opacity={opacity} />
+  }
+
+  if (type === 'crumpled-paper') {
+    return <CrumpledPaperOverlay opacity={opacity} />
   }
 
   if (showImageTexture && (textureBlend === 'replace' || !showCssTexture)) {

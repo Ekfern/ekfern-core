@@ -223,6 +223,17 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
   const formatTime = (timeString: string) =>
     formatEventTime(timeString, tz, zoneLabelDate)
 
+  const ordinalSuffix = (day: number) => {
+    const teens = day % 100
+    if (teens >= 11 && teens <= 13) return 'th'
+    switch (day % 10) {
+      case 1: return 'st'
+      case 2: return 'nd'
+      case 3: return 'rd'
+      default: return 'th'
+    }
+  }
+
   const parseDateParts = (dateString: string): { day: number; weekday: string; month: string; year: number } | null => {
     try {
       let date: Date
@@ -346,7 +357,13 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                         className="text-4xl md:text-5xl lg:text-6xl font-bold leading-none tracking-tight"
                         style={recipe('data')}
                       >
-                        {parts.day}
+                        {parts.day}{ordinalSuffix(parts.day)}
+                      </div>
+                      <div
+                        className="text-sm md:text-base uppercase tracking-widest"
+                        style={recipe('data')}
+                      >
+                        {parts.month} {parts.year}
                       </div>
                       <div
                         className="text-sm md:text-base uppercase tracking-widest font-medium"
@@ -354,12 +371,6 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                       >
                         {parts.weekday}
                         {settings.time && ` · ${formatTime(settings.time)}`}
-                      </div>
-                      <div
-                        className="text-sm md:text-base uppercase tracking-widest"
-                        style={recipe('data')}
-                      >
-                        {parts.month} {parts.year}
                       </div>
                     </div>
                     {settings.location && (() => {

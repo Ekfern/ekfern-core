@@ -143,7 +143,7 @@ export interface EventDetailsTileSettings {
   showMap?: boolean // Option to display embedded map (only works if mapUrl is provided and valid and location is verified)
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
   textAlign?: 'left' | 'center' | 'right' // Default: center
-  // Date block layout: single-line (default) or day-prominent (large day number, smaller weekday/month/year/time)
+  // Date block layout: single-line (default) or day-prominent (large day, then month year, then weekday · time)
   dateLayout?: 'single-line' | 'day-prominent'
   // Border styling options ('glass' = frosted blur card, ignores decorative border/symbol rendering)
   borderStyle?: 'elegant' | 'minimal' | 'ornate' | 'modern' | 'classic' | 'vintage' | 'none' | 'glass'
@@ -242,11 +242,14 @@ export type TextureType =
   | 'silk'
   | 'marble'
   | 'grain' // Modern film-grain/noise overlay (SVG turbulence) — for rich saturated gradient backgrounds
+  | 'stars' // Night-sky starfield — for dusk/night page backgrounds
+  | 'stone' // Lit fractal-noise surface — stone / plaster
+  | 'crumpled-paper' // Photographed crumpled sheet blended over the page colour
 
 export interface TextureSettings {
   type: TextureType
   intensity?: number // 0-100, default 20
-  imageUrl?: string // Optional texture image (e.g. marble photo, watercolor)
+  imageUrl?: string // Legacy saved image texture; no longer offered in the host UI
   textureBlend?: 'overlay' | 'replace' // When imageUrl set: overlay on background, or replace CSS texture
 }
 

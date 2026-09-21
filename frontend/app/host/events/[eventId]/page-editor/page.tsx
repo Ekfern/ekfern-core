@@ -2219,7 +2219,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             texture: {
                               ...prev.texture,
                               type: e.target.value as any,
-                              intensity: prev.texture?.intensity || 40,
+                              intensity: prev.texture?.intensity ?? 40,
                             },
                           }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
@@ -2230,24 +2230,27 @@ export default function DesignInvitationPage(): JSX.Element {
                           <option value="canvas">Canvas</option>
                           <option value="parchment">Parchment</option>
                           <option value="vintage-paper">Vintage Paper</option>
+                          <option value="crumpled-paper">Crumpled Paper</option>
+                          <option value="stone">Stone Surface</option>
                           <option value="silk">Silk</option>
                           <option value="marble">Marble</option>
+                          <option value="stars">Stars</option>
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
-                          A paper-like overlay over the page colour
+                          Coats the page colour — paper textures, or stars for a night sky
                         </p>
                       </div>
 
                       {config.texture?.type && config.texture.type !== 'none' && (
                         <div>
                           <label className="block text-sm font-medium mb-2">
-                            Texture Intensity: {config.texture?.intensity || 40}%
+                            Texture Intensity: {config.texture?.intensity ?? 40}%
                           </label>
                           <input
                             type="range"
                             min="0"
                             max="100"
-                            value={config.texture?.intensity || 40}
+                            value={config.texture?.intensity ?? 40}
                             onChange={(e) => setConfig(prev => ({
                               ...prev,
                               texture: {
@@ -2259,45 +2262,6 @@ export default function DesignInvitationPage(): JSX.Element {
                           />
                         </div>
                       )}
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Texture image (optional)</label>
-                        <Input
-                          type="url"
-                          value={config.texture?.imageUrl || ''}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            texture: {
-                              ...prev.texture,
-                              type: prev.texture?.type || 'none',
-                              intensity: prev.texture?.intensity || 40,
-                              imageUrl: e.target.value.trim() || undefined,
-                            },
-                          }))}
-                          placeholder="https://… (e.g. marble, watercolor)"
-                          className="w-full"
-                        />
-                        {config.texture?.imageUrl && (
-                          <div className="mt-2">
-                            <label className="text-xs font-medium text-gray-600">Blend</label>
-                            <select
-                              value={config.texture?.textureBlend || 'overlay'}
-                              onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                texture: {
-                                  ...prev.texture!,
-                                  textureBlend: e.target.value as 'overlay' | 'replace',
-                                },
-                              }))}
-                              className="w-full text-sm border rounded px-2 py-1 mt-0.5"
-                            >
-                              <option value="overlay">Overlay on CSS texture</option>
-                              <option value="replace">Replace CSS texture</option>
-                            </select>
-                          </div>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">Image texture (e.g. marble photo). Intensity above applies to it.</p>
-                      </div>
                     </div>
                   </div>
                 </div>

@@ -794,7 +794,7 @@ export default function InvitePageClient({
             {/* Texture overlay at page level */}
             <TextureOverlay
               type={config.texture?.type || 'none'}
-              intensity={config.texture?.intensity || 40}
+              intensity={config.texture?.intensity ?? 40}
               imageUrl={config.texture?.imageUrl}
               textureBlend={config.texture?.textureBlend}
             />
@@ -837,7 +837,7 @@ export default function InvitePageClient({
           {/* Texture overlay at page level */}
           <TextureOverlay
             type={config.texture?.type || 'none'}
-            intensity={config.texture?.intensity || 40}
+            intensity={config.texture?.intensity ?? 40}
             imageUrl={config.texture?.imageUrl}
             textureBlend={config.texture?.textureBlend}
           />
