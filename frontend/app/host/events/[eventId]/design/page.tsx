@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from "react-dom"
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -496,6 +496,24 @@ export default function DesignPage(): React.ReactElement {
 
   // Keep textBoxesRef in sync (used by undo/redo handlers in stable closures)
   useEffect(() => { textBoxesRef.current = textBoxes }, [textBoxes])
+
+  // Resolve the faces in use up front. Left to itself the browser resolves them
+  // lazily, painting fallback metrics on some frames and the real face on
+  // others — which is what made text flicker while being dragged. Keyed on the
+  // spec list, not textBoxes, which changes on every pointer move.
+  const fontSpecs = useMemo(
+    () => Array.from(new Set(textBoxes.map((b) => `${b.fontSize}px ${b.fontFamily}`))).sort().join('|'),
+    [textBoxes]
+  )
+
+  const loadFontSpecs = useCallback(() => {
+    if (typeof document === 'undefined' || !document.fonts) return
+    for (const spec of fontSpecs.split('|')) {
+      if (spec) void document.fonts.load(spec)
+    }
+  }, [fontSpecs])
+
+  useEffect(() => { loadFontSpecs() }, [loadFontSpecs])
 
   // Auto-focus + populate the contentEditable div when editing starts
   useEffect(() => {
@@ -1693,6 +1711,7 @@ export default function DesignPage(): React.ReactElement {
                   onPointerDown={(e) => {
                     if (isEditing) return // let contentEditable handle it
                     e.stopPropagation()
+                    loadFontSpecs() // faces lapse when idle; re-assert before a drag
                     e.currentTarget.setPointerCapture(e.pointerId)
                     setSelectedId(box.id)
                     if (!canvasRef.current) return

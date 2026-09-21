@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from "react-dom";
 import type { TextOverlay } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
@@ -160,6 +160,24 @@ export default function TextOverlayEditorModal({
   // Keep a ref in sync so pointer-move callbacks always see the latest boxes
   const textBoxesRef = useRef<TextBox[]>([])
   useEffect(() => { textBoxesRef.current = textBoxes }, [textBoxes])
+
+  // Resolve the faces in use up front. Left to itself the browser resolves them
+  // lazily, painting fallback metrics on some frames and the real face on
+  // others — which is what made text flicker while being dragged. Keyed on the
+  // spec list, not textBoxes, which changes on every pointer move.
+  const fontSpecs = useMemo(
+    () => Array.from(new Set(textBoxes.map((b) => `${b.fontSize}px ${b.fontFamily}`))).sort().join('|'),
+    [textBoxes]
+  )
+
+  const loadFontSpecs = useCallback(() => {
+    if (typeof document === 'undefined' || !document.fonts) return
+    for (const spec of fontSpecs.split('|')) {
+      if (spec) void document.fonts.load(spec)
+    }
+  }, [fontSpecs])
+
+  useEffect(() => { loadFontSpecs() }, [loadFontSpecs])
 
 
 
@@ -868,6 +886,7 @@ export default function TextOverlayEditorModal({
                         onPointerDown={(e) => {
                           if (isEditing) return
                           e.stopPropagation()
+                          loadFontSpecs() // faces lapse when idle; re-assert before a drag
                           e.currentTarget.setPointerCapture(e.pointerId)
                           setSelectedId(box.id)
                           if (!canvasRef.current) return
