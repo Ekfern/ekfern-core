@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import api, { uploadImage } from '@/lib/api'
-import { updateInvitePage, createInvitePage, getInvitePage, type DesignSample } from '@/lib/invite/api'
+import { getInvitePage, type DesignSample } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import type { PosterTileSettings } from '@/lib/invite/schema'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
@@ -930,21 +930,21 @@ export default function DesignPage(): React.ReactElement {
     return updated
   }
 
+  // Saves through the same endpoint the page editor uses. It writes
+  // Event.page_config and syncs InvitePage in one server-side step, so the two
+  // stores cannot drift. Writing InvitePage directly (as this used to) left
+  // page_config stale whenever the host left by any route but the Back button,
+  // and the page editor reads page_config — so it would show the old card and
+  // then autosave that back over the newer one.
   async function performSave(enableTile = false): Promise<void> {
     if (isSavingRef.current) return
     isSavingRef.current = true
     setAutoSaveStatus('saving')
     try {
-      const existing = await getInvitePage(eventId)
-      if (existing) {
-        const updatedTiles = buildUpdatedTiles(existing.config.tiles ?? [], bgUrl, bgGradient, textBoxes, enableTile)
-        await updateInvitePage(eventId, { config: { ...existing.config, tiles: updatedTiles } })
-      } else {
-        // No InvitePage yet — create one with just the GC tile.
-        // The design page will merge this into the full config on load.
-        const gcTile = buildUpdatedTiles([], bgUrl, bgGradient, textBoxes, enableTile)
-        await createInvitePage(eventId, { config: { tiles: gcTile } })
-      }
+      const pageConfig = await getEventPageConfig(eventId)
+      const baseConfig = pageConfig?.page_config ?? { tiles: [] }
+      const updatedTiles = buildUpdatedTiles(baseConfig.tiles ?? [], bgUrl, bgGradient, textBoxes, enableTile)
+      await updateEventPageConfig(eventId, { ...baseConfig, tiles: updatedTiles })
       setAutoSaveStatus('saved')
     } catch (err) {
       logError('DesignPage: auto-save failed', err)
@@ -974,37 +974,13 @@ export default function DesignPage(): React.ReactElement {
   // -------------------------------------------------------------------------
 
   // Autosave is a 2s debounce, so leaving right after an edit could drop it.
-  // Flush explicitly before navigating back to the tile that opened this.
+  // Flush through the same save the timer uses, with the tile switched on:
+  // a host who came here to make a card expects to see it on the page.
   async function handleBackToPageEditor(): Promise<void> {
     setSaving(true)
     try {
-      // Write the GC tile as enabled:true directly into event.page_config.
-      // This is the same store the design page reads on load — no race, no separate fetch.
-      const pageConfig = await getEventPageConfig(eventId)
-      const existingConfig = pageConfig?.page_config
-      const cardSettings: PosterTileSettings = {
-        src: bgUrl ?? undefined,
-        backgroundGradient: bgUrl ? undefined : bgGradient,
-        textOverlays: textBoxes,
-      }
-
-      const baseConfig = existingConfig ?? { tiles: [] }
-      const hasGC = baseConfig.tiles?.some(t => t.type === 'poster')
-      let updatedTiles
-      if (hasGC) {
-        updatedTiles = baseConfig.tiles!.map(t =>
-          t.type === 'poster'
-            ? { ...t, enabled: true, settings: { ...(t.settings as PosterTileSettings), ...cardSettings } }
-            : t
-        )
-      } else {
-        const maxOrder = Math.max(...(baseConfig.tiles?.map(t => t.order ?? 0) ?? [0]), 0)
-        updatedTiles = [
-          ...(baseConfig.tiles ?? []),
-          { id: `tile-poster-${Date.now().toString(36)}`, type: 'poster' as const, enabled: true, order: maxOrder + 1, settings: cardSettings },
-        ]
-      }
-      await updateEventPageConfig(eventId, { ...baseConfig, tiles: updatedTiles })
+      isSavingRef.current = false // take priority over any in-flight debounce
+      await performSave(true)
     } catch (err) {
       logError('DesignPage: save on exit failed', err)
     } finally {
