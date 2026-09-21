@@ -220,9 +220,13 @@ export default function TileList({
   // space-y-0 while the live page rendered 16/32/48px, which is how the editor
   // could promise "matches your live invite" and be wrong.
   if (variant === 'invite') {
-    const sortedForInvite = [...tilesToRender].sort(
-      (a, b) => (a.order ?? 0) - (b.order ?? 0)
-    )
+    // Render in the order the caller hands us, never a re-sort of our own. The
+    // page editor orders tiles by previewOrder - the live drag order - falling
+    // back to the saved `order`, and a drag deliberately leaves `order` alone
+    // until the next save. Sorting by `order` here threw that live order away,
+    // so dragging a tile in the left panel moved nothing on the phone until the
+    // draft had saved and the page was reloaded. The footer is still placed
+    // last below, by structure rather than by number.
     // `clip`, never `hidden`: CSS computes the other axis to `auto` when one
     // axis is `hidden`, which quietly turns this into a scroll container. It
     // then becomes the nearest scrollport for anything sticky inside the
@@ -232,7 +236,7 @@ export default function TileList({
     // same way without creating a scroll container.
     return (
       <div className="flex flex-col w-full" style={{ gap: 'var(--space-section)', overflowX: 'clip' }}>
-        {sortedForInvite.map((tile) => {
+        {tilesToRender.map((tile) => {
           const titleOverlay = tiles.find(t => t.type === 'title' && t.overlayTargetId === tile.id)
           if (tile.type === 'poster' && titleOverlay) {
             return (

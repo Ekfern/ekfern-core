@@ -5,15 +5,18 @@ import { InviteConfig, Tile, TileType } from '@/lib/invite/schema'
 import { buildDefaultTileSettingsRecord } from '@/lib/invite/pageLayoutTileDefaults'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import {
-  OPENING_ANIMATIONS,
-  EXPERIENCE_ANIMATIONS,
-} from '@/lib/invite/animations/catalog'
-import { resolveAnimations } from '@/lib/invite/animations/resolve'
+import { resolveAnimations, clampAnimationSlot } from '@/lib/invite/animations/resolve'
+import { primaryAnimationId } from '@/lib/invite/animations/types'
+import { useAnimationRegistryPicker } from '@/lib/invite/animations/useAnimationRegistryPicker'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
+import {
+  InviteMobileAnimationShell,
+  PlayOpeningButton,
+  useInvitePreviewAnimationState,
+} from '@/components/invite/InviteMobileAnimationPreview'
 
 export interface DummyEventLike {
   title: string
@@ -42,6 +45,7 @@ export default function PageLayoutStudioCanvas({
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showInviteAnimations, setShowInviteAnimations] = useState(false)
+  const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
 
   useEffect(() => {
@@ -144,6 +148,15 @@ export default function PageLayoutStudioCanvas({
 
   const displayBackgroundColor =
     config.customColors?.backgroundColor ?? resolveAppearance(config).backgroundColor
+  const previewAnim = useInvitePreviewAnimationState(config, 'layout-studio-preview')
+  const mobilePreviewSectionRef = React.useRef<HTMLDivElement>(null)
+
+  const playOpeningInPreview = useCallback(() => {
+    previewAnim.replayOpening()
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+      mobilePreviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [previewAnim.replayOpening])
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">
@@ -189,7 +202,7 @@ export default function PageLayoutStudioCanvas({
                         texture: {
                           ...prev.texture,
                           type: e.target.value as any,
-                          intensity: prev.texture?.intensity || 40,
+                          intensity: prev.texture?.intensity ?? 40,
                         },
                       }))
                     }
@@ -201,20 +214,23 @@ export default function PageLayoutStudioCanvas({
                     <option value="canvas">Canvas</option>
                     <option value="parchment">Parchment</option>
                     <option value="vintage-paper">Vintage Paper</option>
+                    <option value="crumpled-paper">Crumpled Paper</option>
+                    <option value="stone">Stone Surface</option>
                     <option value="silk">Silk</option>
                     <option value="marble">Marble</option>
+                    <option value="stars">Stars</option>
                   </select>
                 </div>
                 {config.texture?.type && config.texture.type !== 'none' && (
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Texture Intensity: {config.texture?.intensity || 40}%
+                      Texture Intensity: {config.texture?.intensity ?? 40}%
                     </label>
                     <input
                       type="range"
                       min="0"
                       max="100"
-                      value={config.texture?.intensity || 40}
+                      value={config.texture?.intensity ?? 40}
                       onChange={(e) =>
                         setConfig((prev) => ({
                           ...prev,
@@ -228,44 +244,6 @@ export default function PageLayoutStudioCanvas({
                     />
                   </div>
                 )}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Texture image (optional)</label>
-                  <Input
-                    type="url"
-                    value={config.texture?.imageUrl || ''}
-                    onChange={(e) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        texture: {
-                          ...prev.texture,
-                          type: prev.texture?.type || 'none',
-                          intensity: prev.texture?.intensity || 40,
-                          imageUrl: e.target.value.trim() || undefined,
-                        },
-                      }))
-                    }
-                    placeholder="https://… (e.g. marble, watercolor)"
-                    className="w-full"
-                  />
-                  {config.texture?.imageUrl && (
-                    <div className="mt-2">
-                      <label className="text-xs font-medium text-gray-600">Blend</label>
-                      <select
-                        value={config.texture?.textureBlend || 'overlay'}
-                        onChange={(e) =>
-                          setConfig((prev) => ({
-                            ...prev,
-                            texture: { ...prev.texture!, textureBlend: e.target.value as 'overlay' | 'replace' },
-                          }))
-                        }
-                        className="w-full text-sm border rounded px-2 py-1 mt-0.5"
-                      >
-                        <option value="overlay">Overlay on CSS texture</option>
-                        <option value="replace">Replace CSS texture</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -295,27 +273,36 @@ export default function PageLayoutStudioCanvas({
                       Opening
                     </label>
                     <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
-                    <select
-                      id="layout-opening-animation"
-                      value={resolveAnimations(config.animations).opening ?? ''}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          animations: {
-                            ...prev.animations,
-                            opening: e.target.value || null,
-                          },
-                        }))
-                      }
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
-                    >
-                      <option value="">None</option>
-                      {OPENING_ANIMATIONS.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
-                          {entry.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1 flex gap-2 items-stretch">
+                      <select
+                        id="layout-opening-animation"
+                        value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
+                        onChange={(e) =>
+                          setConfig((prev) => ({
+                            ...prev,
+                            animations: {
+                              ...prev.animations,
+                              opening: clampAnimationSlot(
+                                e.target.value ? [e.target.value] : [],
+                              ),
+                            },
+                          }))
+                        }
+                        className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
+                      >
+                        <option value="">None</option>
+                        {openingOptions.map((entry) => (
+                          <option key={entry.moduleId} value={entry.moduleId}>
+                            {entry.label}
+                          </option>
+                        ))}
+                      </select>
+                      <PlayOpeningButton
+                        visible={!!previewAnim.openingId}
+                        onPlay={playOpeningInPreview}
+                        variant="inline"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label className="block text-sm font-medium" htmlFor="layout-experience-animation">
@@ -324,21 +311,23 @@ export default function PageLayoutStudioCanvas({
                     <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
                     <select
                       id="layout-experience-animation"
-                      value={resolveAnimations(config.animations).experience ?? ''}
+                      value={primaryAnimationId(resolveAnimations(config.animations).experience) ?? ''}
                       onChange={(e) =>
                         setConfig((prev) => ({
                           ...prev,
                           animations: {
                             ...prev.animations,
-                            experience: e.target.value || null,
+                            experience: clampAnimationSlot(
+                              e.target.value ? [e.target.value] : [],
+                            ),
                           },
                         }))
                       }
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
                     >
                       <option value="">None</option>
-                      {EXPERIENCE_ANIMATIONS.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
+                      {experienceOptions.map((entry) => (
+                        <option key={entry.moduleId} value={entry.moduleId}>
                           {entry.label}
                         </option>
                       ))}
@@ -572,7 +561,7 @@ export default function PageLayoutStudioCanvas({
         </div>
       </div>
 
-      <div className="lg:col-span-2 w-full min-w-0 overflow-x-hidden">
+      <div ref={mobilePreviewSectionRef} className="lg:col-span-2 w-full min-w-0 overflow-x-hidden">
         <div className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden">
           <h2 className="text-base sm:text-lg font-semibold text-eco-green mb-2">
             Mobile Preview
@@ -583,8 +572,14 @@ export default function PageLayoutStudioCanvas({
             )}
           </h2>
           <p className="text-xs text-gray-600 mb-3 sm:mb-4">
-            Drag tiles to reorder. Sample event data is used for preview.
+            Drag tiles to reorder. Sample event data is used for preview. Selected animations play in this phone.
           </p>
+          <PlayOpeningButton
+            visible={!!previewAnim.openingId}
+            onPlay={playOpeningInPreview}
+            variant="abovePreview"
+            className="lg:hidden"
+          />
           <div className="flex justify-center items-start w-full overflow-x-hidden">
             <div className="relative w-full flex justify-center" style={{ maxWidth: '100%' }}>
               <div
@@ -611,7 +606,12 @@ export default function PageLayoutStudioCanvas({
                       height: 'clamp(24px, 7.5vw, 37px)',
                     }}
                   />
-                  <div
+                  <InviteMobileAnimationShell
+                    openingId={previewAnim.openingId}
+                    experienceId={previewAnim.experienceId}
+                    slug={previewAnim.slug}
+                    layerKey={previewAnim.layerKey}
+                    coverColor={displayBackgroundColor}
                     className="relative overflow-hidden bg-white flex flex-col w-full"
                     style={{
                       width: '100%',
@@ -674,7 +674,7 @@ export default function PageLayoutStudioCanvas({
                         height: 'clamp(3px, 0.8vw, 5px)',
                       }}
                     />
-                  </div>
+                  </InviteMobileAnimationShell>
                 </div>
               </div>
             </div>

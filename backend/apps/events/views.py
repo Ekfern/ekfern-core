@@ -26,7 +26,7 @@ from apps.common.whatsapp_backend import verify_webhook_signature
 from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
-from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, CustomField
+from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, CustomField, AnimationRegistryEntry
 from .serializers import (
     EventSerializer, EventCreateSerializer, EventListSerializer,
     RSVPSerializer, RSVPCreateSerializer,
@@ -43,6 +43,7 @@ from .serializers import (
     MessageCampaignSerializer, MessageCampaignCreateSerializer, CampaignRecipientSerializer,
     BookingScheduleSerializer, BookingSlotSerializer, SlotBookingSerializer,
     MetaApprovedTemplateSerializer,
+    AnimationRegistryEntrySerializer,
 )
 
 # Kept off the long `from .models import ...` line above: that line is a
@@ -3910,6 +3911,42 @@ class InvitePageLayoutViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
+
+
+class AnimationRegistryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Host catalog of invite animations (registry above the module runtime).
+
+    List/retrieve only. Staff manage rows in Django admin.
+    Published free+premium for hosts; internal only for staff.
+    Optional ``?slot=opening|experience``.
+    """
+    pagination_class = None
+    serializer_class = AnimationRegistryEntrySerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'slug'
+    lookup_url_kwarg = 'slug'
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = AnimationRegistryEntry.objects.all()
+        if getattr(user, 'is_staff', False):
+            # Staff see published + draft/disabled for preview; still filterable.
+            status_param = (self.request.query_params.get('status') or '').strip()
+            if status_param:
+                qs = qs.filter(status=status_param)
+        else:
+            qs = qs.filter(status=AnimationRegistryEntry.STATUS_PUBLISHED).exclude(
+                category=AnimationRegistryEntry.CATEGORY_INTERNAL,
+            )
+
+        slot = (self.request.query_params.get('slot') or '').strip()
+        if slot in (
+            AnimationRegistryEntry.SLOT_OPENING,
+            AnimationRegistryEntry.SLOT_EXPERIENCE,
+        ):
+            qs = qs.filter(slot=slot)
+        return qs
 
 
 # ---------------------------------------------------------------------------

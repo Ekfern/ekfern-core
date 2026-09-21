@@ -1,6 +1,7 @@
 /**
  * Host-facing animation catalogs — labels only, no React / module imports.
- * Guest pages resolve IDs via lazy loader maps; the editor only needs these lists.
+ * Guest pages resolve IDs via lazy loader maps; the editor prefers the
+ * Postgres animation registry API and falls back to these lists.
  */
 
 import type { AnimationCatalogEntry } from './types'
@@ -25,6 +26,12 @@ export const EXPERIENCE_ANIMATIONS: AnimationCatalogEntry[] = [
     id: 'rose_petals',
     label: 'Rose Petals',
     description: 'Soft petals drift while guests read the invite',
+    slot: 'experience',
+  },
+  {
+    id: 'chinese_lanterns',
+    label: 'Chinese Lanterns',
+    description: 'Sky lanterns glow and rise while guests read the invite',
     slot: 'experience',
   },
 ]

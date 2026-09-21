@@ -22,11 +22,9 @@ import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import {
-  OPENING_ANIMATIONS,
-  EXPERIENCE_ANIMATIONS,
-} from '@/lib/invite/animations/catalog'
-import { resolveAnimations } from '@/lib/invite/animations/resolve'
+import { resolveAnimations, clampAnimationSlot } from '@/lib/invite/animations/resolve'
+import { primaryAnimationId } from '@/lib/invite/animations/types'
+import { useAnimationRegistryPicker } from '@/lib/invite/animations/useAnimationRegistryPicker'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
@@ -39,6 +37,11 @@ import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import FontPicker from '@/components/invite/FontPicker'
 import WizardProgress from '@/components/host/WizardProgress'
+import {
+  InviteMobileAnimationShell,
+  PlayOpeningButton,
+  useInvitePreviewAnimationState,
+} from '@/components/invite/InviteMobileAnimationPreview'
 
 interface Event {
   id: number
@@ -88,7 +91,7 @@ const DEFAULT_TILES: Tile[] = [
     type: 'timer',
     enabled: false,
     order: 4,
-    settings: { enabled: true, format: 'circle' },
+    settings: { format: 'circle' },
   },
   {
     id: 'tile-feature-buttons-5',
@@ -299,6 +302,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const previewWindowRef = useRef<Window | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showInviteAnimations, setShowInviteAnimations] = useState(false)
+  const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
   const [showPageBackground, setShowPageBackground] = useState(false)
   const [showLinkMetadata, setShowLinkMetadata] = useState(false)
   const [gradientColor1, setGradientColor1] = useState('#E8D8C3')
@@ -467,7 +471,7 @@ export default function DesignInvitationPage(): JSX.Element {
             type: 'timer',
             enabled: false,
             order: 4,
-            settings: { enabled: true, format: 'circle' },
+            settings: { format: 'circle' },
           },
           {
             id: 'tile-feature-buttons-5',
@@ -1583,6 +1587,19 @@ export default function DesignInvitationPage(): JSX.Element {
   const displayBackgroundColor = resolveAppearance(config).backgroundColor
   const displayBackground = config.customColors?.backgroundGradient || displayBackgroundColor
   const isGradientBg = !!config.customColors?.backgroundGradient
+  const previewAnim = useInvitePreviewAnimationState(
+    config,
+    `editor-preview-${eventId || 'new'}`,
+  )
+  const mobilePreviewSectionRef = useRef<HTMLDivElement>(null)
+
+  const playOpeningInPreview = useCallback(() => {
+    previewAnim.replayOpening()
+    // On stacked (mobile) layout the preview is below settings — bring it into view.
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+      mobilePreviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [previewAnim.replayOpening])
 
   if (loading) {
     return (
@@ -2202,7 +2219,7 @@ export default function DesignInvitationPage(): JSX.Element {
                             texture: {
                               ...prev.texture,
                               type: e.target.value as any,
-                              intensity: prev.texture?.intensity || 40,
+                              intensity: prev.texture?.intensity ?? 40,
                             },
                           }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
@@ -2213,24 +2230,27 @@ export default function DesignInvitationPage(): JSX.Element {
                           <option value="canvas">Canvas</option>
                           <option value="parchment">Parchment</option>
                           <option value="vintage-paper">Vintage Paper</option>
+                          <option value="crumpled-paper">Crumpled Paper</option>
+                          <option value="stone">Stone Surface</option>
                           <option value="silk">Silk</option>
                           <option value="marble">Marble</option>
+                          <option value="stars">Stars</option>
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
-                          A paper-like overlay over the page colour
+                          Coats the page colour — paper textures, or stars for a night sky
                         </p>
                       </div>
 
                       {config.texture?.type && config.texture.type !== 'none' && (
                         <div>
                           <label className="block text-sm font-medium mb-2">
-                            Texture Intensity: {config.texture?.intensity || 40}%
+                            Texture Intensity: {config.texture?.intensity ?? 40}%
                           </label>
                           <input
                             type="range"
                             min="0"
                             max="100"
-                            value={config.texture?.intensity || 40}
+                            value={config.texture?.intensity ?? 40}
                             onChange={(e) => setConfig(prev => ({
                               ...prev,
                               texture: {
@@ -2242,45 +2262,6 @@ export default function DesignInvitationPage(): JSX.Element {
                           />
                         </div>
                       )}
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Texture image (optional)</label>
-                        <Input
-                          type="url"
-                          value={config.texture?.imageUrl || ''}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            texture: {
-                              ...prev.texture,
-                              type: prev.texture?.type || 'none',
-                              intensity: prev.texture?.intensity || 40,
-                              imageUrl: e.target.value.trim() || undefined,
-                            },
-                          }))}
-                          placeholder="https://… (e.g. marble, watercolor)"
-                          className="w-full"
-                        />
-                        {config.texture?.imageUrl && (
-                          <div className="mt-2">
-                            <label className="text-xs font-medium text-gray-600">Blend</label>
-                            <select
-                              value={config.texture?.textureBlend || 'overlay'}
-                              onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                texture: {
-                                  ...prev.texture!,
-                                  textureBlend: e.target.value as 'overlay' | 'replace',
-                                },
-                              }))}
-                              className="w-full text-sm border rounded px-2 py-1 mt-0.5"
-                            >
-                              <option value="overlay">Overlay on CSS texture</option>
-                              <option value="replace">Replace CSS texture</option>
-                            </select>
-                          </div>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">Image texture (e.g. marble photo). Intensity above applies to it.</p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -2300,32 +2281,41 @@ export default function DesignInvitationPage(): JSX.Element {
                   {showInviteAnimations && (
                     <div className="mt-3 space-y-4">
                       <p className="text-xs text-gray-500">
-                        How the invite opens and what drifts while guests read. Save, then use Preview or Publish to see openings — the editor canvas does not play them.
+                        How the invite opens and what drifts while guests read. Use Play to watch the opening in the Mobile Preview.
                       </p>
                       <div className="space-y-1">
                         <label className="block text-sm font-medium" htmlFor="opening-animation">
                           Opening
                         </label>
                         <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
-                        <select
-                          id="opening-animation"
-                          value={resolveAnimations(config.animations).opening ?? ''}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            animations: {
-                              ...prev.animations,
-                              opening: e.target.value || null,
-                            },
-                          }))}
-                          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
-                        >
-                          <option value="">None</option>
-                          {OPENING_ANIMATIONS.map((entry) => (
-                            <option key={entry.id} value={entry.id}>
-                              {entry.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="mt-1 flex gap-2 items-stretch">
+                          <select
+                            id="opening-animation"
+                            value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
+                            onChange={(e) => setConfig(prev => ({
+                              ...prev,
+                              animations: {
+                                ...prev.animations,
+                                opening: clampAnimationSlot(
+                                  e.target.value ? [e.target.value] : [],
+                                ),
+                              },
+                            }))}
+                            className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
+                          >
+                            <option value="">None</option>
+                            {openingOptions.map((entry) => (
+                              <option key={entry.moduleId} value={entry.moduleId}>
+                                {entry.label}
+                              </option>
+                            ))}
+                          </select>
+                          <PlayOpeningButton
+                            visible={!!previewAnim.openingId}
+                            onPlay={playOpeningInPreview}
+                            variant="inline"
+                          />
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <label className="block text-sm font-medium" htmlFor="experience-animation">
@@ -2334,19 +2324,21 @@ export default function DesignInvitationPage(): JSX.Element {
                         <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
                         <select
                           id="experience-animation"
-                          value={resolveAnimations(config.animations).experience ?? ''}
+                          value={primaryAnimationId(resolveAnimations(config.animations).experience) ?? ''}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
                             animations: {
                               ...prev.animations,
-                              experience: e.target.value || null,
+                              experience: clampAnimationSlot(
+                                e.target.value ? [e.target.value] : [],
+                              ),
                             },
                           }))}
                           className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
                         >
                           <option value="">None</option>
-                          {EXPERIENCE_ANIMATIONS.map((entry) => (
-                            <option key={entry.id} value={entry.id}>
+                          {experienceOptions.map((entry) => (
+                            <option key={entry.moduleId} value={entry.moduleId}>
                               {entry.label}
                             </option>
                           ))}
@@ -3241,6 +3233,7 @@ export default function DesignInvitationPage(): JSX.Element {
             >
 
               <div
+                ref={mobilePreviewSectionRef}
                 className="relative lg:z-40 bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden"
                 style={{
                   height: `calc(100vh - 1rem)`,
@@ -3257,6 +3250,12 @@ export default function DesignInvitationPage(): JSX.Element {
                   )}
                 </h2>
                 <p className="text-xs text-gray-600 mb-3 sm:mb-4">This preview matches your live invite. Reorder tiles using the drag handles in Tile Settings (left).</p>
+                <PlayOpeningButton
+                  visible={!!previewAnim.openingId}
+                  onPlay={playOpeningInPreview}
+                  variant="abovePreview"
+                  className="lg:hidden"
+                />
                 {/* iPhone 16 Frame - Responsive */}
                 <div className="flex justify-center items-start w-full overflow-x-hidden">
                   <div className="relative w-full flex justify-center" style={{ maxWidth: '100%' }}>
@@ -3289,15 +3288,22 @@ export default function DesignInvitationPage(): JSX.Element {
                         ></div>
                         {/* Screen - iPhone 16 aspect ratio (1179:2556 ≈ 0.461) */}
                         <AppearanceProvider config={config}>
-                          <div
-                            className="relative overflow-hidden bg-white flex flex-col w-full"
-                            style={{
-                              width: '100%',
-                              aspectRatio: '1179 / 2556',
-                              background: displayBackground,
-                              borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
-                            }}
-                          >
+                        <InviteMobileAnimationShell
+                          openingId={previewAnim.openingId}
+                          experienceId={previewAnim.experienceId}
+                          slug={previewAnim.slug}
+                          layerKey={previewAnim.layerKey}
+                          coverColor={typeof displayBackground === 'string' && displayBackground.startsWith('#')
+                            ? displayBackground
+                            : displayBackgroundColor}
+                          className="relative overflow-hidden bg-white flex flex-col w-full"
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1179 / 2556',
+                            background: displayBackground,
+                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
+                          }}
+                        >
                             <TextureOverlay
                               type={config.texture?.type ?? 'none'}
                               intensity={config.texture?.intensity ?? 40}
@@ -3352,7 +3358,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                 height: 'clamp(3px, 0.8vw, 5px)'
                               }}
                             ></div>
-                          </div>
+                        </InviteMobileAnimationShell>
                         </AppearanceProvider>
                       </div>
                     </div>

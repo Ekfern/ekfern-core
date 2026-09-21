@@ -1823,6 +1823,96 @@ class InvitePageLayout(models.Model):
         return self.name
 
 
+class AnimationRegistryEntry(models.Model):
+    """
+    Catalog of invite animations hosts can select (registry above runtime).
+
+    MVP: each row points at a builtin React module via ``module_id`` (loader key).
+    ``path`` is reserved for a future CDN/S3 asset URL when package players exist;
+    guest playback still goes through OpeningLayer/ExperienceLayer + loaders.
+    """
+    CATEGORY_FREE = 'free'
+    CATEGORY_PREMIUM = 'premium'
+    CATEGORY_INTERNAL = 'internal'
+    CATEGORY_CHOICES = [
+        (CATEGORY_FREE, 'Free'),
+        (CATEGORY_PREMIUM, 'Premium'),
+        (CATEGORY_INTERNAL, 'Internal'),
+    ]
+
+    SLOT_OPENING = 'opening'
+    SLOT_EXPERIENCE = 'experience'
+    SLOT_CHOICES = [
+        (SLOT_OPENING, 'Opening'),
+        (SLOT_EXPERIENCE, 'Experience'),
+    ]
+
+    STATUS_DRAFT = 'draft'
+    STATUS_PUBLISHED = 'published'
+    STATUS_DISABLED = 'disabled'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_PUBLISHED, 'Published'),
+        (STATUS_DISABLED, 'Disabled'),
+    ]
+
+    slug = models.SlugField(
+        max_length=64,
+        unique=True,
+        help_text='Stable registry id (e.g. curtain_reveal).',
+    )
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default=CATEGORY_FREE,
+        help_text='Access control for the host frontend picker.',
+    )
+    slot = models.CharField(max_length=20, choices=SLOT_CHOICES)
+    path = models.CharField(
+        max_length=2000,
+        blank=True,
+        help_text=(
+            'MVP: optional module path note (e.g. modules/curtain-reveal). '
+            'Later: CDN URL for a package player; set module_id to that player.'
+        ),
+    )
+    module_id = models.CharField(
+        max_length=64,
+        help_text='Runtime loader key written into invite config (e.g. curtain_reveal).',
+    )
+    creator_name = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_DRAFT,
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'animation_registry'
+        ordering = ['slot', 'name']
+        verbose_name = 'Animation registry entry'
+        verbose_name_plural = 'Animation registry'
+        indexes = [
+            models.Index(fields=['status', 'category', 'slot'], name='anim_reg_stat_cat_slot_idx'),
+            models.Index(fields=['slot', 'status'], name='anim_reg_slot_status_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.name} ({self.slug})'
+
+    def save(self, *args, **kwargs):
+        if self.status == self.STATUS_PUBLISHED and self.published_at is None:
+            self.published_at = timezone.now()
+        super().save(*args, **kwargs)
+
+
 class GreetingCardSample(models.Model):
     """
     Staff-curated greeting card samples for the card designer.

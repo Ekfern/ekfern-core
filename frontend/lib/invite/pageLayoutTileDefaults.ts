@@ -22,7 +22,7 @@ export function buildDefaultTileSettingsRecord(
       backgroundGradient: 'linear-gradient(135deg, #fce4ec, #f48fb1)',
       textOverlays: [],
     },
-    timer: { enabled: true, format: 'circle' },
+    timer: { format: 'circle' },
     'event-details': {
       location: ctx.city ?? '',
       date: fallbackDate,

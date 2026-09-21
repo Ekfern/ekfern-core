@@ -42,7 +42,7 @@ FONT_FAMILY_MAP: dict[str, str] = {
 
 _TEXTURE_TYPES = {
     "none", "paper-grain", "linen", "canvas", "parchment",
-    "vintage-paper", "silk", "marble", "grain",
+    "vintage-paper", "silk", "marble", "grain", "stars", "stone", "crumpled-paper",
 }
 
 _BUTTON_VARIANTS = {

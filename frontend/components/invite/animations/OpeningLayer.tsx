@@ -23,12 +23,19 @@ export function useOpeningComplete(): boolean {
   return useContext(OpeningCompleteContext)
 }
 
+/** Match curtain velvet so the chunk-load cover does not flash through to black chrome. */
+const OPENING_LOAD_COVER: Record<string, string> = {
+  curtain_reveal: '#2a040c',
+}
+
 interface OpeningLayerProps {
   id: string | null
   slug?: string
   children: React.ReactNode
   /** Cheap cover while the opening chunk loads (no module JS). */
   coverColor?: string
+  /** Layout class for the load wrapper (phone preview needs a bounded flex column). */
+  className?: string
 }
 
 export default function OpeningLayer({
@@ -36,6 +43,7 @@ export default function OpeningLayer({
   slug,
   children,
   coverColor = '#E8D8C3',
+  className,
 }: OpeningLayerProps) {
   const loader =
     id && id in openingLoaders
@@ -82,27 +90,29 @@ export default function OpeningLayer({
     )
   }
 
-  if (!Module) {
-    return (
-      <OpeningCompleteContext.Provider value={false}>
-        <div
-          className="fixed inset-0 z-[9998]"
-          style={{ background: coverColor }}
-          aria-hidden
-        />
-        {/* Keep children mounted (hidden) so hydration stays stable once the module arrives. */}
-        <div className="invisible pointer-events-none" aria-hidden>
-          {children}
-        </div>
-      </OpeningCompleteContext.Provider>
-    )
-  }
+  const loadCover = (id && OPENING_LOAD_COVER[id]) || coverColor
 
+  // Keep the invite painted under the load cover / curtains. Hiding children
+  // (visibility:hidden) caused a black flash when the curtain stage was
+  // transparent and the phone chrome showed through for a frame.
   return (
-    <OpeningCompleteContext.Provider value={complete}>
-      <Module slug={slug} onComplete={handleComplete}>
-        {children}
-      </Module>
+    <OpeningCompleteContext.Provider value={Module ? complete : false}>
+      <div className={className ?? 'relative min-h-full w-full'}>
+        {Module ? (
+          <Module slug={slug} onComplete={handleComplete}>
+            {children}
+          </Module>
+        ) : (
+          children
+        )}
+        {!Module && (
+          <div
+            className="absolute inset-0 z-[9998]"
+            style={{ background: loadCover }}
+            aria-hidden
+          />
+        )}
+      </div>
     </OpeningCompleteContext.Provider>
   )
 }
