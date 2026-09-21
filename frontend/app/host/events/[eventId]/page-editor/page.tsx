@@ -1039,6 +1039,18 @@ export default function DesignInvitationPage(): JSX.Element {
     initialLoadDoneRef.current = true
   }, [loading, serializedConfig])
 
+  // Flush a pending auto-save when leaving. The card editor is reachable from
+  // the poster tile now, so a host can navigate away inside the debounce window
+  // and lose the edit that was still waiting on the timer.
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current)
+        persistDraftRef.current?.()
+      }
+    }
+  }, [])
+
   // Debounced auto-save: persist the draft ~1.5s after edits settle.
   useEffect(() => {
     if (!initialLoadDoneRef.current || loading) return

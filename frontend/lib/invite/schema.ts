@@ -114,9 +114,10 @@ export interface PosterTileSettings {
   // 'full-bleed': fills the full page width as a hero panel, aspectRatio controls height.
   frameMode?: 'card' | 'full-bleed'
   aspectRatio?: string // CSS aspect-ratio value, only used when frameMode is 'full-bleed' (default '4/5')
-  // Marks backgroundGradient/textOverlays as part of THIS layout's own baked-in identity
-  // (not a staff-authored photo choice) so the Layout gallery's skeletonize step — which
-  // hides staff photos pre-Design-step — preserves them instead of wiping them out.
+  // Marked by the layout seeders on a layout's own baked-in gradient/title.
+  // Nothing in the frontend reads it since the Layout gallery stopped hiding
+  // backgrounds: there is no Design step to defer that choice to, so previews
+  // now show what will actually be applied.
   isLayoutHero?: boolean
   // Texture confined to this tile's own box (e.g. grain on a full-bleed hero) instead of
   // the page-wide texture, which would otherwise paint every tile uniformly.

@@ -330,6 +330,7 @@ export default function DesignPage(): React.ReactElement {
 
   // State
   const [event, setEvent] = useState<{ title: string; event_type: string; event_structure?: 'SIMPLE' | 'ENVELOPE' } | null>(null)
+  const [accessError, setAccessError] = useState<string | null>(null)
   const [bgUrl, setBgUrl] = useState<string | null>(null)
   const [bgGradient, setBgGradient] = useState<string>(GRADIENT_PRESETS[0]!.value)
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
@@ -411,6 +412,11 @@ export default function DesignPage(): React.ReactElement {
       getInvitePage(eventId).catch(() => null),
     ]).then(([eventRes, page]) => {
       const data = eventRes.data
+      if (!data.title?.trim()) {
+        // Reached before the details step was completed — nothing to design onto.
+        router.replace('/host/dashboard')
+        return
+      }
       setEvent(data)
 
       // Check if backend already has greeting-card content (e.g. saved from another device)
@@ -473,6 +479,11 @@ export default function DesignPage(): React.ReactElement {
       }
     }).catch((err: unknown) => {
       logError('DesignPage: failed to load', err)
+      // 401 is handled globally by the api interceptor (refresh, else login).
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 403) setAccessError('You do not have access to this event.')
+      else if (status === 404) setAccessError('That event no longer exists.')
+      else setAccessError('Could not load this event. Please try again.')
     })
   }, [eventId])
 
@@ -879,7 +890,7 @@ export default function DesignPage(): React.ReactElement {
   // -------------------------------------------------------------------------
 
   // Builds the updated tiles array with current card settings patched in.
-  // Shared by auto-save and handleNext to avoid duplication.
+  // Shared by auto-save and the save-on-exit path to avoid duplication.
   function buildUpdatedTiles(
     tiles: import('@/lib/invite/schema').Tile[],
     currentBgUrl: string | null,
@@ -959,10 +970,12 @@ export default function DesignPage(): React.ReactElement {
   }, [autoSaveStatus])
 
   // -------------------------------------------------------------------------
-  // Next step
+  // Leaving the editor
   // -------------------------------------------------------------------------
 
-  async function handleNext(): Promise<void> {
+  // Autosave is a 2s debounce, so leaving right after an edit could drop it.
+  // Flush explicitly before navigating back to the tile that opened this.
+  async function handleBackToPageEditor(): Promise<void> {
     setSaving(true)
     try {
       // Write the GC tile as enabled:true directly into event.page_config.
@@ -993,7 +1006,7 @@ export default function DesignPage(): React.ReactElement {
       }
       await updateEventPageConfig(eventId, { ...baseConfig, tiles: updatedTiles })
     } catch (err) {
-      logError('DesignPage: handleNext save failed', err)
+      logError('DesignPage: save on exit failed', err)
     } finally {
       setSaving(false)
     }
@@ -1008,6 +1021,21 @@ export default function DesignPage(): React.ReactElement {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <p className="text-red-500 text-sm">Invalid event ID.</p>
+      </div>
+    )
+  }
+
+  if (accessError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gray-50 px-4">
+        <p className="text-red-500 text-sm text-center">{accessError}</p>
+        <button
+          type="button"
+          onClick={() => router.push('/host/dashboard')}
+          className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Back to dashboard
+        </button>
       </div>
     )
   }
@@ -1057,7 +1085,7 @@ export default function DesignPage(): React.ReactElement {
                 onClick={() => router.push(`/host/events/${eventId}/page-editor`)}
                 className="ml-auto px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                Skip Design
+                Back to page editor
               </button>
             </div>
             <input
@@ -1876,27 +1904,11 @@ export default function DesignPage(): React.ReactElement {
       <div className="sticky bottom-0 z-10 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.back()}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          Back
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push(`/host/events/${eventId}/page-editor`)}
-          className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          Skip Design
-        </button>
-
-        <button
-          type="button"
-          onClick={() => void handleNext()}
+          onClick={() => void handleBackToPageEditor()}
           disabled={saving}
-          className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
         >
-          {saving ? 'Saving…' : 'Next: Edit Page'}
+          {saving ? 'Saving…' : 'Back to page editor'}
         </button>
       </div>
 
