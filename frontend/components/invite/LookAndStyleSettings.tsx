@@ -68,12 +68,20 @@ interface LookAndStyleSettingsProps {
   setConfig: React.Dispatch<React.SetStateAction<InviteConfig>>
   /** Studio opens it by default; the page editor keeps it collapsed. */
   defaultOpen?: boolean
+  /**
+   * Extra controls rendered at the end of the expanded section. The studio
+   * puts its staff-only frame art and corner decorations here so they read as
+   * part of Look & Style rather than a section of their own — while staying
+   * out of the host's copy.
+   */
+  children?: React.ReactNode
 }
 
 export default function LookAndStyleSettings({
   config,
   setConfig,
   defaultOpen = false,
+  children,
 }: LookAndStyleSettingsProps) {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(defaultOpen)
 
@@ -528,6 +536,8 @@ export default function LookAndStyleSettings({
                           </div>
                         )}
                       </div>
+
+                      {children}
 
                     </div>
                   )}

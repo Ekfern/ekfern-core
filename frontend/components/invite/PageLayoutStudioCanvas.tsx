@@ -189,10 +189,9 @@ export default function PageLayoutStudioCanvas({
               canPlay={!!previewAnim.openingId}
             />
 
-            <LookAndStyleSettings config={config} setConfig={setConfig} />
-
-            {/* Staff-only: layouts carry frame art and corner decorations that
-                hosts deliberately do not get to change. */}
+            <LookAndStyleSettings config={config} setConfig={setConfig}>
+              {/* Staff-only: layouts carry frame art and corner decorations
+                  that hosts deliberately do not get to change. */}
                   <div className="border-t border-gray-200 pt-4 mt-4">
                     <label className="block text-sm font-medium mb-2">Frame image (optional)</label>
                     <Input
@@ -231,6 +230,7 @@ export default function PageLayoutStudioCanvas({
                       </div>
                     </div>
                   </div>
+            </LookAndStyleSettings>
           </div>
         </div>
 
