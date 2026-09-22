@@ -5,15 +5,13 @@ import { InviteConfig, Tile, TileType } from '@/lib/invite/schema'
 import { buildDefaultTileSettingsRecord } from '@/lib/invite/pageLayoutTileDefaults'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import { resolveAnimations, clampAnimationSlot } from '@/lib/invite/animations/resolve'
-import { primaryAnimationId } from '@/lib/invite/animations/types'
-import { useAnimationRegistryPicker } from '@/lib/invite/animations/useAnimationRegistryPicker'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 import PageBackgroundSettings from '@/components/invite/PageBackgroundSettings'
 import LookAndStyleSettings from '@/components/invite/LookAndStyleSettings'
+import InviteAnimationSettings from '@/components/invite/InviteAnimationSettings'
 import {
   InviteMobileAnimationShell,
   PlayOpeningButton,
@@ -48,8 +46,6 @@ export default function PageLayoutStudioCanvas({
 }: PageLayoutStudioCanvasProps) {
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
-  const [showInviteAnimations, setShowInviteAnimations] = useState(false)
-  const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
 
   useEffect(() => {
@@ -176,95 +172,14 @@ export default function PageLayoutStudioCanvas({
             />
 
 
-            <div className="border-t border-gray-200 pt-4 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowInviteAnimations(!showInviteAnimations)}
-                className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md"
-              >
-                <span className="text-sm font-medium">Invite Animations</span>
-                <svg
-                  className={`w-4 h-4 text-gray-500 transition-transform ${showInviteAnimations ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showInviteAnimations && (
-                <div className="mt-3 space-y-4">
-                  <p className="text-xs text-gray-500">
-                    Saved on the template and applied when hosts use this design (hosts can still override on their event).
-                  </p>
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium" htmlFor="layout-opening-animation">
-                      Opening
-                    </label>
-                    <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
-                    <div className="mt-1 flex gap-2 items-stretch">
-                      <select
-                        id="layout-opening-animation"
-                        value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
-                        onChange={(e) =>
-                          setConfig((prev) => ({
-                            ...prev,
-                            animations: {
-                              ...prev.animations,
-                              opening: clampAnimationSlot(
-                                e.target.value ? [e.target.value] : [],
-                              ),
-                            },
-                          }))
-                        }
-                        className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
-                      >
-                        <option value="">None</option>
-                        {openingOptions.map((entry) => (
-                          <option key={entry.moduleId} value={entry.moduleId}>
-                            {entry.label}
-                          </option>
-                        ))}
-                      </select>
-                      <PlayOpeningButton
-                        visible={!!previewAnim.openingId}
-                        onPlay={playOpeningInPreview}
-                        variant="inline"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium" htmlFor="layout-experience-animation">
-                      While reading
-                    </label>
-                    <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
-                    <select
-                      id="layout-experience-animation"
-                      value={primaryAnimationId(resolveAnimations(config.animations).experience) ?? ''}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          animations: {
-                            ...prev.animations,
-                            experience: clampAnimationSlot(
-                              e.target.value ? [e.target.value] : [],
-                            ),
-                          },
-                        }))
-                      }
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
-                    >
-                      <option value="">None</option>
-                      {experienceOptions.map((entry) => (
-                        <option key={entry.moduleId} value={entry.moduleId}>
-                          {entry.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
+            <InviteAnimationSettings
+              config={config}
+              setConfig={setConfig}
+              idPrefix="layout"
+              description="Saved on the template and applied when hosts use this design (hosts can still override on their event)."
+              onPlay={playOpeningInPreview}
+              canPlay={!!previewAnim.openingId}
+            />
 
             <LookAndStyleSettings config={config} setConfig={setConfig} />
 

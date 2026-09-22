@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import PublishModal from '@/components/invite/PublishModal'
 import PageBackgroundSettings from '@/components/invite/PageBackgroundSettings'
 import LookAndStyleSettings from '@/components/invite/LookAndStyleSettings'
+import InviteAnimationSettings from '@/components/invite/InviteAnimationSettings'
 import ImageCropModal from '@/components/invite/ImageCropModal'
 import api, { uploadImage } from '@/lib/api'
 import { InviteConfig, Tile, TileType, InvitePage } from '@/lib/invite/schema'
@@ -24,9 +25,6 @@ import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import { resolveAnimations, clampAnimationSlot } from '@/lib/invite/animations/resolve'
-import { primaryAnimationId } from '@/lib/invite/animations/types'
-import { useAnimationRegistryPicker } from '@/lib/invite/animations/useAnimationRegistryPicker'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
@@ -257,8 +255,6 @@ export default function DesignInvitationPage(): JSX.Element {
   const gridContainerRef = useRef<HTMLDivElement>(null)
   const previewImageInputRef = useRef<HTMLInputElement>(null)
   const previewWindowRef = useRef<Window | null>(null)
-  const [showInviteAnimations, setShowInviteAnimations] = useState(false)
-  const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
   const [showLinkMetadata, setShowLinkMetadata] = useState(false)
   const [uploadingPreviewImage, setUploadingPreviewImage] = useState(false)
   const [isPreviewCropOpen, setIsPreviewCropOpen] = useState(false)
@@ -1968,87 +1964,12 @@ export default function DesignInvitationPage(): JSX.Element {
                 />
 
 
-                {/* Invite Animations — opening + ambient experience */}
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowInviteAnimations(!showInviteAnimations)}
-                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md"
-                  >
-                    <span className="text-sm font-medium">Invite Animations</span>
-                    <svg className={`w-4 h-4 text-gray-500 transition-transform ${showInviteAnimations ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {showInviteAnimations && (
-                    <div className="mt-3 space-y-4">
-                      <p className="text-xs text-gray-500">
-                        How the invite opens and what drifts while guests read. Use Play to watch the opening in the Mobile Preview.
-                      </p>
-                      <div className="space-y-1">
-                        <label className="block text-sm font-medium" htmlFor="opening-animation">
-                          Opening
-                        </label>
-                        <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
-                        <div className="mt-1 flex gap-2 items-stretch">
-                          <select
-                            id="opening-animation"
-                            value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
-                            onChange={(e) => setConfig(prev => ({
-                              ...prev,
-                              animations: {
-                                ...prev.animations,
-                                opening: clampAnimationSlot(
-                                  e.target.value ? [e.target.value] : [],
-                                ),
-                              },
-                            }))}
-                            className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
-                          >
-                            <option value="">None</option>
-                            {openingOptions.map((entry) => (
-                              <option key={entry.moduleId} value={entry.moduleId}>
-                                {entry.label}
-                              </option>
-                            ))}
-                          </select>
-                          <PlayOpeningButton
-                            visible={!!previewAnim.openingId}
-                            onPlay={playOpeningInPreview}
-                            variant="inline"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-sm font-medium" htmlFor="experience-animation">
-                          While reading
-                        </label>
-                        <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
-                        <select
-                          id="experience-animation"
-                          value={primaryAnimationId(resolveAnimations(config.animations).experience) ?? ''}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            animations: {
-                              ...prev.animations,
-                              experience: clampAnimationSlot(
-                                e.target.value ? [e.target.value] : [],
-                              ),
-                            },
-                          }))}
-                          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
-                        >
-                          <option value="">None</option>
-                          {experienceOptions.map((entry) => (
-                            <option key={entry.moduleId} value={entry.moduleId}>
-                              {entry.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <InviteAnimationSettings
+                  config={config}
+                  setConfig={setConfig}
+                  onPlay={playOpeningInPreview}
+                  canPlay={!!previewAnim.openingId}
+                />
 
                 <LookAndStyleSettings config={config} setConfig={setConfig} />
 
