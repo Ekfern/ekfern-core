@@ -13,6 +13,7 @@ import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 import PageBackgroundSettings from '@/components/invite/PageBackgroundSettings'
+import LookAndStyleSettings from '@/components/invite/LookAndStyleSettings'
 import {
   InviteMobileAnimationShell,
   PlayOpeningButton,
@@ -47,7 +48,6 @@ export default function PageLayoutStudioCanvas({
 }: PageLayoutStudioCanvasProps) {
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showInviteAnimations, setShowInviteAnimations] = useState(false)
   const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
@@ -266,133 +266,10 @@ export default function PageLayoutStudioCanvas({
               )}
             </div>
 
-            <div className="border-t border-gray-200 pt-4 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md p-2 -m-2"
-              >
-                <h3 className="text-sm font-semibold text-eco-green">Look &amp; Style</h3>
-                <svg
-                  className={`w-5 h-5 text-gray-500 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showAdvancedSettings && (
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Spacing between tiles</label>
-                    <select
-                      value={config.spacing || 'normal'}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, spacing: e.target.value as 'tight' | 'normal' | 'spacious' }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                    >
-                      <option value="tight">Tight</option>
-                      <option value="normal">Normal</option>
-                      <option value="spacious">Spacious</option>
-                    </select>
-                  </div>
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium">Page Border</label>
-                      <input
-                        type="checkbox"
-                        checked={config.pageBorder?.enabled || false}
-                        onChange={(e) =>
-                          setConfig((prev) => ({
-                            ...prev,
-                            pageBorder: {
-                              ...prev.pageBorder,
-                              enabled: e.target.checked,
-                              style: prev.pageBorder?.style || 'solid',
-                              color: prev.pageBorder?.color ?? '#D1D5DB',
-                              width: prev.pageBorder?.width ?? 2,
-                            },
-                          }))
-                        }
-                        className="w-4 h-4 text-eco-green focus:ring-eco-green border-gray-300 rounded"
-                      />
-                    </div>
-                    {config.pageBorder?.enabled && (
-                      <div className="mt-3 space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Border Style</label>
-                          <select
-                            value={config.pageBorder?.style || 'solid'}
-                            onChange={(e) =>
-                              setConfig((prev) => ({
-                                ...prev,
-                                pageBorder: { ...prev.pageBorder!, style: e.target.value as any },
-                              }))
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                          >
-                            <option value="solid">Solid</option>
-                            <option value="dotted">Dotted</option>
-                            <option value="dashed">Dashed</option>
-                            <option value="double">Double</option>
-                            <option value="groove">Groove</option>
-                            <option value="ridge">Ridge</option>
-                            <option value="inset">Inset</option>
-                            <option value="outset">Outset</option>
-                            <option value="intaglio">Intaglio (Decorative)</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Border Color</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={colorInputValue(config.pageBorder?.color, '#D1D5DB')}
-                              onChange={(e) =>
-                                setConfig((prev) => ({
-                                  ...prev,
-                                  pageBorder: { ...prev.pageBorder!, color: e.target.value },
-                                }))
-                              }
-                              className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
-                            />
-                            <Input
-                              type="text"
-                              value={config.pageBorder?.color ?? ''}
-                              onChange={(e) =>
-                                setConfig((prev) => ({
-                                  ...prev,
-                                  pageBorder: { ...prev.pageBorder!, color: e.target.value },
-                                }))
-                              }
-                              className="flex-1"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-2">
-                            Border Width: {config.pageBorder?.width ?? 2}px
-                          </label>
-                          <input
-                            type="range"
-                            min="1"
-                            max="8"
-                            value={config.pageBorder?.width ?? 2}
-                            onChange={(e) =>
-                              setConfig((prev) => ({
-                                ...prev,
-                                pageBorder: {
-                                  ...prev.pageBorder!,
-                                  width: parseInt(e.target.value),
-                                },
-                              }))
-                            }
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+            <LookAndStyleSettings config={config} setConfig={setConfig} />
+
+            {/* Staff-only: layouts carry frame art and corner decorations that
+                hosts deliberately do not get to change. */}
                   <div className="border-t border-gray-200 pt-4 mt-4">
                     <label className="block text-sm font-medium mb-2">Frame image (optional)</label>
                     <Input
@@ -431,9 +308,6 @@ export default function PageLayoutStudioCanvas({
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
