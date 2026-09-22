@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
+import PageBackgroundSettings from '@/components/invite/PageBackgroundSettings'
 import {
   InviteMobileAnimationShell,
   PlayOpeningButton,
@@ -33,6 +34,8 @@ interface PageLayoutStudioCanvasProps {
   eventLike: DummyEventLike
   /** Pass 0 for page layout studio (no real event); image upload may not work */
   eventIdForTiles: number
+  /** Changes when a different layout is loaded, so background pickers re-read it. */
+  syncKey?: string | number
 }
 
 export default function PageLayoutStudioCanvas({
@@ -40,6 +43,7 @@ export default function PageLayoutStudioCanvas({
   setConfig,
   eventLike,
   eventIdForTiles,
+  syncKey,
 }: PageLayoutStudioCanvasProps) {
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
@@ -164,88 +168,13 @@ export default function PageLayoutStudioCanvas({
         <div className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden">
           <h2 className="text-lg font-semibold text-eco-green mb-4">Page Settings</h2>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Page Background Color</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={displayBackgroundColor}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      customColors: { ...prev.customColors, backgroundColor: e.target.value },
-                    }))
-                  }
-                  className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
-                />
-                <Input
-                  type="text"
-                  value={displayBackgroundColor}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      customColors: { ...prev.customColors, backgroundColor: e.target.value },
-                    }))
-                  }
-                  placeholder="#ffffff"
-                  className="flex-1"
-                />
-              </div>
-              <div className="mt-3 space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Background Texture</label>
-                  <select
-                    value={config.texture?.type || 'none'}
-                    onChange={(e) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        texture: {
-                          ...prev.texture,
-                          type: e.target.value as any,
-                          intensity: prev.texture?.intensity ?? 40,
-                        },
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                  >
-                    <option value="none">None</option>
-                    <option value="paper-grain">Paper Grain</option>
-                    <option value="linen">Linen</option>
-                    <option value="canvas">Canvas</option>
-                    <option value="parchment">Parchment</option>
-                    <option value="vintage-paper">Vintage Paper</option>
-                    <option value="crumpled-paper">Crumpled Paper</option>
-                    <option value="stone">Stone Surface</option>
-                    <option value="silk">Silk</option>
-                    <option value="marble">Marble</option>
-                    <option value="stars">Stars</option>
-                  </select>
-                </div>
-                {config.texture?.type && config.texture.type !== 'none' && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Texture Intensity: {config.texture?.intensity ?? 40}%
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={config.texture?.intensity ?? 40}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          texture: {
-                            ...prev.texture!,
-                            intensity: parseInt(e.target.value, 10),
-                          },
-                        }))
-                      }
-                      className="w-full"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+            <PageBackgroundSettings
+              config={config}
+              setConfig={setConfig}
+              syncKey={syncKey}
+              defaultOpen
+            />
+
 
             <div className="border-t border-gray-200 pt-4 mt-4">
               <button
