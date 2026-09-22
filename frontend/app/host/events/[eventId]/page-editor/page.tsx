@@ -14,6 +14,7 @@ import PublishModal from '@/components/invite/PublishModal'
 import PageBackgroundSettings from '@/components/invite/PageBackgroundSettings'
 import LookAndStyleSettings from '@/components/invite/LookAndStyleSettings'
 import InviteAnimationSettings from '@/components/invite/InviteAnimationSettings'
+import { useConfigHistory } from '@/lib/invite/useConfigHistory'
 import ImageCropModal from '@/components/invite/ImageCropModal'
 import api, { uploadImage } from '@/lib/api'
 import { InviteConfig, Tile, TileType, InvitePage } from '@/lib/invite/schema'
@@ -266,10 +267,8 @@ export default function DesignInvitationPage(): JSX.Element {
     tiles: DEFAULT_TILES,
     texture: { type: 'parchment', intensity: 20 },
   })
-  // Undo / redo history
-  const undoStack = useRef<InviteConfig[]>([])
-  const redoStack = useRef<InviteConfig[]>([])
-  const configRef = useRef<InviteConfig>(config)
+  const { pushHistory } = useConfigHistory(config, setConfig)
+
   // Preview order state - tracks real-time order for mobile preview (not saved to backend)
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   // Fix 2: Add state for InvitePage and publish modal
@@ -289,64 +288,6 @@ export default function DesignInvitationPage(): JSX.Element {
       .then(setApiLayouts)
       .catch(() => setApiLayouts([]))
       .finally(() => setLayoutsLoading(false))
-  }, [])
-  useEffect(() => {
-    configRef.current = config
-  }, [config])
-  const pushHistory = useCallback(() => {
-    undoStack.current = [
-      ...undoStack.current,
-      structuredClone(configRef.current),
-    ].slice(-50)
-
-    redoStack.current = []
-  }, [])
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement
-
-      // Don't interfere with typing in inputs/textareas/contenteditable
-      if (
-        target.isContentEditable ||
-        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
-      ) {
-        return
-      }
-
-      // Undo: Ctrl+Z / Cmd+Z
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-
-        const previous = undoStack.current.pop()
-
-        if (previous) {
-          redoStack.current.push(structuredClone(configRef.current))
-          setConfig(previous)
-        }
-      }
-
-      // Redo: Ctrl+Y / Cmd+Y OR Ctrl+Shift+Z / Cmd+Shift+Z
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        (e.key.toLowerCase() === 'y' ||
-          (e.key.toLowerCase() === 'z' && e.shiftKey))
-      ) {
-        e.preventDefault()
-
-        const next = redoStack.current.pop()
-
-        if (next) {
-          undoStack.current.push(structuredClone(configRef.current))
-          setConfig(next)
-        }
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
   }, [])
 
   // Measure header height for sticky positioning

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
+import { useConfigHistory } from '@/lib/invite/useConfigHistory'
 import PageBackgroundSettings from '@/components/invite/PageBackgroundSettings'
 import LookAndStyleSettings from '@/components/invite/LookAndStyleSettings'
 import InviteAnimationSettings from '@/components/invite/InviteAnimationSettings'
@@ -44,6 +45,7 @@ export default function PageLayoutStudioCanvas({
   eventIdForTiles,
   syncKey,
 }: PageLayoutStudioCanvasProps) {
+  const { pushHistory } = useConfigHistory(config, setConfig)
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
@@ -69,6 +71,7 @@ export default function PageLayoutStudioCanvas({
     : []
 
   const handleTileReorder = (tiles: Tile[]) => {
+    pushHistory()
     const newOrder = new Map<string, number>()
     tiles.forEach((t, i) => newOrder.set(t.id, i))
     setPreviewOrder(newOrder)
@@ -79,6 +82,7 @@ export default function PageLayoutStudioCanvas({
   }
 
   const handleTileUpdate = (tile: Tile) => {
+    pushHistory()
     setConfig((prev) => ({
       ...prev,
       tiles: (prev.tiles || []).map((t) => (t.id === tile.id ? tile : t)),
@@ -86,6 +90,7 @@ export default function PageLayoutStudioCanvas({
   }
 
   const handleTileToggle = (tileId: string, enabled: boolean) => {
+    pushHistory()
     setConfig((prev) => ({
       ...prev,
       tiles: (prev.tiles || []).map((t) => (t.id === tileId ? { ...t, enabled } : t)),
@@ -93,6 +98,7 @@ export default function PageLayoutStudioCanvas({
   }
 
   const handleOverlayToggle = (tileId: string, targetTileId: string | undefined) => {
+    pushHistory()
     setConfig((prev) => ({
       ...prev,
       tiles: (prev.tiles || []).map((t) =>
@@ -103,6 +109,7 @@ export default function PageLayoutStudioCanvas({
 
   const handleAddTile = useCallback(
     (type: TileType) => {
+      pushHistory()
       const defaultSettings = buildDefaultTileSettingsRecord({
         title: eventLike.title,
         date: eventLike.date,
@@ -126,11 +133,12 @@ export default function PageLayoutStudioCanvas({
         return { ...prev, tiles: [...(prev.tiles ?? []), newTile] }
       })
     },
-    [eventLike.city, eventLike.date, eventLike.title, setConfig]
+    [eventLike.city, eventLike.date, eventLike.title, setConfig, pushHistory]
   )
 
   const handleRemoveTile = useCallback(
     (tileId: string) => {
+      pushHistory()
       setConfig((prev) => ({
         ...prev,
         tiles: (prev.tiles ?? [])
@@ -143,7 +151,7 @@ export default function PageLayoutStudioCanvas({
       }))
       setSelectedTileId((prev) => (prev === tileId ? null : prev))
     },
-    [setConfig]
+    [setConfig, pushHistory]
   )
 
   const displayBackgroundColor =
