@@ -53,6 +53,12 @@ interface DragState {
   startBoxX: number
   startBoxY: number
   startBoxWidth: number
+  /**
+   * The box's rendered width as a percentage of the canvas. `width` on the box
+   * is a stored number the render ignores — the box is `fit-content` — so
+   * clamping against it pinned every box inside the leftmost 20% of the card.
+   */
+  renderedWidthPct: number
   startBoxHeight: number
   startFontSize: number
 }
@@ -348,7 +354,7 @@ export default function TextOverlayEditorModal({
     const {
       mode, resizeHandle, boxId,
       startPointerX, startPointerY,
-      startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize
+      startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize, renderedWidthPct
     } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
@@ -386,7 +392,7 @@ export default function TextOverlayEditorModal({
       setTextBoxes((prev) =>
         prev.map((b) => b.id !== boxId ? b : {
           ...b,
-          x: clamp(startBoxX + dx, 0, 100 - b.width),
+          x: clamp(startBoxX + dx, 0, Math.max(0, 100 - renderedWidthPct)),
           y: clamp(startBoxY + dy, 0, 95),
         })
       )
@@ -947,6 +953,8 @@ export default function TextOverlayEditorModal({
                             startBoxX: box.x,
                             startBoxY: box.y,
                             startBoxWidth: box.width,
+                            renderedWidthPct:
+                              (e.currentTarget.offsetWidth / canvasRef.current.offsetWidth) * 100,
                             startBoxHeight: 0,
                             startFontSize: box.fontSize,
                           }
@@ -1080,6 +1088,9 @@ export default function TextOverlayEditorModal({
                                     startBoxX: box.x,
                                     startBoxY: box.y,
                                     startBoxWidth: box.width,
+                                    renderedWidthPct: containerEl && canvasEl
+                                      ? (containerEl.offsetWidth / canvasEl.offsetWidth) * 100
+                                      : box.width,
                                     startBoxHeight: box.height ?? renderedHeightPct,
                                     startFontSize: box.fontSize,
                                   }
