@@ -293,7 +293,7 @@ export default function PageLayoutStudioCanvas({
         style={{ top: '1rem' }}
       >
         <div
-          className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden lg:h-[calc(100vh-1rem)] lg:overflow-y-auto"
+          className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden"
         >
           <h2 className="text-base sm:text-lg font-semibold text-eco-green mb-2">
             Mobile Preview
