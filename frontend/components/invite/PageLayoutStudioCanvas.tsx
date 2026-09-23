@@ -168,7 +168,7 @@ export default function PageLayoutStudioCanvas({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">
-      <div className="lg:col-span-3 space-y-4 w-full min-w-0 pt-4 sm:pt-6">
+      <div className="relative lg:col-span-3 space-y-4 w-full min-w-0 pt-4 sm:pt-6 lg:overflow-y-auto lg:max-h-[calc(100vh-1rem)] hide-scrollbar">
         <div className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden">
           <h2 className="text-lg font-semibold text-eco-green mb-4">Page Settings</h2>
           <div className="space-y-4">
@@ -287,8 +287,14 @@ export default function PageLayoutStudioCanvas({
         </div>
       </div>
 
-      <div ref={mobilePreviewSectionRef} className="lg:col-span-2 w-full min-w-0 overflow-x-hidden">
-        <div className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden">
+      <div
+        ref={mobilePreviewSectionRef}
+        className="lg:col-span-2 w-full min-w-0 overflow-x-hidden self-start lg:sticky"
+        style={{ top: '1rem' }}
+      >
+        <div
+          className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden lg:h-[calc(100vh-1rem)] lg:overflow-y-auto"
+        >
           <h2 className="text-base sm:text-lg font-semibold text-eco-green mb-2">
             Mobile Preview
             {sortedTiles.length > 0 && (
