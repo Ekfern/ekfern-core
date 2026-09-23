@@ -843,11 +843,12 @@ export default function DesignPage(): React.ReactElement {
       setTextBoxes((prev) =>
         prev.map((b) => b.id !== boxId ? b : {
           ...b,
-          // Anywhere the host or designer likes, as long as 1% of the box stays
-          // on the card. The canvas clips, so a box dragged fully past an edge
-          // would be invisible and unrecoverable; a sliver is always grabbable.
-          x: clamp(startBoxX + dx, Math.min(0, 1 - renderedWidthPct), 99),
-          y: clamp(startBoxY + dy, Math.min(0, 1 - renderedBoxHeightPct), 99),
+          // The whole box stays in view, with a 1% gutter off every edge. The
+          // card clips, so anything past an edge is simply gone — and the box
+          // is measured as rendered, not by the stored `width`, which the
+          // editor does not use for layout.
+          x: clamp(startBoxX + dx, 1, Math.max(1, 99 - renderedWidthPct)),
+          y: clamp(startBoxY + dy, 1, Math.max(1, 99 - renderedBoxHeightPct)),
         })
       )
     }
