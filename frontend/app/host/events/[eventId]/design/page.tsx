@@ -58,6 +58,8 @@ interface DragState {
    * clamping against it pinned every box inside the leftmost 20% of the card.
    */
   renderedWidthPct: number
+  /** Rendered height as a percentage of the canvas, for the same reason. */
+  renderedBoxHeightPct: number
   startBoxHeight: number
   snapshot: TextBox[]
   startFontSize: number
@@ -775,7 +777,7 @@ export default function DesignPage(): React.ReactElement {
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
-    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize, renderedWidthPct } = dragState.current
+    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize, renderedWidthPct, renderedBoxHeightPct } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
     const resizeDelta = (dx + dy) / 2
@@ -841,8 +843,11 @@ export default function DesignPage(): React.ReactElement {
       setTextBoxes((prev) =>
         prev.map((b) => b.id !== boxId ? b : {
           ...b,
-          x: clamp(startBoxX + dx, 0, Math.max(0, 100 - renderedWidthPct)),
-          y: clamp(startBoxY + dy, 0, 95),
+          // Anywhere the host or designer likes, as long as 1% of the box stays
+          // on the card. The canvas clips, so a box dragged fully past an edge
+          // would be invisible and unrecoverable; a sliver is always grabbable.
+          x: clamp(startBoxX + dx, Math.min(0, 1 - renderedWidthPct), 99),
+          y: clamp(startBoxY + dy, Math.min(0, 1 - renderedBoxHeightPct), 99),
         })
       )
     }
@@ -1723,6 +1728,8 @@ export default function DesignPage(): React.ReactElement {
                       startBoxWidth: box.width,
                       renderedWidthPct:
                         (e.currentTarget.offsetWidth / canvasRef.current.offsetWidth) * 100,
+                      renderedBoxHeightPct:
+                        (e.currentTarget.offsetHeight / canvasRef.current.offsetHeight) * 100,
                       startBoxHeight: 0,
                       startFontSize: box.fontSize,
                       snapshot: [...textBoxesRef.current],
@@ -1867,6 +1874,7 @@ export default function DesignPage(): React.ReactElement {
                               renderedWidthPct: containerEl && canvasEl
                                 ? (containerEl.offsetWidth / canvasEl.offsetWidth) * 100
                                 : box.width,
+                              renderedBoxHeightPct: renderedHeightPct,
                               startBoxHeight: box.height ?? renderedHeightPct,
                               startFontSize: box.fontSize,
                               snapshot: [...textBoxesRef.current],
