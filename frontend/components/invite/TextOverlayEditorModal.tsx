@@ -435,7 +435,7 @@ export default function TextOverlayEditorModal({
       >
         {/* Modal shell */}
         <div
-          className="relative w-full max-w-4xl max-h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="relative w-full max-w-4xl h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -872,11 +872,14 @@ export default function TextOverlayEditorModal({
             ) : (
               <div
                 ref={canvasWrapRef}
-                // Width comes from the height, not from the child: the canvas is
-                // absolutely positioned so it cannot size its own container,
-                // which is what let it ignore the fit and overflow instead.
-                style={{ height: '62vh', width: 'calc(62vh * 9 / 16)', minHeight: 0 }}
-                className="relative select-none"
+                // Takes the room the modal has left rather than a fixed 62vh.
+                // A fixed height cannot know how tall the toolbar wrapped to on
+                // this window, so on a narrow one it pushed the footer — Save
+                // and Cancel — out of a shell that does not scroll. The canvas
+                // is absolutely positioned inside and scaled to fit, so it
+                // never sizes this box back.
+                style={{ minHeight: 0 }}
+                className="relative select-none flex-1 w-full"
               >
                 <div
                   ref={canvasRef}
