@@ -32,6 +32,16 @@ interface TextBox {
   shadowColor: string,
 }
 
+/**
+ * The width the invite actually renders a card at (`max-w-sm`). Overlay
+ * positions are percentages but font sizes are absolute pixels, so the two
+ * only agree at one width: draw the canvas at any other size and 32px type
+ * looks bigger or smaller against the card than a guest will ever see it, and
+ * wraps differently. So the canvas is always built at this width and scaled to
+ * fit, rather than rebuilt at whatever size happens to be available.
+ */
+const CARD_REFERENCE_WIDTH = 384
+
 type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
 
 interface DragState {
@@ -96,6 +106,7 @@ export default function TextOverlayEditorModal({
   onClose,
 }: Props): React.ReactElement | null {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const canvasWrapRef = useRef<HTMLDivElement>(null)
   const fontPickerRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<DragState | null>(null)
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -105,6 +116,7 @@ export default function TextOverlayEditorModal({
   const effectsButtonRef = useRef<HTMLButtonElement>(null)
   const effectsRef = useRef<HTMLDivElement>(null)
 
+  const [canvasScale, setCanvasScale] = useState(1)
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -156,6 +168,26 @@ export default function TextOverlayEditorModal({
       holdInterval.current = null
     }
   }
+
+  // Fit the reference-width canvas into whatever room the modal has.
+  useEffect(() => {
+    if (!open) return
+    const el = canvasWrapRef.current
+    if (!el) return
+    const update = () => {
+      // Fit on both axes. Taking width alone overflowed: the wrapper's width
+      // comes from 62vh but a flex parent can shrink its height, so a canvas
+      // scaled to the width was taller than the room actually left for it.
+      const referenceHeight = (CARD_REFERENCE_WIDTH * 16) / 9
+      const byWidth = el.clientWidth / CARD_REFERENCE_WIDTH
+      const byHeight = el.clientHeight / referenceHeight
+      setCanvasScale(Math.min(byWidth, byHeight) || 1)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [open, bgSrc, bgGradient])
 
   // Keep a ref in sync so pointer-move callbacks always see the latest boxes
   const textBoxesRef = useRef<TextBox[]>([])
@@ -826,11 +858,27 @@ export default function TextOverlayEditorModal({
                 <p className="text-sm">No background set — set a background image or gradient first.</p>
               </div>
             ) : (
-              <div style={{ height: '62vh', aspectRatio: '9 / 16' }} className="relative select-none">
+              <div
+                ref={canvasWrapRef}
+                // Width comes from the height, not from the child: the canvas is
+                // absolutely positioned so it cannot size its own container,
+                // which is what let it ignore the fit and overflow instead.
+                style={{ height: '62vh', width: 'calc(62vh * 9 / 16)', minHeight: 0 }}
+                className="relative select-none"
+              >
                 <div
                   ref={canvasRef}
-                  className="relative overflow-hidden rounded-2xl shadow-2xl"
-                  style={{ width: '100%', height: '100%', background: !bgSrc && bgGradient ? bgGradient : undefined, touchAction: 'none' }}
+                  className="absolute top-0 left-0 right-0 mx-auto overflow-hidden rounded-2xl shadow-2xl"
+                  style={{
+                    width: CARD_REFERENCE_WIDTH,
+                    height: (CARD_REFERENCE_WIDTH * 16) / 9,
+                    // Centred by auto margins at its layout width, then scaled
+                    // about that centre so it stays centred at any scale.
+                    transformOrigin: 'top center',
+                    transform: `scale(${canvasScale})`,
+                    background: !bgSrc && bgGradient ? bgGradient : undefined,
+                    touchAction: 'none',
+                  }}
                   onPointerMove={handleCanvasPointerMove}
                   onPointerUp={handleCanvasPointerUp}
                   onClick={(e) => {
