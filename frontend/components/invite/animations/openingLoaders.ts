@@ -6,6 +6,7 @@
 export const openingLoaders = {
   envelope_reveal: () => import('./modules/envelope-reveal'),
   curtain_reveal: () => import('./modules/curtain-reveal'),
+  water_drop: () => import(/* webpackChunkName: "opening-water-drop" */ './modules/water-drop'),
 } as const
 
 export type OpeningModuleId = keyof typeof openingLoaders
