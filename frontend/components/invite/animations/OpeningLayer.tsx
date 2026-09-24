@@ -23,9 +23,10 @@ export function useOpeningComplete(): boolean {
   return useContext(OpeningCompleteContext)
 }
 
-/** Match curtain velvet so the chunk-load cover does not flash through to black chrome. */
+/** Match each opening's first frame so the chunk-load cover does not flash. */
 const OPENING_LOAD_COVER: Record<string, string> = {
   curtain_reveal: '#2a040c',
+  water_drop: '#dfe7ec',
 }
 
 interface OpeningLayerProps {
@@ -97,7 +98,13 @@ export default function OpeningLayer({
   // transparent and the phone chrome showed through for a frame.
   return (
     <OpeningCompleteContext.Provider value={Module ? complete : false}>
-      <div className={className ?? 'relative min-h-full w-full'}>
+      {/*
+        borderRadius:'inherit' walks the phone-preview frame's radius down to the
+        module. Opening stages are position:fixed, and an ancestor's overflow
+        clips those to its rectangle but NOT to its corner radius — without this
+        the overlay paints square corners over the rounded bezel.
+      */}
+      <div className={className ?? 'relative min-h-full w-full'} style={{ borderRadius: 'inherit' }}>
         {Module ? (
           <Module slug={slug} onComplete={handleComplete}>
             {children}
@@ -108,7 +115,7 @@ export default function OpeningLayer({
         {!Module && (
           <div
             className="absolute inset-0 z-[9998]"
-            style={{ background: loadCover }}
+            style={{ background: loadCover, borderRadius: 'inherit' }}
             aria-hidden
           />
         )}
