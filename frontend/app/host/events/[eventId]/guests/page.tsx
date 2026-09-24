@@ -208,6 +208,10 @@ export default function GuestsPage() {
   const [nameSearch, setNameSearch] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [openRowActionsGuestId, setOpenRowActionsGuestId] = useState<number | null>(null)
+  // The table scrolls sideways, and `overflow-x` makes it clip vertically too,
+  // so a menu opening downwards on the last row is cut off. Open upwards when
+  // there is not enough room beneath the button.
+  const [rowActionsDropUp, setRowActionsDropUp] = useState(false)
   const bulkActionsMenuRef = useRef<HTMLDivElement>(null)
   const [showBulkActionsMenu, setShowBulkActionsMenu] = useState(false)
   const hasInitializedFiltersRef = useRef(false)
@@ -3365,18 +3369,28 @@ export default function GuestsPage() {
                                         type="button"
                                         aria-expanded={openRowActionsGuestId === guest.id}
                                         aria-haspopup="menu"
-                                        onClick={() =>
-                                          setOpenRowActionsGuestId(
+                                        onClick={(e) => {
+                                          const next =
                                             openRowActionsGuestId === guest.id ? null : guest.id
-                                          )
-                                        }
+                                          if (next !== null) {
+                                            // Roughly the tallest the menu gets: three items plus padding.
+                                            const MENU_HEIGHT = 120
+                                            const btn = e.currentTarget.getBoundingClientRect()
+                                            const scroller = e.currentTarget.closest('.overflow-x-auto')
+                                            const limit = scroller
+                                              ? scroller.getBoundingClientRect().bottom
+                                              : window.innerHeight
+                                            setRowActionsDropUp(limit - btn.bottom < MENU_HEIGHT)
+                                          }
+                                          setOpenRowActionsGuestId(next)
+                                        }}
                                         className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
                                       >
                                         More
                                       </Button>
                                       {openRowActionsGuestId === guest.id && (
                                         <div
-                                          className="absolute right-0 top-full mt-1 z-50 min-w-[11rem] rounded-md border border-gray-200 bg-white shadow-lg py-1"
+                                          className={`absolute right-0 z-50 min-w-[11rem] rounded-md border border-gray-200 bg-white shadow-lg py-1 ${rowActionsDropUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
                                           role="menu"
                                         >
                                           {guest.guest_token && (
