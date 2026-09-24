@@ -5,20 +5,20 @@
  *   Event Details  (/host/events/new to create; /host/events/[eventId]/details to edit)
  *   Sub-events     (/host/events/[eventId]/sub-events-setup) — only for multi-sub-event (ENVELOPE) events
  *   Layout         (/host/events/[eventId]/layout)
- *   Design         (/host/events/[eventId]/design)
  *   Page Editor    (/host/events/[eventId]/page-editor)
  *
  * The Sub-events step is inserted only when `includeSubEvents` is set (i.e. the
  * host chose "multiple sub-events" and the event is/became ENVELOPE). Step
  * numbers are derived from position so the same component renders both the
- * 4-step and 5-step journeys. Completed steps are clickable when eventId is set.
+ * 3-step and 4-step journeys. The card is no longer a step of its own: it is
+ * edited from the poster tile inside the Page Editor. Completed steps are clickable when eventId is set.
  */
 
 import React from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 
-export type WizardStepKey = 'details' | 'sub-events' | 'layout' | 'design' | 'page-editor'
+export type WizardStepKey = 'details' | 'sub-events' | 'layout' | 'page-editor'
 
 export interface WizardProgressProps {
   currentStep: WizardStepKey
@@ -37,7 +37,6 @@ interface StepDefinition {
 const BASE_STEPS: StepDefinition[] = [
   { key: 'details', label: 'Event Details', href: (id) => `/host/events/${id}/details` },
   { key: 'layout', label: 'Layout', href: (id) => `/host/events/${id}/layout` },
-  { key: 'design', label: 'Design', href: (id) => `/host/events/${id}/design` },
   { key: 'page-editor', label: 'Page Editor', href: (id) => `/host/events/${id}/page-editor` },
 ]
 

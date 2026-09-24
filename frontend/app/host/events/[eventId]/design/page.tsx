@@ -1,15 +1,14 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from "react-dom"
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import api, { uploadImage } from '@/lib/api'
-import { updateInvitePage, createInvitePage, getInvitePage, type DesignSample } from '@/lib/invite/api'
+import { getInvitePage, type DesignSample } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import type { PosterTileSettings } from '@/lib/invite/schema'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
-import WizardProgress from '@/components/host/WizardProgress'
 import { logError } from '@/lib/error-handler'
 import { Input } from '@/components/ui/input'
 import DesignCatalogGrid, { useDesignCatalog } from '@/components/invite/DesignCatalogGrid'
@@ -53,6 +52,14 @@ interface DragState {
   startBoxX: number
   startBoxY: number
   startBoxWidth: number
+  /**
+   * The box's rendered width as a percentage of the canvas. `width` on the box
+   * is a stored number the render ignores — the box is `fit-content` — so
+   * clamping against it pinned every box inside the leftmost 20% of the card.
+   */
+  renderedWidthPct: number
+  /** Rendered height as a percentage of the canvas, for the same reason. */
+  renderedBoxHeightPct: number
   startBoxHeight: number
   snapshot: TextBox[]
   startFontSize: number
@@ -80,14 +87,6 @@ const GRADIENT_DIRECTIONS = [
   { label: '↗ Up-right', value: '45deg' },
 ]
 
-const SUBTITLE_MAP: Record<string, string> = {
-  wedding: "We're getting married!",
-  birthday: 'Come celebrate with us!',
-  baby_shower: 'A little one is on the way!',
-  engagement: 'We said yes!',
-  anniversary: 'Celebrating our love',
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -100,46 +99,6 @@ function makeId(): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
-}
-
-function buildInitialBoxes(title: string, eventType: string): TextBox[] {
-  const subtitle = SUBTITLE_MAP[eventType] ?? 'Join us for a special celebration!'
-  return [
-    {
-      id: makeId(),
-      text: title || 'Your Names Here',
-      x: 10,
-      y: 30,
-      width: 80,
-      height: null,
-      fontFamily: "'Playfair Display', serif",
-      fontSize: 40,
-      color: '#ffffff',
-      bold: false,
-      italic: false,
-      underline: false,
-      strikethrough: false,
-      textAlign: 'center',
-      verticalAlign: 'middle',
-    },
-    {
-      id: makeId(),
-      text: subtitle,
-      x: 10,
-      y: 60,
-      width: 80,
-      height: null,
-      fontFamily: 'Georgia, serif',
-      fontSize: 20,
-      color: '#f0f0f0',
-      bold: false,
-      italic: false,
-      underline: false,
-      strikethrough: false,
-      textAlign: 'center',
-      verticalAlign: 'middle',
-    },
-  ]
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +338,7 @@ export default function DesignPage(): React.ReactElement {
 
   // State
   const [event, setEvent] = useState<{ title: string; event_type: string; event_structure?: 'SIMPLE' | 'ENVELOPE' } | null>(null)
+  const [accessError, setAccessError] = useState<string | null>(null)
   const [bgUrl, setBgUrl] = useState<string | null>(null)
   const [bgGradient, setBgGradient] = useState<string>(GRADIENT_PRESETS[0]!.value)
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
@@ -460,6 +420,11 @@ export default function DesignPage(): React.ReactElement {
       getInvitePage(eventId).catch(() => null),
     ]).then(([eventRes, page]) => {
       const data = eventRes.data
+      if (!data.title?.trim()) {
+        // Reached before the details step was completed — nothing to design onto.
+        router.replace('/host/dashboard')
+        return
+      }
       setEvent(data)
 
       // Check if backend already has greeting-card content (e.g. saved from another device)
@@ -515,13 +480,18 @@ export default function DesignPage(): React.ReactElement {
           setTextBoxes(JSON.parse(savedBoxesRaw) as TextBox[])
           setUserHasEditedText(true)
         } catch {
-          setTextBoxes(buildInitialBoxes(data.title, data.event_type))
+          setTextBoxes([])
         }
       } else {
-        setTextBoxes(buildInitialBoxes(data.title, data.event_type))
+        setTextBoxes([])
       }
     }).catch((err: unknown) => {
       logError('DesignPage: failed to load', err)
+      // 401 is handled globally by the api interceptor (refresh, else login).
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 403) setAccessError('You do not have access to this event.')
+      else if (status === 404) setAccessError('That event no longer exists.')
+      else setAccessError('Could not load this event. Please try again.')
     })
   }, [eventId])
 
@@ -544,6 +514,24 @@ export default function DesignPage(): React.ReactElement {
 
   // Keep textBoxesRef in sync (used by undo/redo handlers in stable closures)
   useEffect(() => { textBoxesRef.current = textBoxes }, [textBoxes])
+
+  // Resolve the faces in use up front. Left to itself the browser resolves them
+  // lazily, painting fallback metrics on some frames and the real face on
+  // others — which is what made text flicker while being dragged. Keyed on the
+  // spec list, not textBoxes, which changes on every pointer move.
+  const fontSpecs = useMemo(
+    () => Array.from(new Set(textBoxes.map((b) => `${b.fontSize}px ${b.fontFamily}`))).sort().join('|'),
+    [textBoxes]
+  )
+
+  const loadFontSpecs = useCallback(() => {
+    if (typeof document === 'undefined' || !document.fonts) return
+    for (const spec of fontSpecs.split('|')) {
+      if (spec) void document.fonts.load(spec)
+    }
+  }, [fontSpecs])
+
+  useEffect(() => { loadFontSpecs() }, [loadFontSpecs])
 
   // Auto-focus + populate the contentEditable div when editing starts
   useEffect(() => {
@@ -666,6 +654,32 @@ export default function DesignPage(): React.ReactElement {
     if (editingId === id) setEditingId(null)
   }
 
+  // Delete / Backspace removes the selected box — the gesture every canvas
+  // editor answers to, and the one a host reaches for before hunting the
+  // toolbar. Deliberately inert while text is being edited or any other field
+  // has focus, so it never eats a character the host meant to type.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      if (!selectedId || editingId) return
+      const active = document.activeElement as HTMLElement | null
+      if (
+        active &&
+        (active.isContentEditable ||
+          active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.tagName === 'SELECT')
+      ) {
+        return
+      }
+      e.preventDefault()
+      deleteBox(selectedId)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, editingId])
+
   function addTextBox(): void {
     hasUserEditedRef.current = true
     pushHistory(textBoxesRef.current)
@@ -763,7 +777,7 @@ export default function DesignPage(): React.ReactElement {
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
-    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize } = dragState.current
+    const { mode, resizeHandle, boxId, startPointerX, startPointerY, startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize, renderedWidthPct, renderedBoxHeightPct } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
     const resizeDelta = (dx + dy) / 2
@@ -829,8 +843,12 @@ export default function DesignPage(): React.ReactElement {
       setTextBoxes((prev) =>
         prev.map((b) => b.id !== boxId ? b : {
           ...b,
-          x: clamp(startBoxX + dx, 0, 100 - b.width),
-          y: clamp(startBoxY + dy, 0, 95),
+          // The whole box stays in view, with a 1% gutter off every edge. The
+          // card clips, so anything past an edge is simply gone — and the box
+          // is measured as rendered, not by the stored `width`, which the
+          // editor does not use for layout.
+          x: clamp(startBoxX + dx, 1, Math.max(1, 99 - renderedWidthPct)),
+          y: clamp(startBoxY + dy, 1, Math.max(1, 99 - renderedBoxHeightPct)),
         })
       )
     }
@@ -884,7 +902,7 @@ export default function DesignPage(): React.ReactElement {
   // -------------------------------------------------------------------------
 
   // Builds the updated tiles array with current card settings patched in.
-  // Shared by auto-save and handleNext to avoid duplication.
+  // Shared by auto-save and the save-on-exit path to avoid duplication.
   function buildUpdatedTiles(
     tiles: import('@/lib/invite/schema').Tile[],
     currentBgUrl: string | null,
@@ -924,21 +942,21 @@ export default function DesignPage(): React.ReactElement {
     return updated
   }
 
+  // Saves through the same endpoint the page editor uses. It writes
+  // Event.page_config and syncs InvitePage in one server-side step, so the two
+  // stores cannot drift. Writing InvitePage directly (as this used to) left
+  // page_config stale whenever the host left by any route but the Back button,
+  // and the page editor reads page_config — so it would show the old card and
+  // then autosave that back over the newer one.
   async function performSave(enableTile = false): Promise<void> {
     if (isSavingRef.current) return
     isSavingRef.current = true
     setAutoSaveStatus('saving')
     try {
-      const existing = await getInvitePage(eventId)
-      if (existing) {
-        const updatedTiles = buildUpdatedTiles(existing.config.tiles ?? [], bgUrl, bgGradient, textBoxes, enableTile)
-        await updateInvitePage(eventId, { config: { ...existing.config, tiles: updatedTiles } })
-      } else {
-        // No InvitePage yet — create one with just the GC tile.
-        // The design page will merge this into the full config on load.
-        const gcTile = buildUpdatedTiles([], bgUrl, bgGradient, textBoxes, enableTile)
-        await createInvitePage(eventId, { config: { tiles: gcTile } })
-      }
+      const pageConfig = await getEventPageConfig(eventId)
+      const baseConfig = pageConfig?.page_config ?? { tiles: [] }
+      const updatedTiles = buildUpdatedTiles(baseConfig.tiles ?? [], bgUrl, bgGradient, textBoxes, enableTile)
+      await updateEventPageConfig(eventId, { ...baseConfig, tiles: updatedTiles })
       setAutoSaveStatus('saved')
     } catch (err) {
       logError('DesignPage: auto-save failed', err)
@@ -964,41 +982,19 @@ export default function DesignPage(): React.ReactElement {
   }, [autoSaveStatus])
 
   // -------------------------------------------------------------------------
-  // Next step
+  // Leaving the editor
   // -------------------------------------------------------------------------
 
-  async function handleNext(): Promise<void> {
+  // Autosave is a 2s debounce, so leaving right after an edit could drop it.
+  // Flush through the same save the timer uses, with the tile switched on:
+  // a host who came here to make a card expects to see it on the page.
+  async function handleBackToPageEditor(): Promise<void> {
     setSaving(true)
     try {
-      // Write the GC tile as enabled:true directly into event.page_config.
-      // This is the same store the design page reads on load — no race, no separate fetch.
-      const pageConfig = await getEventPageConfig(eventId)
-      const existingConfig = pageConfig?.page_config
-      const cardSettings: PosterTileSettings = {
-        src: bgUrl ?? undefined,
-        backgroundGradient: bgUrl ? undefined : bgGradient,
-        textOverlays: textBoxes,
-      }
-
-      const baseConfig = existingConfig ?? { tiles: [] }
-      const hasGC = baseConfig.tiles?.some(t => t.type === 'poster')
-      let updatedTiles
-      if (hasGC) {
-        updatedTiles = baseConfig.tiles!.map(t =>
-          t.type === 'poster'
-            ? { ...t, enabled: true, settings: { ...(t.settings as PosterTileSettings), ...cardSettings } }
-            : t
-        )
-      } else {
-        const maxOrder = Math.max(...(baseConfig.tiles?.map(t => t.order ?? 0) ?? [0]), 0)
-        updatedTiles = [
-          ...(baseConfig.tiles ?? []),
-          { id: `tile-poster-${Date.now().toString(36)}`, type: 'poster' as const, enabled: true, order: maxOrder + 1, settings: cardSettings },
-        ]
-      }
-      await updateEventPageConfig(eventId, { ...baseConfig, tiles: updatedTiles })
+      isSavingRef.current = false // take priority over any in-flight debounce
+      await performSave(true)
     } catch (err) {
-      logError('DesignPage: handleNext save failed', err)
+      logError('DesignPage: save on exit failed', err)
     } finally {
       setSaving(false)
     }
@@ -1017,16 +1013,25 @@ export default function DesignPage(): React.ReactElement {
     )
   }
 
+  if (accessError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gray-50 px-4">
+        <p className="text-red-500 text-sm text-center">{accessError}</p>
+        <button
+          type="button"
+          onClick={() => router.push('/host/dashboard')}
+          className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Back to dashboard
+        </button>
+      </div>
+    )
+  }
+
   if (!hasSelectedBackground) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
-        <WizardProgress
-          currentStep="design"
-          eventId={eventId}
-          includeSubEvents={event?.event_structure === 'ENVELOPE'}
-        />
-
         <div className="max-w-7xl mx-auto w-full px-4 py-6 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
             <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Choose your background</h1>
@@ -1068,7 +1073,7 @@ export default function DesignPage(): React.ReactElement {
                 onClick={() => router.push(`/host/events/${eventId}/page-editor`)}
                 className="ml-auto px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                Skip Design
+                Back to page editor
               </button>
             </div>
             <input
@@ -1179,12 +1184,6 @@ export default function DesignPage(): React.ReactElement {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Google Fonts */}
       <style dangerouslySetInnerHTML={{ __html: `@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Raleway:wght@400;600&family=Manrope:wght@400;700&family=Outfit:wght@400;700&family=Urbanist:wght@400;700&family=DM+Sans:wght@400;700&family=Rubik:wght@400;700&family=Work+Sans:wght@400;700&family=Nunito:wght@400;700&family=Ubuntu:wght@400;700&family=Merriweather:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Crimson+Text:wght@400;700&family=EB+Garamond:wght@400;700&family=Cinzel:wght@400;700&family=Allura&family=Alex+Brush&family=Parisienne&family=Satisfy&family=Sacramento&family=Kaushan+Script&family=Bebas+Neue&family=Anton&family=Abril+Fatface&family=Oswald:wght@400;700&family=Orbitron:wght@400;700&family=Lobster&display=swap');` }} />
-
-      <WizardProgress
-        currentStep="design"
-        eventId={eventId}
-        includeSubEvents={event?.event_structure === 'ENVELOPE'}
-      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Sticky header: background bar + always-visible text toolbar         */}
@@ -1599,15 +1598,22 @@ export default function DesignPage(): React.ReactElement {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => selectedBox && deleteBox(selectedBox.id)}
-              className="text-red-500 hover:bg-red-50 px-2 py-1 rounded text-sm transition-colors"
-              title="Delete text box"
-            >
-              Delete
-            </button>
-
           </div>
+
+          {/* Delete lives OUTSIDE the dimmed group. Inside it, the group's
+              `pointer-events-none` made the only way to remove a text box
+              silently inert the moment the selection was lost — the button
+              looked present but swallowed every click. A real `disabled`
+              says "select something first" instead of doing nothing. */}
+          <button
+            type="button"
+            disabled={!selectedBox}
+            onClick={() => selectedBox && deleteBox(selectedBox.id)}
+            className="px-2 py-1 rounded text-sm transition-colors text-red-500 hover:bg-red-50 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+            title={selectedBox ? 'Delete text box' : 'Select a text box first'}
+          >
+            Delete
+          </button>
 
         </div>
       </div>
@@ -1708,6 +1714,7 @@ export default function DesignPage(): React.ReactElement {
                   onPointerDown={(e) => {
                     if (isEditing) return // let contentEditable handle it
                     e.stopPropagation()
+                    loadFontSpecs() // faces lapse when idle; re-assert before a drag
                     e.currentTarget.setPointerCapture(e.pointerId)
                     setSelectedId(box.id)
                     if (!canvasRef.current) return
@@ -1720,6 +1727,10 @@ export default function DesignPage(): React.ReactElement {
                       startBoxX: box.x,
                       startBoxY: box.y,
                       startBoxWidth: box.width,
+                      renderedWidthPct:
+                        (e.currentTarget.offsetWidth / canvasRef.current.offsetWidth) * 100,
+                      renderedBoxHeightPct:
+                        (e.currentTarget.offsetHeight / canvasRef.current.offsetHeight) * 100,
                       startBoxHeight: 0,
                       startFontSize: box.fontSize,
                       snapshot: [...textBoxesRef.current],
@@ -1783,6 +1794,45 @@ export default function DesignPage(): React.ReactElement {
                     {isEditing ? undefined : box.text}
                   </div>
 
+                  {/* Remove handle — the direct way out, sitting on the box
+                      itself so getting rid of unwanted text never depends on
+                      finding the toolbar or keeping the selection alive.
+                      Paired with the resize handle on the opposite corner. */}
+                  {isSelected && !isEditing && (
+                    <button
+                      type="button"
+                      title="Remove this text"
+                      aria-label="Remove this text"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteBox(box.id)
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: -10,
+                        right: -10,
+                        width: 22,
+                        height: 22,
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: '#ffffff',
+                        border: '2px solid #ef4444',
+                        borderRadius: '9999px',
+                        color: '#ef4444',
+                        fontSize: 14,
+                        lineHeight: 1,
+                        cursor: 'pointer',
+                        zIndex: 21,
+                        touchAction: 'none',
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+
                   {/* Corner resize handles — visible only when selected and not editing */}
                   {isSelected && !isEditing && (
                     (['se'] as ResizeHandle[]).map((handle) => {
@@ -1822,6 +1872,10 @@ export default function DesignPage(): React.ReactElement {
                               startBoxX: box.x,
                               startBoxY: box.y,
                               startBoxWidth: box.width,
+                              renderedWidthPct: containerEl && canvasEl
+                                ? (containerEl.offsetWidth / canvasEl.offsetWidth) * 100
+                                : box.width,
+                              renderedBoxHeightPct: renderedHeightPct,
                               startBoxHeight: box.height ?? renderedHeightPct,
                               startFontSize: box.fontSize,
                               snapshot: [...textBoxesRef.current],
@@ -1846,27 +1900,11 @@ export default function DesignPage(): React.ReactElement {
       <div className="sticky bottom-0 z-10 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.back()}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          Back
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push(`/host/events/${eventId}/page-editor`)}
-          className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          Skip Design
-        </button>
-
-        <button
-          type="button"
-          onClick={() => void handleNext()}
+          onClick={() => void handleBackToPageEditor()}
           disabled={saving}
-          className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
         >
-          {saving ? 'Saving…' : 'Next: Edit Page'}
+          {saving ? 'Saving…' : 'Back to page editor'}
         </button>
       </div>
 
