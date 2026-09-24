@@ -5,13 +5,14 @@ import { InviteConfig, Tile, TileType } from '@/lib/invite/schema'
 import { buildDefaultTileSettingsRecord } from '@/lib/invite/pageLayoutTileDefaults'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import { resolveAnimations, clampAnimationSlot } from '@/lib/invite/animations/resolve'
-import { primaryAnimationId } from '@/lib/invite/animations/types'
-import { useAnimationRegistryPicker } from '@/lib/invite/animations/useAnimationRegistryPicker'
 import { Input } from '@/components/ui/input'
 import TileList from '@/components/invite/tiles/TileList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
+import { useConfigHistory } from '@/lib/invite/useConfigHistory'
+import PageBackgroundSettings from '@/components/invite/PageBackgroundSettings'
+import LookAndStyleSettings from '@/components/invite/LookAndStyleSettings'
+import InviteAnimationSettings from '@/components/invite/InviteAnimationSettings'
 import {
   InviteMobileAnimationShell,
   PlayOpeningButton,
@@ -33,6 +34,8 @@ interface PageLayoutStudioCanvasProps {
   eventLike: DummyEventLike
   /** Pass 0 for page layout studio (no real event); image upload may not work */
   eventIdForTiles: number
+  /** Changes when a different layout is loaded, so background pickers re-read it. */
+  syncKey?: string | number
 }
 
 export default function PageLayoutStudioCanvas({
@@ -40,12 +43,11 @@ export default function PageLayoutStudioCanvas({
   setConfig,
   eventLike,
   eventIdForTiles,
+  syncKey,
 }: PageLayoutStudioCanvasProps) {
+  const { pushHistory } = useConfigHistory(config, setConfig)
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null)
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
-  const [showInviteAnimations, setShowInviteAnimations] = useState(false)
-  const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
 
   useEffect(() => {
@@ -69,6 +71,7 @@ export default function PageLayoutStudioCanvas({
     : []
 
   const handleTileReorder = (tiles: Tile[]) => {
+    pushHistory()
     const newOrder = new Map<string, number>()
     tiles.forEach((t, i) => newOrder.set(t.id, i))
     setPreviewOrder(newOrder)
@@ -79,6 +82,7 @@ export default function PageLayoutStudioCanvas({
   }
 
   const handleTileUpdate = (tile: Tile) => {
+    pushHistory()
     setConfig((prev) => ({
       ...prev,
       tiles: (prev.tiles || []).map((t) => (t.id === tile.id ? tile : t)),
@@ -86,6 +90,7 @@ export default function PageLayoutStudioCanvas({
   }
 
   const handleTileToggle = (tileId: string, enabled: boolean) => {
+    pushHistory()
     setConfig((prev) => ({
       ...prev,
       tiles: (prev.tiles || []).map((t) => (t.id === tileId ? { ...t, enabled } : t)),
@@ -93,6 +98,7 @@ export default function PageLayoutStudioCanvas({
   }
 
   const handleOverlayToggle = (tileId: string, targetTileId: string | undefined) => {
+    pushHistory()
     setConfig((prev) => ({
       ...prev,
       tiles: (prev.tiles || []).map((t) =>
@@ -103,6 +109,7 @@ export default function PageLayoutStudioCanvas({
 
   const handleAddTile = useCallback(
     (type: TileType) => {
+      pushHistory()
       const defaultSettings = buildDefaultTileSettingsRecord({
         title: eventLike.title,
         date: eventLike.date,
@@ -126,11 +133,12 @@ export default function PageLayoutStudioCanvas({
         return { ...prev, tiles: [...(prev.tiles ?? []), newTile] }
       })
     },
-    [eventLike.city, eventLike.date, eventLike.title, setConfig]
+    [eventLike.city, eventLike.date, eventLike.title, setConfig, pushHistory]
   )
 
   const handleRemoveTile = useCallback(
     (tileId: string) => {
+      pushHistory()
       setConfig((prev) => ({
         ...prev,
         tiles: (prev.tiles ?? [])
@@ -143,7 +151,7 @@ export default function PageLayoutStudioCanvas({
       }))
       setSelectedTileId((prev) => (prev === tileId ? null : prev))
     },
-    [setConfig]
+    [setConfig, pushHistory]
   )
 
   const displayBackgroundColor =
@@ -159,311 +167,31 @@ export default function PageLayoutStudioCanvas({
   }, [previewAnim.replayOpening])
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start">
-      <div className="lg:col-span-3 space-y-4 w-full min-w-0 pt-4 sm:pt-6">
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 w-full items-start pb-32">
+      <div className="relative lg:col-span-3 space-y-4 w-full min-w-0 pt-4 sm:pt-6">
         <div className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden">
           <h2 className="text-lg font-semibold text-eco-green mb-4">Page Settings</h2>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Page Background Color</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={displayBackgroundColor}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      customColors: { ...prev.customColors, backgroundColor: e.target.value },
-                    }))
-                  }
-                  className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
-                />
-                <Input
-                  type="text"
-                  value={displayBackgroundColor}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      customColors: { ...prev.customColors, backgroundColor: e.target.value },
-                    }))
-                  }
-                  placeholder="#ffffff"
-                  className="flex-1"
-                />
-              </div>
-              <div className="mt-3 space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Background Texture</label>
-                  <select
-                    value={config.texture?.type || 'none'}
-                    onChange={(e) =>
-                      setConfig((prev) => ({
-                        ...prev,
-                        texture: {
-                          ...prev.texture,
-                          type: e.target.value as any,
-                          intensity: prev.texture?.intensity ?? 40,
-                        },
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                  >
-                    <option value="none">None</option>
-                    <option value="paper-grain">Paper Grain</option>
-                    <option value="linen">Linen</option>
-                    <option value="canvas">Canvas</option>
-                    <option value="parchment">Parchment</option>
-                    <option value="vintage-paper">Vintage Paper</option>
-                    <option value="crumpled-paper">Crumpled Paper</option>
-                    <option value="stone">Stone Surface</option>
-                    <option value="silk">Silk</option>
-                    <option value="marble">Marble</option>
-                    <option value="stars">Stars</option>
-                  </select>
-                </div>
-                {config.texture?.type && config.texture.type !== 'none' && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Texture Intensity: {config.texture?.intensity ?? 40}%
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={config.texture?.intensity ?? 40}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          texture: {
-                            ...prev.texture!,
-                            intensity: parseInt(e.target.value, 10),
-                          },
-                        }))
-                      }
-                      className="w-full"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+            <PageBackgroundSettings
+              config={config}
+              setConfig={setConfig}
+              syncKey={syncKey}
+              defaultOpen
+            />
 
-            <div className="border-t border-gray-200 pt-4 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowInviteAnimations(!showInviteAnimations)}
-                className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md"
-              >
-                <span className="text-sm font-medium">Invite Animations</span>
-                <svg
-                  className={`w-4 h-4 text-gray-500 transition-transform ${showInviteAnimations ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showInviteAnimations && (
-                <div className="mt-3 space-y-4">
-                  <p className="text-xs text-gray-500">
-                    Saved on the template and applied when hosts use this design (hosts can still override on their event).
-                  </p>
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium" htmlFor="layout-opening-animation">
-                      Opening
-                    </label>
-                    <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
-                    <div className="mt-1 flex gap-2 items-stretch">
-                      <select
-                        id="layout-opening-animation"
-                        value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
-                        onChange={(e) =>
-                          setConfig((prev) => ({
-                            ...prev,
-                            animations: {
-                              ...prev.animations,
-                              opening: clampAnimationSlot(
-                                e.target.value ? [e.target.value] : [],
-                              ),
-                            },
-                          }))
-                        }
-                        className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
-                      >
-                        <option value="">None</option>
-                        {openingOptions.map((entry) => (
-                          <option key={entry.moduleId} value={entry.moduleId}>
-                            {entry.label}
-                          </option>
-                        ))}
-                      </select>
-                      <PlayOpeningButton
-                        visible={!!previewAnim.openingId}
-                        onPlay={playOpeningInPreview}
-                        variant="inline"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium" htmlFor="layout-experience-animation">
-                      While reading
-                    </label>
-                    <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
-                    <select
-                      id="layout-experience-animation"
-                      value={primaryAnimationId(resolveAnimations(config.animations).experience) ?? ''}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          animations: {
-                            ...prev.animations,
-                            experience: clampAnimationSlot(
-                              e.target.value ? [e.target.value] : [],
-                            ),
-                          },
-                        }))
-                      }
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-eco-green focus:border-eco-green"
-                    >
-                      <option value="">None</option>
-                      {experienceOptions.map((entry) => (
-                        <option key={entry.moduleId} value={entry.moduleId}>
-                          {entry.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
 
-            <div className="border-t border-gray-200 pt-4 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md p-2 -m-2"
-              >
-                <h3 className="text-sm font-semibold text-eco-green">Look &amp; Style</h3>
-                <svg
-                  className={`w-5 h-5 text-gray-500 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showAdvancedSettings && (
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Spacing between tiles</label>
-                    <select
-                      value={config.spacing || 'normal'}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, spacing: e.target.value as 'tight' | 'normal' | 'spacious' }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                    >
-                      <option value="tight">Tight</option>
-                      <option value="normal">Normal</option>
-                      <option value="spacious">Spacious</option>
-                    </select>
-                  </div>
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium">Page Border</label>
-                      <input
-                        type="checkbox"
-                        checked={config.pageBorder?.enabled || false}
-                        onChange={(e) =>
-                          setConfig((prev) => ({
-                            ...prev,
-                            pageBorder: {
-                              ...prev.pageBorder,
-                              enabled: e.target.checked,
-                              style: prev.pageBorder?.style || 'solid',
-                              color: prev.pageBorder?.color ?? '#D1D5DB',
-                              width: prev.pageBorder?.width ?? 2,
-                            },
-                          }))
-                        }
-                        className="w-4 h-4 text-eco-green focus:ring-eco-green border-gray-300 rounded"
-                      />
-                    </div>
-                    {config.pageBorder?.enabled && (
-                      <div className="mt-3 space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Border Style</label>
-                          <select
-                            value={config.pageBorder?.style || 'solid'}
-                            onChange={(e) =>
-                              setConfig((prev) => ({
-                                ...prev,
-                                pageBorder: { ...prev.pageBorder!, style: e.target.value as any },
-                              }))
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                          >
-                            <option value="solid">Solid</option>
-                            <option value="dotted">Dotted</option>
-                            <option value="dashed">Dashed</option>
-                            <option value="double">Double</option>
-                            <option value="groove">Groove</option>
-                            <option value="ridge">Ridge</option>
-                            <option value="inset">Inset</option>
-                            <option value="outset">Outset</option>
-                            <option value="intaglio">Intaglio (Decorative)</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Border Color</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={colorInputValue(config.pageBorder?.color, '#D1D5DB')}
-                              onChange={(e) =>
-                                setConfig((prev) => ({
-                                  ...prev,
-                                  pageBorder: { ...prev.pageBorder!, color: e.target.value },
-                                }))
-                              }
-                              className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
-                            />
-                            <Input
-                              type="text"
-                              value={config.pageBorder?.color ?? ''}
-                              onChange={(e) =>
-                                setConfig((prev) => ({
-                                  ...prev,
-                                  pageBorder: { ...prev.pageBorder!, color: e.target.value },
-                                }))
-                              }
-                              className="flex-1"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-2">
-                            Border Width: {config.pageBorder?.width ?? 2}px
-                          </label>
-                          <input
-                            type="range"
-                            min="1"
-                            max="8"
-                            value={config.pageBorder?.width ?? 2}
-                            onChange={(e) =>
-                              setConfig((prev) => ({
-                                ...prev,
-                                pageBorder: {
-                                  ...prev.pageBorder!,
-                                  width: parseInt(e.target.value),
-                                },
-                              }))
-                            }
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+            <InviteAnimationSettings
+              config={config}
+              setConfig={setConfig}
+              idPrefix="layout"
+              description="Saved on the template and applied when hosts use this design (hosts can still override on their event)."
+              onPlay={playOpeningInPreview}
+              canPlay={!!previewAnim.openingId}
+            />
+
+            <LookAndStyleSettings config={config} setConfig={setConfig}>
+              {/* Staff-only: layouts carry frame art and corner decorations
+                  that hosts deliberately do not get to change. */}
                   <div className="border-t border-gray-200 pt-4 mt-4">
                     <label className="block text-sm font-medium mb-2">Frame image (optional)</label>
                     <Input
@@ -502,9 +230,7 @@ export default function PageLayoutStudioCanvas({
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+            </LookAndStyleSettings>
           </div>
         </div>
 
@@ -561,8 +287,14 @@ export default function PageLayoutStudioCanvas({
         </div>
       </div>
 
-      <div ref={mobilePreviewSectionRef} className="lg:col-span-2 w-full min-w-0 overflow-x-hidden">
-        <div className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden">
+      <div
+        ref={mobilePreviewSectionRef}
+        className="lg:col-span-2 w-full min-w-0 overflow-x-hidden self-start lg:sticky"
+        style={{ top: '1rem' }}
+      >
+        <div
+          className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden"
+        >
           <h2 className="text-base sm:text-lg font-semibold text-eco-green mb-2">
             Mobile Preview
             {sortedTiles.length > 0 && (

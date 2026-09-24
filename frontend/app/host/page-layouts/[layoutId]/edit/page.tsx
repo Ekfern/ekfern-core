@@ -358,6 +358,7 @@ export default function EditPageLayoutPage() {
           setConfig={handleConfigChange as React.Dispatch<React.SetStateAction<InviteConfig>>}
           eventLike={DUMMY_EVENT}
           eventIdForTiles={0}
+          syncKey={layoutId}
         />
       </div>
     </div>

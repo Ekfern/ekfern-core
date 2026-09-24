@@ -171,8 +171,8 @@ export default function LayoutSelectPage(): React.ReactElement {
         await createInvitePage(eventId, { config: appliedConfig })
       }
 
-      showToast('Layout applied! Now pick a background.', 'success')
-      router.push(`/host/events/${eventId}/design`)
+      showToast('Layout applied!', 'success')
+      router.push(`/host/events/${eventId}/page-editor`)
     } catch (err: unknown) {
       logError('Failed to apply layout:', err)
       showToast(getErrorMessage(err), 'error')
@@ -183,7 +183,9 @@ export default function LayoutSelectPage(): React.ReactElement {
   }
 
   function handleBlankCanvas(): void {
-    router.push(`/host/events/${eventId}/design`)
+    // No config to apply — the page editor seeds its own defaults when the
+    // event has none, so starting from scratch needs nothing written here.
+    router.push(`/host/events/${eventId}/page-editor`)
   }
 
   if (!eventId || isNaN(eventId)) {

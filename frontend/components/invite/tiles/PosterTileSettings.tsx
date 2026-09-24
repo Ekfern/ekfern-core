@@ -1,15 +1,27 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import type { PosterTileSettings } from '@/lib/invite/schema'
 import { Button } from '@/components/ui/button'
-import type { TextOverlay } from '@/lib/invite/api'
 import DesignMediaPicker from '@/components/invite/DesignMediaPicker'
 import TextOverlayEditorModal from '@/components/invite/TextOverlayEditorModal'
 import PosterTile from '@/components/invite/tiles/PosterTile'
 
-// Parse a linear-gradient string into its component parts so we can
-// pre-populate the color pickers. Falls back to defaults on any parse failure.
+/**
+ * The poster tile's panel, in two contexts.
+ *
+ * With an event (the host's page editor) it is a preview and a way in: the
+ * card is edited in one place, the card editor, and this panel does not
+ * duplicate it.
+ *
+ * Without one (`eventId` 0, the staff Page Layout Studio) there is no card
+ * editor to hand off to, so the authoring controls live here: pick artwork
+ * from the Design Studio catalog, set a gradient, and place text. A layout is
+ * a template, so its poster carries the design's feel; the words a host writes
+ * are still theirs, added later in the card editor.
+ */
+
 function parseLinearGradient(css: string): { angle: string; color1: string; color2: string } {
   const defaults = { angle: '135deg', color1: '#fce4ec', color2: '#f48fb1' }
   if (!css) return defaults
@@ -25,12 +37,6 @@ const GRADIENT_DIRECTIONS = [
   { label: '↗ Up-right', value: '45deg'  },
 ]
 
-interface PosterTileSettingsProps {
-  settings: PosterTileSettings
-  onChange: (settings: PosterTileSettings) => void
-  eventId: number
-}
-
 const PRESET_GRADIENTS = [
   { label: 'Rose Blush',    value: 'linear-gradient(135deg, #fce4ec, #f48fb1)' },
   { label: 'Sage Mist',     value: 'linear-gradient(135deg, #e8f5e9, #81c784)' },
@@ -42,17 +48,27 @@ const PRESET_GRADIENTS = [
   { label: 'Forest',        value: 'linear-gradient(135deg, #1b4332, #40916c)' },
 ]
 
-export default function PosterTileSettings({ settings, onChange, eventId: _eventId }: PosterTileSettingsProps) {
+interface PosterTileSettingsProps {
+  settings: PosterTileSettings
+  onChange: (settings: PosterTileSettings) => void
+  /** 0 in the page layout studio, where there is no event to design against. */
+  eventId: number
+}
+
+export default function PosterTileSettings({ settings, onChange, eventId }: PosterTileSettingsProps) {
+  const router = useRouter()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [overlayEditorOpen, setOverlayEditorOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
-  // Derive color-picker state from the current gradient value so the pickers
-  // always reflect what's applied when the panel first opens.
+  const hasEvent = eventId > 0
+  const hasContent = !!settings.src || !!settings.backgroundGradient
+
+  // Derived once so the pickers reflect what is applied when the panel opens.
   const parsed = useMemo(
     () => parseLinearGradient(settings.backgroundGradient ?? ''),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [] // intentionally only on mount — pickers are local state from here on
+    []
   )
   const [gradAngle, setGradAngle] = useState(parsed.angle)
   const [gradColor1, setGradColor1] = useState(parsed.color1)
@@ -62,73 +78,79 @@ export default function PosterTileSettings({ settings, onChange, eventId: _event
     onChange({ ...settings, backgroundGradient: `linear-gradient(${angle}, ${c1}, ${c2})` })
   }
 
-  const hasContent = !!settings.src || !!settings.backgroundGradient
+  const preview = (
+    <div>
+      <p className="block text-sm font-medium mb-2">Card preview</p>
+      {hasContent ? (
+        settings.frameMode === 'full-bleed' ? (
+          // A poster has no shape of its own to preview into - it is whatever
+          // the picture is - so the box takes its height from the render
+          // rather than declaring 9:16 and disagreeing with the real page.
+          <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200 }}>
+            <PosterTile settings={settings} preview />
+          </div>
+        ) : (
+          // The card does have a declared 9:16 shape. Render at full width
+          // (384px = max-w-sm) then scale down so text wraps identically to
+          // the mobile preview — just smaller.
+          <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200, height: Math.round(200 * 16 / 9) }}>
+            <div style={{ width: 384, transformOrigin: 'top left', transform: `scale(${200 / 384})` }}>
+              <PosterTile settings={settings} preview />
+            </div>
+          </div>
+        )
+      ) : (
+        <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 px-3 py-8 text-center">
+          <p className="text-xs text-gray-500 leading-relaxed">
+            {hasEvent
+              ? 'No card yet. Open the card editor to pick a background and add your own text.'
+              : 'No poster yet. Browse the library or set a gradient below.'}
+          </p>
+        </div>
+      )}
+    </div>
+  )
 
-  const handleMediaSelect = (src: string, textOverlays: TextOverlay[]) => {
-    onChange({
-      ...settings,
-      src,
-      textOverlays: textOverlays.length > 0 ? textOverlays : settings.textOverlays,
-    })
+  if (hasEvent) {
+    return (
+      <div className="space-y-4 w-full max-w-full overflow-x-hidden min-w-0">
+        {preview}
+        <button
+          type="button"
+          onClick={() => router.push(`/host/events/${eventId}/design`)}
+          className="w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
+          {hasContent ? 'Edit card' : 'Create card'}
+        </button>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-4 w-full max-w-full overflow-x-hidden min-w-0">
-      {/* Inline preview — same rendering as the invite tile (not the full-page mobile preview) */}
-      <div>
-        <p className="block text-sm font-medium mb-2">Card preview</p>
-        {hasContent ? (
-          settings.frameMode === 'full-bleed' ? (
-            // A poster has no shape of its own to preview into - it is whatever
-            // the picture is - so the box takes its height from the render
-            // rather than declaring 9:16 and disagreeing with the real page.
-            <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200 }}>
-              <PosterTile settings={settings} preview />
-            </div>
-          ) : (
-            // The card does have a declared 9:16 shape. Render at full width
-            // (384px = max-w-sm) then scale down so text wraps identically to
-            // the mobile preview — just smaller.
-            <div className="mx-auto rounded-xl overflow-hidden border border-gray-200 shadow-sm" style={{ width: 200, height: Math.round(200 * 16 / 9) }}>
-              <div style={{ width: 384, transformOrigin: 'top left', transform: `scale(${200 / 384})` }}>
-                <PosterTile settings={settings} preview />
-              </div>
-            </div>
-          )
-        ) : (
-          <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 px-3 py-8 text-center">
-            <p className="text-xs text-gray-500 leading-relaxed">
-              No card yet. Open Design Studio, browse the media library, or set a gradient below - your selection will appear here.
-            </p>
-          </div>
-        )}
-      </div>
+      {preview}
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={() => setPickerOpen(true)}
+      >
+        Browse Media Library
+      </Button>
 
       <button
         type="button"
         onClick={() => setOverlayEditorOpen(true)}
-        className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg border border-dashed border-blue-300 bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
+        className="w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
       >
-        <span>Edit Text Overlays</span>
+        Edit text overlays
       </button>
-
-      {/* Media Library */}
-      <div>
-        <p className="text-xs text-gray-400 text-center mb-2">or choose from library</p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => setPickerOpen(true)}
-        >
-          Browse Media Library
-        </Button>
-      </div>
 
       <DesignMediaPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onSelect={handleMediaSelect}
+        onSelect={(src) => onChange({ ...settings, src })}
       />
 
       <TextOverlayEditorModal
@@ -140,12 +162,10 @@ export default function PosterTileSettings({ settings, onChange, eventId: _event
         onClose={() => setOverlayEditorOpen(false)}
       />
 
-      {/* Gradient background — shown when no image */}
       {!settings.src && (
         <div className="space-y-3">
           <label className="block text-sm font-medium">Background Color / Gradient</label>
 
-          {/* Presets */}
           <div className="grid grid-cols-4 gap-2">
             {PRESET_GRADIENTS.map((g) => (
               <button
@@ -162,7 +182,6 @@ export default function PosterTileSettings({ settings, onChange, eventId: _event
             ))}
           </div>
 
-          {/* Custom two-stop color picker */}
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
             <p className="text-xs font-medium text-gray-600">Custom gradient</p>
             <div className="flex items-center gap-2">
@@ -176,7 +195,6 @@ export default function PosterTileSettings({ settings, onChange, eventId: _event
                 className="w-9 h-9 rounded border border-gray-300 cursor-pointer p-0.5 flex-none"
                 title="Start color"
               />
-              {/* Live gradient preview strip */}
               <div
                 className="flex-1 h-9 rounded-md border border-gray-200"
                 style={{ background: `linear-gradient(90deg, ${gradColor1}, ${gradColor2})` }}
@@ -206,7 +224,6 @@ export default function PosterTileSettings({ settings, onChange, eventId: _event
             </select>
           </div>
 
-          {/* Advanced: raw CSS — hidden by default to avoid accidental edits */}
           <div>
             <button
               type="button"
@@ -231,7 +248,6 @@ export default function PosterTileSettings({ settings, onChange, eventId: _event
           </div>
         </div>
       )}
-
     </div>
   )
 }
