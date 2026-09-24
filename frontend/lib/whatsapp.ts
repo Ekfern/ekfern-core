@@ -7,7 +7,7 @@
  * Generate WhatsApp share link for a phone number with a message
  * @param phone Phone number (with or without country code, will be cleaned)
  * @param message Message to pre-fill
- * @returns WhatsApp wa.me URL
+ * @returns WhatsApp click-to-chat URL
  */
 export function generateWhatsAppLink(phone: string, message: string): string {
   // Clean phone number: remove +, spaces, dashes
@@ -16,19 +16,23 @@ export function generateWhatsAppLink(phone: string, message: string): string {
   // URL encode the message
   const encodedMessage = encodeURIComponent(message)
   
-  // Generate wa.me link
-  return `https://wa.me/${cleanPhone}/?text=${encodedMessage}`
+  // Straight to api.whatsapp.com rather than via wa.me. wa.me is a redirect,
+  // and its 302 rewrites the text on the way through: every emoji comes out the
+  // other side as U+FFFD, the "unknown character" box. Ordinary text and
+  // Devanagari survive it, which is why only emoji looked broken. This is the
+  // same address wa.me forwards to, minus the rewrite.
+  return `https://api.whatsapp.com/send/?phone=${cleanPhone}&text=${encodedMessage}`
 }
 
 /**
  * Generate WhatsApp share link for general sharing (no specific number)
  * Opens WhatsApp share dialog
  * @param message Message to pre-fill
- * @returns WhatsApp wa.me URL
+ * @returns WhatsApp click-to-chat URL
  */
 export function generateWhatsAppShareLink(message: string): string {
   const encodedMessage = encodeURIComponent(message)
-  return `https://wa.me/?text=${encodedMessage}`
+  return `https://api.whatsapp.com/send/?text=${encodedMessage}`
 }
 
 /**
