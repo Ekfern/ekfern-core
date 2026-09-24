@@ -623,6 +623,7 @@ export default function EventDetailPage() {
         <NextActionCard
           eventId={eventId}
           invitePublishStatus={invitePublishStatus}
+          hasLayout={!!event.page_config && Object.keys(event.page_config).length > 0}
           totalGuests={totalGuests}
           responseRate={responseRate}
           isExpired={event.is_expired}
