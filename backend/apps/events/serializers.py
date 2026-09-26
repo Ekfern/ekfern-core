@@ -1220,6 +1220,25 @@ class HostSendQuotaSerializer(serializers.ModelSerializer):
         return obj.usage_this_month()
 
 
+MAX_LAYOUT_TAGS = 20
+MAX_LAYOUT_TAG_LENGTH = 40
+
+
+def normalize_layout_tags(tags):
+    """Trim, lowercase and de-duplicate tags while preserving author order."""
+    out = []
+    seen = set()
+    for tag in tags or []:
+        if not isinstance(tag, str):
+            continue
+        cleaned = ' '.join(tag.strip().lower().split())[:MAX_LAYOUT_TAG_LENGTH]
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        out.append(cleaned)
+    return out[:MAX_LAYOUT_TAGS]
+
+
 class InvitePageLayoutSerializer(serializers.ModelSerializer):
     """Serializer for InvitePageLayout (Page Layout Studio)."""
     created_by_name = serializers.CharField(source='created_by.name', read_only=True, allow_null=True)
@@ -1229,21 +1248,44 @@ class InvitePageLayoutSerializer(serializers.ModelSerializer):
     thumbnail = serializers.CharField(max_length=2000, allow_blank=True, required=False)
     # Stable design code of the linked card_sample; drives design-based filtering.
     card_code = serializers.CharField(source='card_sample.code', read_only=True, allow_null=True)
+    # Tags inherited from the linked design. Read-only here: they are edited on the
+    # GreetingCardSample and shown alongside the layout's own tags in the Studio.
+    design_tags = serializers.SerializerMethodField()
 
     class Meta:
         model = InvitePageLayout
         fields = (
             'id', 'name', 'description', 'thumbnail', 'card_sample', 'card_code', 'preview_alt', 'config',
-            'visibility', 'status', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name',
+            'visibility', 'status', 'tags', 'design_tags',
+            'created_by', 'created_by_name', 'updated_by', 'updated_by_name',
             'created_at', 'updated_at',
             'is_premium', 'price_cents', 'creator', 'creator_share_percent',
         )
-        read_only_fields = ('id', 'card_code', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'card_code', 'design_tags', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at')
+
+    def get_design_tags(self, obj):
+        sample = getattr(obj, 'card_sample', None)
+        tags = getattr(sample, 'tags', None) if sample else None
+        return normalize_layout_tags(tags) if isinstance(tags, list) else []
 
     def validate_config(self, value):
         if not isinstance(value, dict):
             raise serializers.ValidationError("config must be a JSON object.")
         return value
+
+    def validate_tags(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("tags must be a list of strings.")
+        if len(value) > MAX_LAYOUT_TAGS:
+            raise serializers.ValidationError(f"At most {MAX_LAYOUT_TAGS} tags are allowed.")
+        for tag in value:
+            if not isinstance(tag, str):
+                raise serializers.ValidationError("Each tag must be a string.")
+            if len(tag.strip()) > MAX_LAYOUT_TAG_LENGTH:
+                raise serializers.ValidationError(
+                    f"Each tag must be at most {MAX_LAYOUT_TAG_LENGTH} characters."
+                )
+        return normalize_layout_tags(value)
 
 
 class AnimationRegistryEntrySerializer(serializers.ModelSerializer):

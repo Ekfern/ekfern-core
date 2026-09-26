@@ -3846,6 +3846,9 @@ def _invite_layout_thumbnail_url_variants(raw: str) -> list[str]:
     return uniq
 
 
+MAX_BULK_LAYOUT_IDS = 200
+
+
 class InvitePageLayoutViewSet(viewsets.ModelViewSet):
     """
     ViewSet for invite page layouts (Page Layout Studio).
@@ -3905,6 +3908,76 @@ class InvitePageLayoutViewSet(viewsets.ModelViewSet):
         if not getattr(request.user, 'is_staff', False):
             raise PermissionDenied("Only staff can delete invite page layouts.")
         return super().destroy(request, *args, **kwargs)
+
+    def bulk(self, request, *args, **kwargs):
+        """
+        Apply one action to many layouts at once (staff only, all-or-nothing).
+
+        Body: ``{"ids": [1, 2], "action": "delete" | "set_status" | "set_visibility",
+        "value": "draft" | "published" | "internal" | "public" | "premium"}``.
+
+        Unknown ids are rejected up front so a bulk call never half-applies.
+        """
+        if not getattr(request.user, 'is_staff', False):
+            raise PermissionDenied("Only staff can bulk-edit invite page layouts.")
+
+        data = request.data or {}
+        ids = data.get('ids')
+        if not isinstance(ids, list) or not ids:
+            raise ValidationError({'error': 'ids must be a non-empty list of layout ids.'})
+        if len(ids) > MAX_BULK_LAYOUT_IDS:
+            raise ValidationError({'error': f'At most {MAX_BULK_LAYOUT_IDS} layouts per request.'})
+        try:
+            clean_ids = {int(i) for i in ids}
+        except (TypeError, ValueError):
+            raise ValidationError({'error': 'ids must be integers.'})
+
+        bulk_action = (data.get('action') or '').strip()
+        value = data.get('value')
+
+        if bulk_action == 'set_status':
+            valid = {c[0] for c in InvitePageLayout.STATUS_CHOICES}
+            if value not in valid:
+                raise ValidationError({'error': f'value must be one of {sorted(valid)}.'})
+            update_fields = {'status': value}
+        elif bulk_action == 'set_visibility':
+            valid = {c[0] for c in InvitePageLayout.VISIBILITY_CHOICES}
+            if value not in valid:
+                raise ValidationError({'error': f'value must be one of {sorted(valid)}.'})
+            update_fields = {'visibility': value}
+        elif bulk_action == 'delete':
+            update_fields = None
+        else:
+            raise ValidationError({
+                'error': 'action must be one of ["delete", "set_status", "set_visibility"].'
+            })
+
+        with transaction.atomic():
+            qs = InvitePageLayout.objects.select_for_update().filter(id__in=clean_ids)
+            found = set(qs.values_list('id', flat=True))
+            missing = sorted(clean_ids - found)
+            if missing:
+                # Plain Response, not ValidationError: DRF stringifies detail values
+                # and the client needs the ids back as numbers.
+                return Response(
+                    {
+                        'error': 'Some layouts no longer exist; nothing was changed.',
+                        'missing_ids': missing,
+                    },
+                    status=400,
+                )
+            if update_fields is None:
+                affected, _ = qs.delete()
+                affected = len(found)
+            else:
+                # Queryset .update() bypasses auto_now, so stamp the audit columns here.
+                affected = qs.update(
+                    updated_by=request.user,
+                    updated_at=timezone.now(),
+                    **update_fields,
+                )
+
+        return Response({'action': bulk_action, 'value': value, 'affected': affected})
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

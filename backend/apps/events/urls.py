@@ -31,6 +31,7 @@ urlpatterns = [
     # Put custom paths BEFORE router.urls so they take precedence
     # Invite page layouts (Page Layout Studio) - list/create and retrieve/update/delete
     path('invite-page-layouts/', InvitePageLayoutViewSet.as_view({'get': 'list', 'post': 'create'}), name='invite-page-layouts-list'),
+    path('invite-page-layouts/bulk/', InvitePageLayoutViewSet.as_view({'post': 'bulk'}), name='invite-page-layouts-bulk'),
     path('invite-page-layouts/<int:id>/', InvitePageLayoutViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='invite-page-layout-detail'),
     # Animation registry (catalog above module runtime)
     path('animation-registry/', AnimationRegistryViewSet.as_view({'get': 'list'}), name='animation-registry-list'),

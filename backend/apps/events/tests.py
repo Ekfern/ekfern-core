@@ -2218,6 +2218,181 @@ class DesignCodeLayoutFilterTestCase(TestCase):
         self.assertEqual(len(response.json()), 4)
 
 
+class InvitePageLayoutTagsTestCase(TestCase):
+    """Layout tags are the layout's own; design tags are inherited read-only."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(email='tag-staff@test.com', name='Tag Staff')
+        self.staff.is_staff = True
+        self.staff.save(update_fields=['is_staff'])
+        self.design = GreetingCardSample.objects.create(
+            name='Tagged design',
+            background_image_url='https://cdn.test/tagged.jpg',
+            tags=['Floral', 'wedding'],
+        )
+        self.layout = InvitePageLayout.objects.create(
+            name='Tagged layout',
+            card_sample=self.design,
+            visibility='public',
+            status='published',
+            tags=['image-hero'],
+            created_by=self.staff,
+        )
+
+    def test_layout_and_design_tags_are_serialized_separately(self):
+        self.client.force_authenticate(user=self.staff)
+        body = self.client.get(f'/api/events/invite-page-layouts/{self.layout.id}/').json()
+        self.assertEqual(body['tags'], ['image-hero'])
+        # Design tags are normalized on the way out, and never merged into `tags`.
+        self.assertEqual(body['design_tags'], ['floral', 'wedding'])
+
+    def test_tags_are_normalized_on_write(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            f'/api/events/invite-page-layouts/{self.layout.id}/',
+            {'tags': ['  Playful ', 'playful', 'IMAGE-HERO', '']},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['tags'], ['playful', 'image-hero'])
+
+    def test_design_tags_cannot_be_written_through_the_layout(self):
+        self.client.force_authenticate(user=self.staff)
+        self.client.patch(
+            f'/api/events/invite-page-layouts/{self.layout.id}/',
+            {'design_tags': ['hacked']},
+            format='json',
+        )
+        self.design.refresh_from_db()
+        self.assertEqual(self.design.tags, ['Floral', 'wedding'])
+
+    def test_too_many_tags_rejected(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            f'/api/events/invite-page-layouts/{self.layout.id}/',
+            {'tags': [f'tag-{i}' for i in range(25)]},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_non_string_tag_rejected(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            f'/api/events/invite-page-layouts/{self.layout.id}/',
+            {'tags': ['ok', 42]},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class InvitePageLayoutBulkActionTestCase(TestCase):
+    """POST /invite-page-layouts/bulk/ — staff only, one transaction, all-or-nothing."""
+
+    URL = '/api/events/invite-page-layouts/bulk/'
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(email='bulk-staff@test.com', name='Bulk Staff')
+        self.staff.is_staff = True
+        self.staff.save(update_fields=['is_staff'])
+        self.host = User.objects.create_user(email='bulk-host@test.com', name='Bulk Host')
+        self.layouts = [
+            InvitePageLayout.objects.create(
+                name=f'Bulk {i}',
+                visibility='public',
+                status='published',
+                created_by=self.staff,
+            )
+            for i in range(3)
+        ]
+        self.ids = [layout.id for layout in self.layouts]
+
+    def test_non_staff_cannot_bulk_edit(self):
+        self.client.force_authenticate(user=self.host)
+        response = self.client.post(
+            self.URL, {'ids': self.ids, 'action': 'delete'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(InvitePageLayout.objects.count(), 3)
+
+    def test_bulk_delete(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.post(
+            self.URL, {'ids': self.ids[:2], 'action': 'delete'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['affected'], 2)
+        self.assertEqual(
+            list(InvitePageLayout.objects.values_list('id', flat=True)), [self.ids[2]]
+        )
+
+    def test_bulk_set_status_stamps_updated_by(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.post(
+            self.URL, {'ids': self.ids, 'action': 'set_status', 'value': 'draft'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['affected'], 3)
+        for layout in InvitePageLayout.objects.filter(id__in=self.ids):
+            self.assertEqual(layout.status, 'draft')
+            # .update() bypasses auto_now, so the view stamps these itself.
+            self.assertEqual(layout.updated_by_id, self.staff.id)
+            self.assertIsNotNone(layout.updated_at)
+
+    def test_bulk_set_visibility(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.post(
+            self.URL,
+            {'ids': self.ids, 'action': 'set_visibility', 'value': 'internal'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            list(InvitePageLayout.objects.filter(id__in=self.ids).values_list('visibility', flat=True)),
+            ['internal'] * 3,
+        )
+
+    def test_unknown_id_changes_nothing(self):
+        self.client.force_authenticate(user=self.staff)
+        missing = max(self.ids) + 999
+        response = self.client.post(
+            self.URL,
+            {'ids': [*self.ids, missing], 'action': 'set_status', 'value': 'draft'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()['missing_ids'], [missing])
+        # All-or-nothing: the valid ids kept their original status.
+        self.assertEqual(
+            list(InvitePageLayout.objects.filter(id__in=self.ids).values_list('status', flat=True)),
+            ['published'] * 3,
+        )
+
+    def test_invalid_action_and_value_rejected(self):
+        self.client.force_authenticate(user=self.staff)
+        for payload in (
+            {'ids': self.ids, 'action': 'archive'},
+            {'ids': self.ids, 'action': 'set_status', 'value': 'nonsense'},
+            {'ids': self.ids, 'action': 'set_visibility', 'value': 'nonsense'},
+            {'ids': [], 'action': 'delete'},
+            {'ids': 'all', 'action': 'delete'},
+        ):
+            response = self.client.post(self.URL, payload, format='json')
+            self.assertEqual(
+                response.status_code, status.HTTP_400_BAD_REQUEST, msg=f'payload={payload}'
+            )
+        self.assertEqual(InvitePageLayout.objects.count(), 3)
+
+    def test_too_many_ids_rejected(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.post(
+            self.URL, {'ids': list(range(1, 500)), 'action': 'delete'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(InvitePageLayout.objects.count(), 3)
+
+
 
 class CustomFieldRegistryTests(TestCase):
     """
