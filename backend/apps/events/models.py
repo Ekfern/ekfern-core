@@ -1787,6 +1787,12 @@ class InvitePageLayout(models.Model):
     config = models.JSONField(default=dict, help_text='Full InviteConfig: tiles, customColors, customFonts, texture, etc.')
     visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Layout-level tags, e.g. ["wedding", "image-hero", "playful"]. '
+                  'Separate from the linked design\'s own tags.',
+    )
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_invite_page_layouts')
     updated_by = models.ForeignKey(
         User,

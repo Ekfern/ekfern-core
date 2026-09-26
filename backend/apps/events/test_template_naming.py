@@ -57,3 +57,49 @@ class TemplateNamingTests(SimpleTestCase):
             is_remix=True,
         )
         self.assertIn("remix", name.lower())
+
+
+class BuildAutoTemplateTagsTests(SimpleTestCase):
+    """The generator's signals survive as discrete, filterable tags."""
+
+    def test_tags_cover_event_card_and_layout_signals(self):
+        tags = template_naming.build_auto_template_tags(
+            event_type="religious_ceremony",
+            meta={
+                "tone": "warm",
+                "recipe_id": "image-hero-then-details",
+                "preset_id": "rustic-craft",
+                "card_feeling": "traditional",
+                "card_style": "illustrated",
+                "card_composition": "centered",
+                "has_baked_text": True,
+            },
+            is_remix=False,
+        )
+        self.assertIn("religious-ceremony", tags)
+        self.assertIn("traditional", tags)
+        self.assertIn("illustrated", tags)
+        self.assertIn("centered", tags)
+        self.assertIn("image-hero-then-details", tags)
+        self.assertIn("rustic-craft", tags)
+        self.assertIn("warm", tags)
+        self.assertIn("baked-text", tags)
+        self.assertIn("ai-generated", tags)
+        self.assertNotIn("remix", tags)
+
+    def test_remix_and_dedupe(self):
+        tags = template_naming.build_auto_template_tags(
+            event_type="wedding",
+            meta={"card_feeling": "wedding", "card_style": "mixed", "tone": "elegant"},
+            is_remix=True,
+        )
+        self.assertIn("remix", tags)
+        # "mixed" carries no meaning as a tag, and a repeated signal is not two tags.
+        self.assertNotIn("mixed", tags)
+        self.assertEqual(tags.count("wedding"), 1)
+
+    def test_empty_meta_still_marks_provenance(self):
+        tags = template_naming.build_auto_template_tags(
+            event_type="", meta={}, is_remix=False
+        )
+        self.assertEqual(tags, ["ai-generated"])

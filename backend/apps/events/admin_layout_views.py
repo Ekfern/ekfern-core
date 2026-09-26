@@ -570,6 +570,13 @@ def _validate_save_review_payload(data: dict) -> dict:
             "preview_alt": prev_alt[:255],
             "config": cfg,
             "meta": meta,
+            # The generator knows the event type, card mood, recipe and tone; keep
+            # them as tags so generated layouts are filterable, not just readable.
+            "tags": template_naming.build_auto_template_tags(
+                event_type=event_type,
+                meta=meta,
+                is_remix=bool(meta.get("remix")),
+            ),
             "client_index": entry.get("index"),
         })
 
@@ -602,6 +609,7 @@ def save_review_drafts(request):
                 card_sample=card_sample,
                 preview_alt=row["preview_alt"],
                 config=row["config"],
+                tags=row["tags"],
                 visibility="internal",
                 status="draft",
                 created_by=request.user,
@@ -615,6 +623,7 @@ def save_review_drafts(request):
                     "description": layout.description,
                     "thumbnail": layout.thumbnail,
                     "preview_alt": layout.preview_alt,
+                    "tags": layout.tags,
                     "meta": meta,
                     "index": row["client_index"] if row["client_index"] is not None else payload_index,
                     "config": layout.config,

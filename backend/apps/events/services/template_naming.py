@@ -145,3 +145,48 @@ def build_auto_template_name(
     if len(out) > 255:
         out = out[:252] + "…"
     return out
+
+
+def _tag_token(value: object) -> str:
+    """Lowercase, hyphenated tag token (empty when there is nothing to tag)."""
+    s = " ".join(str(value or "").strip().lower().replace("_", "-").split())
+    return "-".join(part for part in s.split(" ") if part)[:40]
+
+
+def build_auto_template_tags(
+    *,
+    event_type: str,
+    meta: dict,
+    is_remix: bool,
+    max_tags: int = 20,
+) -> list[str]:
+    """
+    Structured tags for an auto-generated layout.
+
+    ``build_auto_template_name`` folds these same signals into one prose string;
+    keeping them as discrete tags is what makes generated layouts filterable in
+    the Page Layout Studio.
+    """
+    candidates = [
+        _tag_token(event_type),
+        _tag_token(meta.get("card_feeling")),
+        _tag_token(meta.get("card_style")),
+        _tag_token(meta.get("card_composition") or meta.get("composition")),
+        _tag_token(meta.get("recipe_id")),
+        _tag_token(meta.get("preset_id")),
+        _tag_token(meta.get("tone")),
+    ]
+    if meta.get("has_baked_text"):
+        candidates.append("baked-text")
+    if is_remix or meta.get("remix"):
+        candidates.append("remix")
+    candidates.append("ai-generated")
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for tag in candidates:
+        if not tag or tag in seen or tag == "mixed":
+            continue
+        seen.add(tag)
+        out.append(tag)
+    return out[:max_tags]

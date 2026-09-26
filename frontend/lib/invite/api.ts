@@ -59,6 +59,10 @@ export interface InvitePageLayoutResponse {
   config: InviteConfig
   visibility?: string
   status?: string
+  /** Layout's own tags (editable in the Studio). */
+  tags?: string[]
+  /** Tags inherited from the linked design (read-only here). */
+  design_tags?: string[]
   created_by?: number
   created_by_name?: string | null
   updated_by?: number | null
@@ -131,6 +135,7 @@ export async function createInvitePageLayout(data: {
   config: InviteConfig
   visibility?: string
   status?: string
+  tags?: string[]
 }): Promise<InvitePageLayoutResponse> {
   const response = await api.post<InvitePageLayoutResponse>('/api/events/invite-page-layouts/', data)
   return response.data
@@ -147,6 +152,7 @@ export async function updateInvitePageLayout(
     config: InviteConfig
     visibility: string
     status: string
+    tags: string[]
   }>
 ): Promise<InvitePageLayoutResponse> {
   const response = await api.put<InvitePageLayoutResponse>(`/api/events/invite-page-layouts/${id}/`, data)
@@ -156,6 +162,31 @@ export async function updateInvitePageLayout(
 /** Delete page layout (staff only) */
 export async function deleteInvitePageLayout(id: number): Promise<void> {
   await api.delete(`/api/events/invite-page-layouts/${id}/`)
+}
+
+/** One action applied to many layouts at once (staff only). */
+export type InvitePageLayoutBulkAction = 'delete' | 'set_status' | 'set_visibility'
+
+export interface InvitePageLayoutBulkResult {
+  action: InvitePageLayoutBulkAction
+  value?: string | null
+  affected: number
+}
+
+/**
+ * Apply one action to many page layouts (staff only).
+ * The server runs it in a single transaction: either every id changes or none do.
+ */
+export async function bulkInvitePageLayouts(
+  ids: number[],
+  action: InvitePageLayoutBulkAction,
+  value?: string,
+): Promise<InvitePageLayoutBulkResult> {
+  const response = await api.post<InvitePageLayoutBulkResult>(
+    '/api/events/invite-page-layouts/bulk/',
+    value === undefined ? { ids, action } : { ids, action, value },
+  )
+  return response.data
 }
 
 // ---------------------------------------------------------------------------
