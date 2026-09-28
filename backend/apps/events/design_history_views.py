@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .access import get_event_or_404
+from .design_diff import diff_configs
 from .models import EventDesignVersion
 
 
@@ -42,7 +43,7 @@ def summarize(config):
     }
 
 
-def serialize_version(version, include_config=False):
+def serialize_version(version, include_summary=False):
     data = {
         'id': version.id,
         'saved_by': version.saved_by.name or version.saved_by.email if version.saved_by else None,
@@ -51,8 +52,9 @@ def serialize_version(version, include_config=False):
         'created_at': version.created_at,
         'updated_at': version.updated_at,
     }
-    if include_config:
-        data['config'] = version.config
+    if include_summary:
+        # Never the config itself: nothing renders a stored version, and configs
+        # are the one part of this that can be large.
         data['summary'] = summarize(version.config)
     return data
 
@@ -78,9 +80,26 @@ def design_versions(request, event_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def design_version_detail(request, event_id, version_id):
-    """One version, with its config for preview and its settings summary."""
+    """
+    What changed in this version, and what it was set to.
+
+    The changes are against the version immediately before it, because knowing
+    which setting moved and what it held is what lets a host put it back by
+    hand. The oldest version has nothing to compare against, so it reports its
+    settings instead.
+    """
     event = get_event_or_404(request.user, event_id)
     version = EventDesignVersion.objects.filter(event=event, id=version_id).first()
     if version is None:
         return Response({'error': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
-    return Response(serialize_version(version, include_config=True))
+
+    previous = (
+        EventDesignVersion.objects.filter(event=event, created_at__lt=version.created_at)
+        .order_by('-created_at')
+        .first()
+    )
+
+    data = serialize_version(version, include_summary=True)
+    data['is_first'] = previous is None
+    data['changes'] = diff_configs(previous.config if previous else {}, version.config)
+    return Response(data)

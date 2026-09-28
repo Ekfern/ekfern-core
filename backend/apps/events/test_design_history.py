@@ -93,13 +93,14 @@ class DesignHistoryApiTests(TestCase):
         # The list stays light: configs are fetched one at a time.
         self.assertNotIn('config', body['results'][0])
 
-    def test_detail_returns_the_config_and_a_readable_summary(self):
+    def test_detail_returns_a_readable_summary_and_not_the_config(self):
         self.client.force_authenticate(user=self.host)
         body = self.client.get(f'{self.list_url}{self.version.id}/').json()
-        self.assertEqual(body['config']['customColors']['primary'], '#abcdef')
         self.assertEqual(body['summary']['customColors']['primary'], '#abcdef')
         self.assertEqual(len(body['summary']['tiles']), 2)
         self.assertEqual(body['summary']['tiles'][0]['type'], 'title')
+        # Nothing renders a stored version, so the config itself never ships.
+        self.assertNotIn('config', body)
 
     def test_a_cohost_can_read_history(self):
         EventCoHost.objects.create(
@@ -121,3 +122,68 @@ class DesignHistoryApiTests(TestCase):
         self.client.force_authenticate(user=self.host)
         response = self.client.post(f'{self.list_url}{self.version.id}/restore/')
         self.assertIn(response.status_code, (status.HTTP_404_NOT_FOUND, status.HTTP_405_METHOD_NOT_ALLOWED))
+
+
+class DesignDiffTests(TestCase):
+    """Each version is described by the location of its changes and the changes."""
+
+    def setUp(self):
+        from .design_diff import diff_configs
+        self.diff = diff_configs
+
+    def at(self, changes, location):
+        return next((c for c in changes if c['location'] == location), None)
+
+    def test_a_colour_change_names_the_setting_and_both_values(self):
+        changes = self.diff(
+            {'customColors': {'primary': '#C8B8A2'}},
+            {'customColors': {'primary': '#1E4620'}},
+        )
+        c = self.at(changes, 'Colours · primary')
+        self.assertEqual((c['from'], c['to']), ('#C8B8A2', '#1E4620'))
+
+    def test_tile_copy_change_is_located_by_the_tile(self):
+        before = {'tiles': [{'id': 'a', 'type': 'title', 'settings': {'text': "You're Invited"}}]}
+        after = {'tiles': [{'id': 'a', 'type': 'title', 'settings': {'text': 'Join us'}}]}
+        c = self.at(self.diff(before, after), 'title “You’re Invited” · text')
+        if c is None:  # name comes from the new tile
+            c = self.at(self.diff(before, after), 'title “Join us” · text')
+        self.assertEqual((c['from'], c['to']), ("You're Invited", 'Join us'))
+
+    def test_hiding_a_tile_reads_as_shown_to_hidden(self):
+        before = {'tiles': [{'id': 'a', 'type': 'timer', 'enabled': True}]}
+        after = {'tiles': [{'id': 'a', 'type': 'timer', 'enabled': False}]}
+        c = self.at(self.diff(before, after), 'timer')
+        self.assertEqual((c['from'], c['to']), ('shown', 'hidden'))
+
+    def test_added_and_removed_tiles(self):
+        before = {'tiles': [{'id': 'a', 'type': 'title'}]}
+        after = {'tiles': [{'id': 'b', 'type': 'footer'}]}
+        changes = self.diff(before, after)
+        self.assertEqual(self.at(changes, 'footer')['to'], 'added')
+        self.assertEqual(self.at(changes, 'title')['to'], 'removed')
+
+    def test_reordering_is_reported_once_not_as_every_tile_moving(self):
+        before = {'tiles': [{'id': 'a', 'type': 'title'}, {'id': 'b', 'type': 'footer'}]}
+        after = {'tiles': [{'id': 'b', 'type': 'footer'}, {'id': 'a', 'type': 'title'}]}
+        changes = self.diff(before, after)
+        self.assertIsNotNone(self.at(changes, 'Section order'))
+        self.assertEqual(len(changes), 1)
+
+    def test_long_values_are_truncated_rather_than_dumped(self):
+        before = {'tiles': [{'id': 'a', 'type': 'description', 'settings': {'text': 'x'}}]}
+        after = {'tiles': [{'id': 'a', 'type': 'description', 'settings': {'text': 'y' * 400}}]}
+        c = self.diff(before, after)[0]
+        self.assertLess(len(c['to']), 80)
+        self.assertTrue(c['to'].endswith('…'))
+
+    def test_nested_settings_are_named_not_dumped(self):
+        before = {'texture': {'type': 'none'}}
+        after = {'texture': {'type': 'paper', 'intensity': 40}}
+        changes = self.diff(before, after)
+        self.assertTrue(any(c['location'].startswith('Texture') for c in changes))
+        self.assertFalse(any('{' in c['to'] for c in changes))
+
+    def test_identical_configs_report_nothing(self):
+        cfg = {'customColors': {'primary': '#fff'}, 'tiles': [{'id': 'a', 'type': 'title'}]}
+        self.assertEqual(self.diff(cfg, dict(cfg)), [])
