@@ -3647,7 +3647,11 @@ class MessageTemplateViewSet(viewsets.ModelViewSet):
         """Override to verify ownership for host-owned templates; allow reads of global ones."""
         obj = super().get_object()
         if obj.event_id is not None:
-            require_event_access(self.request.user, obj.event, SEND_MESSAGES)
+            require_event_access(
+                self.request.user,
+                obj.event,
+                None if self.request.method in ('GET', 'HEAD', 'OPTIONS') else SEND_MESSAGES,
+            )
         return obj
 
     def perform_create(self, serializer):
