@@ -187,13 +187,18 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
       {/* ── Sidebar ───────────────────────────────────────────────── */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 bg-white border-r border-eco-green-light shadow-sm transition-all md:static md:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 bg-white border-r border-eco-green-light shadow-sm transition-all md:translate-x-0',
+          // Sticky rather than static on desktop: as a plain flex item the aside
+          // stretches to the height of the whole document, which pushed Help &
+          // Support and Logout to the bottom of the *page* instead of the
+          // *viewport* - off screen on any page taller than the window.
+          'md:sticky md:top-0 md:h-screen',
           isMobileDrawerOpen ? 'translate-x-0' : '-translate-x-full',
           isDesktopNavCollapsed ? 'md:w-20' : 'md:w-64',
           'w-72'
         )}
       >
-        <div className="flex h-full flex-col">
+        <div className="flex h-full flex-col overflow-y-auto">
           <div className="flex items-center justify-between border-b border-eco-green-light px-4 py-4">
             <Logo href="/host/dashboard" textClassName={cn(isDesktopNavCollapsed && 'md:hidden')} />
             <button
@@ -474,7 +479,10 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="min-w-0 flex-1">
+        {/* pb-28 clears the floating event-tab bar on mobile; the desktop
+            gutter is there so the last card never sits flush against the
+            bottom edge and it is obvious the page has ended. */}
+        <main className="min-w-0 flex-1 pb-28 lg:pb-16">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={pathname}
