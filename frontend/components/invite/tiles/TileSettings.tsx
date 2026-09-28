@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Tile, TileType } from '@/lib/invite/schema'
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { tileSettingsOf } from './tileSettingsOf'
 import TitleTileSettings from './TitleTileSettings'
 import GalleryTileSettings from './GalleryTileSettings'
 import TimerTileSettings from './TimerTileSettings'
@@ -46,6 +47,13 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
     setIsExpanded(forceExpanded)
   }, [forceExpanded])
 
+  // Every panel below reads settings.<field> directly, so one tile missing its
+  // settings object took the whole editor down rather than rendering an empty
+  // form. Configs can arrive that way from an import, a partial write, or a
+  // template that never set them, so the object is guaranteed here instead of
+  // in ten separate panels.
+  const settings = tileSettingsOf(tile)
+
   const handleSettingsChange = (settings: any) => {
     onUpdate({
       ...tile,
@@ -58,28 +66,28 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
       case 'title':
         return (
           <TitleTileSettings
-            settings={tile.settings as any}
+            settings={settings as any}
             onChange={handleSettingsChange}
           />
         )
       case 'gallery':
-        return <GalleryTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
+        return <GalleryTileSettings settings={settings as any} onChange={handleSettingsChange} eventId={eventId} />
       case 'poster':
-        return <PosterTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
+        return <PosterTileSettings settings={settings as any} onChange={handleSettingsChange} eventId={eventId} />
       case 'timer':
-        return <TimerTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
+        return <TimerTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'event-details':
-        return <EventDetailsTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
+        return <EventDetailsTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'directions':
-        return <DirectionsTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
+        return <DirectionsTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'description':
-        return <DescriptionTileSettings settings={tile.settings as any} onChange={handleSettingsChange} eventId={eventId} />
+        return <DescriptionTileSettings settings={settings as any} onChange={handleSettingsChange} eventId={eventId} />
       case 'feature-buttons':
-        return <FeatureButtonsTileSettings settings={tile.settings as any} onChange={handleSettingsChange} hasRsvp={hasRsvp} hasRegistry={hasRegistry} eventId={eventId} />
+        return <FeatureButtonsTileSettings settings={settings as any} onChange={handleSettingsChange} hasRsvp={hasRsvp} hasRegistry={hasRegistry} eventId={eventId} />
       case 'footer':
-        return <FooterTileSettings settings={tile.settings as any} onChange={handleSettingsChange} />
+        return <FooterTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'event-carousel':
-        return <EventCarouselTileSettings settings={tile.settings as any} onUpdate={handleSettingsChange} eventId={eventId} />
+        return <EventCarouselTileSettings settings={settings as any} onUpdate={handleSettingsChange} eventId={eventId} />
       default:
         return null
     }
