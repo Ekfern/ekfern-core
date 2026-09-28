@@ -72,7 +72,33 @@ class InvitePageSummarySerializer(serializers.ModelSerializer):
         fields = ('is_published', 'config')
 
 
-class EventListSerializer(serializers.ModelSerializer):
+class MyRoleMixin:
+    """
+    Supplies ``my_role`` and ``my_capabilities`` for the requesting user.
+
+    The fields themselves are declared on each serializer rather than here:
+    DRF's metaclass only collects declared fields from bases that carry
+    ``_declared_fields``, so a plain mixin's would be silently dropped and then
+    resolved against the model.
+
+    Role is derived from ``host_id``, already loaded on the row, so splitting the
+    dashboard into Hosted and Shared costs no extra query.
+    """
+
+    def _access(self, obj):
+        from .access import resolve_event_access
+
+        request = self.context.get('request')
+        return resolve_event_access(getattr(request, 'user', None), obj)
+
+    def get_my_role(self, obj):
+        return self._access(obj).role
+
+    def get_my_capabilities(self, obj):
+        return sorted(self._access(obj).capabilities)
+
+
+class EventListSerializer(MyRoleMixin, serializers.ModelSerializer):
     """
     Lightweight serializer for the event LIST endpoint.
 
@@ -91,6 +117,8 @@ class EventListSerializer(serializers.ModelSerializer):
     """
     is_expired = serializers.BooleanField(read_only=True)
     invite_page_summary = InvitePageSummarySerializer(source='invite_page', read_only=True)
+    my_role = serializers.SerializerMethodField()
+    my_capabilities = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
@@ -98,11 +126,11 @@ class EventListSerializer(serializers.ModelSerializer):
             'id', 'slug', 'title', 'event_type', 'date', 'event_end_date',
             'city', 'country', 'timezone', 'is_public', 'has_rsvp', 'has_registry',
             'event_structure', 'expiry_date', 'is_expired', 'created_at',
-            'invite_page_summary',
+            'invite_page_summary', 'my_role', 'my_capabilities',
         )
 
 
-class EventSerializer(serializers.ModelSerializer):
+class EventSerializer(MyRoleMixin, serializers.ModelSerializer):
     # Only include minimal host info for privacy (name only, no email)
     host_name = serializers.CharField(source='host.name', read_only=True, allow_null=True)
     country_code = serializers.SerializerMethodField()
@@ -120,11 +148,13 @@ class EventSerializer(serializers.ModelSerializer):
     catalog_show_on_rsvp_confirmation = serializers.SerializerMethodField()
     catalog_title = serializers.SerializerMethodField()
     catalog_purpose = serializers.SerializerMethodField()
+    my_role = serializers.SerializerMethodField()
+    my_capabilities = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
-        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary')
-        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'created_at', 'updated_at', 'invite_page_summary')
+        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary', 'my_role', 'my_capabilities')
+        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'created_at', 'updated_at', 'invite_page_summary', 'my_role', 'my_capabilities')
 
     def get_catalog_show_on_event_page(self, obj):
         return _catalog_show_on_event_page(obj)
