@@ -148,6 +148,16 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
     { href: '/host/profile', label: 'Profile', icon: User },
   ], [])
 
+  // The bottom bar drops labels on the narrowest phones, as it did before.
+  const [showBarLabels, setShowBarLabels] = useState(true)
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 360px)')
+    const sync = () => setShowBarLabels(query.matches)
+    sync()
+    query.addEventListener('change', sync)
+    return () => query.removeEventListener('change', sync)
+  }, [])
+
   // Labels appear from xl up, as before; below that the icons alone fit more
   // tabs inline before anything has to move into the More menu.
   const [showTabLabels, setShowTabLabels] = useState(true)
@@ -502,37 +512,32 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
           // Anchored to the viewport edges rather than centred on a fixed width:
           // seven tabs are ~429px, so on any phone the old left-1/2 centring
           // pushed the first and last tab off both edges with no way to reach
-          // them. Now it centres while it fits and scrolls once it does not.
+          // them. Tabs that still do not fit move into the More menu, which
+          // opens upward here rather than off the bottom of the screen.
           <div className="fixed inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex justify-center lg:hidden">
-            <div className="flex max-w-full items-center gap-1 overflow-x-auto hide-scrollbar rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-xl">
-              {eventTabItems.map((item) => {
-                const isRoot = item.href === `/host/events/${eventId}`
-                const isActive = isActivePath(pathname, item.href, isRoot)
-                const Icon = item.icon
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "flex min-w-[44px] shrink-0 min-[360px]:min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-2 transition-colors",
-                      isActive
-                        ? "bg-eco-green text-white"
-                        : "text-gray-600 hover:bg-eco-green-light hover:text-eco-green"
-                    )}
-                  >
-                    <Icon size={18} />
-
-                    <span className="hidden min-[360px]:block whitespace-nowrap text-[9px] font-medium">
-                      {item.label === "Page Editor"
-                        ? "Editor"
-                        : item.label === "Host Catalog"
-                          ? "Catalog"
-                          : item.label}
-                    </span>
-                  </Link>
-                )
-              })}
+            <div className="flex w-full max-w-md items-center rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-xl">
+              <OverflowNav
+                variant="stacked"
+                menuPlacement="top"
+                gap={4}
+                showLabels={showBarLabels}
+                items={eventTabItems.map((item) => ({
+                  href: item.href,
+                  label: item.label,
+                  shortLabel:
+                    item.label === 'Page Editor'
+                      ? 'Editor'
+                      : item.label === 'Host Catalog'
+                        ? 'Catalog'
+                        : item.label,
+                  icon: item.icon,
+                  isActive: isActivePath(
+                    pathname,
+                    item.href,
+                    item.href === `/host/events/${eventId}`,
+                  ),
+                }))}
+              />
             </div>
           </div>
         )}

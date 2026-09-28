@@ -9,38 +9,53 @@ import { cn } from '@/lib/utils'
 export interface OverflowNavItem {
   href: string
   label: string
+  /** Shorter label for the cramped stacked variant; the menu always uses `label`. */
+  shortLabel?: string
   icon: LucideIcon
   isActive: boolean
 }
 
 export interface OverflowNavProps {
   items: OverflowNavItem[]
-  /** Show labels beside icons. Off on narrower screens where icons alone fit. */
+  /** 'inline' = icon beside label (header). 'stacked' = icon above label (bottom bar). */
+  variant?: 'inline' | 'stacked'
+  /** Which way the More menu opens. A bottom bar has to open upward. */
+  menuPlacement?: 'bottom' | 'top'
+  /** Show labels at all. Off on the narrowest screens, where icons alone fit more tabs. */
   showLabels?: boolean
+  /** Gap between items, in px. Applied as an inline style so the layout and the
+   *  fit calculation can never disagree about it. */
+  gap?: number
   className?: string
 }
-
-const MORE_BUTTON_WIDTH = 92
-const GAP = 20
 
 /**
  * A nav row that moves whatever does not fit into a "More" menu.
  *
- * The alternative — letting the row scroll — hides items with no hint that
- * they exist, which is how Overview and Host Catalog ended up unreachable at
- * the edges. Here every item is always reachable: visible if it fits, in the
- * menu if it does not.
+ * The alternative — letting the row scroll — hides items with no hint they
+ * exist, which is how Overview and Host Catalog ended up unreachable at the
+ * edges. Here every item is always reachable: visible if it fits, in the menu
+ * if it does not.
  *
- * Widths are measured from a hidden copy of the full row rather than from the
- * rendered one, because once an item moves into the menu it can no longer be
- * measured where it used to be.
+ * Widths come from a hidden copy of the full row, including a copy of the More
+ * button, because once an item moves into the menu it can no longer be measured
+ * where it used to be, and the button's real width beats a guessed constant.
  */
-export default function OverflowNav({ items, showLabels = true, className }: OverflowNavProps) {
+export default function OverflowNav({
+  items,
+  variant = 'inline',
+  menuPlacement = 'bottom',
+  showLabels = true,
+  gap = 20,
+  className,
+}: OverflowNavProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [visibleCount, setVisibleCount] = useState(items.length)
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const stacked = variant === 'stacked'
 
   const recompute = useCallback(() => {
     const container = containerRef.current
@@ -48,27 +63,29 @@ export default function OverflowNav({ items, showLabels = true, className }: Ove
     if (!container || !measure) return
 
     const available = container.clientWidth
-    const widths = Array.from(measure.children).map((c) => (c as HTMLElement).offsetWidth)
+    const nodes = Array.from(measure.children) as HTMLElement[]
+    // Last child of the measure row is the More button stand-in.
+    const widths = nodes.slice(0, -1).map((n) => n.offsetWidth)
+    const moreWidth = nodes[nodes.length - 1]?.offsetWidth ?? 0
 
     let used = 0
     let fits = 0
     for (let i = 0; i < widths.length; i += 1) {
-      const next = used + widths[i] + (i > 0 ? GAP : 0)
+      const next = used + widths[i] + (i > 0 ? gap : 0)
       if (next > available) break
       used = next
       fits += 1
     }
 
-    // If something had to be dropped, the More button needs room too, which may
-    // cost one more item.
+    // Making room for the More button may itself cost another item.
     if (fits < widths.length) {
-      while (fits > 0 && used + GAP + MORE_BUTTON_WIDTH > available) {
+      while (fits > 0 && used + gap + moreWidth > available) {
         fits -= 1
-        used -= widths[fits] + (fits > 0 ? GAP : 0)
+        used -= widths[fits] + (fits > 0 ? gap : 0)
       }
     }
     setVisibleCount(fits)
-  }, [])
+  }, [gap])
 
   useLayoutEffect(() => {
     recompute()
@@ -77,7 +94,7 @@ export default function OverflowNav({ items, showLabels = true, className }: Ove
     const observer = new ResizeObserver(recompute)
     observer.observe(container)
     return () => observer.disconnect()
-  }, [recompute, items, showLabels])
+  }, [recompute, items, showLabels, variant])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -95,7 +112,7 @@ export default function OverflowNav({ items, showLabels = true, className }: Ove
     }
   }, [menuOpen])
 
-  // Close the menu after navigating, so it does not linger over the new page.
+  // Close after navigating, so the menu does not linger over the new page.
   useEffect(() => {
     setMenuOpen(false)
   }, [items])
@@ -106,33 +123,57 @@ export default function OverflowNav({ items, showLabels = true, className }: Ove
 
   const itemClass = (isActive: boolean) =>
     cn(
-      'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-all',
+      'transition-colors',
+      stacked
+        ? 'flex min-w-[44px] shrink-0 flex-col items-center gap-1 rounded-xl px-2 py-2'
+        : 'inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap',
       isActive
         ? 'bg-eco-green text-white'
         : 'text-gray-600 hover:bg-eco-green-light hover:text-eco-green',
     )
 
+  const labelClass = stacked ? 'whitespace-nowrap text-[9px] font-medium' : undefined
+  const iconSize = 18
+
+  const renderContent = (item: OverflowNavItem) => (
+    <>
+      <item.icon size={iconSize} />
+      {showLabels ? (
+        <span className={labelClass}>{stacked ? item.shortLabel ?? item.label : item.label}</span>
+      ) : null}
+    </>
+  )
+
   return (
+    // flex-1 in both variants on purpose: if the root were sized by its own
+    // contents, dropping an item would shrink the measured space, which would
+    // drop another item, and it could never grow back.
     <div ref={containerRef} className={cn('relative flex min-w-0 flex-1 items-center', className)}>
-      {/* Hidden full-width copy: the source of truth for item widths. */}
+      {/* Hidden full-width copy: the source of truth for widths, More included. */}
       <div
         ref={measureRef}
         aria-hidden
-        className="pointer-events-none absolute -z-10 flex items-center gap-5 opacity-0"
+        className="pointer-events-none absolute -z-10 flex items-center opacity-0"
+        style={{ gap }}
       >
         {items.map((item) => (
           <span key={item.href} className={itemClass(false)}>
-            <item.icon size={18} />
-            {showLabels ? <span>{item.label}</span> : null}
+            {renderContent(item)}
           </span>
         ))}
+        <span className={itemClass(false)}>
+          <MoreHorizontal size={iconSize} />
+          {showLabels ? <span className={labelClass}>More</span> : null}
+        </span>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-center gap-5">
+      <div
+        className={cn('flex min-w-0 flex-1 items-center', stacked ? '' : 'justify-center')}
+        style={{ gap }}
+      >
         {visible.map((item) => (
           <Link key={item.href} href={item.href} className={itemClass(item.isActive)}>
-            <item.icon size={18} />
-            {showLabels ? <span>{item.label}</span> : null}
+            {renderContent(item)}
           </Link>
         ))}
 
@@ -143,16 +184,20 @@ export default function OverflowNav({ items, showLabels = true, className }: Ove
               onClick={() => setMenuOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
+              aria-label={`More — ${hidden.length} more section${hidden.length === 1 ? '' : 's'}`}
               className={cn(itemClass(hiddenHasActive), 'cursor-pointer')}
             >
-              <MoreHorizontal size={18} />
-              <span>More</span>
+              <MoreHorizontal size={iconSize} />
+              {showLabels ? <span className={labelClass}>More</span> : null}
             </button>
 
             {menuOpen ? (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-xl border border-eco-green-light bg-white py-1 shadow-lg"
+                className={cn(
+                  'absolute right-0 z-50 w-56 overflow-hidden rounded-xl border border-eco-green-light bg-white py-1 shadow-lg',
+                  menuPlacement === 'top' ? 'bottom-full mb-2' : 'top-full mt-1.5',
+                )}
               >
                 {hidden.map((item) => (
                   <Link
