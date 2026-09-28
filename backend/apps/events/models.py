@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.db import models, IntegrityError
@@ -521,6 +521,65 @@ class EventCoHost(models.Model):
     @property
     def is_active(self):
         return self.status == self.STATUS_ACCEPTED
+
+
+class EventDesignVersion(models.Model):
+    """
+    A snapshot of an event's page_config, so a host can see what the invite used
+    to look like.
+
+    Read-only by design: there is no restore. Reverting a whole design in one
+    click can set aside work someone else did minutes ago, and deciding who may
+    do that is a question worth avoiding until it is actually needed. Seeing the
+    old settings and redoing them by hand is slower, but nobody loses anything
+    they did not choose to.
+
+    Snapshots are full configs rather than deltas: a version has to be readable
+    on its own, and replaying a chain of deltas breaks entirely if one link is
+    missing. At ~1.5KB a config that costs nothing worth optimising.
+    """
+    #: Versions inside this window by the same person fold into one another, so
+    #: the list reads as editing sessions rather than as keystrokes. Autosave
+    #: fires 1.5s after each change, which would otherwise mean hundreds of rows
+    #: for one afternoon.
+    COALESCE_WINDOW = timedelta(minutes=10)
+
+    #: Total bytes of history kept per event. A limit on size rather than on
+    #: count keeps a normal 1.5KB config with plenty of versions, while an event
+    #: carrying embedded images cannot quietly grow history into the megabytes.
+    MAX_TOTAL_BYTES = 1024 * 1024
+
+    LABEL_PUBLISHED = 'published'
+    LABEL_LAYOUT_APPLIED = 'layout_applied'
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='design_versions')
+    config = models.JSONField(default=dict)
+    saved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='design_versions',
+        help_text='Who saved this version. Kept if the account is later deleted.',
+    )
+    #: Marks a version worth keeping separate from the session around it.
+    label = models.CharField(max_length=32, blank=True)
+    #: Size of the stored config, so retention does not have to re-serialize
+    #: every row to work out what to drop.
+    size_bytes = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'event_design_versions'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['event', '-created_at'], name='design_version_event_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.event_id} @ {self.created_at:%Y-%m-%d %H:%M}'
 
 
 class InvitePage(models.Model):

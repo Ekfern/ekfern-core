@@ -27,6 +27,7 @@ from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
 from .access import get_event_or_404, require_event_access, resolve_event_access
+from .design_history import record_design_version
 from .capabilities import (
     EDIT_CATALOG, EDIT_INVITATION, EDIT_RSVP, MANAGE_GUESTS, SEND_MESSAGES,
 )
@@ -1135,6 +1136,10 @@ class EventViewSet(viewsets.ModelViewSet):
             # Update event's page_config
             event.page_config = merged_config
             event.save(update_fields=['page_config', 'updated_at'])
+
+            # Snapshot after the write, so history only ever holds configs that
+            # were actually stored.
+            record_design_version(event, merged_config, saved_by=request.user)
 
             # Sync to InvitePage if it exists, or create one
             invite_page_created = False

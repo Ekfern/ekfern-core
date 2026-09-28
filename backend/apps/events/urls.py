@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .design_history_views import design_version_detail, design_versions
 from .cohost_views import (
     accept_cohost_invite,
     cohost_invite_detail,
@@ -40,6 +41,9 @@ urlpatterns = [
     # Put custom paths BEFORE router.urls so they take precedence
     # Invite page layouts (Page Layout Studio) - list/create and retrieve/update/delete
     path('invite-page-layouts/', InvitePageLayoutViewSet.as_view({'get': 'list', 'post': 'create'}), name='invite-page-layouts-list'),
+    # Design history (read-only: there is no restore)
+    path('<int:event_id>/design/versions/', design_versions, name='event-design-versions'),
+    path('<int:event_id>/design/versions/<int:version_id>/', design_version_detail, name='event-design-version-detail'),
     # Co-hosts
     path('cohost-invites/mine/', my_cohost_invites, name='cohost-invites-mine'),
     path('cohost-invites/<str:token>/', cohost_invite_detail, name='cohost-invite-detail'),
