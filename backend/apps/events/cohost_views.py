@@ -133,6 +133,16 @@ def event_cohosts(request, event_id):
         else list(DEFAULT_COHOST_CAPABILITIES)
     )
 
+    # Explicit check so the caller gets a useful message. The partial unique
+    # constraint stays as the backstop for two invites racing each other.
+    if EventCoHost.objects.filter(
+        event=event, invited_email=email, status__in=EventCoHost.ACTIVE_STATUSES
+    ).exists():
+        return Response(
+            {'error': 'That person already has a pending or accepted invite for this event.'},
+            status=status.HTTP_409_CONFLICT,
+        )
+
     active = EventCoHost.objects.filter(
         event=event, status__in=EventCoHost.ACTIVE_STATUSES
     )
@@ -144,16 +154,6 @@ def event_cohosts(request, event_id):
                     'Remove someone, or cancel a pending invite, to add another.'
                 )
             },
-            status=status.HTTP_409_CONFLICT,
-        )
-
-    # Explicit check so the caller gets a useful message. The partial unique
-    # constraint stays as the backstop for two invites racing each other.
-    if EventCoHost.objects.filter(
-        event=event, invited_email=email, status__in=EventCoHost.ACTIVE_STATUSES
-    ).exists():
-        return Response(
-            {'error': 'That person already has a pending or accepted invite for this event.'},
             status=status.HTTP_409_CONFLICT,
         )
 

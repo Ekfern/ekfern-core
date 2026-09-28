@@ -27,15 +27,16 @@ export default function NewEventPage() {
    */
   const sendPendingCoHostInvites = async (eventId: number | string) => {
     if (pendingCoHosts.length === 0) return
-    const failed: string[] = []
-    for (const email of pendingCoHosts) {
-      try {
-        await inviteCoHost(eventId, email)
-      } catch (error) {
-        logError('Co-host invite after event creation failed', error)
-        failed.push(email)
-      }
-    }
+    // In parallel, not in sequence: the invite endpoint sends its email inside
+    // the request, so sequential sends would make the host wait for the sum of
+    // five SES round trips before the next step loads.
+    const results = await Promise.allSettled(
+      pendingCoHosts.map((email) => inviteCoHost(eventId, email)),
+    )
+    const failed = pendingCoHosts.filter((_, i) => results[i].status === 'rejected')
+    results.forEach((r) => {
+      if (r.status === 'rejected') logError('Co-host invite after event creation failed', r.reason)
+    })
     const sent = pendingCoHosts.length - failed.length
     if (sent > 0) {
       showToast(`${sent} co-host invite${sent === 1 ? '' : 's'} sent.`, 'success')

@@ -396,6 +396,14 @@ class CoHostLimitTests(TestCase):
         )
         self.assertEqual(self.invite('replacement@test.com').status_code, status.HTTP_201_CREATED)
 
+    def test_duplicate_at_the_limit_says_duplicate_not_limit(self):
+        # "Remove someone to add another" is wrong advice when the person is
+        # already on the list, so the more specific message has to win.
+        self.fill_to_limit()
+        response = self.invite('filler0@test.com')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn('already has a pending', response.json()['error'])
+
     def test_up_to_the_limit_is_allowed(self):
         for i in range(MAX_COHOSTS_PER_EVENT):
             self.assertEqual(
