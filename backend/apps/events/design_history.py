@@ -68,6 +68,14 @@ def record_event_version(event, saved_by=None, label=''):
 
         latest = EventVersion.objects.filter(event=event).order_by('-created_at').first()
 
+        # Saving without changing anything is common - opening Event Details and
+        # pressing Save, or a client that PATCHes the current values back - and
+        # it should not leave an entry saying nothing changed. A labelled save
+        # still records, because publishing is worth noting whether or not the
+        # content moved.
+        if latest is not None and not label and latest.config == config and latest.details == details:
+            return latest
+
         same_session = (
             latest is not None
             and not latest.label

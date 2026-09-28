@@ -39,6 +39,26 @@ class RecordDesignVersionTests(TestCase):
         self.assertEqual(self.versions().count(), 1)
         self.assertEqual(len(self.versions().first().config['tiles']), 5)
 
+    def test_saving_without_changing_anything_records_nothing(self):
+        first = self.save(config(1), saved_by=self.host)
+        again = record_event_version(self.event, saved_by=self.host)
+        self.assertEqual(self.versions().count(), 1)
+        self.assertEqual(again.id, first.id)
+
+    def test_a_no_op_does_not_create_an_entry_even_after_the_window(self):
+        first = self.save(config(1), saved_by=self.host)
+        EventVersion.objects.filter(id=first.id).update(
+            created_at=timezone.now() - timedelta(minutes=30)
+        )
+        record_event_version(self.event, saved_by=self.host)
+        self.assertEqual(self.versions().count(), 1)
+
+    def test_a_labelled_save_still_records_when_nothing_changed(self):
+        # Publishing is worth noting whether or not the content moved.
+        self.save(config(1), saved_by=self.host)
+        record_event_version(self.event, saved_by=self.host, label='published')
+        self.assertEqual(self.versions().count(), 2)
+
     def test_a_different_person_starts_a_new_version(self):
         self.save(config(1), saved_by=self.host)
         self.save(config(2), saved_by=self.other)
