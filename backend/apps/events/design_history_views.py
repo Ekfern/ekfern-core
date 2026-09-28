@@ -10,8 +10,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .access import get_event_or_404
-from .design_diff import diff_configs
-from .models import EventDesignVersion
+from .design_diff import diff_configs, diff_details
+from .models import EventVersion
 
 
 def summarize(config):
@@ -70,7 +70,7 @@ def design_versions(request, event_id):
     """
     event = get_event_or_404(request.user, event_id)
     rows = (
-        EventDesignVersion.objects.filter(event=event)
+        EventVersion.objects.filter(event=event)
         .select_related('saved_by')
         .order_by('-created_at')
     )
@@ -89,17 +89,21 @@ def design_version_detail(request, event_id, version_id):
     settings instead.
     """
     event = get_event_or_404(request.user, event_id)
-    version = EventDesignVersion.objects.filter(event=event, id=version_id).first()
+    version = EventVersion.objects.filter(event=event, id=version_id).first()
     if version is None:
         return Response({'error': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     previous = (
-        EventDesignVersion.objects.filter(event=event, created_at__lt=version.created_at)
+        EventVersion.objects.filter(event=event, created_at__lt=version.created_at)
         .order_by('-created_at')
         .first()
     )
 
     data = serialize_version(version, include_summary=True)
     data['is_first'] = previous is None
-    data['changes'] = diff_configs(previous.config if previous else {}, version.config)
+    # Details first: a changed date or title is the bigger news, and reads
+    # oddly underneath a list of colour tweaks.
+    data['changes'] = diff_details(
+        previous.details if previous else {}, version.details
+    ) + diff_configs(previous.config if previous else {}, version.config)
     return Response(data)

@@ -13,6 +13,22 @@ is not something anyone can act on.
 
 MAX_VALUE_CHARS = 60
 
+#: Event Details fields, and how to name them to a host. Anything not listed is
+#: not shown, so internal or derived fields never leak into the timeline.
+DETAIL_LABELS = {
+    'title': 'Event title',
+    'event_type': 'Event type',
+    'date': 'Date',
+    'event_end_date': 'End date',
+    'city': 'City',
+    'country': 'Country',
+    'timezone': 'Timezone',
+    'is_public': 'Public event',
+    'has_rsvp': 'RSVP',
+    'has_registry': 'Host catalog',
+    'event_structure': 'Event structure',
+}
+
 #: Top-level config keys worth reporting, and how to name them to a host.
 TOP_LEVEL_LABELS = {
     'customColors': 'Colours',
@@ -79,6 +95,18 @@ def _diff_mapping(before, after, prefix, changes):
         old, new = before.get(key), after.get(key)
         if old != new:
             changes.append({'location': f'{prefix} · {key}', 'from': _short(old), 'to': _short(new)})
+
+
+def diff_details(before, after):
+    """Readable differences between two sets of Event Details."""
+    before = before or {}
+    after = after or {}
+    changes = []
+    for key, label in DETAIL_LABELS.items():
+        old, new = before.get(key), after.get(key)
+        if old != new:
+            changes.append({'location': label, 'from': _short(old), 'to': _short(new)})
+    return changes
 
 
 def diff_configs(before, after):

@@ -27,7 +27,7 @@ from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
 from .access import get_event_or_404, require_event_access, resolve_event_access
-from .design_history import record_design_version
+from .design_history import record_event_version
 from .capabilities import (
     EDIT_CATALOG, EDIT_INVITATION, EDIT_RSVP, MANAGE_GUESTS, SEND_MESSAGES,
 )
@@ -303,6 +303,15 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(host=self.request.user)
+
+    def perform_update(self, serializer):
+        """Record details edits in the same timeline as design edits.
+
+        A host does not think of "changed the date" and "changed the colours" as
+        belonging to different histories, so both are snapshotted here.
+        """
+        event = serializer.save()
+        record_event_version(event, saved_by=self.request.user)
 
     def _verify_event_ownership(self, event, capability=None):
         """
@@ -1137,9 +1146,9 @@ class EventViewSet(viewsets.ModelViewSet):
             event.page_config = merged_config
             event.save(update_fields=['page_config', 'updated_at'])
 
-            # Snapshot after the write, so history only ever holds configs that
-            # were actually stored.
-            record_design_version(event, merged_config, saved_by=request.user)
+            # Snapshot after the write, so history only ever holds state that
+            # was actually stored.
+            record_event_version(event, saved_by=request.user)
 
             # Sync to InvitePage if it exists, or create one
             invite_page_created = False

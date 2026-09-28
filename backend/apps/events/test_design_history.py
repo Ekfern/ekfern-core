@@ -9,8 +9,8 @@ from rest_framework.test import APIClient
 
 from apps.users.models import User
 
-from .design_history import record_design_version
-from .models import Event, EventCoHost, EventDesignVersion
+from .design_history import record_event_version
+from .models import Event, EventCoHost, EventVersion
 
 
 def config(n=1, colour='#111111'):
@@ -25,54 +25,62 @@ class RecordDesignVersionTests(TestCase):
         self.event = Event.objects.create(host=self.host, slug='dh-event', title='DH Event')
 
     def versions(self):
-        return EventDesignVersion.objects.filter(event=self.event).order_by('-created_at')
+        return EventVersion.objects.filter(event=self.event).order_by('-created_at')
+
+    def save(self, cfg, **kwargs):
+        self.event.page_config = cfg
+        self.event.save(update_fields=['page_config'])
+        return record_event_version(self.event, **kwargs)
 
     def test_a_burst_of_saves_folds_into_one_version(self):
         # Autosave fires every 1.5s; without folding an afternoon is hundreds of rows.
         for i in range(1, 6):
-            record_design_version(self.event, config(i), saved_by=self.host)
+            self.save(config(i), saved_by=self.host)
         self.assertEqual(self.versions().count(), 1)
         self.assertEqual(len(self.versions().first().config['tiles']), 5)
 
     def test_a_different_person_starts_a_new_version(self):
-        record_design_version(self.event, config(1), saved_by=self.host)
-        record_design_version(self.event, config(2), saved_by=self.other)
+        self.save(config(1), saved_by=self.host)
+        self.save(config(2), saved_by=self.other)
         self.assertEqual(self.versions().count(), 2)
 
     def test_an_old_session_is_not_folded_into(self):
-        first = record_design_version(self.event, config(1), saved_by=self.host)
-        EventDesignVersion.objects.filter(id=first.id).update(
+        first = self.save(config(1), saved_by=self.host)
+        EventVersion.objects.filter(id=first.id).update(
             created_at=timezone.now() - timedelta(minutes=30)
         )
-        record_design_version(self.event, config(2), saved_by=self.host)
+        self.save(config(2), saved_by=self.host)
         self.assertEqual(self.versions().count(), 2)
 
     def test_a_labelled_version_is_kept_separate(self):
-        record_design_version(self.event, config(1), saved_by=self.host,
-                              label=EventDesignVersion.LABEL_PUBLISHED)
-        record_design_version(self.event, config(2), saved_by=self.host)
+        self.save(config(1), saved_by=self.host,
+                              label=EventVersion.LABEL_PUBLISHED)
+        self.save(config(2), saved_by=self.host)
         self.assertEqual(self.versions().count(), 2)
 
-    def test_size_is_recorded(self):
-        v = record_design_version(self.event, config(3), saved_by=self.host)
-        self.assertEqual(v.size_bytes, len(json.dumps(config(3))))
+    def test_size_covers_the_design_and_the_details(self):
+        # Retention budgets by bytes, so the figure has to account for
+        # everything a version stores, not just the design half of it.
+        v = self.save(config(3), saved_by=self.host)
+        self.assertEqual(v.size_bytes, len(json.dumps({'config': v.config, 'details': v.details})))
+        self.assertGreater(v.size_bytes, len(json.dumps(config(3))))
 
     def test_history_is_trimmed_to_the_size_budget(self):
-        big = {'blob': 'x' * (EventDesignVersion.MAX_TOTAL_BYTES // 3)}
+        big = {'blob': 'x' * (EventVersion.MAX_TOTAL_BYTES // 3)}
         for i in range(6):
-            v = record_design_version(self.event, dict(big, n=i), saved_by=self.host,
-                                      label=f'forced-{i}')
-            EventDesignVersion.objects.filter(id=v.id).update(
+            v = self.save(dict(big, n=i), saved_by=self.host, label=f'forced-{i}')
+            EventVersion.objects.filter(id=v.id).update(
                 created_at=timezone.now() - timedelta(minutes=10 * (6 - i))
             )
-        record_design_version(self.event, {'final': True}, saved_by=self.host, label='last')
+        self.save({'final': True}, saved_by=self.host, label='last')
         total = sum(v.size_bytes for v in self.versions())
-        self.assertLessEqual(total, EventDesignVersion.MAX_TOTAL_BYTES)
+        self.assertLessEqual(total, EventVersion.MAX_TOTAL_BYTES)
         self.assertGreaterEqual(self.versions().count(), 1)
 
     def test_recording_never_breaks_the_save_it_records(self):
         # Unserialisable config: history must swallow it, not raise.
-        self.assertIsNone(record_design_version(self.event, {'bad': object()}, saved_by=self.host))
+        self.event.page_config = {'bad': object()}
+        self.assertIsNone(record_event_version(self.event, saved_by=self.host))
 
 
 class DesignHistoryApiTests(TestCase):
@@ -81,9 +89,12 @@ class DesignHistoryApiTests(TestCase):
         self.host = User.objects.create_user(email='dha-host@test.com', name='Host')
         self.cohost = User.objects.create_user(email='dha-co@test.com', name='Co')
         self.stranger = User.objects.create_user(email='dha-x@test.com', name='X')
-        self.event = Event.objects.create(host=self.host, slug='dha-event', title='DHA Event')
-        self.version = record_design_version(self.event, config(2, '#abcdef'), saved_by=self.host)
-        self.list_url = f'/api/events/{self.event.id}/design/versions/'
+        self.event = Event.objects.create(
+            host=self.host, slug='dha-event', title='DHA Event',
+            page_config=config(2, '#abcdef'),
+        )
+        self.version = record_event_version(self.event, saved_by=self.host)
+        self.list_url = f'/api/events/{self.event.id}/versions/'
 
     def test_host_sees_the_list_without_configs(self):
         self.client.force_authenticate(user=self.host)
@@ -187,3 +198,54 @@ class DesignDiffTests(TestCase):
     def test_identical_configs_report_nothing(self):
         cfg = {'customColors': {'primary': '#fff'}, 'tiles': [{'id': 'a', 'type': 'title'}]}
         self.assertEqual(self.diff(cfg, dict(cfg)), [])
+
+
+class EventDetailsInTheSameTimelineTests(TestCase):
+    """A changed date belongs in the same history as a changed colour."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='det-host@test.com', name='Host')
+        self.event = Event.objects.create(
+            host=self.host, slug='det-event', title='Original Title', city='Mumbai',
+        )
+        self.client.force_authenticate(user=self.host)
+
+    def versions(self):
+        return EventVersion.objects.filter(event=self.event).order_by('-created_at')
+
+    def test_editing_details_records_a_version(self):
+        response = self.client.patch(
+            f'/api/events/{self.event.id}/', {'title': 'Renamed Event'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.versions().count(), 1)
+        self.assertEqual(self.versions().first().details['title'], 'Renamed Event')
+
+    def test_the_change_names_the_field_and_both_values(self):
+        record_event_version(self.event, saved_by=self.host, label='first')
+        self.event.title = 'Renamed Event'
+        self.event.save(update_fields=['title'])
+        record_event_version(self.event, saved_by=self.host, label='second')
+
+        newest = self.versions().first()
+        body = self.client.get(f'/api/events/{self.event.id}/versions/{newest.id}/').json()
+        change = next(c for c in body['changes'] if c['location'] == 'Event title')
+        self.assertEqual((change['from'], change['to']), ('Original Title', 'Renamed Event'))
+
+    def test_a_version_captures_design_and_details_together(self):
+        self.event.page_config = {'customColors': {'primary': '#fff'}}
+        self.event.save(update_fields=['page_config'])
+        v = record_event_version(self.event, saved_by=self.host)
+        self.assertEqual(v.details['city'], 'Mumbai')
+        self.assertEqual(v.config['customColors']['primary'], '#fff')
+
+    def test_toggles_read_as_on_and_off(self):
+        record_event_version(self.event, saved_by=self.host, label='before')
+        self.event.has_rsvp = False
+        self.event.save(update_fields=['has_rsvp'])
+        record_event_version(self.event, saved_by=self.host, label='after')
+        newest = self.versions().first()
+        body = self.client.get(f'/api/events/{self.event.id}/versions/{newest.id}/').json()
+        change = next(c for c in body['changes'] if c['location'] == 'RSVP')
+        self.assertEqual((change['from'], change['to']), ('on', 'off'))

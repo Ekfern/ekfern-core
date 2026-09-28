@@ -60,7 +60,7 @@ export default function DesignHistoryPanel({ eventId, isOpen, onClose }: DesignH
       className="fixed inset-0 z-50 flex justify-end bg-black/20"
       role="dialog"
       aria-modal="true"
-      aria-label="Design history"
+      aria-label="Change history"
       onClick={onClose}
     >
       <aside
@@ -69,15 +69,15 @@ export default function DesignHistoryPanel({ eventId, isOpen, onClose }: DesignH
       >
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">Design history</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Change history</h2>
             <p className="text-xs text-gray-500">
-              See how this invitation looked before. Changes are not undone for you.
+              What changed on this event, and when. Nothing is undone for you.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close design history"
+            aria-label="Close change history"
             className="shrink-0 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
           >
             <X size={18} />
@@ -89,7 +89,7 @@ export default function DesignHistoryPanel({ eventId, isOpen, onClose }: DesignH
             <p className="p-4 text-sm text-gray-500">Loading…</p>
           ) : versions.length === 0 ? (
             <p className="p-4 text-sm text-gray-500">
-              No earlier versions yet. They appear as you and any co-hosts edit this invitation.
+              No earlier versions yet. They appear as you and any co-hosts edit this event.
             </p>
           ) : selected ? (
             <VersionDetail detail={selected} onBack={() => setSelected(null)} />

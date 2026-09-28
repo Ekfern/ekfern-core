@@ -44,7 +44,7 @@ export interface DesignVersionDetail extends DesignVersion {
 /** Metadata only — configs are fetched one at a time, when one is opened. */
 export async function listDesignVersions(eventId: number | string): Promise<DesignVersion[]> {
   try {
-    const res = await api.get(`/api/events/${eventId}/design/versions/`)
+    const res = await api.get(`/api/events/${eventId}/versions/`)
     return res.data?.results ?? []
   } catch {
     // History is a convenience; never let it break the editor around it.
@@ -56,7 +56,7 @@ export async function getDesignVersion(
   eventId: number | string,
   versionId: number,
 ): Promise<DesignVersionDetail> {
-  const res = await api.get(`/api/events/${eventId}/design/versions/${versionId}/`)
+  const res = await api.get(`/api/events/${eventId}/versions/${versionId}/`)
   return res.data
 }
 

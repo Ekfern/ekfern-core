@@ -523,10 +523,10 @@ class EventCoHost(models.Model):
         return self.status == self.STATUS_ACCEPTED
 
 
-class EventDesignVersion(models.Model):
+class EventVersion(models.Model):
     """
-    A snapshot of an event's page_config, so a host can see what the invite used
-    to look like.
+    A snapshot of an event: its invite design and its details, so a host can see
+    what changed and when.
 
     Read-only by design: there is no restore. Reverting a whole design in one
     click can set aside work someone else did minutes ago, and deciding who may
@@ -552,14 +552,18 @@ class EventDesignVersion(models.Model):
     LABEL_PUBLISHED = 'published'
     LABEL_LAYOUT_APPLIED = 'layout_applied'
 
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='design_versions')
-    config = models.JSONField(default=dict)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='versions')
+    config = models.JSONField(default=dict, help_text='The invite design (page_config).')
+    #: The fields a host edits on Event Details. Kept beside the design so one
+    #: timeline answers "what changed about this event", rather than splitting
+    #: a date change and a colour change across two histories.
+    details = models.JSONField(default=dict, blank=True)
     saved_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='design_versions',
+        related_name='event_versions',
         help_text='Who saved this version. Kept if the account is later deleted.',
     )
     #: Marks a version worth keeping separate from the session around it.
@@ -572,10 +576,10 @@ class EventDesignVersion(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'event_design_versions'
+        db_table = 'event_versions'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['event', '-created_at'], name='design_version_event_idx'),
+            models.Index(fields=['event', '-created_at'], name='event_version_event_idx'),
         ]
 
     def __str__(self):
