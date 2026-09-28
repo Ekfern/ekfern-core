@@ -149,22 +149,25 @@ export default function OverflowNav({
     // contents, dropping an item would shrink the measured space, which would
     // drop another item, and it could never grow back.
     <div ref={containerRef} className={cn('relative flex min-w-0 flex-1 items-center', className)}>
-      {/* Hidden full-width copy: the source of truth for widths, More included. */}
-      <div
-        ref={measureRef}
-        aria-hidden
-        className="pointer-events-none absolute -z-10 flex items-center opacity-0"
-        style={{ gap }}
-      >
-        {items.map((item) => (
-          <span key={item.href} className={itemClass(false)}>
-            {renderContent(item)}
+      {/*
+        Hidden full-width copy: the source of truth for widths, More included.
+        It sits in a zero-size overflow-hidden box so it can never widen the
+        page - at 375px the row itself is ~445px, and only a clipping ancestor
+        was keeping that from becoming horizontal scroll. Clipping does not
+        affect the children's offsetWidth, so the measurements are unchanged.
+      */}
+      <div className="pointer-events-none absolute h-0 w-0 overflow-hidden" aria-hidden>
+        <div ref={measureRef} className="flex items-center" style={{ gap }}>
+          {items.map((item) => (
+            <span key={item.href} className={itemClass(false)}>
+              {renderContent(item)}
+            </span>
+          ))}
+          <span className={itemClass(false)}>
+            <MoreHorizontal size={iconSize} />
+            {showLabels ? <span className={labelClass}>More</span> : null}
           </span>
-        ))}
-        <span className={itemClass(false)}>
-          <MoreHorizontal size={iconSize} />
-          {showLabels ? <span className={labelClass}>More</span> : null}
-        </span>
+        </div>
       </div>
 
       <div
