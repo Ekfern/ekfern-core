@@ -15,6 +15,22 @@ def _default_data_region():
     return getattr(settings, 'DEFAULT_DATA_REGION', 'in')
 
 
+class EventQuerySet(models.QuerySet):
+    """Event lookups that are scoped to a user rather than to ownership alone."""
+
+    def for_user(self, user):
+        """
+        Every event this user may work on.
+
+        Today that is the events they own. Co-hosted events join here, which is
+        why callers ask for ``for_user`` rather than filtering on ``host``
+        directly — the definition of "my events" then lives in one place.
+        """
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return self.none()
+        return self.filter(host=user)
+
+
 class Event(models.Model):
     EVENT_TYPE_CHOICES = [
         # Life Events
@@ -99,6 +115,8 @@ class Event(models.Model):
         (RSVP_EXPERIENCE_MODE_AUTO_CONFIRM, 'Confirm attendance'),
     ]
     
+    objects = EventQuerySet.as_manager()
+
     host = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events')
     slug = models.SlugField(unique=True, max_length=100)
     title = models.CharField(max_length=255)
