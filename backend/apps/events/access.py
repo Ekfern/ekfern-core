@@ -20,7 +20,7 @@ from typing import NamedTuple, Optional
 from django.http import Http404
 from rest_framework.exceptions import PermissionDenied
 
-from .capabilities import ALL_CAPABILITIES, OWNER_ONLY
+from .capabilities import ALL_CAPABILITIES, OWNER_ONLY, normalize_capabilities
 
 ROLE_OWNER = 'owner'
 ROLE_COHOST = 'cohost'
@@ -63,7 +63,20 @@ def resolve_event_access(user, event) -> EventAccess:
     if event.host_id == user.id:
         return EventAccess(role=ROLE_OWNER, capabilities=OWNER_CAPABILITIES)
 
-    return NO_ACCESS
+    from .models import EventCoHost
+
+    row = EventCoHost.objects.filter(
+        event=event, user=user, status=EventCoHost.STATUS_ACCEPTED
+    ).first()
+    if row is None:
+        return NO_ACCESS
+
+    # Only names the code still recognises are honoured, so a capability that is
+    # renamed or retired cannot keep granting access from old rows.
+    return EventAccess(
+        role=ROLE_COHOST,
+        capabilities=frozenset(normalize_capabilities(row.capabilities)),
+    )
 
 
 def require_event_access(user, event, capability: Optional[str] = None) -> EventAccess:

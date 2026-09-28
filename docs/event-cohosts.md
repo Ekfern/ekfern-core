@@ -136,6 +136,20 @@ and no username field to resolve against.
    can delete their account (`Event.host` is `CASCADE` today), version-checked
    saves on the design config so two co-hosts cannot silently overwrite each other.
 
+## Default ModelViewSet actions
+
+`EventViewSet` is a `ModelViewSet`, so `retrieve`, `update`, `partial_update` and
+`destroy` have no ownership check of their own — they are reached only through
+`get_object()`. Capability mapping for them lives in `ACTION_CAPABILITIES`, and
+`destroy` is gated on the **role**, not a capability, because deleting an event
+takes the guest list, RSVPs and invite page with it (`Event` has no soft delete
+and `Guest.event` cascades).
+
+This was found by end-to-end testing, not by the unit tests: an accepted co-host
+deleted a real event, because the access check passed and no capability was
+required on that path. "Delete is owner-only" was true in the resolver and false
+in practice. Any new action reached through `get_object()` needs an entry here.
+
 ## Known gaps
 
 - **Quota is per user, not per event.** `HostSendQuota` is `unique(host, channel)`,

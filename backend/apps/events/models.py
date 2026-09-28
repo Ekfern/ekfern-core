@@ -28,7 +28,10 @@ class EventQuerySet(models.QuerySet):
         """
         if user is None or not getattr(user, 'is_authenticated', False):
             return self.none()
-        return self.filter(host=user)
+        return self.filter(
+            Q(host=user)
+            | Q(cohosts__user=user, cohosts__status=EventCoHost.STATUS_ACCEPTED)
+        ).distinct()
 
 
 class Event(models.Model):
@@ -422,6 +425,102 @@ class Event(models.Model):
         if existing_rsvp and existing_rsvp.will_attend == 'yes':
             return False
         return True
+
+
+class EventCoHost(models.Model):
+    """
+    A co-host on one event.
+
+    The owner is ``Event.host`` and never appears here, so the two sets are
+    disjoint and no ownership fact is stored twice. ``status`` is the gate: a row
+    can have a linked ``user`` and still grant nothing until it is accepted,
+    which is what makes acceptance an explicit step rather than a formality.
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_ACCEPTED = 'accepted'
+    STATUS_DECLINED = 'declined'
+    STATUS_REVOKED = 'revoked'
+    STATUS_LEFT = 'left'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_ACCEPTED, 'Accepted'),
+        (STATUS_DECLINED, 'Declined'),
+        (STATUS_REVOKED, 'Revoked'),   # the owner removed them
+        (STATUS_LEFT, 'Left'),         # they removed themselves
+    ]
+
+    #: Statuses that still occupy the invite slot for an email on an event.
+    ACTIVE_STATUSES = [STATUS_PENDING, STATUS_ACCEPTED]
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='cohosts')
+
+    # Null until acceptance: an invite can be sent to someone with no account.
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='cohosted_events',
+    )
+    # Canonical form (stripped, lowercased) so the unique constraint below means
+    # what it says and a case difference cannot create a second live invite.
+    invited_email = models.EmailField()
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    #: Capability names from apps.events.capabilities. Stored per row even while
+    #: every co-host gets the same default, so adding a toggle UI later changes
+    #: only what is written here, never how it is enforced.
+    capabilities = models.JSONField(default=list, blank=True)
+
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'event_cohosts'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['event', 'user'],
+                condition=Q(user__isnull=False),
+                name='event_cohost_unique_user_per_event',
+            ),
+            models.UniqueConstraint(
+                fields=['event', 'invited_email'],
+                condition=Q(status__in=['pending', 'accepted']),
+                name='event_cohost_unique_active_email_per_event',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'status'], name='event_cohost_user_status_idx'),
+            models.Index(fields=['event', 'status'], name='event_cohost_event_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.invited_email} on {self.event_id} ({self.status})"
+
+    def clean(self):
+        """
+        The owner may not also be a co-host.
+
+        This cannot be a database CheckConstraint: constraints cannot reference
+        a column on another table, and the owner lives on ``Event``. Enforced
+        here and covered by a test instead.
+        """
+        from django.core.exceptions import ValidationError
+
+        if self.user_id and self.event_id and self.user_id == self.event.host_id:
+            raise ValidationError({'user': "The event owner is already the host and cannot be a co-host."})
+
+    def save(self, *args, **kwargs):
+        if self.invited_email:
+            self.invited_email = self.invited_email.strip().lower()
+        return super().save(*args, **kwargs)
+
+    @property
+    def is_active(self):
+        return self.status == self.STATUS_ACCEPTED
 
 
 class InvitePage(models.Model):

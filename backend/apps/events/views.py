@@ -270,9 +270,24 @@ class EventViewSet(viewsets.ModelViewSet):
             except Exception:
                 return Event.objects.none()
 
+    #: Which capability each default ModelViewSet action needs. Reads are
+    #: implicit, so only the writes appear here; ``destroy`` is absent because
+    #: deleting an event is owner-only and answered by role, never by capability.
+    ACTION_CAPABILITIES = {
+        'update': EDIT_INVITATION,
+        'partial_update': EDIT_INVITATION,
+    }
+
     def get_object(self):
         obj = super().get_object()
-        require_event_access(self.request.user, obj)
+        access = require_event_access(
+            self.request.user, obj, self.ACTION_CAPABILITIES.get(self.action)
+        )
+        # Deleting an event takes the guest list, RSVPs and invite page with it
+        # (Event has no soft delete and Guest.event cascades), so it stays with
+        # the owner regardless of what any co-host has been granted.
+        if self.action == 'destroy' and not access.is_owner:
+            raise PermissionDenied("Only the event host can delete this event.")
         return obj
 
     def get_serializer_class(self):
