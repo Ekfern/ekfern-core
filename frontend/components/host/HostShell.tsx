@@ -449,7 +449,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
               <div className="hidden lg:block mx-4 h-6 w-px shrink-0 bg-gray-200" />
               <>
                 {/* Desktop */}
-                <nav className="hidden lg:flex flex-1 items-center justify-center gap-5 overflow-x-auto scrollbar-none">
+                <nav className="hidden lg:flex flex-1 items-center justify-center gap-5 overflow-x-auto hide-scrollbar">
                   {eventTabItems.map((item) => {
                     const isRoot = item.href === `/host/events/${eventId}`
                     const isActive = isActivePath(pathname, item.href, isRoot)
@@ -497,8 +497,12 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
         </main>
         {/* Mobile Bottom Navigation */}
         {mounted && eventId && eventTabItems.length > 0 && !isMobileDrawerOpen && (
-          <div className="fixed left-1/2 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 -translate-x-1/2 lg:hidden">
-            <div className="flex items-center gap-1 rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-xl">
+          // Anchored to the viewport edges rather than centred on a fixed width:
+          // seven tabs are ~429px, so on any phone the old left-1/2 centring
+          // pushed the first and last tab off both edges with no way to reach
+          // them. Now it centres while it fits and scrolls once it does not.
+          <div className="fixed inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex justify-center lg:hidden">
+            <div className="flex max-w-full items-center gap-1 overflow-x-auto hide-scrollbar rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-xl">
               {eventTabItems.map((item) => {
                 const isRoot = item.href === `/host/events/${eventId}`
                 const isActive = isActivePath(pathname, item.href, isRoot)
@@ -509,7 +513,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex min-w-[44px] min-[360px]:min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-2 transition-colors",
+                      "flex min-w-[44px] shrink-0 min-[360px]:min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-2 transition-colors",
                       isActive
                         ? "bg-eco-green text-white"
                         : "text-gray-600 hover:bg-eco-green-light hover:text-eco-green"
@@ -517,7 +521,7 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
                   >
                     <Icon size={18} />
 
-                    <span className="hidden min-[360px]:block text-[9px] font-medium">
+                    <span className="hidden min-[360px]:block whitespace-nowrap text-[9px] font-medium">
                       {item.label === "Page Editor"
                         ? "Editor"
                         : item.label === "Host Catalog"
