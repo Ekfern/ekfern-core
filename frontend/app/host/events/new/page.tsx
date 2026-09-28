@@ -8,11 +8,45 @@ import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
 import EventDetailsForm, { type EventDetailsFormData } from '@/components/host/EventDetailsForm'
+import CoHostInviteDraft from '@/components/host/CoHostInviteDraft'
+import { inviteCoHost } from '@/lib/cohosts'
 
 export default function NewEventPage() {
   const router = useRouter()
   const { showToast } = useToast()
   const [loading, setLoading] = useState(false)
+  // Collected while the event does not exist yet; sent the moment it does.
+  const [pendingCoHosts, setPendingCoHosts] = useState<string[]>([])
+
+  /**
+   * Send the invites gathered during creation.
+   *
+   * Never allowed to block: by this point the event exists, and stranding the
+   * host on a failed invite would be far worse than the invite not going out.
+   * Anything that fails is named, and can be re-sent from Edit Event Details.
+   */
+  const sendPendingCoHostInvites = async (eventId: number | string) => {
+    if (pendingCoHosts.length === 0) return
+    const failed: string[] = []
+    for (const email of pendingCoHosts) {
+      try {
+        await inviteCoHost(eventId, email)
+      } catch (error) {
+        logError('Co-host invite after event creation failed', error)
+        failed.push(email)
+      }
+    }
+    const sent = pendingCoHosts.length - failed.length
+    if (sent > 0) {
+      showToast(`${sent} co-host invite${sent === 1 ? '' : 's'} sent.`, 'success')
+    }
+    if (failed.length > 0) {
+      showToast(
+        `Couldn't invite ${failed.join(', ')}. Add them from Edit Event Details.`,
+        'error',
+      )
+    }
+  }
 
   const onSubmit = async (data: EventDetailsFormData) => {
     setLoading(true)
@@ -27,6 +61,8 @@ export default function NewEventPage() {
         router.push('/host/dashboard')
         return
       }
+      await sendPendingCoHostInvites(eventId)
+
       if (is_multi_sub_event) {
         logDebug('Event created, navigating to sub-events step:', eventId)
         showToast('Event created! Now add your sub-events.', 'success')
@@ -71,6 +107,8 @@ export default function NewEventPage() {
             </p>
           </CardContent>
         </Card>
+
+        <CoHostInviteDraft value={pendingCoHosts} onChange={setPendingCoHosts} />
       </div>
     </div>
   )

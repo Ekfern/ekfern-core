@@ -25,7 +25,12 @@ from apps.common.email_backend import send_email
 from apps.users.models import User
 
 from .access import get_event_or_404, resolve_event_access
-from .capabilities import DEFAULT_COHOST_CAPABILITIES, MANAGE_COHOSTS, normalize_capabilities
+from .capabilities import (
+    DEFAULT_COHOST_CAPABILITIES,
+    MANAGE_COHOSTS,
+    MAX_COHOSTS_PER_EVENT,
+    normalize_capabilities,
+)
 from .models import Event, EventCoHost
 
 logger = logging.getLogger(__name__)
@@ -127,6 +132,20 @@ def event_cohosts(request, event_id):
         if capabilities is not None
         else list(DEFAULT_COHOST_CAPABILITIES)
     )
+
+    active = EventCoHost.objects.filter(
+        event=event, status__in=EventCoHost.ACTIVE_STATUSES
+    )
+    if active.count() >= MAX_COHOSTS_PER_EVENT:
+        return Response(
+            {
+                'error': (
+                    f'An event can have up to {MAX_COHOSTS_PER_EVENT} co-hosts. '
+                    'Remove someone, or cancel a pending invite, to add another.'
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
 
     # Explicit check so the caller gets a useful message. The partial unique
     # constraint stays as the backstop for two invites racing each other.

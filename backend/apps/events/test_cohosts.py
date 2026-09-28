@@ -9,6 +9,7 @@ from apps.users.models import User
 from .access import ROLE_COHOST, ROLE_OWNER, resolve_event_access
 from .capabilities import (
     DELETE_EVENT,
+    MAX_COHOSTS_PER_EVENT,
     EDIT_INVITATION,
     MANAGE_COHOSTS,
     MANAGE_GUESTS,
@@ -356,3 +357,49 @@ class CoHostDefaultViewSetActionTests(TestCase):
         self.assertEqual(self.client.get(self.url).status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(self.client.delete(self.url).status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(Event.objects.filter(id=self.event.id).exists())
+
+
+class CoHostLimitTests(TestCase):
+    """At most MAX_COHOSTS_PER_EVENT people may hold access to one event."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.owner = User.objects.create_user(email='l-owner@test.com', name='Owner')
+        self.event = Event.objects.create(host=self.owner, slug='l-event', title='Limit Event')
+        self.url = f'/api/events/{self.event.id}/cohosts/'
+        self.client.force_authenticate(user=self.owner)
+
+    def invite(self, email):
+        return self.client.post(self.url, {'email': email}, format='json')
+
+    def fill_to_limit(self, status_value=EventCoHost.STATUS_PENDING):
+        for i in range(MAX_COHOSTS_PER_EVENT):
+            EventCoHost.objects.create(
+                event=self.event, invited_email=f'filler{i}@test.com', status=status_value,
+            )
+
+    def test_invites_are_refused_at_the_limit(self):
+        self.fill_to_limit()
+        response = self.invite('one-too-many@test.com')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn(str(MAX_COHOSTS_PER_EVENT), response.json()['error'])
+
+    def test_accepted_cohosts_count_towards_the_limit(self):
+        self.fill_to_limit(EventCoHost.STATUS_ACCEPTED)
+        self.assertEqual(self.invite('nope@test.com').status_code, status.HTTP_409_CONFLICT)
+
+    def test_declined_and_revoked_invites_free_a_slot(self):
+        # The limit is on who can hold access, not on how many times you may ask.
+        self.fill_to_limit()
+        EventCoHost.objects.filter(invited_email='filler0@test.com').update(
+            status=EventCoHost.STATUS_DECLINED
+        )
+        self.assertEqual(self.invite('replacement@test.com').status_code, status.HTTP_201_CREATED)
+
+    def test_up_to_the_limit_is_allowed(self):
+        for i in range(MAX_COHOSTS_PER_EVENT):
+            self.assertEqual(
+                self.invite(f'ok{i}@test.com').status_code,
+                status.HTTP_201_CREATED,
+                f'invite {i + 1} should be allowed',
+            )

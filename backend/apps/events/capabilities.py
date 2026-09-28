@@ -32,6 +32,12 @@ ALL_CAPABILITIES = frozenset({
 DEFAULT_COHOST_CAPABILITIES = sorted(ALL_CAPABILITIES)
 
 
+#: How many people may hold access to one event at a time. Counted over active
+#: invites (pending + accepted), so a declined or cancelled invite frees a slot -
+#: the limit is on how many can hold access, not how many times you may ask.
+MAX_COHOSTS_PER_EVENT = 5
+
+
 # --- Owner-only actions (never grantable) -----------------------------------
 
 DELETE_EVENT = 'delete_event'
