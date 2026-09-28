@@ -29,6 +29,7 @@ import Logo from '@/components/Logo'
 import { TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
+import OverflowNav from '@/components/host/OverflowNav'
 
 const AUTH_ROUTES = new Set([
   '/host/login',
@@ -146,6 +147,17 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
     { href: '/host/events/new', label: 'Create Event', icon: PlusCircle },
     { href: '/host/profile', label: 'Profile', icon: User },
   ], [])
+
+  // Labels appear from xl up, as before; below that the icons alone fit more
+  // tabs inline before anything has to move into the More menu.
+  const [showTabLabels, setShowTabLabels] = useState(true)
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1280px)')
+    const sync = () => setShowTabLabels(query.matches)
+    sync()
+    query.addEventListener('change', sync)
+    return () => query.removeEventListener('change', sync)
+  }, [])
 
   const eventTabItems = useMemo(() => {
     if (!eventId) return []
@@ -449,31 +461,21 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
               <div className="hidden lg:block mx-4 h-6 w-px shrink-0 bg-gray-200" />
               <>
                 {/* Desktop */}
-                <nav className="hidden lg:flex flex-1 items-center justify-center gap-5 overflow-x-auto hide-scrollbar">
-                  {eventTabItems.map((item) => {
-                    const isRoot = item.href === `/host/events/${eventId}`
-                    const isActive = isActivePath(pathname, item.href, isRoot)
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-all",
-                          isActive
-                            ? "bg-eco-green text-white"
-                            : "text-gray-600 hover:bg-eco-green-light hover:text-eco-green"
-                        )}
-                      >
-                        <item.icon size={18} />
-
-                        <span className="hidden xl:inline">
-                          {item.label}
-                        </span>
-                      </Link>
-                    )
-                  })}
-                </nav>
+                <div className="hidden min-w-0 flex-1 lg:flex">
+                  <OverflowNav
+                    showLabels={showTabLabels}
+                    items={eventTabItems.map((item) => ({
+                      href: item.href,
+                      label: item.label,
+                      icon: item.icon,
+                      isActive: isActivePath(
+                        pathname,
+                        item.href,
+                        item.href === `/host/events/${eventId}`,
+                      ),
+                    }))}
+                  />
+                </div>
               </>
             </div>
           </div>
