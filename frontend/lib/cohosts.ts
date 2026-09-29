@@ -41,6 +41,13 @@ export interface CoHostInviteDetail {
   account_exists: boolean
 }
 
+/**
+ * How many people may hold access to one event at a time. Mirrors
+ * MAX_COHOSTS_PER_EVENT in apps/events/capabilities.py — the server is the real
+ * limit; this only keeps the UI from offering what will be refused.
+ */
+export const MAX_COHOSTS_PER_EVENT = 5
+
 export const CAPABILITY_LABELS: Record<CoHostCapability, string> = {
   manage_guests: 'Manage guests',
   send_messages: 'Send messages',
