@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -49,6 +50,12 @@ interface EventDetailsFormProps {
   cancelLabel?: string
   /** Show the single-event vs multiple-sub-events fork (creation flow only). */
   showStructureChoice?: boolean
+  /**
+   * Extra section placed just above Cancel / Next, so a host passes it before
+   * leaving the page (the create flow's co-host invites). Anything here sits
+   * inside this <form>: it must not render a form of its own.
+   */
+  beforeActions?: ReactNode
 }
 
 export default function EventDetailsForm({
@@ -59,6 +66,7 @@ export default function EventDetailsForm({
   onCancel,
   cancelLabel = 'Cancel',
   showStructureChoice = false,
+  beforeActions,
 }: EventDetailsFormProps) {
   const {
     register,
@@ -260,6 +268,8 @@ export default function EventDetailsForm({
           </span>
         </label>
       </div>
+
+      {beforeActions}
 
       <div className="flex gap-2 pt-4">
         {onCancel && (
