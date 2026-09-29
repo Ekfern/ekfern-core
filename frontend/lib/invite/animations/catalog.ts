@@ -19,7 +19,14 @@ export const OPENING_ANIMATIONS: AnimationCatalogEntry[] = [
     description: 'Velvet curtains part from the center to reveal the invite',
     slot: 'opening',
   },
+  {
+    id: 'opening_door',
+    label: 'Opening Door',
+    description: 'A grand door opens to reveal the invitation',
+    slot: 'opening',
+  },
 ]
+  
 
 export const EXPERIENCE_ANIMATIONS: AnimationCatalogEntry[] = [
   {
