@@ -42,6 +42,7 @@ import {
   useInvitePreviewAnimationState,
 } from '@/components/invite/InviteMobileAnimationPreview'
 import DesignHistoryPanel from '@/components/host/DesignHistoryPanel'
+import { previewDescriptionFromHtml } from '@/lib/invite/previewText'
 
 interface Event {
   id: number
@@ -1598,7 +1599,7 @@ export default function DesignInvitationPage(): JSX.Element {
     if (descSource === 'custom' && config.linkMetadata?.description) return config.linkMetadata.description
     if (descSource === 'auto' || !config.linkMetadata?.description) {
       const descTile = config.tiles?.find((t: any) => t.type === 'description' && t.settings?.content) as any
-      return descTile?.settings?.content?.replace(/<[^>]*>/g, '').substring(0, 100) || ''
+      return descTile?.settings?.content ? previewDescriptionFromHtml(descTile.settings.content) : ''
     }
     return config.linkMetadata?.description || ''
   })()
