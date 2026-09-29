@@ -41,6 +41,8 @@ import {
   PlayOpeningButton,
   useInvitePreviewAnimationState,
 } from '@/components/invite/InviteMobileAnimationPreview'
+import DesignHistoryPanel from '@/components/host/DesignHistoryPanel'
+import { previewDescriptionFromHtml } from '@/lib/invite/previewText'
 
 interface Event {
   id: number
@@ -238,6 +240,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const [allowedSubEvents, setAllowedSubEvents] = useState<any[]>([])
   // Auto-save status shown in the toolbar chip
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [historyOpen, setHistoryOpen] = useState(false)
   // Snapshot of the published config, used to gate Publish and badge changed tiles
   const [publishedBaseline, setPublishedBaseline] = useState<InviteConfig | null>(null)
   // Which publish flow the modal should show
@@ -1596,7 +1599,7 @@ export default function DesignInvitationPage(): JSX.Element {
     if (descSource === 'custom' && config.linkMetadata?.description) return config.linkMetadata.description
     if (descSource === 'auto' || !config.linkMetadata?.description) {
       const descTile = config.tiles?.find((t: any) => t.type === 'description' && t.settings?.content) as any
-      return descTile?.settings?.content?.replace(/<[^>]*>/g, '').substring(0, 100) || ''
+      return descTile?.settings?.content ? previewDescriptionFromHtml(descTile.settings.content) : ''
     }
     return config.linkMetadata?.description || ''
   })()
@@ -1687,6 +1690,17 @@ export default function DesignInvitationPage(): JSX.Element {
                   </motion.button>
                 )}
               </AnimatePresence>
+
+              {/* Deliberately quiet: same size and colour as the save chip, no
+                  badge and no accent. It is there when wanted and ignorable
+                  otherwise. */}
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(true)}
+                className="hidden text-xs text-gray-400 underline-offset-2 hover:text-gray-600 hover:underline sm:inline"
+              >
+                History
+              </button>
 
               {/* Publish status badge */}
               {invitePage?.is_published ? (
@@ -2546,6 +2560,11 @@ export default function DesignInvitationPage(): JSX.Element {
           }}
         />
       )}
+      <DesignHistoryPanel
+        eventId={eventId}
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   )
 }

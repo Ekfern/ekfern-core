@@ -7,19 +7,26 @@ logger = logging.getLogger(__name__)
 
 def send_catalog_response_notification(response):
     """
-    Send receipt to guest and alert to host (respects host notification preferences).
+    Send receipt to guest and alert to the host and subscribed co-hosts
+    (each respects their own notification preferences).
     Mirrors the pattern from the legacy send_order_emails().
     """
     item = response.catalog_item
     event = response.event
-    host = event.host
 
     # Guest receipt — skip for external_click (no form submitted)
     if response.response_type != 'external_click' and response.email:
         _send_guest_receipt(response, item, event)
 
-    # Host alert — controlled by gift_received preference
-    _send_host_alert(response, item, event, host)
+    # Host alerts: the owner plus co-hosts who have catalog emails on, each
+    # controlled by their own gift_received preference.
+    from apps.events.capabilities import NOTIFY_CATALOG_RESPONSE
+    from apps.events.recipients import notification_recipients
+    for recipient in notification_recipients(event, NOTIFY_CATALOG_RESPONSE):
+        try:
+            _send_host_alert(response, item, event, recipient)
+        except Exception as e:
+            logger.warning(f'Catalog alert failed for user {recipient.id}: {e}')
 
 
 def _send_guest_receipt(response, item, event):

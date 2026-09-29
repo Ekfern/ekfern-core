@@ -32,6 +32,7 @@ from .config_guards import (
     collect_oversized_data_uris,
     find_oversized_data_uris,
 )
+from .design_history import record_event_version
 from .capabilities import (
     EDIT_CATALOG, EDIT_INVITATION, EDIT_RSVP, MANAGE_GUESTS, SEND_MESSAGES,
 )
@@ -307,6 +308,15 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(host=self.request.user)
+
+    def perform_update(self, serializer):
+        """Record details edits in the same timeline as design edits.
+
+        A host does not think of "changed the date" and "changed the colours" as
+        belonging to different histories, so both are snapshotted here.
+        """
+        event = serializer.save()
+        record_event_version(event, saved_by=self.request.user)
 
     def _verify_event_ownership(self, event, capability=None):
         """
@@ -1155,6 +1165,10 @@ class EventViewSet(viewsets.ModelViewSet):
             # Update event's page_config
             event.page_config = merged_config
             event.save(update_fields=['page_config', 'updated_at'])
+
+            # Snapshot after the write, so history only ever holds state that
+            # was actually stored.
+            record_event_version(event, saved_by=request.user)
 
             # Sync to InvitePage if it exists, or create one
             invite_page_created = False
@@ -2642,8 +2656,21 @@ def _notify_host_rsvp(event, rsvp):
         except Exception as e:
             logger.warning(f"Failed to send RSVP confirmation to guest {rsvp.email}: {e}")
 
-    # --- Host notification (controlled by preferences) ---
-    host = event.host
+    # --- Host notifications: the owner plus co-hosts who have RSVP emails on,
+    # each at the frequency they chose for themselves ---
+    from .capabilities import NOTIFY_RSVP_NEW
+    from .recipients import notification_recipients
+    for recipient in notification_recipients(event, NOTIFY_RSVP_NEW):
+        # One recipient's failure must not cost the others their alert, nor
+        # the guest their RSVP.
+        try:
+            _notify_rsvp_recipient(event, rsvp, recipient)
+        except Exception as e:
+            logger.warning(f"RSVP notification failed for user {recipient.id}: {e}")
+
+
+def _notify_rsvp_recipient(event, rsvp, host):
+    """One RSVP alert to one host or co-host, at their own chosen frequency."""
     prefs = getattr(host, 'notification_preferences', None)
     freq = prefs.rsvp_new if prefs else 'immediately'
 

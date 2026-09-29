@@ -5,6 +5,7 @@ import { InviteConfig } from '@/lib/invite/schema'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { AppearanceProvider } from './AppearanceProvider'
 import { resolveAppearance } from '@/lib/invite/appearance'
+import { pageTopInset } from '@/lib/invite/pageEdges'
 import TilePreview from '@/components/invite/tiles/TilePreview'
 import ScrollIndicator from '@/components/invite/ScrollIndicator'
 import TextureOverlay from './TextureOverlay'
@@ -148,7 +149,10 @@ function InviteRendererContent({
       {/* The gap is a token, not a class, so the editor preview and this page
           cannot drift apart again. --space-section resolves to the same
           16 / 32 / 48px these classes produced. */}
-      <div className="flex flex-col" style={{ gap: 'var(--space-section)' }}>
+      <div
+        className="flex flex-col"
+        style={{ gap: 'var(--space-section)', paddingTop: pageTopInset(sortedTiles[0]?.type) }}
+      >
         {sortedTiles.map((tile) => {
           const tileEl = ssrTiles?.[tile.id] ?? <TilePreview tile={tile} {...sharedProps} />
 

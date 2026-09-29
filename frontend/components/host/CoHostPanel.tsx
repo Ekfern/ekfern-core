@@ -1,28 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Trash2, UserPlus } from 'lucide-react'
+import { UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import {
-  CAPABILITY_LABELS,
   inviteCoHost,
   listCoHosts,
+  MAX_COHOSTS_PER_EVENT,
   removeCoHost,
+  updateCoHost,
   type CoHost,
+  type CoHostCapability,
+  type CoHostNotification,
 } from '@/lib/cohosts'
-
-/** Statuses worth showing the host. A finished invite stays visible as history. */
-const STATUS_LABELS: Record<CoHost['status'], string> = {
-  pending: 'Invited — waiting for them to accept',
-  accepted: 'Co-host',
-  declined: 'Declined the invite',
-  revoked: 'Removed',
-  left: 'Left the event',
-}
+import { coHostChips, type CoHostChipModel } from '@/lib/cohostChips'
+import CoHostChipRow from '@/components/host/CoHostChips'
+import CoHostSettings from '@/components/host/CoHostSettings'
 
 export interface CoHostPanelProps {
   eventId: number | string
@@ -37,6 +34,8 @@ export default function CoHostPanel({ eventId, canManage }: CoHostPanelProps) {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState<CoHost | null>(null)
+  const [openId, setOpenId] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -55,8 +54,11 @@ export default function CoHostPanel({ eventId, canManage }: CoHostPanelProps) {
 
   if (!canManage) return null
 
+  // Only active invites occupy a slot, matching how the server counts them.
   const active = coHosts.filter((c) => c.status === 'pending' || c.status === 'accepted')
-  const past = coHosts.filter((c) => c.status !== 'pending' && c.status !== 'accepted')
+  const atLimit = active.length >= MAX_COHOSTS_PER_EVENT
+  const chips = coHostChips(coHosts)
+  const openCoHost = coHosts.find((c) => c.id === openId && c.status === 'accepted') ?? null
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,11 +78,55 @@ export default function CoHostPanel({ eventId, canManage }: CoHostPanelProps) {
     }
   }
 
+  const removeChip = async (chip: CoHostChipModel) => {
+    const target = coHosts.find((c) => c.id === chip.coHostId)
+    if (!target) return
+    if (chip.removal !== 'instant') {
+      // Someone would lose something - an open invite or their access - so ask.
+      setPendingRemoval(target)
+      return
+    }
+    // Declined or left: nobody loses anything, it only clears the list.
+    setBusy(true)
+    try {
+      await removeCoHost(eventId, target.id)
+      await load()
+    } catch (err: any) {
+      logError('Clearing co-host failed', err)
+      showToast(err?.response?.data?.error || getErrorMessage(err), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Saves one switch. Shown flipped at once; flipped back if the save fails. */
+  const saveSettings = async (
+    target: CoHost,
+    changes: { capabilities?: CoHostCapability[]; notifications?: CoHostNotification[] },
+  ) => {
+    setCoHosts((rows) => rows.map((c) => (c.id === target.id ? { ...c, ...changes } : c)))
+    setSaving(true)
+    try {
+      const saved = await updateCoHost(eventId, target.id, changes)
+      setCoHosts((rows) => rows.map((c) => (c.id === saved.id ? saved : c)))
+    } catch (err: any) {
+      logError('Co-host settings update failed', err)
+      setCoHosts((rows) => rows.map((c) => (c.id === target.id ? target : c)))
+      showToast(err?.response?.data?.error || 'Could not save that change. Try again.', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleIn = <T,>(list: T[], item: T, on: boolean): T[] =>
+    on ? Array.from(new Set([...list, item])) : list.filter((x) => x !== item)
+
   const confirmRemoval = async () => {
     if (!pendingRemoval) return
     setBusy(true)
     try {
       await removeCoHost(eventId, pendingRemoval.id)
+      if (openId === pendingRemoval.id) setOpenId(null)
       await load()
       showToast(
         pendingRemoval.status === 'pending' ? 'Invite cancelled.' : 'Co-host removed.',
@@ -113,59 +159,45 @@ export default function CoHostPanel({ eventId, canManage }: CoHostPanelProps) {
             placeholder="their@email.com"
             aria-label="Co-host email address"
             className="flex-1"
-            disabled={busy}
+            disabled={busy || atLimit}
           />
-          <Button type="submit" disabled={busy || !email.trim()} className="gap-2 bg-eco-green hover:bg-eco-green-dark text-white">
+          <Button type="submit" disabled={busy || atLimit || !email.trim()} className="gap-2 bg-eco-green hover:bg-eco-green-dark text-white">
             <UserPlus size={16} />
             {busy ? 'Sending…' : 'Send invite'}
           </Button>
         </form>
         <p className="text-xs text-gray-500 -mt-4">
-          They will get an email and must accept before they can see anything.
+          {atLimit
+            ? `That's the maximum of ${MAX_COHOSTS_PER_EVENT} co-hosts. Remove someone, or cancel a pending invite, to add another.`
+            : 'They will get an email and must accept before they can see anything.'}
         </p>
 
         {loading ? (
           <p className="text-sm text-gray-500">Loading…</p>
-        ) : active.length === 0 && past.length === 0 ? (
+        ) : chips.length === 0 ? (
           <p className="text-sm text-gray-500">No co-hosts yet.</p>
         ) : (
-          <div className="space-y-2">
-            {[...active, ...past].map((c) => {
-              const isPast = c.status !== 'pending' && c.status !== 'accepted'
-              return (
-                <div
-                  key={c.id}
-                  className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 ${
-                    isPast ? 'opacity-60' : ''
-                  }`}
-                >
-                  <div className="min-w-0">
-                    {/* A pending row has no name because it has no account yet. */}
-                    <p className="font-medium text-sm truncate">{c.name || c.email}</p>
-                    {c.name ? <p className="text-xs text-gray-500 truncate">{c.email}</p> : null}
-                    <p className="text-xs text-gray-600 mt-0.5">{STATUS_LABELS[c.status]}</p>
-                    {c.status === 'accepted' && c.capabilities.length > 0 ? (
-                      <p className="text-xs text-gray-500 mt-1">
-                        {c.capabilities.map((cap) => CAPABILITY_LABELS[cap] ?? cap).join(' · ')}
-                      </p>
-                    ) : null}
-                  </div>
-                  {!isPast ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => setPendingRemoval(c)}
-                      className="gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                    >
-                      <Trash2 size={14} />
-                      {c.status === 'pending' ? 'Cancel' : 'Remove'}
-                    </Button>
-                  ) : null}
-                </div>
-              )
-            })}
+          <div className="space-y-3">
+            <CoHostChipRow
+              chips={chips}
+              disabled={busy}
+              onRemove={removeChip}
+              openKey={openCoHost ? `cohost:${openCoHost.id}` : null}
+              onOpen={(chip) => setOpenId((id) => (id === chip.coHostId ? null : chip.coHostId ?? null))}
+            />
+            {openCoHost ? (
+              <CoHostSettings
+                coHost={openCoHost}
+                saving={saving}
+                onClose={() => setOpenId(null)}
+                onCapabilityChange={(cap, on) =>
+                  saveSettings(openCoHost, { capabilities: toggleIn(openCoHost.capabilities, cap, on) })
+                }
+                onNotificationChange={(n, on) =>
+                  saveSettings(openCoHost, { notifications: toggleIn(openCoHost.notifications, n, on) })
+                }
+              />
+            ) : null}
           </div>
         )}
       </CardContent>
@@ -188,8 +220,9 @@ export default function CoHostPanel({ eventId, canManage }: CoHostPanelProps) {
                 </>
               ) : (
                 <>
-                  <strong>{pendingRemoval.name || pendingRemoval.email}</strong> will lose access to
-                  this event immediately. Anything they already changed stays as it is.
+                  <strong>{pendingRemoval.name || pendingRemoval.email}</strong>
+                  {pendingRemoval.name ? ` (${pendingRemoval.email})` : ''} will lose access to this
+                  event immediately. Anything they already changed stays as it is.
                 </>
               )}
             </p>
