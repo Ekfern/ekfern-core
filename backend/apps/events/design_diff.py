@@ -49,6 +49,8 @@ NAMED_TILE_FIELDS = {
     'location': 'location',
     'date': 'date',
     'time': 'time',
+    'endTime': 'end time',
+    'repeats': 'repeats',
     'dressCode': 'dress code',
     'imageUrl': 'image',
     'label': 'label',
