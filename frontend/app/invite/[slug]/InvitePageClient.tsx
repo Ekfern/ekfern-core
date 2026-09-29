@@ -829,7 +829,12 @@ export default function InvitePageClient({
           style={{
             overflowX: 'clip',
             background: pageBackground,
-            minHeight: 'auto',
+            // Fill at least the visible screen so a short invite's background
+            // does not stop halfway down and restart below as the body's copy of
+            // the gradient. svh is the screen with the browser bars showing, so
+            // it never forces the extra scroll that plain 100vh did on phones
+            // (see cb22817). Browsers without svh keep the old `auto`.
+            minHeight: '100svh',
             height: 'auto',
             '--space-section': pageRhythm,
           } as React.CSSProperties}
