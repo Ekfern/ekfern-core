@@ -473,7 +473,13 @@ class EventCoHost(models.Model):
     #: only what is written here, never how it is enforced.
     capabilities = models.JSONField(default=list, blank=True)
 
+    #: Notification names from apps.events.capabilities (NOTIFY_*): which host
+    #: emails this co-host also receives. Separate from ``capabilities`` because
+    #: it grants nothing - it only adds them to a mailing.
+    notifications = models.JSONField(default=list, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+    left_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

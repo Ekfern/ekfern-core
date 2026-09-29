@@ -27,6 +27,11 @@ from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
 from .access import get_event_or_404, require_event_access, resolve_event_access
+from .config_guards import (
+    MESSAGE as CONFIG_GUARD_MESSAGE,
+    collect_oversized_data_uris,
+    find_oversized_data_uris,
+)
 from .design_history import record_event_version
 from .capabilities import (
     EDIT_CATALOG, EDIT_INVITATION, EDIT_RSVP, MANAGE_GUESTS, SEND_MESSAGES,
@@ -1130,6 +1135,21 @@ class EventViewSet(viewsets.ModelViewSet):
                 return Response(
                     {'error': 'page_config is required'},
                     status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Compare against what is already stored so a legacy config can still
+            # be saved; only newly embedded images are refused.
+            oversized = find_oversized_data_uris(
+                page_config, existing=collect_oversized_data_uris(event.page_config)
+            )
+            if oversized:
+                logger.warning(
+                    '[Design] rejected embedded image data for event %s: %s',
+                    event.id, ', '.join(oversized),
+                )
+                return Response(
+                    {'error': CONFIG_GUARD_MESSAGE, 'fields': oversized},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Shallow-merge onto the existing draft rather than replacing it
@@ -2636,8 +2656,21 @@ def _notify_host_rsvp(event, rsvp):
         except Exception as e:
             logger.warning(f"Failed to send RSVP confirmation to guest {rsvp.email}: {e}")
 
-    # --- Host notification (controlled by preferences) ---
-    host = event.host
+    # --- Host notifications: the owner plus co-hosts who have RSVP emails on,
+    # each at the frequency they chose for themselves ---
+    from .capabilities import NOTIFY_RSVP_NEW
+    from .recipients import notification_recipients
+    for recipient in notification_recipients(event, NOTIFY_RSVP_NEW):
+        # One recipient's failure must not cost the others their alert, nor
+        # the guest their RSVP.
+        try:
+            _notify_rsvp_recipient(event, rsvp, recipient)
+        except Exception as e:
+            logger.warning(f"RSVP notification failed for user {recipient.id}: {e}")
+
+
+def _notify_rsvp_recipient(event, rsvp, host):
+    """One RSVP alert to one host or co-host, at their own chosen frequency."""
     prefs = getattr(host, 'notification_preferences', None)
     freq = prefs.rsvp_new if prefs else 'immediately'
 

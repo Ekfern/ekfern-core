@@ -27,9 +27,11 @@ from apps.users.models import User
 from .access import get_event_or_404, resolve_event_access
 from .capabilities import (
     DEFAULT_COHOST_CAPABILITIES,
+    DEFAULT_COHOST_NOTIFICATIONS,
     MANAGE_COHOSTS,
     MAX_COHOSTS_PER_EVENT,
     normalize_capabilities,
+    normalize_notifications,
 )
 from .models import Event, EventCoHost
 
@@ -77,7 +79,10 @@ def serialize_cohost(cohost: EventCoHost) -> dict:
         'name': cohost.user.name if cohost.user_id else None,
         'status': cohost.status,
         'capabilities': cohost.capabilities,
+        'notifications': cohost.notifications,
         'accepted_at': cohost.accepted_at,
+        'declined_at': cohost.declined_at,
+        'left_at': cohost.left_at,
         'created_at': cohost.created_at,
     }
 
@@ -171,6 +176,7 @@ def event_cohosts(request, event_id):
                 user=existing_user,
                 invited_email=email,
                 capabilities=capabilities,
+                notifications=list(DEFAULT_COHOST_NOTIFICATIONS),
                 status=EventCoHost.STATUS_PENDING,
             )
             cohost.full_clean(exclude=['accepted_at'])
@@ -187,17 +193,61 @@ def event_cohosts(request, event_id):
     return Response(serialize_cohost(cohost), status=status.HTTP_201_CREATED)
 
 
-@api_view(['DELETE'])
+@api_view(['PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def event_cohost_detail(request, event_id, cohost_id):
-    """Revoke a co-host or cancel a pending invite. Owner only."""
+    """
+    PATCH: change what a co-host may do and which emails they get.
+    DELETE: revoke a co-host, cancel a pending invite, or clear a finished one
+    (declined or left) from the owner's list. Owner only.
+    """
     event = get_event_or_404(request.user, event_id, MANAGE_COHOSTS)
-    cohost = EventCoHost.objects.filter(event=event, id=cohost_id).first()
+    cohost = EventCoHost.objects.filter(event=event, id=cohost_id).select_related('user').first()
     if cohost is None:
         return Response({'error': 'Co-host not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    if request.method == 'PATCH':
+        return _update_cohost(request, cohost)
+
     cohost.status = EventCoHost.STATUS_REVOKED
     cohost.save(update_fields=['status', 'updated_at'])
+    return Response(serialize_cohost(cohost))
+
+
+def _update_cohost(request, cohost: EventCoHost) -> Response:
+    """
+    Only ``capabilities`` and ``notifications`` can change, and only on an
+    active invite: a finished one grants nothing and is sent nothing, so
+    settings on it would be a promise nobody keeps.
+    """
+    if cohost.status not in EventCoHost.ACTIVE_STATUSES:
+        return Response(
+            {'error': 'This person is no longer a co-host on this event.'},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    fields = []
+    for key, normalize in (
+        ('capabilities', normalize_capabilities),
+        ('notifications', normalize_notifications),
+    ):
+        if key not in request.data:
+            continue
+        value = request.data.get(key)
+        if not isinstance(value, list):
+            return Response(
+                {'error': f'{key} must be a list.'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        setattr(cohost, key, normalize(value))
+        fields.append(key)
+
+    if not fields:
+        return Response(
+            {'error': 'Nothing to update. Send capabilities and/or notifications.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    cohost.save(update_fields=[*fields, 'updated_at'])
     return Response(serialize_cohost(cohost))
 
 
@@ -218,7 +268,8 @@ def leave_event(request, event_id):
         )
 
     cohost.status = EventCoHost.STATUS_LEFT
-    cohost.save(update_fields=['status', 'updated_at'])
+    cohost.left_at = timezone.now()
+    cohost.save(update_fields=['status', 'left_at', 'updated_at'])
     return Response({'status': cohost.status})
 
 
@@ -327,7 +378,8 @@ def decline_cohost_invite(request, token):
         )
 
     cohost.status = EventCoHost.STATUS_DECLINED
-    cohost.save(update_fields=['status', 'updated_at'])
+    cohost.declined_at = timezone.now()
+    cohost.save(update_fields=['status', 'declined_at', 'updated_at'])
     return Response({'status': cohost.status})
 
 

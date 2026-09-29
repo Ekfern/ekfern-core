@@ -102,6 +102,7 @@ export default function NewEventPage() {
               loading={loading}
               onCancel={() => router.back()}
               showStructureChoice
+              beforeActions={<CoHostInviteDraft value={pendingCoHosts} onChange={setPendingCoHosts} />}
             />
             <p className="text-sm text-center text-gray-600 mt-4">
               You can enable RSVP or Registry later from your Dashboard.
@@ -109,7 +110,6 @@ export default function NewEventPage() {
           </CardContent>
         </Card>
 
-        <CoHostInviteDraft value={pendingCoHosts} onChange={setPendingCoHosts} />
       </div>
     </div>
   )
