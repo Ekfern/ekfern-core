@@ -8,7 +8,11 @@ from apps.users.models import User
 
 from .access import ROLE_COHOST, ROLE_OWNER, resolve_event_access
 from .capabilities import (
+    ALL_CAPABILITIES,
+    ALL_NOTIFICATIONS,
     DELETE_EVENT,
+    NOTIFY_CATALOG_RESPONSE,
+    NOTIFY_RSVP_NEW,
     MAX_COHOSTS_PER_EVENT,
     EDIT_INVITATION,
     MANAGE_COHOSTS,
@@ -17,6 +21,7 @@ from .capabilities import (
 )
 from .cohost_views import issue_invite_token
 from .models import Event, EventCoHost
+from .recipients import notification_recipients
 
 
 def accepted_cohost(event, user, capabilities=None):
@@ -411,3 +416,190 @@ class CoHostLimitTests(TestCase):
                 status.HTTP_201_CREATED,
                 f'invite {i + 1} should be allowed',
             )
+
+
+class CoHostSettingsUpdateTests(TestCase):
+    """The owner changes what a co-host may do and which emails they get."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.owner = User.objects.create_user(email='u-owner@test.com', name='Owner')
+        self.cohost = User.objects.create_user(email='u-cohost@test.com', name='Co')
+        self.event = Event.objects.create(host=self.owner, slug='u-event', title='Update Event')
+        self.row = accepted_cohost(self.event, self.cohost, [MANAGE_GUESTS, SEND_MESSAGES])
+        self.url = f'/api/events/{self.event.id}/cohosts/{self.row.id}/'
+        self.client.force_authenticate(user=self.owner)
+
+    def test_owner_turns_a_capability_off_and_it_is_enforced(self):
+        response = self.client.patch(self.url, {'capabilities': [MANAGE_GUESTS]}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['capabilities'], [MANAGE_GUESTS])
+        access = resolve_event_access(self.cohost, self.event)
+        self.assertTrue(access.can(MANAGE_GUESTS))
+        self.assertFalse(access.can(SEND_MESSAGES))
+
+    def test_unknown_and_owner_only_names_are_dropped(self):
+        response = self.client.patch(
+            self.url,
+            {'capabilities': [EDIT_INVITATION, DELETE_EVENT, 'bogus'], 'notifications': [NOTIFY_RSVP_NEW, 'bogus']},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['capabilities'], [EDIT_INVITATION])
+        self.assertEqual(response.data['notifications'], [NOTIFY_RSVP_NEW])
+
+    def test_every_capability_can_be_turned_off(self):
+        response = self.client.patch(self.url, {'capabilities': []}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['capabilities'], [])
+        # Still a co-host who can see the event, just not change it.
+        self.assertTrue(resolve_event_access(self.cohost, self.event).has_access)
+
+    def test_notifications_update_alone_leaves_capabilities(self):
+        response = self.client.patch(self.url, {'notifications': []}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.notifications, [])
+        self.assertEqual(self.row.capabilities, [MANAGE_GUESTS, SEND_MESSAGES])
+
+    def test_non_list_is_rejected(self):
+        response = self.client.patch(self.url, {'capabilities': 'manage_guests'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_empty_body_is_rejected(self):
+        response = self.client.patch(self.url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_finished_invite_cannot_be_changed(self):
+        self.row.status = EventCoHost.STATUS_LEFT
+        self.row.save()
+        response = self.client.patch(self.url, {'capabilities': []}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_cohost_cannot_change_their_own_settings(self):
+        self.client.force_authenticate(user=self.cohost)
+        response = self.client.patch(self.url, {'capabilities': list(ALL_CAPABILITIES)}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class CoHostDatesAndDefaultsTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.owner = User.objects.create_user(email='d-owner@test.com', name='Owner')
+        self.cohost = User.objects.create_user(email='d-cohost@test.com', name='Co')
+        self.event = Event.objects.create(host=self.owner, slug='d-event', title='Dates Event')
+
+    def test_new_invite_has_every_notification_on(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(
+            f'/api/events/{self.event.id}/cohosts/', {'email': 'new@test.com'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['notifications'], sorted(ALL_NOTIFICATIONS))
+
+    def test_leaving_records_when(self):
+        row = accepted_cohost(self.event, self.cohost)
+        self.client.force_authenticate(user=self.cohost)
+        self.client.post(f'/api/events/{self.event.id}/cohosts/leave/')
+        row.refresh_from_db()
+        self.assertIsNotNone(row.left_at)
+
+    def test_declining_records_when(self):
+        row = EventCoHost.objects.create(
+            event=self.event, user=self.cohost, invited_email=self.cohost.email,
+            status=EventCoHost.STATUS_PENDING,
+        )
+        self.client.force_authenticate(user=self.cohost)
+        response = self.client.post(f'/api/events/cohost-invites/{issue_invite_token(row)}/decline/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row.refresh_from_db()
+        self.assertIsNotNone(row.declined_at)
+
+    def test_owner_can_clear_a_declined_invite(self):
+        row = EventCoHost.objects.create(
+            event=self.event, invited_email='gone@test.com', status=EventCoHost.STATUS_DECLINED,
+        )
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.delete(f'/api/events/{self.event.id}/cohosts/{row.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row.refresh_from_db()
+        self.assertEqual(row.status, EventCoHost.STATUS_REVOKED)
+
+
+class CoHostNotificationRecipientTests(TestCase):
+    """Who is emailed: the owner always, accepted co-hosts only for what they have on."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(email='n-owner@test.com', name='Owner')
+        self.on = User.objects.create_user(email='n-on@test.com', name='On')
+        self.off = User.objects.create_user(email='n-off@test.com', name='Off')
+        self.pending = User.objects.create_user(email='n-pending@test.com', name='Pending')
+        self.event = Event.objects.create(host=self.owner, slug='n-event', title='Notify Event')
+        EventCoHost.objects.create(
+            event=self.event, user=self.on, invited_email=self.on.email,
+            status=EventCoHost.STATUS_ACCEPTED, notifications=[NOTIFY_RSVP_NEW, NOTIFY_CATALOG_RESPONSE],
+        )
+        EventCoHost.objects.create(
+            event=self.event, user=self.off, invited_email=self.off.email,
+            status=EventCoHost.STATUS_ACCEPTED, notifications=[],
+        )
+        EventCoHost.objects.create(
+            event=self.event, user=self.pending, invited_email=self.pending.email,
+            status=EventCoHost.STATUS_PENDING, notifications=[NOTIFY_RSVP_NEW],
+        )
+
+    def test_owner_then_subscribed_accepted_cohosts_only(self):
+        self.assertEqual(notification_recipients(self.event, NOTIFY_RSVP_NEW), [self.owner, self.on])
+
+    def test_owner_alone_when_nobody_is_subscribed(self):
+        EventCoHost.objects.filter(user=self.on).update(notifications=[NOTIFY_RSVP_NEW])
+        self.assertEqual(notification_recipients(self.event, NOTIFY_CATALOG_RESPONSE), [self.owner])
+
+    def test_rsvp_alert_reaches_a_subscribed_cohost(self):
+        from types import SimpleNamespace
+        from unittest import mock
+
+        from .views import _notify_host_rsvp
+
+        rsvp = SimpleNamespace(name='Guest', email=None, will_attend='yes', guests_count=2, guest_id=None)
+        with mock.patch('apps.events.views.send_email') as sent:
+            _notify_host_rsvp(self.event, rsvp)
+        self.assertEqual(
+            sorted(c.kwargs['to_email'] for c in sent.call_args_list),
+            [self.on.email, self.owner.email],
+        )
+
+    def test_catalog_alert_reaches_a_subscribed_cohost(self):
+        from types import SimpleNamespace
+        from unittest import mock
+
+        from apps.catalog.notifications import send_catalog_response_notification
+
+        response = SimpleNamespace(
+            catalog_item=SimpleNamespace(title='Crayons', manual_instructions=''),
+            event=self.event, response_type='external_click', email=None, name='Guest',
+            phone='', amount=None, message='', RESPONSE_TYPE_CHOICES=[],
+        )
+        with mock.patch('apps.catalog.notifications.send_email') as sent:
+            send_catalog_response_notification(response)
+        self.assertEqual(
+            sorted(c.kwargs['to_email'] for c in sent.call_args_list),
+            [self.on.email, self.owner.email],
+        )
+
+    def test_a_cohost_who_chose_never_is_not_emailed(self):
+        from types import SimpleNamespace
+        from unittest import mock
+
+        from apps.notifications.models import NotificationPreference
+
+        from .views import _notify_host_rsvp
+
+        prefs, _ = NotificationPreference.objects.get_or_create(user=self.on)
+        prefs.rsvp_new = 'never'
+        prefs.save()
+        self.on.refresh_from_db()
+        rsvp = SimpleNamespace(name='Guest', email=None, will_attend='yes', guests_count=1, guest_id=None)
+        with mock.patch('apps.events.views.send_email') as sent:
+            _notify_host_rsvp(self.event, rsvp)
+        self.assertEqual([c.kwargs['to_email'] for c in sent.call_args_list], [self.owner.email])

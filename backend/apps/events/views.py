@@ -2636,8 +2636,21 @@ def _notify_host_rsvp(event, rsvp):
         except Exception as e:
             logger.warning(f"Failed to send RSVP confirmation to guest {rsvp.email}: {e}")
 
-    # --- Host notification (controlled by preferences) ---
-    host = event.host
+    # --- Host notifications: the owner plus co-hosts who have RSVP emails on,
+    # each at the frequency they chose for themselves ---
+    from .capabilities import NOTIFY_RSVP_NEW
+    from .recipients import notification_recipients
+    for recipient in notification_recipients(event, NOTIFY_RSVP_NEW):
+        # One recipient's failure must not cost the others their alert, nor
+        # the guest their RSVP.
+        try:
+            _notify_rsvp_recipient(event, rsvp, recipient)
+        except Exception as e:
+            logger.warning(f"RSVP notification failed for user {recipient.id}: {e}")
+
+
+def _notify_rsvp_recipient(event, rsvp, host):
+    """One RSVP alert to one host or co-host, at their own chosen frequency."""
     prefs = getattr(host, 'notification_preferences', None)
     freq = prefs.rsvp_new if prefs else 'immediately'
 
