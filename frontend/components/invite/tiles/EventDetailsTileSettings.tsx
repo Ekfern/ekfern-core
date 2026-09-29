@@ -35,28 +35,54 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-2">Time</label>
-        <Input
-          type="time"
-          value={settings.time || ''}
-          onChange={(e) => {
-            // Preserve time value - convert empty string to undefined for cleaner JSON
-            const timeValue = e.target.value.trim() || undefined
-            onChange({ ...settings, time: timeValue })
-          }}
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium mb-2">Time</label>
+          <Input
+            type="time"
+            value={settings.time || ''}
+            onChange={(e) => {
+              // Preserve time value - convert empty string to undefined for cleaner JSON
+              const timeValue = e.target.value.trim() || undefined
+              onChange({ ...settings, time: timeValue })
+            }}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-2">End time</label>
+          <Input
+            type="time"
+            value={settings.endTime || ''}
+            onChange={(e) => onChange({ ...settings, endTime: e.target.value.trim() || undefined })}
+          />
+        </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-2">Date layout</label>
+        <label className="block text-sm font-medium mb-2">Repeats</label>
+        <Input
+          type="text"
+          value={settings.repeats || ''}
+          placeholder="e.g. Saturdays, Every weekend"
+          onChange={(e) => onChange({ ...settings, repeats: e.target.value || undefined })}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Optional. Shown in the Compact layout as “When”, with the date as the start.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Layout</label>
         <select
           value={settings.dateLayout || 'single-line'}
-          onChange={(e) => onChange({ ...settings, dateLayout: e.target.value as 'single-line' | 'day-prominent' })}
+          onChange={(e) =>
+            onChange({ ...settings, dateLayout: e.target.value as NonNullable<EventDetailsTileSettings['dateLayout']> })
+          }
           className="w-full text-sm border rounded px-3 py-2"
         >
           <option value="single-line">Single line (e.g. Saturday, June 14, 2025)</option>
           <option value="day-prominent">Day prominent (large 2nd, then month year, then weekday · time)</option>
+          <option value="compact">Compact card (When / Starts / Where rows)</option>
         </select>
       </div>
 

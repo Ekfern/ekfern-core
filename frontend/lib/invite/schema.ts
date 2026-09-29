@@ -134,6 +134,8 @@ export interface EventDetailsTileSettings {
   location: string // Display text for location (flexible, e.g., "Grand Ballroom", "Beachside Venue")
   date: string // ISO date string
   time?: string // Time string (e.g., "18:00")
+  endTime?: string // Optional end, same format as time; shown as "10:00–11:00 AM" and used for calendar entries
+  repeats?: string // Optional free text for recurring events (e.g. "Saturdays"); compact layout shows it as "When"
   dressCode?: string
   mapUrl?: string // Map location - accepts address text or Google Maps URL (auto-validated and verified)
   locationVerified?: boolean // Auto-set by system based on map location validation (true if valid, false if invalid)
@@ -144,8 +146,9 @@ export interface EventDetailsTileSettings {
   showMap?: boolean // Option to display embedded map (only works if mapUrl is provided and valid and location is verified)
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
   textAlign?: 'left' | 'center' | 'right' // Default: center
-  // Date block layout: single-line (default) or day-prominent (large day, then month year, then weekday · time)
-  dateLayout?: 'single-line' | 'day-prominent'
+  // Tile layout: single-line (default), day-prominent (large day, then month year, then weekday · time),
+  // or compact (one card of label / value rows: When, Starts, Where)
+  dateLayout?: 'single-line' | 'day-prominent' | 'compact'
   // Border styling options ('glass' = frosted blur card, ignores decorative border/symbol rendering)
   borderStyle?: 'elegant' | 'minimal' | 'ornate' | 'modern' | 'classic' | 'vintage' | 'none' | 'glass'
 }
