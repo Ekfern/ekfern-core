@@ -11,6 +11,7 @@ import {
   CAPABILITY_LABELS,
   inviteCoHost,
   listCoHosts,
+  MAX_COHOSTS_PER_EVENT,
   removeCoHost,
   type CoHost,
 } from '@/lib/cohosts'
@@ -55,8 +56,10 @@ export default function CoHostPanel({ eventId, canManage }: CoHostPanelProps) {
 
   if (!canManage) return null
 
+  // Only active invites occupy a slot, matching how the server counts them.
   const active = coHosts.filter((c) => c.status === 'pending' || c.status === 'accepted')
   const past = coHosts.filter((c) => c.status !== 'pending' && c.status !== 'accepted')
+  const atLimit = active.length >= MAX_COHOSTS_PER_EVENT
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -113,15 +116,17 @@ export default function CoHostPanel({ eventId, canManage }: CoHostPanelProps) {
             placeholder="their@email.com"
             aria-label="Co-host email address"
             className="flex-1"
-            disabled={busy}
+            disabled={busy || atLimit}
           />
-          <Button type="submit" disabled={busy || !email.trim()} className="gap-2 bg-eco-green hover:bg-eco-green-dark text-white">
+          <Button type="submit" disabled={busy || atLimit || !email.trim()} className="gap-2 bg-eco-green hover:bg-eco-green-dark text-white">
             <UserPlus size={16} />
             {busy ? 'Sending…' : 'Send invite'}
           </Button>
         </form>
         <p className="text-xs text-gray-500 -mt-4">
-          They will get an email and must accept before they can see anything.
+          {atLimit
+            ? `That's the maximum of ${MAX_COHOSTS_PER_EVENT} co-hosts. Remove someone, or cancel a pending invite, to add another.`
+            : 'They will get an email and must accept before they can see anything.'}
         </p>
 
         {loading ? (

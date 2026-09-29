@@ -25,7 +25,12 @@ from apps.common.email_backend import send_email
 from apps.users.models import User
 
 from .access import get_event_or_404, resolve_event_access
-from .capabilities import DEFAULT_COHOST_CAPABILITIES, MANAGE_COHOSTS, normalize_capabilities
+from .capabilities import (
+    DEFAULT_COHOST_CAPABILITIES,
+    MANAGE_COHOSTS,
+    MAX_COHOSTS_PER_EVENT,
+    normalize_capabilities,
+)
 from .models import Event, EventCoHost
 
 logger = logging.getLogger(__name__)
@@ -135,6 +140,20 @@ def event_cohosts(request, event_id):
     ).exists():
         return Response(
             {'error': 'That person already has a pending or accepted invite for this event.'},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    active = EventCoHost.objects.filter(
+        event=event, status__in=EventCoHost.ACTIVE_STATUSES
+    )
+    if active.count() >= MAX_COHOSTS_PER_EVENT:
+        return Response(
+            {
+                'error': (
+                    f'An event can have up to {MAX_COHOSTS_PER_EVENT} co-hosts. '
+                    'Remove someone, or cancel a pending invite, to add another.'
+                )
+            },
             status=status.HTTP_409_CONFLICT,
         )
 
