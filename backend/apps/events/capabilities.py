@@ -58,3 +58,30 @@ def normalize_capabilities(values):
     if not isinstance(values, (list, tuple, set, frozenset)):
         return []
     return sorted({v for v in values if v in ALL_CAPABILITIES})
+
+
+# --- Notifications (who is emailed, not what they may do) --------------------
+#
+# Kept apart from capabilities on purpose: a capability is enforced on every
+# write by the access resolver, a notification only adds someone to a mailing.
+# The owner is always a recipient; these name what an accepted co-host is sent.
+# How often (immediately / daily digest / never) stays each person's own
+# NotificationPreference, so a co-host can still turn email off.
+
+NOTIFY_RSVP_NEW = 'rsvp_new'                    # a guest submits or updates an RSVP
+NOTIFY_CATALOG_RESPONSE = 'catalog_response'    # a pledge, gift or interest on the catalog
+
+ALL_NOTIFICATIONS = frozenset({
+    NOTIFY_RSVP_NEW,
+    NOTIFY_CATALOG_RESPONSE,
+})
+
+#: On by default for now: a co-host is there to help run the event.
+DEFAULT_COHOST_NOTIFICATIONS = sorted(ALL_NOTIFICATIONS)
+
+
+def normalize_notifications(values):
+    """Keep only known notification names, de-duplicated and ordered."""
+    if not isinstance(values, (list, tuple, set, frozenset)):
+        return []
+    return sorted({v for v in values if v in ALL_NOTIFICATIONS})
