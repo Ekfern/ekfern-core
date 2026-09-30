@@ -603,3 +603,22 @@ class CoHostNotificationRecipientTests(TestCase):
         with mock.patch('apps.events.views.send_email') as sent:
             _notify_host_rsvp(self.event, rsvp)
         self.assertEqual([c.kwargs['to_email'] for c in sent.call_args_list], [self.owner.email])
+
+
+class CoHostInviteLinkTests(TestCase):
+    def test_invite_email_links_to_the_https_frontend(self):
+        from unittest import mock
+
+        from django.test import override_settings
+
+        owner = User.objects.create_user(email='link-owner@test.com', name='Owner')
+        event = Event.objects.create(host=owner, slug='link-event', title='Link Event')
+        client = APIClient()
+        client.force_authenticate(user=owner)
+        with override_settings(FRONTEND_ORIGIN='https://ekfern.com'), \
+                mock.patch('apps.events.cohost_views.send_email') as sent:
+            response = client.post(f'/api/events/{event.id}/cohosts/', {'email': 'new@test.com'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        text = sent.call_args.args[2]
+        self.assertIn('https://ekfern.com/cohost-invite/', text)
+        self.assertNotIn('http://', text)

@@ -46,7 +46,9 @@ export default function CoHostInvitePage() {
     }
     // Who is signed in, if anyone. The invite itself is readable without an account.
     try {
-      const res = await api.get<Me>('/api/auth/me/')
+      // Nobody signed in is a normal answer here, not an expired session: the
+      // page shows the invite and its own "Sign in to continue".
+      const res = await api.get<Me>('/api/auth/me/', { skipAuthRedirect: true })
       setMe(res.data)
     } catch {
       setMe(null)
