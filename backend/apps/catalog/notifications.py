@@ -1,5 +1,6 @@
 import logging
 
+from apps.common import emails
 from apps.common.email_backend import send_email
 
 logger = logging.getLogger(__name__)
@@ -30,21 +31,20 @@ def send_catalog_response_notification(response):
 
 
 def _send_guest_receipt(response, item, event):
-    subject = f'Your response was received — {event.title}'
-    body = (
-        f'Hi {response.name},\n\n'
-        f'Thanks for your response to "{item.title}" on {event.title}.\n\n'
+    rendered = emails.catalog_receipt(
+        guest_name=response.name or '',
+        item_title=item.title,
+        event_title=event.title,
+        amount_paise=response.amount if response.response_type == 'pledge' else None,
+        guest_message=response.message or '',
+        instructions=item.manual_instructions or '',
+        host_name=event.host.name or '',
     )
-    if response.response_type == 'pledge' and response.amount:
-        rupees = response.amount / 100
-        body += f'Pledge amount: ₹{rupees:,.0f}\n\n'
-    if response.message:
-        body += f'Your message: {response.message}\n\n'
-    if item.manual_instructions:
-        body += f'{item.manual_instructions}\n\n'
-    body += 'The host will be in touch soon.\n\nThank you!'
     try:
-        send_email(to_email=response.email, subject=subject, body_text=body)
+        send_email(
+            to_email=response.email, subject=rendered.subject,
+            body_text=rendered.text, body_html=rendered.html,
+        )
     except Exception as e:
         logger.warning(f'Failed to send catalog response receipt to {response.email}: {e}')
 
@@ -56,21 +56,18 @@ def _send_host_alert(response, item, event, host):
     if freq == 'never':
         return
 
-    response_label = dict(response.RESPONSE_TYPE_CHOICES).get(response.response_type, response.response_type)
-    subject = f'New catalog response — {event.title}'
-    body = (
-        f'Hi {host.name or "there"},\n\n'
-        f'You have a new catalog response on {event.title}.\n\n'
-        f'Item: {item.title}\n'
-        f'Response: {response_label}\n'
-        f'From: {response.name} ({response.phone or response.email or "no contact given"})\n'
+    from django.conf import settings
+
+    rendered = emails.catalog_alert(
+        event_title=event.title,
+        item_title=item.title,
+        response_label=dict(response.RESPONSE_TYPE_CHOICES).get(response.response_type, response.response_type),
+        guest_name=response.name or '',
+        guest_contact=response.phone or response.email or '',
+        amount_paise=response.amount,
+        guest_message=response.message or '',
+        responses_url=f"{getattr(settings, 'FRONTEND_ORIGIN', 'https://ekfern.com')}/host/events/{event.id}/catalog/responses",
     )
-    if response.amount:
-        rupees = response.amount / 100
-        body += f'Amount: ₹{rupees:,.0f}\n'
-    if response.message:
-        body += f'Message: {response.message}\n'
-    body += '\nLog in to your dashboard to review and follow up.'
 
     unsubscribe_token = prefs.unsubscribe_token if prefs else None
 
@@ -78,8 +75,9 @@ def _send_host_alert(response, item, event, host):
         try:
             send_email(
                 to_email=host.email,
-                subject=subject,
-                body_text=body,
+                subject=rendered.subject,
+                body_text=rendered.text,
+                body_html=rendered.html,
                 unsubscribe_token=unsubscribe_token,
             )
         except Exception as e:

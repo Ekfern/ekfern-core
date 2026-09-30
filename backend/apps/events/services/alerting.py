@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 _DEDUP_TTL_SECONDS = 6 * 60 * 60  # 6 hours
 
 
-def _send_email_safe(*, subject: str, body: str) -> None:
+def _send_email_safe(*, subject: str, title: str, rows, advice: str) -> None:
     from apps.events.models import LLMPlatformSettings
 
     target = (LLMPlatformSettings.get_config()['cost_alert_email'] or "").strip()
@@ -34,8 +34,13 @@ def _send_email_safe(*, subject: str, body: str) -> None:
         logger.info("[llm_alert] no LLM_COST_ALERT_EMAIL configured; would send: %s", subject)
         return
     try:
+        from apps.common import emails
         from apps.common.email_backend import send_email
-        send_email(to_email=target, subject=subject, body_text=body)
+        rendered = emails.ops_alert(title=title, subject=subject, rows=rows, advice=advice)
+        send_email(
+            to_email=target, subject=rendered.subject,
+            body_text=rendered.text, body_html=rendered.html,
+        )
     except Exception:
         logger.exception("[llm_alert] failed to send alert email to %s", target)
 
@@ -67,16 +72,21 @@ def alert_cost_threshold(
         f"[Ekfern] LLM {window} spend at {pct}% of cap "
         f"(${spend_usd:.2f} of ${cap_usd:.2f})"
     )
-    body = (
-        f"Window: {window} ({window_key})\n"
-        f"Spend so far: ${spend_usd:.4f}\n"
-        f"Cap: ${cap_usd:.2f}\n"
-        f"Threshold: {threshold_pct}%\n\n"
-        "If this looks unexpected, disable generation in Django Admin → "
-        "LLM Platform Settings (or set LLM_GENERATION_ENABLED=False in env) "
-        "to halt all generation immediately while you investigate.\n"
+    _send_email_safe(
+        subject=subject,
+        title=f"LLM {window} spend is at {pct}% of its cap",
+        rows=[
+            ('Window', f"{window} ({window_key})"),
+            ('Spend so far', f"${spend_usd:.4f}"),
+            ('Cap', f"${cap_usd:.2f}"),
+            ('Threshold', f"{threshold_pct}%"),
+        ],
+        advice=(
+            "If this looks unexpected, disable generation in Django Admin → "
+            "LLM Platform Settings (or set LLM_GENERATION_ENABLED=False in env) "
+            "to halt all generation immediately while you investigate."
+        ),
     )
-    _send_email_safe(subject=subject, body=body)
 
 
 def alert_kill_switch_tripped(
@@ -99,15 +109,19 @@ def alert_kill_switch_tripped(
     subject = (
         f"[Ekfern] LLM {window} cost cap reached — generation auto-halted"
     )
-    body = (
-        f"Reason: {reason}\n"
-        f"Window: {window} ({window_key})\n"
-        f"Spend: ${spend_usd:.4f}\n"
-        f"Cap: ${cap_usd:.2f}\n\n"
-        "All generate requests are now returning 429 until the window rolls "
-        "over or the cap is raised. Raise the cap in Django Admin → "
-        "LLM Platform Settings, or set "
-        f"LLM_{window.upper()}_COST_CAP_USD in the environment, then restart "
-        "workers if you rely on env-only config.\n"
+    _send_email_safe(
+        subject=subject,
+        title=f"LLM {window} cost cap reached. Generation is halted.",
+        rows=[
+            ('Reason', reason),
+            ('Window', f"{window} ({window_key})"),
+            ('Spend', f"${spend_usd:.4f}"),
+            ('Cap', f"${cap_usd:.2f}"),
+        ],
+        advice=(
+            "All generate requests now return 429 until the window rolls over or "
+            "the cap is raised. Raise the cap in Django Admin → LLM Platform "
+            f"Settings, or set LLM_{window.upper()}_COST_CAP_USD in the environment, "
+            "then restart workers if you rely on env-only config."
+        ),
     )
-    _send_email_safe(subject=subject, body=body)

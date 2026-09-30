@@ -22,6 +22,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from apps.common.email_backend import send_email
+from apps.common.emails import cohost_invite
 from apps.users.models import User
 
 from .access import get_event_or_404, resolve_event_access
@@ -94,16 +95,16 @@ def _send_invite_email(cohost: EventCoHost, request) -> None:
     base = getattr(settings, 'FRONTEND_URL', '') or request.build_absolute_uri('/')[:-1]
     link = f"{base.rstrip('/')}/cohost-invite/{issue_invite_token(cohost)}"
     event = cohost.event
-    inviter = event.host.name or event.host.email
-    subject = f"{inviter} invited you to co-host {event.title}"
-    body = (
-        f"{inviter} has invited you to co-host \"{event.title}\" on Ekfern.\n\n"
-        f"Co-hosts can help manage the event. You will need to accept the invite "
-        f"before you get access:\n\n{link}\n\n"
-        f"This link expires in 7 days. If you were not expecting this, you can ignore it."
+    email = cohost_invite(
+        inviter=event.host.name or event.host.email,
+        event_title=event.title,
+        event_date=event.date,
+        invited_email=cohost.invited_email,
+        capabilities=cohost.capabilities,
+        link=link,
     )
     try:
-        send_email(cohost.invited_email, subject, body)
+        send_email(cohost.invited_email, email.subject, email.text, body_html=email.html)
     except Exception as exc:
         logger.error(
             "[CoHost] invite email failed for cohost=%s event=%s: %s",
