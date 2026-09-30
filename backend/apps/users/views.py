@@ -17,6 +17,7 @@ from .serializers import (
     StaffUserLookupSerializer, StaffSetActiveSerializer, StaffExtendExpirySerializer,
 )
 from apps.notifications.models import NotificationLog
+from apps.common import emails
 from apps.common.email_backend import send_email
 from apps.privacy.helpers import record_signup_consent, record_login
 from rest_framework.throttling import UserRateThrottle
@@ -107,71 +108,9 @@ def _send_otp(user):
     # Extract first name from user.name (split by space, take first part, fallback to full name or "there")
     user_name = user.name or ''
     first_name = user_name.split()[0] if user_name and user_name.strip() else None
-    greeting_name = first_name if first_name else 'there'
     
-    subject = "Your EkFern Verification Code"
-    message = f"""Hi {greeting_name},
-
-Your EkFern verification code is:
-
-{otp_code}
-
-Enter this code on the verification screen to continue.
-This code expires in 15 minutes. Please do not share it with anyone.
-
-To open the verification page, use this link:
-{login_url}
-
-If you didn't request this, you can safely ignore this email.
-
-— Team EkFern"""
-
-    html_message = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f5f5f0;font-family:Georgia,serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f0;padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr>
-          <td style="background:#2d5a27;padding:28px 40px;text-align:center;">
-            <span style="font-size:22px;font-weight:bold;color:#ffffff;letter-spacing:1px;">EkFern</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:40px 40px 24px;">
-            <p style="margin:0 0 8px;font-size:16px;color:#333;">Hi {greeting_name},</p>
-            <p style="margin:0 0 28px;font-size:15px;color:#555;line-height:1.6;">
-              Use the verification code below to sign in to your EkFern account.
-            </p>
-            <div style="text-align:center;margin:0 0 28px;">
-              <span style="display:inline-block;background:#f5f5f0;border:2px solid #2d5a27;border-radius:8px;padding:16px 40px;font-size:32px;font-weight:bold;letter-spacing:8px;color:#2d5a27;font-family:monospace;">{otp_code}</span>
-            </div>
-            <p style="margin:0 0 8px;font-size:13px;color:#888;text-align:center;">
-              This code expires in <strong>15 minutes</strong>. Do not share it with anyone.
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:0 40px 28px;text-align:center;">
-            <a href="{login_url}" style="display:inline-block;background:#2d5a27;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:6px;font-size:15px;font-weight:bold;">
-              Open verification page →
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td style="border-top:1px solid #eee;padding:20px 40px;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#aaa;">
-              If you didn't request this, you can safely ignore this email.<br>
-              &copy; EkFern · <a href="https://ekfern.com" style="color:#aaa;">ekfern.com</a>
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+    rendered = emails.sign_in_code(first_name=first_name or '', otp=otp_code, login_url=login_url)
+    subject, message, html_message = rendered.subject, rendered.text, rendered.html
 
     # Send email via SES
     # Log failures but don't expose to user for security
@@ -496,27 +435,17 @@ def forgot_password(request):
     # Extract first name for greeting
     user_name = user.name or ''
     first_name = user_name.split()[0] if user_name and user_name.strip() else None
-    greeting_name = first_name if first_name else 'there'
     
-    subject = "Reset Your EkFern Password"
-    message = f"""Hi {greeting_name},
+    rendered = emails.password_reset(first_name=first_name or '', reset_url=reset_url)
 
-You requested to reset your password for your EkFern account.
-
-Click the link below to reset your password:
-{reset_url}
-
-This link will expire in 15 minutes. If you didn't request this, you can safely ignore this email.
-
-— Team EkFern"""
-    
     # Send email
     email_sent = False
     try:
         send_email(
             to_email=user.email,
-            subject=subject,
-            body_text=message,
+            subject=rendered.subject,
+            body_text=rendered.text,
+            body_html=rendered.html,
         )
         email_sent = True
     except Exception as e:
@@ -794,30 +723,17 @@ def contact_form(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    subject_line = f"Contact Form: {subject}" if subject else "Contact Form Submission"
-    plain_text = f"Name: {name}\nEmail: {email}\n\nMessage:\n{message}"
-    html_body = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:24px;">
-  <h2 style="color:#0d9488;">New Contact Form Message</h2>
-  <table style="width:100%;border-collapse:collapse;">
-    <tr><td style="padding:6px 0;font-weight:bold;width:80px;">Name</td><td style="padding:6px 0;">{name or '—'}</td></tr>
-    <tr><td style="padding:6px 0;font-weight:bold;">Email</td><td style="padding:6px 0;"><a href="mailto:{email}">{email}</a></td></tr>
-    <tr><td style="padding:6px 0;font-weight:bold;">Subject</td><td style="padding:6px 0;">{subject or '—'}</td></tr>
-  </table>
-  <hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb;">
-  <p style="white-space:pre-wrap;">{message}</p>
-</body>
-</html>"""
+    # Everything the visitor typed is escaped by the shared layout; it used to
+    # go into this HTML raw, so a message could inject links into the inbox.
+    rendered = emails.contact_form_message(name=name, email=email, subject=subject, body=message)
 
     support_email = getattr(settings, 'SUPPORT_EMAIL', 'support@ekfern.com')
     try:
         send_email(
             to_email=support_email,
-            subject=subject_line,
-            body_text=plain_text,
-            body_html=html_body,
+            subject=rendered.subject,
+            body_text=rendered.text,
+            body_html=rendered.html,
         )
     except Exception as exc:
         _contact_logger.error('contact_form: failed to send email from %s: %s', email, exc)

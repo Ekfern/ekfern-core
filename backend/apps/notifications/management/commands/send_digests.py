@@ -22,6 +22,7 @@ from django.db.models import Sum
 
 from apps.notifications.models import NotificationQueue, StaffNotificationRecipient
 from apps.common.email_backend import send_email
+from apps.common import emails
 
 logger = logging.getLogger(__name__)
 
@@ -69,37 +70,39 @@ class Command(BaseCommand):
             rsvps = [i for i in items if i.notification_type == 'rsvp_new']
             gifts = [i for i in items if i.notification_type == 'gift_received']
 
-            sections = []
-
-            if rsvps:
-                lines = [
-                    f"  - {r.payload_json.get('rsvp_name', 'Guest')} "
-                    f"({r.payload_json.get('will_attend', '?')}) "
-                    f"for {r.payload_json.get('event_title', 'your event')}"
-                    for r in rsvps
-                ]
-                sections.append(f"NEW RSVPs ({len(rsvps)}):\n" + "\n".join(lines))
-
-            if gifts:
-                lines = [
-                    f"  - \u20b9{g.payload_json.get('amount_rupees', '?')} from "
-                    f"{g.payload_json.get('buyer_name', 'Someone')} "
-                    f"for {g.payload_json.get('item_name', 'a gift')} "
-                    f"({g.payload_json.get('event_title', 'your event')})"
-                    for g in gifts
-                ]
-                sections.append(f"NEW GIFTS ({len(gifts)}):\n" + "\n".join(lines))
-
-            if not sections:
+            # Keys match what the RSVP and catalog alerts queue (apps.events.views,
+            # apps.catalog.notifications). The gift lines used to read keys nothing
+            # wrote - amount_rupees, buyer_name, item_name - so every one came out
+            # as "₹? from Someone for a gift".
+            rsvp_lines = [
+                ' · '.join(filter(None, [
+                    r.payload_json.get('rsvp_name') or 'A guest',
+                    emails.ATTEND_FOR_HOST.get(r.payload_json.get('will_attend'), r.payload_json.get('will_attend')),
+                    r.payload_json.get('event_title'),
+                ]))
+                for r in rsvps
+            ]
+            gift_lines = [
+                ' · '.join(filter(None, [
+                    g.payload_json.get('guest_name') or 'A guest',
+                    g.payload_json.get('item_title'),
+                    emails.rupees(g.payload_json.get('amount')),
+                    g.payload_json.get('event_title'),
+                ]))
+                for g in gifts
+            ]
+            if not rsvp_lines and not gift_lines:
                 continue
 
-            subject = f"Your Ekfern daily digest \u2013 {timezone.localdate().strftime('%B %d')}"
-            body = (
-                f"Hi {user.name or 'there'},\n\n"
-                f"Here's a summary of activity on your events:\n\n"
-                + "\n\n".join(sections)
-                + f"\n\nView your dashboard: {settings.FRONTEND_ORIGIN}/host/dashboard"
+            first_name = (user.name or '').split()[0] if (user.name or '').strip() else ''
+            rendered = emails.host_digest(
+                first_name=first_name,
+                date_label=timezone.localdate().strftime('%B %d').replace(' 0', ' '),
+                rsvp_lines=rsvp_lines,
+                gift_lines=gift_lines,
+                dashboard_url=f"{settings.FRONTEND_ORIGIN}/host/dashboard",
             )
+            subject = rendered.subject
 
             if dry_run:
                 self.stdout.write(f'  [DRY RUN] Would send digest to {user.email} '
@@ -112,8 +115,9 @@ class Command(BaseCommand):
             try:
                 send_email(
                     to_email=user.email,
-                    subject=subject,
-                    body_text=body,
+                    subject=rendered.subject,
+                    body_text=rendered.text,
+                    body_html=rendered.html,
                     unsubscribe_token=unsubscribe_token,
                 )
                 with transaction.atomic():
@@ -167,29 +171,29 @@ class Command(BaseCommand):
             .aggregate(total=Sum('amount'))['total'] or 0
         ) / 100
 
-        date_str = today.strftime('%B %d')
-        subject = f"Ekfern business digest \u2013 {date_str}"
+        date_str = today.strftime('%B %d').replace(' 0', ' ')
         frontend = getattr(settings, 'FRONTEND_ORIGIN', 'https://ekfern.com')
 
         gifts_line = (
             f"\u20b9{gifts_today_inr:,.0f} across {gifts_today_count} order{'s' if gifts_today_count != 1 else ''}"
-            if gifts_today_count else "none"
+            if gifts_today_count else "None"
         )
-
-        body_template = (
-            "Hi {name},\n\n"
-            f"Here's your Ekfern business summary for {date_str}:\n\n"
-            f"TODAY\n"
-            f"  New signups:  {new_signups}\n"
-            f"  New events:   {new_events}\n"
-            f"  New RSVPs:    {new_rsvps}\n"
-            f"  Gifts:        {gifts_line}\n\n"
-            f"ALL TIME\n"
-            f"  Total users:   {total_users}\n"
-            f"  Total events:  {total_events}\n"
-            f"  Total revenue: \u20b9{total_revenue_inr:,.0f}\n\n"
-            f"View admin: {frontend}/api/admin/"
+        rendered = emails.staff_business_digest(
+            date_label=date_str,
+            today_rows=[
+                ('New signups', new_signups),
+                ('New events', new_events),
+                ('New RSVPs', new_rsvps),
+                ('Gifts', gifts_line),
+            ],
+            all_time_rows=[
+                ('Users', total_users),
+                ('Events', total_events),
+                ('Revenue', f"\u20b9{total_revenue_inr:,.0f}"),
+            ],
+            admin_url=f"{frontend}/api/admin/",
         )
+        subject = rendered.subject
 
         if dry_run:
             self.stdout.write(
@@ -203,9 +207,11 @@ class Command(BaseCommand):
 
         sent = 0
         for recipient in recipients:
-            body = body_template.format(name=recipient.name or 'there')
             try:
-                send_email(to_email=recipient.email, subject=subject, body_text=body)
+                send_email(
+                    to_email=recipient.email, subject=rendered.subject,
+                    body_text=rendered.text, body_html=rendered.html,
+                )
                 sent += 1
                 logger.info(f'Business digest sent to {recipient.email}')
             except Exception as e:

@@ -2638,21 +2638,19 @@ def _notify_host_rsvp(event, rsvp):
 
     # --- Guest confirmation (always sent if email provided) ---
     if rsvp.email:
-        guest_name = rsvp.name or 'Guest'
-        attend_label = {'yes': 'attending', 'no': 'not attending', 'maybe': 'tentatively attending'}.get(
-            rsvp.will_attend, rsvp.will_attend
-        )
-        event_date_str = event.date.strftime('%B %d, %Y') if event.date else ''
-        guest_subject = f"RSVP confirmed – {event.title}"
-        guest_body = (
-            f"Hi {guest_name},\n\n"
-            f"Your RSVP for {event.title} has been received. "
-            f"You are currently marked as {attend_label}."
-            + (f"\n\nEvent date: {event_date_str}" if event_date_str else '')
-            + "\n\nSee you there!"
+        from apps.common import emails
+        rendered = emails.rsvp_confirmation(
+            guest_name=rsvp.name or '',
+            event_title=event.title,
+            event_date=event.date,
+            will_attend=rsvp.will_attend,
+            host_name=event.host.name or '',
         )
         try:
-            send_email(to_email=rsvp.email, subject=guest_subject, body_text=guest_body)
+            send_email(
+                to_email=rsvp.email, subject=rendered.subject,
+                body_text=rendered.text, body_html=rendered.html,
+            )
         except Exception as e:
             logger.warning(f"Failed to send RSVP confirmation to guest {rsvp.email}: {e}")
 
@@ -2677,17 +2675,14 @@ def _notify_rsvp_recipient(event, rsvp, host):
     if freq == 'never':
         return
 
-    attend_label = {'yes': 'attending', 'no': 'not attending', 'maybe': 'maybe attending'}.get(
-        rsvp.will_attend, rsvp.will_attend
-    )
-    host_subject = f"New RSVP – {event.title}"
-    host_body = (
-        f"Hi {host.name or 'there'},\n\n"
-        f"{rsvp.name or 'Someone'} has RSVP'd for {event.title}.\n\n"
-        f"Status: {attend_label}\n"
-        f"Guests: {rsvp.guests_count or 1}\n"
-        + (f"Email: {rsvp.email}\n" if rsvp.email else '')
-        + f"\nView all RSVPs: {settings.FRONTEND_ORIGIN}/host/events/{event.id}"
+    from apps.common import emails
+    rendered = emails.rsvp_alert(
+        event_title=event.title,
+        guest_name=rsvp.name or '',
+        will_attend=rsvp.will_attend,
+        guests_count=rsvp.guests_count or 1,
+        guest_email=rsvp.email or '',
+        rsvps_url=f"{settings.FRONTEND_ORIGIN}/host/events/{event.id}/rsvp",
     )
     unsubscribe_token = prefs.unsubscribe_token if prefs else None
 
@@ -2695,8 +2690,9 @@ def _notify_rsvp_recipient(event, rsvp, host):
         try:
             send_email(
                 to_email=host.email,
-                subject=host_subject,
-                body_text=host_body,
+                subject=rendered.subject,
+                body_text=rendered.text,
+                body_html=rendered.html,
                 unsubscribe_token=unsubscribe_token,
             )
         except Exception as e:
