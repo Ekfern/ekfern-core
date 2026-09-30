@@ -2,6 +2,7 @@
 
 import axios from 'axios'
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import { loginPathReturningTo } from '@/lib/auth/returnTo'
 
 /**
  * Get API base URL with automatic mixed content fix
@@ -200,6 +201,23 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    /**
+     * A request whose 401 only means "nobody is signed in" - such as the co-host
+     * invite page asking who is there - rather than "your session expired".
+     * It fails normally instead of sending the whole page to login.
+     */
+    skipAuthRedirect?: boolean
+  }
+}
+
+/** Send the visitor to login, and back to this page afterwards. */
+function redirectToLogin(request?: { skipAuthRedirect?: boolean }) {
+  if (typeof window === 'undefined' || request?.skipAuthRedirect) return
+  window.location.href = loginPathReturningTo(window.location.pathname + window.location.search)
+}
+
 // Handle 401 errors and refresh token
 api.interceptors.response.use(
   (response) => response,
@@ -248,8 +266,8 @@ api.interceptors.response.use(
         if (typeof window !== 'undefined') {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
-          window.location.href = '/host/login'
         }
+        redirectToLogin(originalRequest)
         return Promise.reject(error)
       }
 
@@ -296,8 +314,8 @@ api.interceptors.response.use(
         if (typeof window !== 'undefined') {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
-          window.location.href = '/host/login'
         }
+        redirectToLogin(originalRequest)
         return Promise.reject(refreshError)
       }
     }

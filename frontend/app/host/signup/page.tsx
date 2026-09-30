@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -13,11 +13,24 @@ import { useToast } from '@/components/ui/toast'
 import { PasswordRequirements } from '@/components/ui/PasswordRequirements'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { signup, verifyOtp, setPassword, storeAuthTokens, getCurrentUser, otpCodeSchema, newPasswordSchema } from '@/lib/auth/api'
+import { dateOfBirthProblem, isAgeBlocked, rememberAgeBlock, todayIso } from '@/lib/auth/age'
+import { afterAuthPath } from '@/lib/auth/returnTo'
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
+  dateOfBirth: z.string().superRefine((value, ctx) => {
+    const problem = dateOfBirthProblem(value)
+    if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem })
+  }),
 })
+
+const UNDERAGE_MESSAGE = 'You must be 18 or older to create an Ekfern account.'
+
+/** The server said the account already has a password - the first save worked. */
+function passwordAlreadySet(error: any): boolean {
+  return /already set/i.test(error?.response?.data?.error || '')
+}
 
 const codeSchema = z.object({
   code: otpCodeSchema,
@@ -37,10 +50,20 @@ type SetPasswordForm = z.infer<typeof setPasswordSchema>
 
 function SignupForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { showToast } = useToast()
   const [step, setStep] = useState<'signup' | 'verify' | 'set-password'>('signup')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+  // Once the password is saved we are on our way out; the buttons stay off so a
+  // second press cannot send it again while the next page loads.
+  const [leaving, setLeaving] = useState(false)
+  const [ageBlocked, setAgeBlocked] = useState(false)
+  const nextPath = afterAuthPath(searchParams)
+
+  useEffect(() => {
+    setAgeBlocked(isAgeBlocked(typeof window !== 'undefined' ? window.localStorage : null))
+  }, [])
   // Send an already-authenticated visitor to the dashboard instead of showing
   // the signup form (tokens live in localStorage, shared across tabs).
   const [checkingSession, setCheckingSession] = useState(true)
@@ -54,7 +77,7 @@ function SignupForm() {
     }
     getCurrentUser()
       .then(() => {
-        if (!cancelled) router.replace('/host/dashboard')
+        if (!cancelled) router.replace(nextPath)
       })
       .catch(() => {
         if (!cancelled) setCheckingSession(false)
@@ -62,7 +85,7 @@ function SignupForm() {
     return () => {
       cancelled = true
     }
-  }, [router])
+  }, [router, nextPath])
 
   const {
     register: registerSignup,
@@ -70,6 +93,7 @@ function SignupForm() {
     formState: { errors: signupErrors },
   } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
+    defaultValues: { email: searchParams.get('email') || '' },
   })
 
   const {
@@ -92,7 +116,7 @@ function SignupForm() {
   const onSignupSubmit = async (data: SignupForm) => {
     setLoading(true)
     try {
-      const response = await signup(data.name, data.email)
+      const response = await signup(data.name, data.email, data.dateOfBirth)
 
       setEmail(data.email)
       setStep('verify')
@@ -106,6 +130,11 @@ function SignupForm() {
         showToast('Verification code sent to your email', 'success')
       }
     } catch (error: any) {
+      if (error?.response?.data?.code === 'underage') {
+        rememberAgeBlock(typeof window !== 'undefined' ? window.localStorage : null)
+        setAgeBlocked(true)
+        return
+      }
       logError('Signup error:', error)
       showToast(getErrorMessage(error), 'error')
     } finally {
@@ -129,27 +158,61 @@ function SignupForm() {
   }
 
   const onSetPasswordSubmit = async (data: SetPasswordForm) => {
+    if (leaving) return
     setLoading(true)
     try {
       await setPassword(data.password)
+      setLeaving(true)
       showToast('Password set! Welcome! 🌿', 'success')
-      router.push('/host/dashboard')
+      router.push(nextPath)
+      return
     } catch (error: any) {
+      if (passwordAlreadySet(error)) {
+        // A repeat of a save that already worked (the account was created a
+        // moment ago by this same verified person): carry on, don't alarm them.
+        setLeaving(true)
+        router.push(nextPath)
+        return
+      }
       logError('Set password error:', error)
       showToast(getErrorMessage(error), 'error')
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
 
   const onSkipPassword = () => {
-    router.push('/host/dashboard')
+    setLeaving(true)
+    router.push(nextPath)
   }
 
   if (checkingSession) {
     return (
       <div className="min-h-screen bg-eco-beige flex items-center justify-center p-4">
         <p className="text-gray-600">Loading…</p>
+      </div>
+    )
+  }
+
+  if (ageBlocked) {
+    return (
+      <div className="min-h-screen bg-eco-beige flex items-center justify-center p-4">
+        <Card className="w-full max-w-md bg-white border-2 border-eco-green-light">
+          <CardHeader className="text-center">
+            <div className="text-4xl mb-4">🌿</div>
+            <CardTitle className="text-2xl text-eco-green">We can&apos;t create an account</CardTitle>
+            <CardDescription className="text-base" role="alert">
+              {UNDERAGE_MESSAGE}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-sm text-gray-600">
+              You can still open invitations and RSVP to events without an account.
+            </p>
+            <Link href="/" className="inline-block mt-4 text-eco-green font-medium hover:underline">
+              Back to Ekfern
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -204,6 +267,26 @@ function SignupForm() {
                 {signupErrors.email && (
                   <p className="text-red-500 text-sm mt-1">
                     {signupErrors.email.message}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="signup-dob" className="block text-sm font-medium mb-1 text-gray-700">
+                  Date of Birth *
+                </label>
+                <Input
+                  id="signup-dob"
+                  type="date"
+                  max={todayIso()}
+                  autoComplete="bday"
+                  {...registerSignup('dateOfBirth')}
+                  className="border-eco-green-light focus:border-eco-green"
+                />
+                {signupErrors.dateOfBirth ? (
+                  <p className="text-red-500 text-sm mt-1">{signupErrors.dateOfBirth.message}</p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Required by law to create an account. We don&apos;t show it to anyone.
                   </p>
                 )}
               </div>
@@ -302,16 +385,16 @@ function SignupForm() {
               </div>
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || leaving}
                 className="w-full bg-eco-green hover:bg-eco-green-dark text-white py-6 text-lg"
               >
-                {loading ? 'Saving...' : 'Set Password & Continue →'}
+                {leaving ? 'Opening Ekfern...' : loading ? 'Saving...' : 'Set Password & Continue →'}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={onSkipPassword}
-                disabled={loading}
+                disabled={loading || leaving}
                 className="w-full border-eco-green text-eco-green"
               >
                 Skip — continue with OTP
@@ -323,7 +406,10 @@ function SignupForm() {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}
-                <Link href="/host/login" className="text-eco-green font-medium hover:underline">
+                <Link
+                  href={`/host/login${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+                  className="text-eco-green font-medium hover:underline"
+                >
                   Sign in
                 </Link>
               </p>

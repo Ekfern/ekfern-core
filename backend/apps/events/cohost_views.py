@@ -92,7 +92,10 @@ def _send_invite_email(cohost: EventCoHost, request) -> None:
     """Never lets a mail failure roll back an invite that was created correctly."""
     from django.conf import settings
 
-    base = getattr(settings, 'FRONTEND_URL', '') or request.build_absolute_uri('/')[:-1]
+    # FRONTEND_ORIGIN, like every other email. This used to read FRONTEND_URL,
+    # which settings never defines, so it fell back to the incoming request -
+    # plain http behind the load balancer - and invites linked to http://.
+    base = settings.FRONTEND_ORIGIN
     link = f"{base.rstrip('/')}/cohost-invite/{issue_invite_token(cohost)}"
     event = cohost.event
     email = cohost_invite(

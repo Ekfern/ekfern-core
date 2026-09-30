@@ -57,6 +57,19 @@ def record_signup_consent(user, *, source="signup", policy_version=""):
         pass
 
 
+def record_age_confirmation(user, *, source="signup", policy_version=""):
+    """
+    A host declared a date of birth that meets the minimum age. Kept as its own
+    ledger row, with a timestamp, so the check can be shown to have happened.
+    Unlike the other helpers this one lets failures propagate: without the
+    record the platform cannot show it checked, so signup should not proceed.
+    """
+    record_consent(
+        "host", user.id, ConsentEvent.Purpose.AGE_CONFIRMATION, ConsentEvent.Basis.LEGAL_OBLIGATION,
+        policy_version=policy_version, source=source,
+    )
+
+
 def record_login(user, *, ip=None):
     """A successful authentication. subject_ref is the internal user id (never
     the raw email), so the ledger holds no PII."""
