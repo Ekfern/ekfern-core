@@ -56,6 +56,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     # Email verification
     email_verified = models.BooleanField(default=False)
+    # Self-declared at signup and checked against apps.users.age.MINIMUM_AGE.
+    # Null for accounts created before the age check existed.
+    date_of_birth = models.DateField(null=True, blank=True)
     # Data residency region for this account's data (see settings.DEFAULT_DATA_REGION).
     data_region = models.CharField(max_length=8, default=_default_data_region)
     

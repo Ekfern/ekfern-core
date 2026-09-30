@@ -19,7 +19,9 @@ from .serializers import (
 from apps.notifications.models import NotificationLog
 from apps.common import emails
 from apps.common.email_backend import send_email
-from apps.privacy.helpers import record_signup_consent, record_login
+from apps.privacy.helpers import record_age_confirmation, record_signup_consent, record_login
+from django.db import transaction
+from .age import AgeCheckError, check_date_of_birth
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.decorators import throttle_classes
 
@@ -42,6 +44,16 @@ def signup(request):
     if not email:
         return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Checked before anything is looked up or stored: someone under the minimum
+    # age gets a clear refusal and leaves no data behind.
+    try:
+        date_of_birth = check_date_of_birth(request.data.get('date_of_birth'))
+    except AgeCheckError as exc:
+        return Response(
+            {'error': exc.message, 'code': exc.code},
+            status=status.HTTP_403_FORBIDDEN if exc.code == 'underage' else status.HTTP_400_BAD_REQUEST,
+        )
+
     email = User.objects.normalize_email(email.strip())
 
     existing = User.objects.filter(email__iexact=email).first()
@@ -51,13 +63,24 @@ def signup(request):
                 {'error': 'An account with this email already exists. Please login instead.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        # Account exists but was never verified — resend OTP so the user can resume
+        # Account exists but was never verified — resend OTP so the user can resume.
+        # It may predate the age check, so record the age now if it is missing.
+        if existing.date_of_birth is None:
+            with transaction.atomic():
+                existing.date_of_birth = date_of_birth
+                existing.save(update_fields=['date_of_birth'])
+                record_age_confirmation(existing)
         response = _send_otp(existing)
         response.data['needs_verification'] = True
         return response
 
-    # Create new user
-    user = User.objects.create_user(email=email, name=name or email.split('@')[0])
+    # Create the user and the record that their age was checked together: an
+    # account must never exist without evidence of the check.
+    with transaction.atomic():
+        user = User.objects.create_user(email=email, name=name or email.split('@')[0])
+        user.date_of_birth = date_of_birth
+        user.save(update_fields=['date_of_birth'])
+        record_age_confirmation(user)
 
     # Record the host's consent to Terms + Privacy at account creation.
     record_signup_consent(user)

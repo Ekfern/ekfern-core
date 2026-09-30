@@ -45,9 +45,10 @@ export function storeAuthTokens(tokens: AuthTokens) {
 
 export async function signup(
   name: string,
-  email: string
+  email: string,
+  dateOfBirth: string,
 ): Promise<{ otp_code?: string; needs_verification?: boolean }> {
-  const response = await api.post('/api/auth/signup/', { name, email })
+  const response = await api.post('/api/auth/signup/', { name, email, date_of_birth: dateOfBirth })
   return response.data
 }
 
