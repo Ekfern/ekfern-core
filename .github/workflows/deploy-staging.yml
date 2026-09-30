@@ -13,6 +13,8 @@ env:
   ECS_CLUSTER_NAME: event-registry-staging
   ECS_BACKEND_SERVICE: backend-service
   ECS_FRONTEND_SERVICE: frontend-service
+  # The CloudFront distribution in front of the site is found by this domain.
+  SITE_DOMAIN: ekfern.com
 
 jobs:
   deploy:
@@ -377,6 +379,28 @@ jobs:
               --output table
             exit 1
           fi
+
+      - name: Clear the CloudFront cache
+        # Next.js marks pre-rendered pages cacheable for a year, so without this
+        # CloudFront keeps serving the previous build's HTML, which points at JS
+        # and CSS that no longer exist: pages stuck on an unstyled "Loading...".
+        # Runs only after the new frontend is stable, so the cache refills from it.
+        timeout-minutes: 15
+        run: |
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Aliases.Items && contains(Aliases.Items, '${{ env.SITE_DOMAIN }}')].Id | [0]" \
+            --output text)
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+            echo "❌ No CloudFront distribution serves ${{ env.SITE_DOMAIN }}; the cache was not cleared"
+            exit 1
+          fi
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$DIST_ID" \
+            --paths "/*" \
+            --query "Invalidation.Id" --output text)
+          echo "Clearing $DIST_ID (invalidation $INVALIDATION_ID)"
+          aws cloudfront wait invalidation-completed --distribution-id "$DIST_ID" --id "$INVALIDATION_ID"
+          echo "✅ CloudFront cache cleared"
 
       - name: Verify health checks
         continue-on-error: true
