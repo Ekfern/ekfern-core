@@ -7,6 +7,7 @@ import {
   deriveInk,
   ensureContrast,
   gradientStops,
+  paperTone,
   worstContrast,
 } from './paletteUtils'
 
@@ -120,5 +121,22 @@ describe('deriveInk', () => {
         CONTRAST_FLOOR.body,
       )
     }
+  })
+})
+
+describe('paperTone', () => {
+  it('reads plain colours by luminance', () => {
+    expect(paperTone('#14213D')).toBe('dark')
+    expect(paperTone('#F7F1E3')).toBe('light')
+  })
+
+  it('judges a gradient by all of its stops', () => {
+    expect(paperTone('linear-gradient(180deg, #0B1026 0%, #1E2A5A 100%)')).toBe('dark')
+    expect(paperTone(LIVE_GRADIENT)).toBe('light')
+  })
+
+  it('treats anything unreadable as light paper', () => {
+    expect(paperTone(undefined)).toBe('light')
+    expect(paperTone('white')).toBe('light')
   })
 })

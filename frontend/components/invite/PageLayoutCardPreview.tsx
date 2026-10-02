@@ -5,6 +5,7 @@ import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import { PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 
 // Inviting sample copy for library previews so cards look like real invites, not placeholders
 export const PREVIEW_SAMPLE = {
@@ -59,7 +60,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
   return (
     <div
       className={`relative w-full aspect-[9/16] overflow-hidden ${className}`}
-      style={{ background: pageBackground }}
+      style={{ background: pageBackground, ...PAPER_ROOT_STYLE }}
       aria-hidden
     >
       {/*
@@ -70,13 +71,15 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
         as a backdrop keeps the look continuous.
       */}
       <TextureOverlay
+        layer="paper"
+        paperColor={pageBackground}
         type={config.texture?.type || 'none'}
         intensity={config.texture?.intensity ?? 40}
         imageUrl={config.texture?.imageUrl}
         textureBlend={config.texture?.textureBlend}
       />
       <div
-        className="relative w-full h-full overflow-hidden"
+        className="relative w-full h-full overflow-hidden flex flex-col"
         style={{
           transform: `scale(${CARD_SCALE})`,
           transformOrigin: 'top left',

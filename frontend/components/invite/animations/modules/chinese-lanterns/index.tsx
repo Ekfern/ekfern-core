@@ -8,6 +8,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import type { ExperienceModuleProps } from '@/lib/invite/animations/types'
+import { INVITE_LAYER } from '@/lib/invite/layers'
 
 const LANTERN_COUNT = 16
 
@@ -346,7 +347,7 @@ export default function ChineseLanternsModule(_props: ExperienceModuleProps) {
       `}</style>
       <div
         className={`pointer-events-none fixed inset-0 overflow-hidden${paused ? ' fern-lanterns-paused' : ''}`}
-        style={{ zIndex: 20 }}
+        style={{ zIndex: INVITE_LAYER.air }}
         aria-hidden
       >
         {lanterns.map((lantern) => (

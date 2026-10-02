@@ -180,7 +180,7 @@ export default function StaticTileMap({
             // The invitation's own paper, over the map, so it reads as printed
             // rather than pasted on. CSS-generated - no image is fetched.
             <div className="pointer-events-none absolute inset-0">
-              <TextureOverlay type={treatment.texture} intensity={treatment.textureIntensity ?? 30} />
+              <TextureOverlay layer="surface" type={treatment.texture} intensity={treatment.textureIntensity ?? 30} />
             </div>
           )}
         </div>
