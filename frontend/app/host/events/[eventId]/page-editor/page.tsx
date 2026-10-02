@@ -31,6 +31,7 @@ import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import SettingsSection from '@/components/invite/SettingsSection'
 import { PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 import ComposedPage from '@/components/invite/render/ComposedPage'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
@@ -1930,395 +1931,375 @@ export default function DesignInvitationPage(): JSX.Element {
 
                 <LookAndStyleSettings config={config} setConfig={setConfig} />
 
-                {/* Link Preview Settings - Collapsible */}
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowLinkMetadata(!showLinkMetadata)}
-                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md p-2 -m-2"
-                  >
+                <SettingsSection
+                  title="Link Preview Settings"
+                  open={showLinkMetadata}
+                  onToggle={() => setShowLinkMetadata(!showLinkMetadata)}
+                  description="Customize how your invite appears when shared on WhatsApp, Facebook, and other platforms"
+                  badge={!showLinkMetadata && (() => {
+                    const src = effectiveImageSource
+                    const label =
+                      src === 'poster' ? 'Using poster' :
+                        src === 'gallery' ? 'Using gallery' :
+                          config.linkMetadata?.image ? 'Using custom image' : 'Using default'
+                    const isDefault = !config.linkMetadata?.image && src !== 'poster' && src !== 'gallery'
+                    return (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${isDefault ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
+                        {label}
+                      </span>
+                    )
+                  })()}
+                >
+                  <div className="space-y-4">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-semibold text-eco-green">Link Preview Settings</h3>
-                        {!showLinkMetadata && (() => {
-                          const src = effectiveImageSource
-                          const label =
-                            src === 'poster' ? 'Using poster' :
-                              src === 'gallery' ? 'Using gallery' :
-                                config.linkMetadata?.image ? 'Using custom image' : 'Using default'
-                          const isDefault = !config.linkMetadata?.image && src !== 'poster' && src !== 'gallery'
-                          return (
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${isDefault ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
-                              {label}
-                            </span>
-                          )
-                        })()}
+                      <label className="block text-sm font-medium mb-2">Preview Title</label>
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'auto' },
+                          }))}
+                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewTitleSource ?? 'auto') === 'auto'
+                            ? 'bg-eco-green text-white border-eco-green'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            }`}
+                        >Auto</button>
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'custom' },
+                          }))}
+                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewTitleSource === 'custom'
+                            ? 'bg-eco-green text-white border-eco-green'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            }`}
+                        >Custom</button>
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">Customize how your invite appears when shared on WhatsApp, Facebook, and other platforms</p>
+                      {config.linkMetadata?.previewTitleSource === 'custom' ? (
+                        <div>
+                          <Input
+                            type="text"
+                            value={config.linkMetadata?.title || ''}
+                            onChange={(e) => setConfig(prev => ({
+                              ...prev,
+                              linkMetadata: {
+                                ...prev.linkMetadata,
+                                title: e.target.value || undefined,
+                              },
+                            }))}
+                            placeholder="Enter a custom preview title"
+                            className="w-full"
+                            maxLength={60}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Recommended: 50–60 characters.
+                          </p>
+                          {config.linkMetadata?.title && (
+                            <p className="text-xs mt-1 text-gray-400">
+                              {config.linkMetadata.title.length} / 60 characters
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic px-3 py-2 bg-gray-50 rounded border border-gray-100">
+                          {resolvedPreviewTitle}
+                        </p>
+                      )}
                     </div>
-                    <svg
-                      className={`w-5 h-5 text-gray-500 transition-transform ${showLinkMetadata ? 'transform rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
 
-                  {showLinkMetadata && (
-                    <div className="mt-4 space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Preview Title</label>
-                        <div className="flex gap-2 mb-2">
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({
-                              ...prev,
-                              linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'auto' },
-                            }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewTitleSource ?? 'auto') === 'auto'
-                              ? 'bg-eco-green text-white border-eco-green'
-                              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                              }`}
-                          >Auto</button>
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({
-                              ...prev,
-                              linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'custom' },
-                            }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewTitleSource === 'custom'
-                              ? 'bg-eco-green text-white border-eco-green'
-                              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                              }`}
-                          >Custom</button>
-                        </div>
-                        {config.linkMetadata?.previewTitleSource === 'custom' ? (
-                          <div>
-                            <Input
-                              type="text"
-                              value={config.linkMetadata?.title || ''}
-                              onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                linkMetadata: {
-                                  ...prev.linkMetadata,
-                                  title: e.target.value || undefined,
-                                },
-                              }))}
-                              placeholder="Enter a custom preview title"
-                              className="w-full"
-                              maxLength={60}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Recommended: 50–60 characters.
-                            </p>
-                            {config.linkMetadata?.title && (
-                              <p className="text-xs mt-1 text-gray-400">
-                                {config.linkMetadata.title.length} / 60 characters
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic px-3 py-2 bg-gray-50 rounded border border-gray-100">
-                            {resolvedPreviewTitle}
-                          </p>
-                        )}
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Preview Description</label>
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'auto' },
+                          }))}
+                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewDescriptionSource ?? 'auto') === 'auto'
+                            ? 'bg-eco-green text-white border-eco-green'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            }`}
+                        >Auto</button>
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'custom' },
+                          }))}
+                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewDescriptionSource === 'custom'
+                            ? 'bg-eco-green text-white border-eco-green'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            }`}
+                        >Custom</button>
                       </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Preview Description</label>
-                        <div className="flex gap-2 mb-2">
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({
+                      {config.linkMetadata?.previewDescriptionSource === 'custom' ? (
+                        <div>
+                          <textarea
+                            value={config.linkMetadata?.description || ''}
+                            onChange={(e) => setConfig(prev => ({
                               ...prev,
-                              linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'auto' },
+                              linkMetadata: {
+                                ...prev.linkMetadata,
+                                description: e.target.value || undefined,
+                              },
                             }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewDescriptionSource ?? 'auto') === 'auto'
-                              ? 'bg-eco-green text-white border-eco-green'
-                              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                              }`}
-                          >Auto</button>
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({
-                              ...prev,
-                              linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'custom' },
-                            }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewDescriptionSource === 'custom'
-                              ? 'bg-eco-green text-white border-eco-green'
-                              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                              }`}
-                          >Custom</button>
-                        </div>
-                        {config.linkMetadata?.previewDescriptionSource === 'custom' ? (
-                          <div>
-                            <textarea
-                              value={config.linkMetadata?.description || ''}
-                              onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                linkMetadata: {
-                                  ...prev.linkMetadata,
-                                  description: e.target.value || undefined,
-                                },
-                              }))}
-                              placeholder="Enter a custom preview description"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green resize-none"
-                              rows={3}
-                              maxLength={200}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Recommended: 150–200 characters.
-                            </p>
-                            {config.linkMetadata?.description && (
-                              <p className="text-xs mt-1 text-gray-400">
-                                {config.linkMetadata.description.length} / 200 characters
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic px-3 py-2 bg-gray-50 rounded border border-gray-100">
-                            {resolvedPreviewDescription || 'No description tile found — add a Description tile to your page.'}
+                            placeholder="Enter a custom preview description"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green resize-none"
+                            rows={3}
+                            maxLength={200}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Recommended: 150–200 characters.
                           </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Preview Image</label>
-
-                        {/* Source selector — 3 clickable cards */}
-                        <div className="grid grid-cols-3 gap-2 mb-3">
-                          {/* Poster option */}
-                          <button
-                            type="button"
-                            disabled={!posterTileForPreview}
-                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "poster" } }))}
-                            className={
-                              "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
-                              (effectiveImageSource === "poster" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
-                              (!posterTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
-                            }
-                          >
-                            <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {posterTileForPreview ? (
-                                <img
-                                  src={convertToCloudFrontUrl((posterTileForPreview.settings as any)?.src)}
-                                  alt="Poster"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Poster</span>
-                          </button>
-
-                          {/* Gallery option */}
-                          <button
-                            type="button"
-                            disabled={!galleryTileForPreview}
-                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "gallery" } }))}
-                            className={
-                              "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
-                              (effectiveImageSource === "gallery" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
-                              (!galleryTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
-                            }
-                          >
-                            <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {galleryTileForPreview ? (
-                                <img
-                                  src={convertToCloudFrontUrl((galleryTileForPreview.settings as any)?.images?.[0]?.src)}
-                                  alt="Gallery"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Gallery</span>
-                          </button>
-
-                          {/* Upload Custom option */}
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "upload" } }))}
-                            className={
-                              "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors cursor-pointer " +
-                              (effectiveImageSource === "upload" ? "border-eco-green bg-green-50" : "border-gray-200 hover:border-gray-300")
-                            }
-                          >
-                            <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {config.linkMetadata?.image ? (
-                                <img
-                                  src={convertToCloudFrontUrl(config.linkMetadata.image)}
-                                  alt="Custom Upload"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Upload Custom</span>
-                          </button>
+                          {config.linkMetadata?.description && (
+                            <p className="text-xs mt-1 text-gray-400">
+                              {config.linkMetadata.description.length} / 200 characters
+                            </p>
+                          )}
                         </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic px-3 py-2 bg-gray-50 rounded border border-gray-100">
+                          {resolvedPreviewDescription || 'No description tile found — add a Description tile to your page.'}
+                        </p>
+                      )}
+                    </div>
 
-                        {/* Conditionally render upload UI or tile thumbnail */}
-                        {effectiveImageSource === 'upload' ? (
-                          <div>
-                            {config.linkMetadata?.image ? (
-                              <div className="space-y-2">
-                                <div className="relative">
-                                  <img
-                                    src={config.linkMetadata.image}
-                                    alt="Preview"
-                                    className="w-full max-w-md h-48 object-contain bg-white rounded border border-gray-300"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none'
-                                    }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfig(prev => ({
-                                      ...prev,
-                                      linkMetadata: {
-                                        ...prev.linkMetadata,
-                                        image: undefined,
-                                        previewImageOriginal: undefined,
-                                        previewImageCrop: undefined,
-                                        previewImageCropAspectRatio: undefined,
-                                      },
-                                    }))}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                                    title="Remove image"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={handleAdjustPreviewFraming}
-                                  disabled={uploadingPreviewImage}
-                                  className="w-full"
-                                >
-                                  Adjust framing
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    previewImageInputRef.current?.click()
-                                  }}
-                                  disabled={uploadingPreviewImage}
-                                  className="w-full"
-                                >
-                                  {uploadingPreviewImage ? 'Uploading...' : 'Replace Image'}
-                                </Button>
-                              </div>
-                            ) : (
-                              <div>
-                                <input
-                                  ref={previewImageInputRef}
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={handlePreviewImageUpload}
-                                  className="hidden"
-                                  id="preview-image-upload"
-                                  disabled={uploadingPreviewImage}
-                                />
-                                <label
-                                  htmlFor="preview-image-upload"
-                                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
-                                >
-                                  {uploadingPreviewImage ? (
-                                    <div className="flex flex-col items-center">
-                                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-eco-green mb-2"></div>
-                                      <span className="text-sm text-gray-600">Uploading and optimizing...</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col items-center">
-                                      <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                      </svg>
-                                      <span className="text-sm text-gray-600">Click to upload preview image</span>
-                                      <span className="text-xs text-gray-400 mt-1">Recommended: 1200x630px (will be auto-optimized)</span>
-                                    </div>
-                                  )}
-                                </label>
-                              </div>
-                            )}
-                            <p className="text-xs text-gray-500 mt-2">
-                              Recommended: <strong>1200×630 (1.91:1)</strong>. Keep key content centered with padding. Use <strong>Adjust framing</strong> to choose what is visible in the frame.
-                            </p>
-                            <p className="text-xs text-eco-green mt-1 font-medium">
-                              WhatsApp requires preview images under 300KB - your image will be automatically compressed to meet this requirement.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="flex items-start gap-3 px-3 py-2 bg-gray-50 rounded border border-gray-100">
-                            {resolvedPreviewImage && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Preview Image</label>
+
+                      {/* Source selector — 3 clickable cards */}
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {/* Poster option */}
+                        <button
+                          type="button"
+                          disabled={!posterTileForPreview}
+                          onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "poster" } }))}
+                          className={
+                            "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
+                            (effectiveImageSource === "poster" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
+                            (!posterTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
+                          }
+                        >
+                          <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {posterTileForPreview ? (
                               <img
-                                src={convertToCloudFrontUrl(resolvedPreviewImage)}
-                                alt="Tile preview"
-                                className="w-16 h-12 object-cover rounded flex-shrink-0"
+                                src={convertToCloudFrontUrl((posterTileForPreview.settings as any)?.src)}
+                                alt="Poster"
+                                className="w-full h-full object-cover"
                               />
+                            ) : (
+                              <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
                             )}
-                            <p className="text-xs text-gray-500 mt-1">
-                              This image is pulled from your{' '}
-                              <strong>{effectiveImageSource === 'poster' ? 'Poster' : 'Gallery'} tile</strong>.
-                              {' '}To change it, update the tile directly.
-                            </p>
                           </div>
-                        )}
+                          <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Poster</span>
+                        </button>
+
+                        {/* Gallery option */}
+                        <button
+                          type="button"
+                          disabled={!galleryTileForPreview}
+                          onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "gallery" } }))}
+                          className={
+                            "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
+                            (effectiveImageSource === "gallery" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
+                            (!galleryTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
+                          }
+                        >
+                          <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {galleryTileForPreview ? (
+                              <img
+                                src={convertToCloudFrontUrl((galleryTileForPreview.settings as any)?.images?.[0]?.src)}
+                                alt="Gallery"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Gallery</span>
+                        </button>
+
+                        {/* Upload Custom option */}
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "upload" } }))}
+                          className={
+                            "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors cursor-pointer " +
+                            (effectiveImageSource === "upload" ? "border-eco-green bg-green-50" : "border-gray-200 hover:border-gray-300")
+                          }
+                        >
+                          <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {config.linkMetadata?.image ? (
+                              <img
+                                src={convertToCloudFrontUrl(config.linkMetadata.image)}
+                                alt="Custom Upload"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Upload Custom</span>
+                        </button>
                       </div>
 
-                      {/* WhatsApp / iMessage live preview card */}
-                      <div className="mt-4">
-                        <p className="text-xs font-medium text-gray-500 mb-2">Preview (WhatsApp / iMessage)</p>
-                        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white max-w-xs">
-                          {resolvedPreviewImage ? (
-                            <img
-                              src={convertToCloudFrontUrl(resolvedPreviewImage)}
-                              alt="preview"
-                              className="w-full h-32 object-cover"
-                            />
+                      {/* Conditionally render upload UI or tile thumbnail */}
+                      {effectiveImageSource === 'upload' ? (
+                        <div>
+                          {config.linkMetadata?.image ? (
+                            <div className="space-y-2">
+                              <div className="relative">
+                                <img
+                                  src={config.linkMetadata.image}
+                                  alt="Preview"
+                                  className="w-full max-w-md h-48 object-contain bg-white rounded border border-gray-300"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setConfig(prev => ({
+                                    ...prev,
+                                    linkMetadata: {
+                                      ...prev.linkMetadata,
+                                      image: undefined,
+                                      previewImageOriginal: undefined,
+                                      previewImageCrop: undefined,
+                                      previewImageCropAspectRatio: undefined,
+                                    },
+                                  }))}
+                                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                                  title="Remove image"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleAdjustPreviewFraming}
+                                disabled={uploadingPreviewImage}
+                                className="w-full"
+                              >
+                                Adjust framing
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  previewImageInputRef.current?.click()
+                                }}
+                                disabled={uploadingPreviewImage}
+                                className="w-full"
+                              >
+                                {uploadingPreviewImage ? 'Uploading...' : 'Replace Image'}
+                              </Button>
+                            </div>
                           ) : (
-                            <div className="w-full h-32 bg-gray-100 flex items-center justify-center">
-                              <span className="text-xs text-gray-400">No image selected</span>
+                            <div>
+                              <input
+                                ref={previewImageInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePreviewImageUpload}
+                                className="hidden"
+                                id="preview-image-upload"
+                                disabled={uploadingPreviewImage}
+                              />
+                              <label
+                                htmlFor="preview-image-upload"
+                                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                              >
+                                {uploadingPreviewImage ? (
+                                  <div className="flex flex-col items-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-eco-green mb-2"></div>
+                                    <span className="text-sm text-gray-600">Uploading and optimizing...</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center">
+                                    <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    <span className="text-sm text-gray-600">Click to upload preview image</span>
+                                    <span className="text-xs text-gray-400 mt-1">Recommended: 1200x630px (will be auto-optimized)</span>
+                                  </div>
+                                )}
+                              </label>
                             </div>
                           )}
-                          <div className="px-3 py-2 border-t border-gray-100">
-                            <p className="text-xs font-semibold text-gray-900 truncate">
-                              {resolvedPreviewTitle.length > 55 ? resolvedPreviewTitle.substring(0, 55) + '…' : resolvedPreviewTitle}
-                            </p>
-                            {resolvedPreviewDescription && (
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                                {resolvedPreviewDescription}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">ekfern.com</p>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Recommended: <strong>1200×630 (1.91:1)</strong>. Keep key content centered with padding. Use <strong>Adjust framing</strong> to choose what is visible in the frame.
+                          </p>
+                          <p className="text-xs text-eco-green mt-1 font-medium">
+                            WhatsApp requires preview images under 300KB - your image will be automatically compressed to meet this requirement.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-3 px-3 py-2 bg-gray-50 rounded border border-gray-100">
+                          {resolvedPreviewImage && (
+                            <img
+                              src={convertToCloudFrontUrl(resolvedPreviewImage)}
+                              alt="Tile preview"
+                              className="w-16 h-12 object-cover rounded flex-shrink-0"
+                            />
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            This image is pulled from your{' '}
+                            <strong>{effectiveImageSource === 'poster' ? 'Poster' : 'Gallery'} tile</strong>.
+                            {' '}To change it, update the tile directly.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* WhatsApp / iMessage live preview card */}
+                    <div className="mt-4">
+                      <p className="text-xs font-medium text-gray-500 mb-2">Preview (WhatsApp / iMessage)</p>
+                      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white max-w-xs">
+                        {resolvedPreviewImage ? (
+                          <img
+                            src={convertToCloudFrontUrl(resolvedPreviewImage)}
+                            alt="preview"
+                            className="w-full h-32 object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-32 bg-gray-100 flex items-center justify-center">
+                            <span className="text-xs text-gray-400">No image selected</span>
                           </div>
+                        )}
+                        <div className="px-3 py-2 border-t border-gray-100">
+                          <p className="text-xs font-semibold text-gray-900 truncate">
+                            {resolvedPreviewTitle.length > 55 ? resolvedPreviewTitle.substring(0, 55) + '…' : resolvedPreviewTitle}
+                          </p>
+                          {resolvedPreviewDescription && (
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                              {resolvedPreviewDescription}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">ekfern.com</p>
                         </div>
                       </div>
-
-                      <div className="bg-eco-green-light/20 border border-eco-green-light rounded-md p-3">
-                        <p className="text-xs text-eco-green">
-                          <strong>Tip:</strong> These settings control how your invite appears when shared on WhatsApp, Facebook, Twitter, and other platforms. If left empty, the system will automatically generate previews from your page content.
-                        </p>
-                      </div>
                     </div>
-                  )}
-                </div>
 
+                    <div className="bg-eco-green-light/20 border border-eco-green-light rounded-md p-3">
+                      <p className="text-xs text-eco-green">
+                        <strong>Tip:</strong> These settings control how your invite appears when shared on WhatsApp, Facebook, Twitter, and other platforms. If left empty, the system will automatically generate previews from your page content.
+                      </p>
+                    </div>
+                  </div>
+                </SettingsSection>
               </div>
             </div>
 
