@@ -82,6 +82,7 @@ export default function PosterTileSSR({ settings }: PosterTileSSRProps) {
 
   const heroTexture = settings.texture && settings.texture.type !== 'none' && (
     <TextureOverlay
+      layer="surface"
       type={settings.texture.type}
       intensity={settings.texture.intensity}
       imageUrl={settings.texture.imageUrl}

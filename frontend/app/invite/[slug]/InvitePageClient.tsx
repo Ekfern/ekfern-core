@@ -11,6 +11,7 @@ import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import { logError, logDebug } from '@/lib/error-handler'
 import api from '@/lib/api'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import { INVITE_LAYER, PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 import OpeningLayer from '@/components/invite/animations/OpeningLayer'
 import ExperienceLayer from '@/components/invite/animations/ExperienceLayer'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
@@ -758,8 +759,16 @@ export default function InvitePageClient({
             style={{
               overflowX: 'clip',
               background: pageBackground,
-              minHeight: '100vh', 
+              // One screen including the matte around it, so a short bordered
+              // invite does not scroll. svh, as on the unbordered page below:
+              // 100vh is the screen with the browser bars hidden and forced a
+              // stray scroll on phones.
+              minHeight: `calc(100svh - 2 * ${borderStyle.matte})`,
               height: 'auto',
+              // A flex column, so the invite can fill the card and compose a
+              // short page within it (see ComposedPage).
+              display: 'flex',
+              flexDirection: 'column',
               // The mat. An absolutely positioned `inset: 0` child resolves
               // against the padding box, so the frame below still draws at this
               // container's outer edge while the tiles sit in from it.
@@ -769,6 +778,7 @@ export default function InvitePageClient({
               // `0px` fallback is the right answer there.
               '--page-mat': borderStyle.mat,
               '--space-section': pageRhythm,
+              ...PAPER_ROOT_STYLE,
             } as React.CSSProperties}
           >
             {/* The frame draws above the tiles, not behind them.
@@ -782,7 +792,7 @@ export default function InvitePageClient({
               aria-hidden
               className="pointer-events-none absolute inset-0"
               style={{
-                zIndex: 10,
+                zIndex: INVITE_LAYER.border,
                 borderWidth: borderStyle.borderWidth,
                 borderStyle: borderStyle.borderStyle,
                 borderColor: borderStyle.borderColor,
@@ -793,6 +803,8 @@ export default function InvitePageClient({
             />
             {/* Texture overlay at page level */}
             <TextureOverlay
+              layer="paper"
+              paperColor={pageBackground}
               type={config.texture?.type || 'none'}
               intensity={config.texture?.intensity ?? 40}
               imageUrl={config.texture?.imageUrl}
@@ -817,9 +829,8 @@ export default function InvitePageClient({
               allowedSubEvents={subEvents}
               guestToken={guestToken}
               rsvpCount={event?.rsvp_count}
+              foot={(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
             />
-            {/* Branding component at the bottom */}
-            {(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
           </div>
         </div>
       ) : (
@@ -836,11 +847,16 @@ export default function InvitePageClient({
             // (see cb22817). Browsers without svh keep the old `auto`.
             minHeight: '100svh',
             height: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
             '--space-section': pageRhythm,
+            ...PAPER_ROOT_STYLE,
           } as React.CSSProperties}
         >
           {/* Texture overlay at page level */}
           <TextureOverlay
+            layer="paper"
+            paperColor={pageBackground}
             type={config.texture?.type || 'none'}
             intensity={config.texture?.intensity ?? 40}
             imageUrl={config.texture?.imageUrl}
@@ -865,9 +881,8 @@ export default function InvitePageClient({
             allowedSubEvents={subEvents}
             guestToken={guestToken}
             rsvpCount={event?.rsvp_count}
+            foot={(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
           />
-          {/* Branding component at the bottom */}
-          {(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
         </div>
       )}
       <ExperienceLayer id={experience} slug={slug} />

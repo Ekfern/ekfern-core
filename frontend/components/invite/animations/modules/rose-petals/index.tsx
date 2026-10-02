@@ -7,6 +7,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import type { ExperienceModuleProps } from '@/lib/invite/animations/types'
+import { INVITE_LAYER } from '@/lib/invite/layers'
 
 const PETAL_COLORS = ['#F7E7D3', '#F4D6D0', '#C9A0A0', '#D4A574'] as const
 const PETAL_COUNT = 42
@@ -202,7 +203,7 @@ export default function RosePetalsModule(_props: ExperienceModuleProps) {
       `}</style>
       <div
         className={`pointer-events-none fixed inset-0 overflow-hidden${paused ? ' fern-petals-paused' : ''}`}
-        style={{ zIndex: 20 }}
+        style={{ zIndex: INVITE_LAYER.air }}
         aria-hidden
       >
         {petals.map((petal) => (

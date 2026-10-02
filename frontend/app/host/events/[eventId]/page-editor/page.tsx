@@ -31,6 +31,8 @@ import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import { PAPER_ROOT_STYLE } from '@/lib/invite/layers'
+import ComposedPage from '@/components/invite/render/ComposedPage'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage } from '@/lib/invite/imageAnalysis'
 import { deriveInk } from '@/lib/invite/paletteUtils'
@@ -2444,10 +2446,13 @@ export default function DesignInvitationPage(): JSX.Element {
                             width: '100%',
                             aspectRatio: '1179 / 2556',
                             background: displayBackground,
-                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
+                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)',
+                            ...PAPER_ROOT_STYLE,
                           }}
                         >
                             <TextureOverlay
+                              layer="paper"
+                              paperColor={displayBackground}
                               type={config.texture?.type ?? 'none'}
                               intensity={config.texture?.intensity ?? 40}
                               imageUrl={config.texture?.imageUrl}
@@ -2471,9 +2476,11 @@ export default function DesignInvitationPage(): JSX.Element {
                               ></div>
                             </div>
                             {/* Content Area */}
-                            <div className="overflow-y-auto flex-1 w-full overflow-x-hidden [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                            <div className="overflow-y-auto flex-1 w-full overflow-x-hidden flex flex-col [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                               {sortedTiles && sortedTiles.length > 0 ? (
-                                <>
+                                // The invitation's own composition, so a short page sits
+                                // where it will on the guest's screen.
+                                <ComposedPage firstTileType={sortedTiles.find(t => t.enabled !== false && t.type !== 'footer')?.type}>
                                   <TileList
                                     variant="invite"
                                     tiles={sortedTiles}
@@ -2485,7 +2492,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                     hasRegistry={event?.has_registry}
                                     allowedSubEvents={allowedSubEvents}
                                   />
-                                </>
+                                </ComposedPage>
                               ) : (
                                 <div className="p-8 text-center text-gray-500">
                                   <p>Loading tiles...</p>

@@ -2,20 +2,39 @@
 
 import React from 'react'
 import { TextureType } from '@/lib/invite/schema'
+import { INVITE_LAYER } from '@/lib/invite/layers'
+import { paperTone } from '@/lib/invite/paletteUtils'
 
 export interface TextureOverlayProps {
   type: TextureType
   intensity?: number // 0-100, default 20
   imageUrl?: string
   textureBlend?: 'overlay' | 'replace'
+  /**
+   * Where this texture lives, and there is no default on purpose.
+   *
+   * `paper`: the page's stock. It paints under everything printed on the page,
+   * which needs its parent to carry `PAPER_ROOT_STYLE` - see lib/invite/layers.
+   * `surface`: the finish of one mounted object (a poster print, a map), painted
+   * over that object's own image.
+   */
+  layer: 'paper' | 'surface'
+  /**
+   * The colour this texture is laid on, so the finish can follow it: shadowed
+   * weave on light stock, highlighted weave on dark. Omitted, it is drawn for
+   * light paper.
+   */
+  paperColor?: string
 }
+
+type Tone = 'light' | 'dark'
 
 /**
  * Modern film-grain/noise overlay using an SVG turbulence filter — reads as
  * analog photographic grain over a rich gradient, unlike the repeating-CSS
  * craft-material patterns used by the other texture types.
  */
-function GrainOverlay({ opacity }: { opacity: number }) {
+function GrainOverlay({ opacity, zIndex }: { opacity: number; zIndex: number }) {
   const filterId = `fern-grain-${React.useId().replace(/:/g, '')}`
   return (
     <div
@@ -28,7 +47,7 @@ function GrainOverlay({ opacity }: { opacity: number }) {
         width: '100%',
         height: '100%',
         pointerEvents: 'none',
-        zIndex: 1,
+        zIndex,
         opacity,
         mixBlendMode: 'overlay',
       }}
@@ -62,7 +81,7 @@ function GrainOverlay({ opacity }: { opacity: number }) {
  * Lit fractal-noise surface. Reads as stone or plaster, not paper —
  * raking light and high relief carved the folds into a wall.
  */
-function StoneOverlay({ opacity }: { opacity: number }) {
+function StoneOverlay({ opacity, zIndex }: { opacity: number; zIndex: number }) {
   const filterId = `fern-stone-${React.useId().replace(/:/g, '')}`
   return (
     <div
@@ -72,7 +91,7 @@ function StoneOverlay({ opacity }: { opacity: number }) {
         position: 'absolute',
         inset: 0,
         pointerEvents: 'none',
-        zIndex: 1,
+        zIndex,
         opacity,
         mixBlendMode: 'overlay',
       }}
@@ -138,7 +157,10 @@ const PAGE_STARS: Star[] = (() => {
  * phone preview. No mix-blend: overflow/transform on the invite shell isolates
  * the backdrop and made screen-blend stars disappear. Seeded for SSR.
  */
-function StarsOverlay({ opacity }: { opacity: number }) {
+function StarsOverlay({ opacity, zIndex, tone }: { opacity: number; zIndex: number; tone: Tone }) {
+  // Cream flecks vanish into ivory, so light stock gets the speckled-paper
+  // version: small dark-gold flecks, no glow.
+  const fleck = tone === 'dark' ? '#FFF8EC' : '#8A6A2F'
   return (
     <div
       aria-hidden
@@ -147,9 +169,10 @@ function StarsOverlay({ opacity }: { opacity: number }) {
         position: 'absolute',
         inset: 0,
         pointerEvents: 'none',
-        zIndex: 1,
+        zIndex,
         overflow: 'hidden',
         opacity,
+        ['--star-fleck' as string]: fleck,
       }}
     >
       <style>{`
@@ -160,7 +183,7 @@ function StarsOverlay({ opacity }: { opacity: number }) {
         .fern-page-star {
           position: absolute;
           border-radius: 50%;
-          background: #FFF8EC;
+          background: var(--star-fleck);
           animation-name: fern-star-twinkle;
           animation-timing-function: ease-in-out;
           animation-iteration-count: infinite;
@@ -182,7 +205,9 @@ function StarsOverlay({ opacity }: { opacity: number }) {
             marginLeft: -star.r,
             marginTop: -star.r,
             ['--star-base' as string]: String(star.opacity),
-            boxShadow: star.glow
+            boxShadow: tone === 'light'
+              ? 'none'
+              : star.glow
               ? `0 0 ${star.r * 5}px ${star.r * 1.6}px rgba(255, 248, 236, 0.9)`
               : `0 0 ${star.r * 2}px ${star.r * 0.5}px rgba(255, 248, 236, 0.65)`,
             animationDuration: `${star.duration}s`,
@@ -198,7 +223,7 @@ function StarsOverlay({ opacity }: { opacity: number }) {
  * Photographed crumpled sheet, blended over the page colour so folds keep
  * their highlights and valleys. Named texture — not a host-supplied URL.
  */
-function CrumpledPaperOverlay({ opacity }: { opacity: number }) {
+function CrumpledPaperOverlay({ opacity, zIndex, tone }: { opacity: number; zIndex: number; tone: Tone }) {
   return (
     <div
       aria-hidden
@@ -207,10 +232,12 @@ function CrumpledPaperOverlay({ opacity }: { opacity: number }) {
         position: 'absolute',
         inset: 0,
         pointerEvents: 'none',
-        zIndex: 1,
+        zIndex,
         overflow: 'hidden',
         opacity,
-        mixBlendMode: 'multiply',
+        // Multiply only darkens, which is nothing on dark stock; soft-light
+        // keeps the folds' highlights there too.
+        mixBlendMode: tone === 'dark' ? 'soft-light' : 'multiply',
         filter: 'contrast(1.15)',
         backgroundImage: 'url(/textures/crumpled-paper.jpg)',
         backgroundSize: 'cover',
@@ -222,12 +249,18 @@ function CrumpledPaperOverlay({ opacity }: { opacity: number }) {
 }
 
 /**
- * CSS-based texture overlay that sits underneath all content.
+ * A texture: the paper's finish (`layer="paper"`) or a mounted object's own
+ * surface (`layer="surface"`). The finish follows the colour it is laid on, so
+ * any background pairs with any texture.
  * When imageUrl is set (legacy saved configs), can render an image texture
  * (overlay or replace CSS texture). Hosts pick named types only.
  */
-export default function TextureOverlay({ type, intensity = 40, imageUrl, textureBlend = 'overlay' }: TextureOverlayProps) {
+export default function TextureOverlay({ type, intensity = 40, imageUrl, textureBlend = 'overlay', layer, paperColor }: TextureOverlayProps) {
   const opacity = intensity / 100
+  const zIndex = layer === 'paper' ? INVITE_LAYER.paperTexture : 1
+  const tone = paperTone(paperColor)
+  // The pattern textures' ink: shadow on light stock, highlight on dark.
+  const ink = tone === 'dark' ? '255, 255, 255' : '0, 0, 0'
   const showCssTexture = type !== 'none' && (!imageUrl || textureBlend !== 'replace')
   const showImageTexture = !!imageUrl
 
@@ -236,19 +269,19 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
   }
 
   if (type === 'grain' && showCssTexture) {
-    return <GrainOverlay opacity={opacity} />
+    return <GrainOverlay opacity={opacity} zIndex={zIndex} />
   }
 
   if (type === 'stars') {
-    return <StarsOverlay opacity={opacity} />
+    return <StarsOverlay opacity={opacity} zIndex={zIndex} tone={tone} />
   }
 
   if (type === 'stone') {
-    return <StoneOverlay opacity={opacity} />
+    return <StoneOverlay opacity={opacity} zIndex={zIndex} />
   }
 
   if (type === 'crumpled-paper') {
-    return <CrumpledPaperOverlay opacity={opacity} />
+    return <CrumpledPaperOverlay opacity={opacity} zIndex={zIndex} tone={tone} />
   }
 
   if (showImageTexture && (textureBlend === 'replace' || !showCssTexture)) {
@@ -263,7 +296,7 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
           width: '100%',
           height: '100%',
           pointerEvents: 'none',
-          zIndex: 1,
+          zIndex,
           opacity,
         }}
       >
@@ -289,7 +322,7 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
     width: '100%',
     height: '100%',
     pointerEvents: 'none',
-    zIndex: 1, // Behind all content but above background
+    zIndex,
     opacity,
     // No blend mode - use direct opacity for better visibility
   }
@@ -303,18 +336,18 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
           backgroundImage: `
             repeating-linear-gradient(
               0deg,
-              rgba(0, 0, 0, 0.4) 0px,
+              rgba(${ink}, 0.4) 0px,
               transparent 0.5px,
               transparent 1.5px,
-              rgba(0, 0, 0, 0.4) 2px,
+              rgba(${ink}, 0.4) 2px,
               transparent 2.5px
             ),
             repeating-linear-gradient(
               90deg,
-              rgba(0, 0, 0, 0.4) 0px,
+              rgba(${ink}, 0.4) 0px,
               transparent 0.5px,
               transparent 1.5px,
-              rgba(0, 0, 0, 0.4) 2px,
+              rgba(${ink}, 0.4) 2px,
               transparent 2.5px
             )
           `,
@@ -327,18 +360,18 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
           backgroundImage: `
             repeating-linear-gradient(
               45deg,
-              rgba(0, 0, 0, 0.25) 0px,
+              rgba(${ink}, 0.25) 0px,
               transparent 1px,
               transparent 2px,
-              rgba(0, 0, 0, 0.25) 3px,
+              rgba(${ink}, 0.25) 3px,
               transparent 4px
             ),
             repeating-linear-gradient(
               -45deg,
-              rgba(0, 0, 0, 0.25) 0px,
+              rgba(${ink}, 0.25) 0px,
               transparent 1px,
               transparent 2px,
-              rgba(0, 0, 0, 0.25) 3px,
+              rgba(${ink}, 0.25) 3px,
               transparent 4px
             )
           `,
@@ -349,9 +382,9 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
         return {
           ...baseStyle,
           backgroundImage: `
-            radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.5) 0.5px, transparent 0.5px),
-            radial-gradient(circle at 2px 2px, rgba(0, 0, 0, 0.3) 0.5px, transparent 0.5px),
-            radial-gradient(circle at 3px 3px, rgba(0, 0, 0, 0.4) 0.5px, transparent 0.5px)
+            radial-gradient(circle at 1px 1px, rgba(${ink}, 0.5) 0.5px, transparent 0.5px),
+            radial-gradient(circle at 2px 2px, rgba(${ink}, 0.3) 0.5px, transparent 0.5px),
+            radial-gradient(circle at 3px 3px, rgba(${ink}, 0.4) 0.5px, transparent 0.5px)
           `,
           backgroundSize: '4px 4px',
         }
@@ -362,19 +395,19 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
           backgroundImage: `
             repeating-linear-gradient(
               0deg,
-              rgba(139, 90, 43, 0.3) 0px,
+              rgba(${ink}, 0.3) 0px,
               transparent 1px,
               transparent 2px,
-              rgba(139, 90, 43, 0.3) 3px
+              rgba(${ink}, 0.3) 3px
             ),
             repeating-linear-gradient(
               90deg,
-              rgba(139, 90, 43, 0.3) 0px,
+              rgba(${ink}, 0.3) 0px,
               transparent 1px,
               transparent 2px,
-              rgba(139, 90, 43, 0.3) 3px
+              rgba(${ink}, 0.3) 3px
             ),
-            radial-gradient(circle at 50% 50%, rgba(139, 90, 43, 0.15) 0%, transparent 50%)
+            radial-gradient(circle at 50% 50%, rgba(${ink}, 0.15) 0%, transparent 50%)
           `,
           backgroundSize: '6px 6px, 6px 6px, 20px 20px',
         }
@@ -385,19 +418,19 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
           backgroundImage: `
             repeating-linear-gradient(
               0deg,
-              rgba(101, 67, 33, 0.35) 0px,
+              rgba(${ink}, 0.35) 0px,
               transparent 1px,
               transparent 3px,
-              rgba(101, 67, 33, 0.35) 4px
+              rgba(${ink}, 0.35) 4px
             ),
             repeating-linear-gradient(
               90deg,
-              rgba(101, 67, 33, 0.35) 0px,
+              rgba(${ink}, 0.35) 0px,
               transparent 1px,
               transparent 3px,
-              rgba(101, 67, 33, 0.35) 4px
+              rgba(${ink}, 0.35) 4px
             ),
-            radial-gradient(circle at 2px 2px, rgba(101, 67, 33, 0.2) 1px, transparent 0)
+            radial-gradient(circle at 2px 2px, rgba(${ink}, 0.2) 1px, transparent 0)
           `,
           backgroundSize: '8px 8px, 8px 8px, 4px 4px',
         }
@@ -408,10 +441,10 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
           backgroundImage: `
             repeating-linear-gradient(
               0deg,
-              rgba(0, 0, 0, 0.2) 0px,
+              rgba(${ink}, 0.2) 0px,
               transparent 1px,
               transparent 2px,
-              rgba(0, 0, 0, 0.2) 3px
+              rgba(${ink}, 0.2) 3px
             ),
             repeating-linear-gradient(
               90deg,
@@ -428,15 +461,15 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
         return {
           ...baseStyle,
           backgroundImage: `
-            radial-gradient(circle at 20% 30%, rgba(0, 0, 0, 0.25) 0%, transparent 50%),
-            radial-gradient(circle at 80% 70%, rgba(0, 0, 0, 0.25) 0%, transparent 50%),
-            radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.15) 0%, transparent 50%),
+            radial-gradient(circle at 20% 30%, rgba(${ink}, 0.25) 0%, transparent 50%),
+            radial-gradient(circle at 80% 70%, rgba(${ink}, 0.25) 0%, transparent 50%),
+            radial-gradient(circle at 50% 50%, rgba(${ink}, 0.15) 0%, transparent 50%),
             repeating-linear-gradient(
               45deg,
-              rgba(0, 0, 0, 0.15) 0px,
+              rgba(${ink}, 0.15) 0px,
               transparent 2px,
               transparent 4px,
-              rgba(0, 0, 0, 0.15) 6px
+              rgba(${ink}, 0.15) 6px
             )
           `,
           backgroundSize: '100% 100%, 100% 100%, 100% 100%, 10px 10px',
@@ -463,7 +496,7 @@ export default function TextureOverlay({ type, intensity = 40, imageUrl, texture
             width: '100%',
             height: '100%',
             pointerEvents: 'none',
-            zIndex: 1,
+            zIndex,
             opacity,
           }}
         >
