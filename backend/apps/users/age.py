@@ -6,8 +6,13 @@ verifiable parental consent, and hosts can take money through the catalog;
 it also covers COPPA (13) and the EU's 16. Under the limit, signup is refused
 before an account exists, so no child's data is ever stored.
 """
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from django.conf import settings
+
+# The signup form refuses with the same rule before sending anything, so an
+# underage visitor's email never reaches us; keep frontend/lib/auth/age.ts in step.
 MINIMUM_AGE = 18
 OLDEST_PLAUSIBLE_AGE = 120
 
@@ -37,6 +42,22 @@ def parse_date_of_birth(raw) -> date:
         return date.fromisoformat(str(raw or '').strip())
     except ValueError:
         raise AgeCheckError('dob_invalid', 'Enter your date of birth.')
+
+
+def local_today(time_zone) -> date:
+    """
+    Today in the visitor's own timezone (an IANA name such as
+    "Pacific/Auckland", sent by the signup form), so a birthday falls on the
+    same day here as it does for the visitor and in the form. A real timezone
+    can only move today by about a day, so it needs no further checking.
+    Missing or unknown values fall back to the server's own zone.
+    """
+    if isinstance(time_zone, str) and 0 < len(time_zone) <= 64:
+        try:
+            return datetime.now(ZoneInfo(time_zone)).date()
+        except (ZoneInfoNotFoundError, ValueError):
+            pass
+    return datetime.now(ZoneInfo(settings.TIME_ZONE)).date()
 
 
 def check_date_of_birth(raw, *, today: date | None = None) -> date:

@@ -21,7 +21,7 @@ from apps.common import emails
 from apps.common.email_backend import send_email
 from apps.privacy.helpers import record_age_confirmation, record_signup_consent, record_login
 from django.db import transaction
-from .age import AgeCheckError, check_date_of_birth
+from .age import AgeCheckError, check_date_of_birth, local_today
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.decorators import throttle_classes
 
@@ -47,7 +47,10 @@ def signup(request):
     # Checked before anything is looked up or stored: someone under the minimum
     # age gets a clear refusal and leaves no data behind.
     try:
-        date_of_birth = check_date_of_birth(request.data.get('date_of_birth'))
+        date_of_birth = check_date_of_birth(
+            request.data.get('date_of_birth'),
+            today=local_today(request.data.get('time_zone')),
+        )
     except AgeCheckError as exc:
         return Response(
             {'error': exc.message, 'code': exc.code},
