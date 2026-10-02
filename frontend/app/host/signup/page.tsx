@@ -12,20 +12,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/components/ui/toast'
 import { PasswordRequirements } from '@/components/ui/PasswordRequirements'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
-import { signup, verifyOtp, setPassword, storeAuthTokens, getCurrentUser, otpCodeSchema, newPasswordSchema } from '@/lib/auth/api'
-import { dateOfBirthProblem, isAgeBlocked, rememberAgeBlock, todayIso } from '@/lib/auth/age'
+import { signup, verifyOtp, setPassword, storeAuthTokens, storedAccessToken, getCurrentUser, otpCodeSchema, newPasswordSchema } from '@/lib/auth/api'
+import { MINIMUM_AGE, dateOfBirthProblem, isUnderage, todayIso } from '@/lib/auth/age'
 import { afterAuthPath } from '@/lib/auth/returnTo'
+
+const UNDERAGE_MESSAGE = `You must be ${MINIMUM_AGE} or older to create an Ekfern account.`
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
+  // Under the minimum age is an ordinary field error, so nothing is sent and a
+  // mistyped year can simply be corrected. The form validates on submit, so
+  // the age limit is not shown before someone answers.
   dateOfBirth: z.string().superRefine((value, ctx) => {
-    const problem = dateOfBirthProblem(value)
+    const problem = dateOfBirthProblem(value) ?? (isUnderage(value) ? UNDERAGE_MESSAGE : null)
     if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem })
   }),
 })
-
-const UNDERAGE_MESSAGE = 'You must be 18 or older to create an Ekfern account.'
 
 /** The server said the account already has a password - the first save worked. */
 function passwordAlreadySet(error: any): boolean {
@@ -58,19 +61,15 @@ function SignupForm() {
   // Once the password is saved we are on our way out; the buttons stay off so a
   // second press cannot send it again while the next page loads.
   const [leaving, setLeaving] = useState(false)
-  const [ageBlocked, setAgeBlocked] = useState(false)
   const nextPath = afterAuthPath(searchParams)
 
-  useEffect(() => {
-    setAgeBlocked(isAgeBlocked(typeof window !== 'undefined' ? window.localStorage : null))
-  }, [])
   // Send an already-authenticated visitor to the dashboard instead of showing
   // the signup form (tokens live in localStorage, shared across tabs).
   const [checkingSession, setCheckingSession] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    const token = storedAccessToken()
     if (!token) {
       setCheckingSession(false)
       return
@@ -90,6 +89,7 @@ function SignupForm() {
   const {
     register: registerSignup,
     handleSubmit: handleSubmitSignup,
+    setError: setSignupError,
     formState: { errors: signupErrors },
   } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
@@ -131,8 +131,8 @@ function SignupForm() {
       }
     } catch (error: any) {
       if (error?.response?.data?.code === 'underage') {
-        rememberAgeBlock(typeof window !== 'undefined' ? window.localStorage : null)
-        setAgeBlocked(true)
+        // The server's own check (e.g. its date differs from the browser's).
+        setSignupError('dateOfBirth', { message: UNDERAGE_MESSAGE })
         return
       }
       logError('Signup error:', error)
@@ -189,30 +189,6 @@ function SignupForm() {
     return (
       <div className="min-h-screen bg-eco-beige flex items-center justify-center p-4">
         <p className="text-gray-600">Loading…</p>
-      </div>
-    )
-  }
-
-  if (ageBlocked) {
-    return (
-      <div className="min-h-screen bg-eco-beige flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-white border-2 border-eco-green-light">
-          <CardHeader className="text-center">
-            <div className="text-4xl mb-4">🌿</div>
-            <CardTitle className="text-2xl text-eco-green">We can&apos;t create an account</CardTitle>
-            <CardDescription className="text-base" role="alert">
-              {UNDERAGE_MESSAGE}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center">
-            <p className="text-sm text-gray-600">
-              You can still open invitations and RSVP to events without an account.
-            </p>
-            <Link href="/" className="inline-block mt-4 text-eco-green font-medium hover:underline">
-              Back to Ekfern
-            </Link>
-          </CardContent>
-        </Card>
       </div>
     )
   }
@@ -283,7 +259,7 @@ function SignupForm() {
                   className="border-eco-green-light focus:border-eco-green"
                 />
                 {signupErrors.dateOfBirth ? (
-                  <p className="text-red-500 text-sm mt-1">{signupErrors.dateOfBirth.message}</p>
+                  <p className="text-red-500 text-sm mt-1" role="alert">{signupErrors.dateOfBirth.message}</p>
                 ) : (
                   <p className="text-xs text-gray-500 mt-1">
                     Required by law to create an account. We don&apos;t show it to anyone.

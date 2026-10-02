@@ -1,17 +1,18 @@
 /**
  * The date-of-birth field at signup.
  *
- * The server decides who is old enough (apps/users/age.py); the form only
- * checks that a real date was entered. It deliberately does not state the
- * minimum age before someone answers - a neutral question, as regulators
- * recommend, rather than one that tells a child what to type.
+ * Someone under the minimum age gets a field error when they submit, before
+ * anything (their email included) is sent to Ekfern. The server applies the
+ * same rule (apps/users/age.py) and stays the authority; this copy only keeps
+ * an underage visitor's details out of the system altogether.
  *
- * After a refusal the browser remembers it for a day, so pressing Back and
- * trying an older date does not work straight away.
+ * The field never states the minimum age before someone answers - a neutral
+ * question rather than one that tells a child what to type. A refusal is not
+ * remembered: a mistyped year can simply be corrected.
  */
 
-export const AGE_BLOCK_KEY = 'ekfern_signup_age_block'
-export const AGE_BLOCK_MS = 24 * 60 * 60 * 1000
+/** Must match MINIMUM_AGE in backend apps/users/age.py. */
+export const MINIMUM_AGE = 18
 
 /** Today as YYYY-MM-DD in the visitor's own zone, for the date input's max. */
 export function todayIso(now: Date = new Date()): string {
@@ -35,21 +36,18 @@ export function dateOfBirthProblem(value: string | undefined, now: Date = new Da
   return null
 }
 
-type Store = Pick<Storage, 'getItem' | 'setItem'>
-
-export function rememberAgeBlock(store: Store | null, now: number = Date.now()): void {
-  try {
-    store?.setItem(AGE_BLOCK_KEY, String(now + AGE_BLOCK_MS))
-  } catch {
-    // Storage can be unavailable (private mode); the server still refuses.
-  }
+/**
+ * Whole years completed by `now`, for a YYYY-MM-DD date of birth. A 29 February
+ * birthday counts from 1 March, as on the server.
+ */
+export function ageOn(value: string, now: Date = new Date()): number {
+  const [y, m, d] = value.split('-').map(Number)
+  const month = now.getMonth() + 1
+  const hadBirthday = month > m || (month === m && now.getDate() >= d)
+  return now.getFullYear() - y - (hadBirthday ? 0 : 1)
 }
 
-export function isAgeBlocked(store: Store | null, now: number = Date.now()): boolean {
-  try {
-    const until = Number(store?.getItem(AGE_BLOCK_KEY))
-    return Number.isFinite(until) && until > now
-  } catch {
-    return false
-  }
+/** True when a usable date of birth is below the minimum age. */
+export function isUnderage(value: string, now: Date = new Date()): boolean {
+  return dateOfBirthProblem(value, now) === null && ageOn(value, now) < MINIMUM_AGE
 }

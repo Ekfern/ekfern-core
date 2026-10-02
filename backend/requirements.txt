@@ -17,3 +17,6 @@ anthropic>=0.40.0,<1.0.0
 colorthief==0.2.1
 Pillow==10.4.0
 
+# Full timezone database for zoneinfo, including the legacy names browsers
+# report (Asia/Calcutta, Europe/Kiev); the slim base image ships without them.
+tzdata==2026.4

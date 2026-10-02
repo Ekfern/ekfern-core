@@ -2,7 +2,7 @@
 The minimum age at signup: enforced on the server, and nothing is stored for
 someone under it.
 """
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest import mock
 
 from django.test import SimpleTestCase, TestCase
@@ -10,7 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.privacy.models import ConsentEvent
-from apps.users.age import MINIMUM_AGE, AgeCheckError, age_on, check_date_of_birth
+from apps.users.age import MINIMUM_AGE, AgeCheckError, age_on, check_date_of_birth, local_today
 from apps.users.models import User
 
 TODAY = date(2026, 9, 30)
@@ -41,6 +41,46 @@ class AgeRuleTests(SimpleTestCase):
             with self.subTest(raw=raw), self.assertRaises(AgeCheckError) as ctx:
                 check_date_of_birth(raw, today=TODAY)
             self.assertEqual(ctx.exception.code, code)
+
+
+# 16:30 UTC on 30 Sep 2026: already 1 Oct in Auckland (UTC+13), still 30 Sep
+# in India (22:00) and Chicago (11:30).
+AUCKLAND_IS_AHEAD = datetime(2026, 9, 30, 16, 30, tzinfo=timezone.utc)
+# 01:00 UTC on 1 Oct 2026: still 30 Sep in Chicago (20:00), already 1 Oct in India.
+CHICAGO_IS_BEHIND = datetime(2026, 10, 1, 1, 0, tzinfo=timezone.utc)
+
+
+def frozen_at(instant):
+    """Patch the clock local_today reads, keeping the rest of datetime real."""
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return instant.astimezone(tz)
+    return mock.patch('apps.users.age.datetime', Frozen)
+
+
+class LocalTodayTests(SimpleTestCase):
+    def test_uses_the_visitors_timezone(self):
+        with frozen_at(AUCKLAND_IS_AHEAD):
+            self.assertEqual(local_today('Pacific/Auckland'), date(2026, 10, 1))
+            self.assertEqual(local_today('America/Chicago'), date(2026, 9, 30))
+            self.assertEqual(local_today('Asia/Kolkata'), date(2026, 9, 30))
+
+    def test_legacy_names_that_browsers_report_are_understood(self):
+        # Chrome reports e.g. Asia/Calcutta and Asia/Saigon; these need the
+        # tzdata package (requirements.txt) on the slim image.
+        with frozen_at(AUCKLAND_IS_AHEAD):
+            self.assertEqual(local_today('Asia/Saigon'), date(2026, 9, 30))  # 23:30
+            self.assertEqual(local_today('Asia/Calcutta'), date(2026, 9, 30))
+        with frozen_at(CHICAGO_IS_BEHIND):
+            self.assertEqual(local_today('US/Central'), date(2026, 9, 30))
+            self.assertEqual(local_today('Asia/Katmandu'), date(2026, 10, 1))
+
+    def test_missing_or_unknown_timezones_fall_back_to_the_server_zone(self):
+        with frozen_at(AUCKLAND_IS_AHEAD):
+            for raw in [None, '', 'Mars/Olympus', '../../etc/passwd', '/etc/localtime', 'x' * 200, 123, ['UTC']]:
+                with self.subTest(raw=raw):
+                    self.assertEqual(local_today(raw), date(2026, 9, 30))  # Asia/Kolkata
 
 
 @mock.patch('apps.users.views._send_otp')
@@ -94,4 +134,23 @@ class SignupAgeTests(TestCase):
         User.objects.create_user(email='priya@example.com', name='Priya').__class__.objects.filter(
             email='priya@example.com').update(email_verified=True)
         response = self.signup(date_of_birth='2015-01-01')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_the_birthday_counts_in_the_visitors_own_timezone(self, send_otp):
+        self.ok(send_otp)
+        # Turning 18 on 1 Oct: it is already that day in Auckland.
+        with frozen_at(AUCKLAND_IS_AHEAD):
+            response = self.signup(date_of_birth='2008-10-01', time_zone='Pacific/Auckland')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_the_eve_of_the_birthday_is_refused_where_it_is_still_the_eve(self, send_otp):
+        # Already 1 Oct in India, but still 30 Sep for this visitor in Chicago.
+        with frozen_at(CHICAGO_IS_BEHIND):
+            response = self.signup(date_of_birth='2008-10-01', time_zone='America/Chicago')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(User.objects.exists())
+
+    def test_without_a_timezone_the_server_zone_decides(self, send_otp):
+        with frozen_at(AUCKLAND_IS_AHEAD):
+            response = self.signup(date_of_birth='2008-10-01')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
