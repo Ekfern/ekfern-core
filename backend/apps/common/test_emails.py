@@ -19,6 +19,15 @@ SAMPLES = {
     'cohost_invite': lambda: emails.cohost_invite(
         inviter='Alisha', event_title='Marathi class', event_date=datetime.date(2026, 10, 10),
         invited_email='priya@example.com', capabilities=['manage_guests'], link='https://ekfern.com/cohost-invite/x'),
+    'cohost_accepted': lambda: emails.cohost_accepted(
+        cohost_name='Priya', cohost_email='priya@example.com', event_title='Marathi class',
+        cohosts_url='https://ekfern.com/host/events/1/details'),
+    'cohost_declined': lambda: emails.cohost_declined(
+        cohost_email='priya@example.com', event_title='Marathi class',
+        cohosts_url='https://ekfern.com/host/events/1/details'),
+    'cohost_invite_reminder': lambda: emails.cohost_invite_reminder(
+        cohost_email='priya@example.com', event_title='Marathi class',
+        expires_label='10 October 2026', cohosts_url='https://ekfern.com/host/events/1/details'),
     'rsvp_confirmation': lambda: emails.rsvp_confirmation(guest_name='Rahul', event_title='Marathi class', will_attend='yes'),
     'rsvp_alert': lambda: emails.rsvp_alert(event_title='Marathi class', guest_name='Rahul', will_attend='maybe',
                                             guests_count=2, rsvps_url='https://ekfern.com/host/events/1/rsvp'),

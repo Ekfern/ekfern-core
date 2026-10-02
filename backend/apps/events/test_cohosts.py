@@ -1,6 +1,12 @@
 """Co-host membership: resolution, invitation, acceptance and removal."""
+from datetime import timedelta
+from io import StringIO
+from unittest.mock import patch
+
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -622,3 +628,135 @@ class CoHostInviteLinkTests(TestCase):
         text = sent.call_args.args[2]
         self.assertIn('https://ekfern.com/cohost-invite/', text)
         self.assertNotIn('http://', text)
+
+
+class CoHostOwnerNotificationTests(TestCase):
+    """The owner hears back when an invite is answered."""
+
+    SEND = 'apps.events.cohost_views.send_email'
+
+    def setUp(self):
+        self.client = APIClient()
+        self.owner = User.objects.create_user(email='n-owner@test.com', name='Owner')
+        self.invitee = User.objects.create_user(email='n-invitee@test.com', name='Invitee')
+        self.event = Event.objects.create(host=self.owner, slug='n-event', title='Notify Event')
+        self.row = EventCoHost.objects.create(
+            event=self.event, user=None, invited_email=self.invitee.email,
+            capabilities=[MANAGE_GUESTS],
+        )
+        self.token = issue_invite_token(self.row)
+
+    def test_owner_is_emailed_on_acceptance(self):
+        self.client.force_authenticate(user=self.invitee)
+        with patch(self.SEND) as sent:
+            response = self.client.post(
+                f'/api/events/cohost-invites/{self.token}/accept/',
+                {'policy_accepted': True}, format='json',
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        to, subject, text = sent.call_args.args[:3]
+        self.assertEqual(to, self.owner.email)
+        self.assertIn('Notify Event', subject)
+        self.assertIn('Invitee', subject)
+
+    def test_owner_is_emailed_on_decline(self):
+        self.client.force_authenticate(user=self.invitee)
+        with patch(self.SEND) as sent:
+            response = self.client.post(f'/api/events/cohost-invites/{self.token}/decline/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        to, subject, text = sent.call_args.args[:3]
+        self.assertEqual(to, self.owner.email)
+        self.assertIn('declined', subject.lower())
+        self.assertIn(self.invitee.email, text)
+
+    def test_a_failing_email_does_not_break_acceptance(self):
+        # The status change is the product; the courtesy email is not.
+        self.client.force_authenticate(user=self.invitee)
+        with patch(self.SEND, side_effect=RuntimeError('SES down')):
+            response = self.client.post(
+                f'/api/events/cohost-invites/{self.token}/accept/',
+                {'policy_accepted': True}, format='json',
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.status, EventCoHost.STATUS_ACCEPTED)
+
+    def test_rejected_acceptance_does_not_notify(self):
+        other = User.objects.create_user(email='n-other@test.com', name='Other')
+        self.client.force_authenticate(user=other)
+        with patch(self.SEND) as sent:
+            self.client.post(
+                f'/api/events/cohost-invites/{self.token}/accept/',
+                {'policy_accepted': True}, format='json',
+            )
+        sent.assert_not_called()
+
+
+class CoHostReminderSweepTests(TestCase):
+    """Day-6 reminder: one per invite, only while the link still works."""
+
+    SEND = 'apps.events.management.commands.send_cohost_reminders.send_email'
+
+    def setUp(self):
+        self.owner = User.objects.create_user(email='r-owner@test.com', name='Owner')
+        self.event = Event.objects.create(host=self.owner, slug='r-event', title='Remind Event')
+
+    def pending(self, *, age_days, email='r-invitee@test.com', **kwargs):
+        row = EventCoHost.objects.create(
+            event=self.event, user=None, invited_email=email,
+            capabilities=[MANAGE_GUESTS], **kwargs,
+        )
+        # created_at is auto_now_add, so age it after the fact.
+        EventCoHost.objects.filter(pk=row.pk).update(
+            created_at=timezone.now() - timedelta(days=age_days)
+        )
+        row.refresh_from_db()
+        return row
+
+    def run_sweep(self, **opts):
+        with patch(self.SEND) as sent:
+            call_command('send_cohost_reminders', stdout=StringIO(), **opts)
+        return sent
+
+    def test_six_day_old_invite_reminds_the_owner(self):
+        row = self.pending(age_days=6)
+        sent = self.run_sweep()
+        to, subject, _ = sent.call_args.args[:3]
+        self.assertEqual(to, self.owner.email)
+        self.assertIn('Remind Event', subject)
+        row.refresh_from_db()
+        self.assertIsNotNone(row.reminder_sent_at)
+
+    def test_fresh_invite_is_left_alone(self):
+        self.pending(age_days=2)
+        self.run_sweep().assert_not_called()
+
+    def test_expired_invite_is_not_chased(self):
+        # The link no longer resolves, so there is nothing for the owner to act on.
+        self.pending(age_days=9)
+        self.run_sweep().assert_not_called()
+
+    def test_answered_invites_are_not_chased(self):
+        self.pending(age_days=6, email='r-accepted@test.com',
+                     status=EventCoHost.STATUS_ACCEPTED)
+        self.pending(age_days=6, email='r-declined@test.com',
+                     status=EventCoHost.STATUS_DECLINED)
+        self.run_sweep().assert_not_called()
+
+    def test_reminder_is_sent_only_once(self):
+        self.pending(age_days=6)
+        self.assertEqual(self.run_sweep().call_count, 1)
+        self.run_sweep().assert_not_called()
+
+    def test_dry_run_sends_nothing_and_stamps_nothing(self):
+        row = self.pending(age_days=6)
+        self.run_sweep(dry_run=True).assert_not_called()
+        row.refresh_from_db()
+        self.assertIsNone(row.reminder_sent_at)
+
+    def test_a_failed_send_stays_eligible_for_tomorrow(self):
+        row = self.pending(age_days=6)
+        with patch(self.SEND, side_effect=RuntimeError('SES down')):
+            call_command('send_cohost_reminders', stdout=StringIO())
+        row.refresh_from_db()
+        self.assertIsNone(row.reminder_sent_at)
