@@ -121,6 +121,71 @@ def cohost_invite(
     )
 
 
+def cohost_accepted(
+    *, cohost_name: str, cohost_email: str, event_title: str, cohosts_url: str
+) -> RenderedEmail:
+    """To the owner, when an invited co-host accepts."""
+    who = cohost_name or cohost_email
+    return render_email(
+        subject=f'{who} is now a co-host – {event_title}',
+        preheader=f'{who} accepted your co-host invite.',
+        blocks=[
+            eyebrow('Co-host accepted'),
+            headline(event_title),
+            paragraph('accepted your invite and can now help run this event.', lead=who),
+            details([('Email', cohost_email)]),
+            button('Manage co-hosts', cohosts_url),
+        ],
+    )
+
+
+def cohost_declined(
+    *, cohost_email: str, event_title: str, cohosts_url: str
+) -> RenderedEmail:
+    """
+    To the owner, when an invited co-host declines.
+
+    Names the email rather than a person: a declined invite never linked an
+    account, so there is no name to use.
+    """
+    return render_email(
+        subject=f'Co-host invite declined – {event_title}',
+        preheader=f'{cohost_email} declined your co-host invite.',
+        blocks=[
+            eyebrow('Co-host declined'),
+            headline(event_title),
+            paragraph('declined your co-host invite.', lead=cohost_email),
+            paragraph('You can invite someone else whenever you like.'),
+            button('Manage co-hosts', cohosts_url),
+        ],
+    )
+
+
+def cohost_invite_reminder(
+    *, cohost_email: str, event_title: str, expires_label: str, cohosts_url: str
+) -> RenderedEmail:
+    """
+    To the owner, when an invite is still unanswered and about to expire.
+
+    Goes to the owner rather than the invitee: it is the owner who decides
+    whether to chase them or invite someone else.
+    """
+    return render_email(
+        subject=f'Co-host invite still unanswered – {event_title}',
+        preheader=f'{cohost_email} has not responded yet.',
+        blocks=[
+            eyebrow('Awaiting a response'),
+            headline(event_title),
+            paragraph('has not responded to your co-host invite yet.', lead=cohost_email),
+            details([('Invite expires', expires_label)]),
+            paragraph(
+                'If the link expires you can remove the pending invite and send a new one.'
+            ),
+            button('Manage co-hosts', cohosts_url),
+        ],
+    )
+
+
 # --- RSVPs --------------------------------------------------------------------
 
 ATTEND_FOR_GUEST = {'yes': 'attending', 'no': 'not attending', 'maybe': 'tentatively attending'}
