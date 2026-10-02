@@ -79,7 +79,7 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
         textureBlend={config.texture?.textureBlend}
       />
       <div
-        className="relative w-full h-full overflow-hidden"
+        className="relative w-full h-full overflow-hidden flex flex-col"
         style={{
           transform: `scale(${CARD_SCALE})`,
           transformOrigin: 'top left',

@@ -32,6 +32,7 @@ import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { PAPER_ROOT_STYLE } from '@/lib/invite/layers'
+import ComposedPage from '@/components/invite/render/ComposedPage'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage } from '@/lib/invite/imageAnalysis'
 import { deriveInk } from '@/lib/invite/paletteUtils'
@@ -2475,9 +2476,11 @@ export default function DesignInvitationPage(): JSX.Element {
                               ></div>
                             </div>
                             {/* Content Area */}
-                            <div className="overflow-y-auto flex-1 w-full overflow-x-hidden [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                            <div className="overflow-y-auto flex-1 w-full overflow-x-hidden flex flex-col [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                               {sortedTiles && sortedTiles.length > 0 ? (
-                                <>
+                                // The invitation's own composition, so a short page sits
+                                // where it will on the guest's screen.
+                                <ComposedPage firstTileType={sortedTiles.find(t => t.enabled !== false && t.type !== 'footer')?.type}>
                                   <TileList
                                     variant="invite"
                                     tiles={sortedTiles}
@@ -2489,7 +2492,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                     hasRegistry={event?.has_registry}
                                     allowedSubEvents={allowedSubEvents}
                                   />
-                                </>
+                                </ComposedPage>
                               ) : (
                                 <div className="p-8 text-center text-gray-500">
                                   <p>Loading tiles...</p>

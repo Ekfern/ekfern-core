@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { pageTopInset } from './pageEdges'
+import { OPTICAL_SPLIT, opensWithBleed, pageTopInset } from './pageEdges'
 import type { TileType } from './schema'
 
 describe('pageTopInset', () => {
@@ -21,5 +21,19 @@ describe('pageTopInset', () => {
 
   it('adds nothing to an empty page', () => {
     expect(pageTopInset(undefined)).toBe('0px')
+  })
+})
+
+describe('opensWithBleed', () => {
+  it('is true only for a poster hero', () => {
+    expect(opensWithBleed('poster')).toBe(true)
+    expect(opensWithBleed('title')).toBe(false)
+    expect(opensWithBleed(undefined)).toBe(false)
+  })
+})
+
+describe('OPTICAL_SPLIT', () => {
+  it('puts a short page above the true middle, where the eye reads centre', () => {
+    expect(OPTICAL_SPLIT.above).toBeLessThan(OPTICAL_SPLIT.below)
   })
 })

@@ -65,7 +65,7 @@ export default function LayoutPreviewModal({
         </div>
 
         <div className="relative flex-1 overflow-y-auto">
-          <div className="relative" style={{ background: pageBackground, ...PAPER_ROOT_STYLE }}>
+          <div className="relative min-h-full flex flex-col" style={{ background: pageBackground, ...PAPER_ROOT_STYLE }}>
             <TextureOverlay
               layer="paper"
               paperColor={pageBackground}

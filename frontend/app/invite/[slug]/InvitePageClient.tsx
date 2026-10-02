@@ -759,8 +759,16 @@ export default function InvitePageClient({
             style={{
               overflowX: 'clip',
               background: pageBackground,
-              minHeight: '100vh', 
+              // One screen including the matte around it, so a short bordered
+              // invite does not scroll. svh, as on the unbordered page below:
+              // 100vh is the screen with the browser bars hidden and forced a
+              // stray scroll on phones.
+              minHeight: `calc(100svh - 2 * ${borderStyle.matte})`,
               height: 'auto',
+              // A flex column, so the invite can fill the card and compose a
+              // short page within it (see ComposedPage).
+              display: 'flex',
+              flexDirection: 'column',
               // The mat. An absolutely positioned `inset: 0` child resolves
               // against the padding box, so the frame below still draws at this
               // container's outer edge while the tiles sit in from it.
@@ -821,9 +829,8 @@ export default function InvitePageClient({
               allowedSubEvents={subEvents}
               guestToken={guestToken}
               rsvpCount={event?.rsvp_count}
+              foot={(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
             />
-            {/* Branding component at the bottom */}
-            {(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
           </div>
         </div>
       ) : (
@@ -840,6 +847,8 @@ export default function InvitePageClient({
             // (see cb22817). Browsers without svh keep the old `auto`.
             minHeight: '100svh',
             height: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
             '--space-section': pageRhythm,
             ...PAPER_ROOT_STYLE,
           } as React.CSSProperties}
@@ -872,9 +881,8 @@ export default function InvitePageClient({
             allowedSubEvents={subEvents}
             guestToken={guestToken}
             rsvpCount={event?.rsvp_count}
+            foot={(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
           />
-          {/* Branding component at the bottom */}
-          {(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
         </div>
       )}
       <ExperienceLayer id={experience} slug={slug} />

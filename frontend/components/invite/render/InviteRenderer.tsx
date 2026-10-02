@@ -5,10 +5,10 @@ import { InviteConfig } from '@/lib/invite/schema'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { AppearanceProvider } from './AppearanceProvider'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import { pageTopInset } from '@/lib/invite/pageEdges'
 import TilePreview from '@/components/invite/tiles/TilePreview'
 import ScrollIndicator from '@/components/invite/ScrollIndicator'
 import TextureOverlay from './TextureOverlay'
+import ComposedPage from './ComposedPage'
 import { INVITE_LAYER, PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 
 
@@ -43,6 +43,8 @@ interface InviteRendererProps {
    * tile renders on the client exactly as before.
    */
   ssrTiles?: Record<string, React.ReactNode>
+  /** Pinned to the foot of the card on a short page - the branding line. */
+  foot?: React.ReactNode
 }
 
 function InviteRendererContent({
@@ -61,6 +63,7 @@ function InviteRendererContent({
   guestToken,
   rsvpCount,
   ssrTiles,
+  foot,
 }: InviteRendererProps) {
   const appearance = resolveAppearance(config)
   const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
@@ -120,6 +123,12 @@ function InviteRendererContent({
       className="w-full relative"
       style={{
         overflowX: 'clip',
+        // Fills its card, so ComposedPage has the full height to compose in,
+        // and the corner decorations and frame below sit at the card's own
+        // corners rather than wherever the tiles happen to end.
+        display: 'flex',
+        flexDirection: 'column',
+        flex: '1 0 auto',
         ...(skipBackgroundColor ? {} : { background: pageBackground }),
         // Painting its own paper makes this the paper root. A caller that
         // paints the paper itself owns the root, and this must not become a
@@ -156,32 +165,35 @@ function InviteRendererContent({
       {/* The gap is a token, not a class, so the editor preview and this page
           cannot drift apart again. --space-section resolves to the same
           16 / 32 / 48px these classes produced. */}
-      <div
-        className="flex flex-col"
-        style={{ gap: 'var(--space-section)', paddingTop: pageTopInset(sortedTiles[0]?.type) }}
-      >
-        {sortedTiles.map((tile) => {
-          const tileEl = ssrTiles?.[tile.id] ?? <TilePreview tile={tile} {...sharedProps} />
+      <ComposedPage firstTileType={sortedTiles[0]?.type} foot={foot}>
+        <div
+          className="flex flex-col"
+          data-invite-tiles
+          style={{ gap: 'var(--space-section)' }}
+        >
+          {sortedTiles.map((tile) => {
+            const tileEl = ssrTiles?.[tile.id] ?? <TilePreview tile={tile} {...sharedProps} />
 
-          if (tile.type === 'feature-buttons' && hasRsvp && rsvpCount !== undefined && rsvpCount >= 5) {
-            const countColor = appearance.fontColor
+            if (tile.type === 'feature-buttons' && hasRsvp && rsvpCount !== undefined && rsvpCount >= 5) {
+              const countColor = appearance.fontColor
+              return (
+                <div key={tile.id} className="flex flex-col gap-2 w-full">
+                  <p className="text-center text-sm px-6" style={{ color: countColor, opacity: 0.6 }}>
+                    ✓ {rsvpCount} {rsvpCount === 1 ? 'person' : 'people'} attending
+                  </p>
+                  {tileEl}
+                </div>
+              )
+            }
+
             return (
-              <div key={tile.id} className="flex flex-col gap-2 w-full">
-                <p className="text-center text-sm px-6" style={{ color: countColor, opacity: 0.6 }}>
-                  ✓ {rsvpCount} {rsvpCount === 1 ? 'person' : 'people'} attending
-                </p>
+              <React.Fragment key={tile.id}>
                 {tileEl}
-              </div>
+              </React.Fragment>
             )
-          }
-
-          return (
-            <React.Fragment key={tile.id}>
-              {tileEl}
-            </React.Fragment>
-          )
-        })}
-      </div>
+          })}
+        </div>
+      </ComposedPage>
       {effectiveConfig.pageFrame?.imageUrl && (
         <div
           className="absolute inset-0 pointer-events-none w-full h-full"
@@ -203,7 +215,8 @@ function InviteRendererContent({
 
 export default function InviteRenderer(props: InviteRendererProps) {
   return (
-    <AppearanceProvider config={props.config}>
+    // A flex link in the height chain from the card down to ComposedPage.
+    <AppearanceProvider config={props.config} className="flex flex-col flex-[1_0_auto]">
       <InviteRendererContent {...props} />
     </AppearanceProvider>
   )
