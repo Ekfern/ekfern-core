@@ -66,8 +66,10 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
 
 
   useEffect(() => {
-    const stored = localStorage.getItem('host-nav-collapsed')
-    if (stored === 'true') setIsDesktopNavCollapsed(true)
+    // Blocked site data makes reading localStorage throw; keep the default.
+    try {
+      if (localStorage.getItem('host-nav-collapsed') === 'true') setIsDesktopNavCollapsed(true)
+    } catch {}
   }, [])
 
   const [eventSettings, setEventSettings] = useState<{

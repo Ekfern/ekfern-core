@@ -18,6 +18,7 @@ import {
   passwordLogin,
   checkPasswordEnabled,
   storeAuthTokens,
+  storedAccessToken,
   getCurrentUser,
   otpCodeSchema,
   requiredPasswordSchema,
@@ -60,7 +61,7 @@ function LoginForm() {
 
   useEffect(() => {
     let cancelled = false
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    const token = storedAccessToken()
     if (!token) {
       // No session — show the login form.
       setCheckingSession(false)
