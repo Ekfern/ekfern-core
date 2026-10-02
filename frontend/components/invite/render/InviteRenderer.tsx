@@ -9,6 +9,7 @@ import { pageTopInset } from '@/lib/invite/pageEdges'
 import TilePreview from '@/components/invite/tiles/TilePreview'
 import ScrollIndicator from '@/components/invite/ScrollIndicator'
 import TextureOverlay from './TextureOverlay'
+import { INVITE_LAYER, PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 
 
 interface InviteRendererProps {
@@ -120,10 +121,16 @@ function InviteRendererContent({
       style={{
         overflowX: 'clip',
         ...(skipBackgroundColor ? {} : { background: pageBackground }),
+        // Painting its own paper makes this the paper root. A caller that
+        // paints the paper itself owns the root, and this must not become a
+        // second one, or the corner decorations would sink under its texture.
+        ...(skipTextureOverlay ? {} : PAPER_ROOT_STYLE),
       } as React.CSSProperties}
     >
       {!skipTextureOverlay && (
         <TextureOverlay
+          layer="paper"
+          paperColor={pageBackground}
           type={effectiveConfig.texture?.type || 'none'}
           intensity={effectiveConfig.texture?.intensity ?? 40}
           imageUrl={effectiveConfig.texture?.imageUrl}
@@ -131,7 +138,7 @@ function InviteRendererContent({
         />
       )}
       {effectiveConfig.cornerDecorations && (effectiveConfig.cornerDecorations.topLeft || effectiveConfig.cornerDecorations.topRight || effectiveConfig.cornerDecorations.bottomLeft || effectiveConfig.cornerDecorations.bottomRight) && (
-        <div className="absolute inset-0 pointer-events-none w-full h-full" style={{ zIndex: 2 }} aria-hidden>
+        <div className="absolute inset-0 pointer-events-none w-full h-full" style={{ zIndex: INVITE_LAYER.ornament }} aria-hidden>
           {effectiveConfig.cornerDecorations.topLeft && (
             <img src={effectiveConfig.cornerDecorations.topLeft} alt="" className="absolute left-0 top-0 w-24 h-24 md:w-32 md:h-32 object-contain object-left-top" />
           )}
@@ -178,7 +185,7 @@ function InviteRendererContent({
       {effectiveConfig.pageFrame?.imageUrl && (
         <div
           className="absolute inset-0 pointer-events-none w-full h-full"
-          style={{ zIndex: 5 }}
+          style={{ zIndex: INVITE_LAYER.frame }}
           aria-hidden
         >
           <img

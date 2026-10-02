@@ -11,6 +11,7 @@ import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import { logError, logDebug } from '@/lib/error-handler'
 import api from '@/lib/api'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import { INVITE_LAYER, PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 import OpeningLayer from '@/components/invite/animations/OpeningLayer'
 import ExperienceLayer from '@/components/invite/animations/ExperienceLayer'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
@@ -769,6 +770,7 @@ export default function InvitePageClient({
               // `0px` fallback is the right answer there.
               '--page-mat': borderStyle.mat,
               '--space-section': pageRhythm,
+              ...PAPER_ROOT_STYLE,
             } as React.CSSProperties}
           >
             {/* The frame draws above the tiles, not behind them.
@@ -782,7 +784,7 @@ export default function InvitePageClient({
               aria-hidden
               className="pointer-events-none absolute inset-0"
               style={{
-                zIndex: 10,
+                zIndex: INVITE_LAYER.border,
                 borderWidth: borderStyle.borderWidth,
                 borderStyle: borderStyle.borderStyle,
                 borderColor: borderStyle.borderColor,
@@ -793,6 +795,8 @@ export default function InvitePageClient({
             />
             {/* Texture overlay at page level */}
             <TextureOverlay
+              layer="paper"
+              paperColor={pageBackground}
               type={config.texture?.type || 'none'}
               intensity={config.texture?.intensity ?? 40}
               imageUrl={config.texture?.imageUrl}
@@ -837,10 +841,13 @@ export default function InvitePageClient({
             minHeight: '100svh',
             height: 'auto',
             '--space-section': pageRhythm,
+            ...PAPER_ROOT_STYLE,
           } as React.CSSProperties}
         >
           {/* Texture overlay at page level */}
           <TextureOverlay
+            layer="paper"
+            paperColor={pageBackground}
             type={config.texture?.type || 'none'}
             intensity={config.texture?.intensity ?? 40}
             imageUrl={config.texture?.imageUrl}

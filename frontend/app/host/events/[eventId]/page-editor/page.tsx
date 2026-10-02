@@ -31,6 +31,7 @@ import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import { PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import { cropImage } from '@/lib/invite/imageAnalysis'
 import { deriveInk } from '@/lib/invite/paletteUtils'
@@ -2444,10 +2445,13 @@ export default function DesignInvitationPage(): JSX.Element {
                             width: '100%',
                             aspectRatio: '1179 / 2556',
                             background: displayBackground,
-                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
+                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)',
+                            ...PAPER_ROOT_STYLE,
                           }}
                         >
                             <TextureOverlay
+                              layer="paper"
+                              paperColor={displayBackground}
                               type={config.texture?.type ?? 'none'}
                               intensity={config.texture?.intensity ?? 40}
                               imageUrl={config.texture?.imageUrl}

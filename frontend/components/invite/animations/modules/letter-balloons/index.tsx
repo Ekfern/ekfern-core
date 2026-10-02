@@ -27,6 +27,7 @@ import {
   type BalloonPalette,
 } from '@/lib/invite/animations/letterBalloons'
 import { playLeak, playTok } from './sound'
+import { INVITE_LAYER } from '@/lib/invite/layers'
 
 const BALLOON_COUNT = 14
 const RESPAWN_MS = 2600
@@ -479,7 +480,7 @@ export default function LetterBalloonsModule(_props: ExperienceModuleProps) {
       <div
         ref={overlayRef}
         className={`fern-balloons pointer-events-none fixed inset-0 overflow-hidden${paused ? ' fern-balloons-paused' : ''}${reducedMotion ? ' fern-balloons-still' : ''}`}
-        style={{ zIndex: 20, ['--balloon-width' as string]: `${box.width}px` }}
+        style={{ zIndex: INVITE_LAYER.air, ['--balloon-width' as string]: `${box.width}px` }}
         aria-hidden
       >
         {ready &&
