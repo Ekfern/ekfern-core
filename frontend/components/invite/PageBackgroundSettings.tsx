@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
+import SettingsSection from './SettingsSection'
 import type { InviteConfig } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import { deriveInk } from '@/lib/invite/paletteUtils'
@@ -86,18 +87,8 @@ export default function PageBackgroundSettings({
   }
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen(p => !p)}
-        className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md"
-      >
-        <span className="text-sm font-medium">Page Background</span>
-        <svg className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      <div className={`space-y-3 mt-3 ${open ? '' : 'hidden'}`}>
+    <SettingsSection title="Page Background" open={open} onToggle={() => setOpen(p => !p)} keepMounted>
+      <div className="space-y-3">
 
         {/* Type toggle */}
         <div className="flex rounded-lg overflow-hidden border border-gray-300 w-fit">
@@ -294,6 +285,6 @@ export default function PageBackgroundSettings({
           )}
         </div>
       </div>
-    </div>
+    </SettingsSection>
   )
 }
