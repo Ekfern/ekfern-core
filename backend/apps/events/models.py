@@ -480,6 +480,10 @@ class EventCoHost(models.Model):
     accepted_at = models.DateTimeField(null=True, blank=True)
     declined_at = models.DateTimeField(null=True, blank=True)
     left_at = models.DateTimeField(null=True, blank=True)
+    #: Set when the owner has been told this invite is still unanswered. Stamped
+    #: rather than inferred from dates so the reminder can only ever fire once,
+    #: however often the sweep runs or is re-run.
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

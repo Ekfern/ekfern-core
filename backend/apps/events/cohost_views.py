@@ -22,7 +22,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from apps.common.email_backend import send_email
-from apps.common.emails import cohost_invite
+from apps.common.emails import (
+    cohost_accepted,
+    cohost_declined,
+    cohost_invite,
+)
 from apps.users.models import User
 
 from .access import get_event_or_404, resolve_event_access
@@ -111,6 +115,34 @@ def _send_invite_email(cohost: EventCoHost, request) -> None:
     except Exception as exc:
         logger.error(
             "[CoHost] invite email failed for cohost=%s event=%s: %s",
+            cohost.id, event.id, exc, exc_info=True,
+        )
+
+
+def cohosts_url(event) -> str:
+    """Where the owner manages co-hosts - the event's details page."""
+    from django.conf import settings
+
+    return f"{settings.FRONTEND_ORIGIN.rstrip('/')}/host/events/{event.id}/details"
+
+
+def _notify_owner(cohost: EventCoHost, build) -> None:
+    """
+    Mail the owner about a co-host status change.
+
+    Called after the status change has committed, and swallows everything: a
+    courtesy email must never turn a successful accept or decline into a 500.
+    """
+    event = cohost.event
+    to = (event.host.email or '').strip()
+    if not to:
+        return
+    try:
+        email = build(event)
+        send_email(to, email.subject, email.text, body_html=email.html)
+    except Exception as exc:
+        logger.error(
+            "[CoHost] owner notification failed for cohost=%s event=%s: %s",
             cohost.id, event.id, exc, exc_info=True,
         )
 
@@ -358,6 +390,16 @@ def accept_cohost_invite(request, token):
             status=status.HTTP_409_CONFLICT,
         )
 
+    # After commit, never inside it.
+    _notify_owner(
+        cohost,
+        lambda event: cohost_accepted(
+            cohost_name=request.user.name or '',
+            cohost_email=cohost.invited_email,
+            event_title=event.title,
+            cohosts_url=cohosts_url(event),
+        ),
+    )
     return Response(serialize_cohost(cohost))
 
 
@@ -384,6 +426,14 @@ def decline_cohost_invite(request, token):
     cohost.status = EventCoHost.STATUS_DECLINED
     cohost.declined_at = timezone.now()
     cohost.save(update_fields=['status', 'declined_at', 'updated_at'])
+    _notify_owner(
+        cohost,
+        lambda event: cohost_declined(
+            cohost_email=cohost.invited_email,
+            event_title=event.title,
+            cohosts_url=cohosts_url(event),
+        ),
+    )
     return Response({'status': cohost.status})
 
 
