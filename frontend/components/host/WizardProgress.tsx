@@ -87,7 +87,7 @@ function StepCircle({ state }: StepCircleProps): React.ReactElement {
   if (state === 'active') {
     return (
       <motion.span
-        className="relative z-10 bg-gray-300 rounded-full bg-[#C9972B] flex-shrink-0 shadow-[0_0_0_4px_rgba(201,151,43,0.12)]"
+        className="relative z-10 w-2.5 h-2.5 rounded-full bg-[#C9972B] flex-shrink-0"
         aria-label="Current step"
         initial={{ scale: 0.85, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -99,7 +99,7 @@ function StepCircle({ state }: StepCircleProps): React.ReactElement {
   if (state === 'completed') {
     return (
       <motion.span
-        className="relative z-10 w-2.5 h-2.5 rounded-full bg-[#6F9188] flex-shrink-0"
+        className="relative z-10 w-2.5 h-2.5 rounded-full bg-[#5F8F82] flex-shrink-0"
         aria-label="Completed"
         initial={{ scale: 0.85, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -110,7 +110,7 @@ function StepCircle({ state }: StepCircleProps): React.ReactElement {
 
   return (
     <span
-      className="relative z-10 w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0"
+      className="relative z-10 w-2.5 h-2.5 rounded-full bg-[#D1D7D5] flex-shrink-0"
       aria-label="Upcoming"
     />
   )
@@ -130,8 +130,8 @@ function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React
     state === 'active'
       ? 'font-semibold text-[#173B34]'
       : state === 'completed'
-        ? 'font-medium text-[#475C57]'
-        : 'font-medium text-[#9AA7A3]'
+        ? 'font-medium text-[#5F8F82]'
+        : 'font-medium text-[#A5AEAB]'
 
   const content = (
     <div className="flex flex-col items-center gap-1">
@@ -167,16 +167,20 @@ function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React
 }
 
 /** Connector line between two step nodes. */
+/** Connector line between two step nodes. */
 function Connector({ leftState }: { leftState: StepState }): React.ReactElement {
   const lineClass =
     leftState === 'completed'
-      ? 'bg-[#A8BBB6]'
-      : 'bg-gray-200'
+      ? 'text-[#A8BBB6]'
+      : 'text-[#E1E5E3]'
 
   return (
     <div className="flex-1 flex items-center -mx-1" aria-hidden="true">
       <motion.div
-        className={`w-full h-px ${lineClass}`}
+        className={`relative w-full h-px bg-current ${lineClass}
+          after:content-[''] after:absolute after:right-0 after:top-0
+          after:w-3 after:h-px after:bg-current
+          after:origin-right after:rotate-[25deg]`}
         initial={false}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.25 }}
@@ -184,7 +188,6 @@ function Connector({ leftState }: { leftState: StepState }): React.ReactElement 
     </div>
   )
 }
-
 export default function WizardProgress({
   currentStep,
   eventId,
@@ -199,10 +202,10 @@ export default function WizardProgress({
   return (
     <nav
       aria-label="Invitation creation wizard progress"
-      className="w-full h-[38px] bg-white border-b border-gray-100 px-4"
+      className="w-full h-[40px] bg-white border-b border-gray-100 px-4"
     >
       <div className="w-[70%] mx-auto">
-        <ol className="flex items-center w-full h-full" role="list">
+        <ol className="flex items-center w-full h-full translate-y-[6px]" role="list">
           {steps.map((step, index) => {
             const state = stepState(index, currentIndex)
             const isLast = index === steps.length - 1
