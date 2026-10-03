@@ -83,41 +83,36 @@ interface StepCircleProps {
   state: StepState
   number: number
 }
-
-function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
-  if (state === 'completed') {
-    return (
-      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.span
-            key="check"
-            initial={{ scale: 0.3, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-            className="flex items-center justify-center"
-          >
-            <CheckIcon />
-          </motion.span>
-        </AnimatePresence>
-      </span>
-    )
-  }
+function StepCircle({ state }: StepCircleProps): React.ReactElement {
   if (state === 'active') {
     return (
       <motion.span
-        className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0 text-sm font-bold"
-        animate={{ scale: [1, 1.1, 1] }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-      >
-        {number}
-      </motion.span>
+        className="relative z-10 w-2.5 h-2.5 rounded-full bg-[#C9972B] flex-shrink-0"
+        aria-label="Current step"
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      />
     )
   }
-  // future
+
+  if (state === 'completed') {
+    return (
+      <motion.span
+        className="relative z-10 w-2.5 h-2.5 rounded-full bg-[#5F8F82] flex-shrink-0"
+        aria-label="Completed"
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      />
+    )
+  }
+
   return (
-    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white text-gray-400 ring-2 ring-gray-300 flex-shrink-0 text-sm font-medium">
-      {number}
-    </span>
+    <span
+      className="relative z-10 w-2.5 h-2.5 rounded-full bg-[#D1D7D5] flex-shrink-0"
+      aria-label="Upcoming"
+    />
   )
 }
 
@@ -130,20 +125,21 @@ interface StepNodeProps {
 
 function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React.ReactElement {
   const isClickable = state === 'completed' && eventId != null
-  const circle = <StepCircle state={state} number={displayNumber} />
 
   const labelClasses =
     state === 'active'
-      ? 'font-semibold text-eco-green'
+      ? 'font-semibold text-[#173B34]'
       : state === 'completed'
-      ? 'font-medium text-gray-500'
-      : 'font-medium text-gray-400'
+        ? 'font-medium text-[#5F8F82]'
+        : 'font-medium text-[#A5AEAB]'
 
-  const inner = (
-    <div className="flex flex-col items-center gap-1.5">
-      {circle}
-      {/* Label: hidden on very small screens, shown sm+ */}
-      <span className={`hidden sm:block text-xs leading-tight text-center ${labelClasses}`}>
+  const content = (
+    <div className="flex flex-col items-center gap-1">
+      <StepCircle state={state} number={displayNumber} />
+
+      <span
+        className={`hidden sm:block text-[10px] leading-tight text-center whitespace-nowrap transition-colors duration-200 ${labelClasses}`}
+      >
         {step.label}
       </span>
     </div>
@@ -153,36 +149,45 @@ function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React
     return (
       <Link
         href={step.href(eventId!)}
-        className="flex flex-col items-center gap-1.5 group focus:outline-none"
+        className="group focus:outline-none"
         aria-label={`Go to step ${displayNumber}: ${step.label}`}
       >
         <motion.span
-          whileHover={{ scale: 1.1 }}
+          whileHover={{ scale: 1.08 }}
           transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0"
+          className="block"
         >
-          <CheckIcon />
+          {content}
         </motion.span>
-        <span className={`hidden sm:block text-xs leading-tight text-center ${labelClasses} group-hover:text-eco-green transition-colors`}>
-          {step.label}
-        </span>
       </Link>
     )
   }
 
-  return inner
+  return content
 }
 
 /** Connector line between two step nodes. */
+/** Connector line between two step nodes. */
 function Connector({ leftState }: { leftState: StepState }): React.ReactElement {
+  const lineClass =
+    leftState === 'completed'
+      ? 'text-[#A8BBB6]'
+      : 'text-[#E1E5E3]'
+
   return (
-    <div
-      className={`flex-1 h-0.5 mx-1 ${leftState === 'future' ? 'bg-gray-200' : 'bg-eco-green'}`}
-      aria-hidden="true"
-    />
+    <div className="flex-1 flex items-center -mx-1" aria-hidden="true">
+      <motion.div
+        className={`relative w-full h-px bg-current ${lineClass}
+          after:content-[''] after:absolute after:right-0 after:top-0
+          after:w-3 after:h-px after:bg-current
+          after:origin-right after:rotate-[25deg]`}
+        initial={false}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.25 }}
+      />
+    </div>
   )
 }
-
 export default function WizardProgress({
   currentStep,
   eventId,
@@ -197,16 +202,16 @@ export default function WizardProgress({
   return (
     <nav
       aria-label="Invitation creation wizard progress"
-      className="w-full bg-white border-b border-gray-100 px-4 py-4"
+      className="w-full h-[40px] bg-white border-b border-gray-100 px-4"
     >
-      <div className="max-w-2xl mx-auto">
-        <ol className="flex items-center w-full" role="list">
+      <div className="w-[70%] mx-auto">
+        <ol className="flex items-center w-full h-full translate-y-[6px]" role="list">
           {steps.map((step, index) => {
             const state = stepState(index, currentIndex)
             const isLast = index === steps.length - 1
             return (
               <React.Fragment key={step.key}>
-                <li className="flex items-center justify-center">
+                <li className="flex-1 flex items-center justify-center">
                   <StepNode step={step} state={state} displayNumber={index + 1} eventId={eventId} />
                 </li>
                 {!isLast && <Connector leftState={state} />}
