@@ -83,44 +83,36 @@ interface StepCircleProps {
   state: StepState
   number: number
 }
-function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
-  if (state === 'completed') {
-    return (
-      <span
-        className="flex items-center justify-center w-4 h-4 text-eco-green flex-shrink-0"
-        aria-label="Completed"
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.span
-            key="check"
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-            className="flex items-center justify-center"
-          >
-            <CheckIcon />
-          </motion.span>
-        </AnimatePresence>
-      </span>
-    )
-  }
-
+function StepCircle({ state }: StepCircleProps): React.ReactElement {
   if (state === 'active') {
     return (
       <motion.span
-        className="flex items-center justify-center w-5 h-5 text-eco-green flex-shrink-0 text-sm font-semibold"
-        animate={{ y: [0, -1, 0] }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
-      >
-        {number}
-      </motion.span>
+        className="relative z-10 bg-gray-300 rounded-full bg-[#C9972B] flex-shrink-0 shadow-[0_0_0_4px_rgba(201,151,43,0.12)]"
+        aria-label="Current step"
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      />
+    )
+  }
+
+  if (state === 'completed') {
+    return (
+      <motion.span
+        className="relative z-10 w-2.5 h-2.5 rounded-full bg-[#6F9188] flex-shrink-0"
+        aria-label="Completed"
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      />
     )
   }
 
   return (
-    <span className="flex items-center justify-center w-5 h-5 text-gray-400 flex-shrink-0 text-sm font-medium">
-      {number}
-    </span>
+    <span
+      className="relative z-10 w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0"
+      aria-label="Upcoming"
+    />
   )
 }
 
@@ -133,18 +125,17 @@ interface StepNodeProps {
 
 function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React.ReactElement {
   const isClickable = state === 'completed' && eventId != null
-  const circle = <StepCircle state={state} number={displayNumber} />
 
   const labelClasses =
     state === 'active'
-      ? 'font-semibold text-eco-green'
+      ? 'font-semibold text-[#173B34]'
       : state === 'completed'
-        ? 'font-medium text-gray-500'
-        : 'font-medium text-gray-400'
+        ? 'font-medium text-[#475C57]'
+        : 'font-medium text-[#9AA7A3]'
 
-  const inner = (
-    <div className="flex flex-col items-center gap-0.5">
-      {circle}
+  const content = (
+    <div className="flex flex-col items-center gap-1">
+      <StepCircle state={state} number={displayNumber} />
 
       <span
         className={`hidden sm:block text-[10px] leading-tight text-center whitespace-nowrap transition-colors duration-200 ${labelClasses}`}
@@ -153,47 +144,41 @@ function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React
       </span>
     </div>
   )
+
   if (isClickable) {
     return (
       <Link
         href={step.href(eventId!)}
-        className="flex flex-col items-center gap-1.5 group focus:outline-none"
+        className="group focus:outline-none"
         aria-label={`Go to step ${displayNumber}: ${step.label}`}
       >
         <motion.span
-          whileHover={{ scale: 1.1 }}
+          whileHover={{ scale: 1.08 }}
           transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0"
+          className="block"
         >
-          <CheckIcon />
+          {content}
         </motion.span>
-        <span className={`hidden sm:block text-xs leading-tight text-center ${labelClasses} group-hover:text-eco-green transition-colors`}>
-          {step.label}
-        </span>
       </Link>
     )
   }
 
-  return inner
+  return content
 }
 
 /** Connector line between two step nodes. */
 function Connector({ leftState }: { leftState: StepState }): React.ReactElement {
-  const isCompleted = leftState === 'completed'
-  const isActive = leftState === 'active'
+  const lineClass =
+    leftState === 'completed'
+      ? 'bg-[#A8BBB6]'
+      : 'bg-gray-200'
 
   return (
-    <div
-      className="flex-1 mx-2 flex items-center"
-      aria-hidden="true"
-    >
+    <div className="flex-1 flex items-center -mx-1" aria-hidden="true">
       <motion.div
-        className={`w-full h-px ${isCompleted || isActive ? 'bg-eco-green' : 'bg-gray-200'
-          }`}
+        className={`w-full h-px ${lineClass}`}
         initial={false}
-        animate={{
-          opacity: isCompleted || isActive ? 1 : 0.8,
-        }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.25 }}
       />
     </div>
@@ -214,10 +199,10 @@ export default function WizardProgress({
   return (
     <nav
       aria-label="Invitation creation wizard progress"
-      className="w-full bg-white border-b border-gray-100 px-4 py-0.5"
+      className="w-full h-[38px] bg-white border-b border-gray-100 px-4"
     >
-      <div className="max-w-3xl mx-auto">
-        <ol className="flex items-center w-full" role="list">
+      <div className="w-[70%] mx-auto">
+        <ol className="flex items-center w-full h-full" role="list">
           {steps.map((step, index) => {
             const state = stepState(index, currentIndex)
             const isLast = index === steps.length - 1
