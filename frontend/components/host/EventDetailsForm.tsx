@@ -85,7 +85,11 @@ export default function EventDetailsForm({
     showStructureChoice && isMultiSubEvent ? 'Next: Add Sub-events' : submitLabel
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form
+      id="event-details-form"
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-4"
+    >
       <div>
         <label className="block text-sm font-medium mb-1">Event Title</label>
         <Input {...register('title')} placeholder="Your event name" />
@@ -177,9 +181,8 @@ export default function EventDetailsForm({
               </label>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label
-                  className={`rounded-md border p-3 cursor-pointer ${
-                    !field.value ? 'border-eco-green bg-eco-green-light/40' : 'border-gray-300'
-                  }`}
+                  className={`rounded-md border p-3 cursor-pointer ${!field.value ? 'border-eco-green bg-eco-green-light/40' : 'border-gray-300'
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <input
@@ -196,9 +199,8 @@ export default function EventDetailsForm({
                   </p>
                 </label>
                 <label
-                  className={`rounded-md border p-3 cursor-pointer ${
-                    field.value ? 'border-eco-green bg-eco-green-light/40' : 'border-gray-300'
-                  }`}
+                  className={`rounded-md border p-3 cursor-pointer ${field.value ? 'border-eco-green bg-eco-green-light/40' : 'border-gray-300'
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <input

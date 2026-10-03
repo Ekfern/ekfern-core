@@ -326,7 +326,6 @@ export interface Tile {
   settings: TileSettings
   overlayTargetId?: string // If set, this title tile overlays on top of the target tile (image)
 }
-
 /**
  * One text role, complete.
  *
@@ -342,6 +341,50 @@ export interface FontRole {
   tracking?: string
   transform?: 'none' | 'uppercase'
   italic?: boolean
+}
+
+export type InviteElementType =
+  | 'party-popper'
+  | 'petals'
+  | 'spiritual'
+  | 'lamp'
+  | 'falling-stars'
+  | 'love-burst'
+
+export type InviteElementPlacement =
+  | 'whole-page'
+  | 'top'
+  | 'bottom'
+  | 'corners'
+
+export type InviteElementAnimation =
+  | 'none'
+  | 'pop'
+  | 'continuous-fall'
+  | 'flicker'
+  | 'glow'
+  | 'swing'
+  | 'heart-burst'
+  | 'continuous-petals'
+
+export type InviteLampType =
+  | 'candle'
+  | 'diya'
+  | 'hanging-samai'
+
+export interface InviteElement {
+  id: string
+  type: InviteElementType
+  placement: InviteElementPlacement
+  animation: InviteElementAnimation
+  enabled: boolean
+  lampType?: InviteLampType
+
+  // Manual position in percentage of the invitation page
+  position?: {
+    x: number
+    y: number
+  }
 }
 
 export interface InviteConfig {
@@ -395,6 +438,7 @@ export interface InviteConfig {
     /** @deprecated version 1; migrates to `body.family` and `header.family`. */
     bodyFont?: string
   } | null
+    elements?: InviteElement[]
   // Background texture (CSS-based)
   texture?: TextureSettings | null
   // Page border settings.

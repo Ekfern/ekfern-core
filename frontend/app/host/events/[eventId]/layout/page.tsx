@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
+import MobileWizardNavigation from '@/components/host/MobileWizardNavigation'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import {
   getInvitePageLayouts,
@@ -151,14 +152,14 @@ export default function LayoutSelectPage(): React.ReactElement {
     try {
       const appliedConfig = isStarter
         ? applyLayout(layout.config, undefined, {
-            mergeEventIntoTitle: false,
-            mergeEventIntoDetails: false,
-          }, layout.id)
+          mergeEventIntoTitle: false,
+          mergeEventIntoDetails: false,
+        }, layout.id)
         : applyLayout(layout.config, {
-            title: event?.title,
-            date: event?.date,
-            city: event?.city,
-          }, undefined, layout.id)
+          title: event?.title,
+          date: event?.date,
+          city: event?.city,
+        }, undefined, layout.id)
 
       // Save to Event.page_config so the design page reads the layout's tiles
       await updateEventPageConfig(eventId, appliedConfig)
@@ -280,6 +281,12 @@ export default function LayoutSelectPage(): React.ReactElement {
           </div>
         </div>
       )}
+
+      <MobileWizardNavigation
+        currentStep="layout"
+        eventId={eventId}
+        includeSubEvents={event?.event_structure === 'ENVELOPE'}
+      />
     </div>
   )
 }

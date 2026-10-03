@@ -13,6 +13,7 @@ import { extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import RichTextEditor from '@/components/invite/RichTextEditor'
 import DescriptionEditorModal from '@/components/invite/DescriptionEditorModal'
+import MobileWizardNavigation from '@/components/host/MobileWizardNavigation'
 
 interface Event {
   id: number
@@ -881,10 +882,7 @@ export default function SubEventsPage() {
                         </div>
                       )
                     })()}
-                    {/* Toggles come from this branch; the assignment-status badge and
-                        warning below come from staging's visibility-clarity work. Both
-                        are kept: the toggles change state, the badge explains what that
-                        state means for guests. */}
+                    {/* RSVP and Public / Private controls */}
                     <div className="flex items-center justify-between gap-6 pt-2 border-t">
                       {/* RSVP */}
                       <div className="flex items-center gap-2">
@@ -899,12 +897,14 @@ export default function SubEventsPage() {
                           aria-label={`RSVP for ${subEvent.title}`}
                           disabled={togglingIds.has(subEvent.id)}
                           onClick={() => handleRsvpToggle(subEvent)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${subEvent.rsvp_enabled ? "bg-eco-green" : "bg-gray-300"
-                            }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            subEvent.rsvp_enabled ? "bg-eco-green" : "bg-gray-300"
+                          }`}
                         >
                           <span
-                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${subEvent.rsvp_enabled ? "translate-x-5" : "translate-x-1"
-                              }`}
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                              subEvent.rsvp_enabled ? "translate-x-5" : "translate-x-1"
+                            }`}
                           />
                         </button>
                       </div>
@@ -922,12 +922,14 @@ export default function SubEventsPage() {
                           aria-label={`Public visibility for ${subEvent.title}`}
                           disabled={togglingIds.has(subEvent.id)}
                           onClick={() => handleVisibilityToggle(subEvent)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${subEvent.is_public_visible ? "bg-eco-green" : "bg-gray-300"
-                            }`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            subEvent.is_public_visible ? "bg-eco-green" : "bg-gray-300"
+                          }`}
                         >
                           <span
-                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${subEvent.is_public_visible ? "translate-x-5" : "translate-x-1"
-                              }`}
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                              subEvent.is_public_visible ? "translate-x-5" : "translate-x-1"
+                            }`}
                           />
                         </button>
                       </div>
@@ -935,9 +937,10 @@ export default function SubEventsPage() {
 
                     {/* Private sub-events depend on guest assignment -- surface it so a
                         private sub-event with nobody assigned (visible to no one) is obvious. */}
-                    {!subEvent.is_public_visible && typeof subEvent.assigned_guests_count === 'number' && (
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {subEvent.assigned_guests_count > 0 ? (
+                    {!subEvent.is_public_visible &&
+                      typeof subEvent.assigned_guests_count === 'number' && (
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          {subEvent.assigned_guests_count > 0 ? (
                           <span className="text-xs px-2 py-1 rounded flex items-center gap-1 bg-gray-100 text-gray-600">
                             <Users className="w-3 h-3" />
                             {subEvent.assigned_guests_count} guest{subEvent.assigned_guests_count === 1 ? '' : 's'} assigned
@@ -1272,8 +1275,12 @@ export default function SubEventsPage() {
             </Card>
           </div>
         )}
+        <MobileWizardNavigation
+          currentStep="sub-events"
+          eventId={eventId}
+          includeSubEvents={true}
+        />
       </div>
     </div>
   )
 }
-

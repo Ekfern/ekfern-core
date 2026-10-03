@@ -95,7 +95,11 @@ export default function PosterTile({ settings, preview: _preview = false }: Post
     if (hasTextOverlays) {
       return (
         <div className={outerClassName}>
-          <div className={`${boxClassName} bg-gray-100`} style={boxStyle}>
+          <div
+            className={`${boxClassName} bg-gray-100`}
+            style={boxStyle}
+            data-love-burst-anchor="true"
+          >
             {renderTextOverlays()}
           </div>
         </div>
@@ -103,14 +107,11 @@ export default function PosterTile({ settings, preview: _preview = false }: Post
     }
     return (
       <div className={outerClassName}>
-        <div
-          className={`${boxClassName} flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 ${isFullBleed ? '' : 'rounded-xl'} bg-gray-50`}
-          style={boxStyle}
-        >
-          <ImagePlus className="w-10 h-10 text-gray-400" aria-hidden />
-          <p className="text-gray-500 text-sm font-medium">Add your design</p>
-        </div>
+        tems-center justify-center gap-2 border-2
+        <ImagePlus className="w-10 h-10 text-gray-400" aria-hidden />
+        <p className="text-gray-500 text-sm font-medium">Add your design</p>
       </div>
+
     )
   }
 
@@ -189,7 +190,11 @@ export default function PosterTile({ settings, preview: _preview = false }: Post
   const fit = settings.imageFit === 'contain' ? 'contain' : 'cover'
   return (
     <div className={outerClassName}>
-      <div className={boxClassName} style={boxStyle}>
+      <div
+        className={boxClassName}
+        style={boxStyle}
+        data-love-burst-anchor="true"
+      >
         <img
           src={convertToCloudFrontUrl(settings.src!)}
           alt="Poster"

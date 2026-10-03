@@ -46,6 +46,7 @@ import {
 } from '@/components/invite/InviteMobileAnimationPreview'
 import DesignHistoryPanel from '@/components/host/DesignHistoryPanel'
 import { previewDescriptionFromHtml } from '@/lib/invite/previewText'
+import ElementsLayer from "@/components/invite/elements/ElementsLayer";
 
 interface Event {
   id: number
@@ -236,6 +237,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const eventId = params.eventId ? parseInt(params.eventId as string) : 0
   const { showToast } = useToast()
   const SCROLL_HINT_THRESHOLD = 20;
+  const previewScrollRef = useRef<HTMLDivElement | null>(null)
 
 
   const [event, setEvent] = useState<Event | null>(null)
@@ -2414,23 +2416,23 @@ export default function DesignInvitationPage(): JSX.Element {
                         ></div>
                         {/* Screen - iPhone 16 aspect ratio (1179:2556 ≈ 0.461) */}
                         <AppearanceProvider config={config}>
-                        <InviteMobileAnimationShell
-                          openingId={previewAnim.openingId}
-                          experienceId={previewAnim.experienceId}
-                          slug={previewAnim.slug}
-                          layerKey={previewAnim.layerKey}
-                          coverColor={typeof displayBackground === 'string' && displayBackground.startsWith('#')
-                            ? displayBackground
-                            : displayBackgroundColor}
-                          className="relative overflow-hidden bg-white flex flex-col w-full"
-                          style={{
-                            width: '100%',
-                            aspectRatio: '1179 / 2556',
-                            background: displayBackground,
-                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)',
-                            ...PAPER_ROOT_STYLE,
-                          }}
-                        >
+                          <InviteMobileAnimationShell
+                            openingId={previewAnim.openingId}
+                            experienceId={previewAnim.experienceId}
+                            slug={previewAnim.slug}
+                            layerKey={previewAnim.layerKey}
+                            coverColor={typeof displayBackground === 'string' && displayBackground.startsWith('#')
+                              ? displayBackground
+                              : displayBackgroundColor}
+                            className="relative overflow-hidden bg-white flex flex-col w-full"
+                            style={{
+                              width: '100%',
+                              aspectRatio: '1179 / 2556',
+                              background: displayBackground,
+                              borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)',
+                              ...PAPER_ROOT_STYLE,
+                            }}
+                          >
                             <TextureOverlay
                               layer="paper"
                               paperColor={displayBackground}
@@ -2457,7 +2459,15 @@ export default function DesignInvitationPage(): JSX.Element {
                               ></div>
                             </div>
                             {/* Content Area */}
-                            <div className="overflow-y-auto flex-1 w-full overflow-x-hidden flex flex-col [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                            <div
+                              ref={previewScrollRef}
+                              className="overflow-y-auto flex-1 w-full overflow-x-hidden flex flex-col [&::-webkit-scrollbar]:hidden"
+                              style={{
+                                paddingBottom: '24px',
+                                scrollbarWidth: 'none',
+                                msOverflowStyle: 'none'
+                              }}
+                            >
                               {sortedTiles && sortedTiles.length > 0 ? (
                                 // The invitation's own composition, so a short page sits
                                 // where it will on the guest's screen.
@@ -2480,6 +2490,10 @@ export default function DesignInvitationPage(): JSX.Element {
                                 </div>
                               )}
                             </div>
+                            <ElementsLayer
+                              elements={config.elements}
+                              scrollContainerRef={previewScrollRef}
+                            />
                             {/* Home Indicator (iPhone 16) */}
                             <div
                               className="absolute left-1/2 transform -translate-x-1/2 bg-gray-800 rounded-full z-10"
@@ -2489,21 +2503,21 @@ export default function DesignInvitationPage(): JSX.Element {
                                 height: 'clamp(3px, 0.8vw, 5px)'
                               }}
                             ></div>
-                        </InviteMobileAnimationShell>
-                        </AppearanceProvider>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                          </InviteMobileAnimationShell >
+                        </AppearanceProvider >
+                      </div >
+                    </div >
+                  </div >
+                </div >
                 <p className="text-xs text-gray-500 mt-2 text-center">
                   Use the drag handle in Tile Settings (left) to reorder. Footer stays at the bottom.
                 </p>
 
-              </div>
-            </div>
+              </div >
+            </div >
           </>
-        </div>
-      </div>
+        </div >
+      </div >
 
       {isPreviewCropOpen && previewCropSrc && previewCropDimensions && (
         <ImageCropModal
@@ -2517,42 +2531,45 @@ export default function DesignInvitationPage(): JSX.Element {
           onCancel={() => setIsPreviewCropOpen(false)}
           onClose={() => setIsPreviewCropOpen(false)}
         />
-      )}
+      )
+      }
 
       {/* Fix 2: Publish Modal */}
-      {showPublishModal && (
-        <PublishModal
-          isOpen={showPublishModal}
-          onClose={() => setShowPublishModal(false)}
-          slug={event?.slug || ''}
-          isPublished={invitePage?.is_published || false}  // Pass current publish status
-          mode={publishModalMode}
-          onPublishChange={(published) => {
-            setInvitePage(prev =>
-              prev
-                ? {
-                  ...prev,
-                  is_published: published,
-                  ...(published ? { published_at: new Date().toISOString() } : {}),
+      {
+        showPublishModal && (
+          <PublishModal
+            isOpen={showPublishModal}
+            onClose={() => setShowPublishModal(false)}
+            slug={event?.slug || ''}
+            isPublished={invitePage?.is_published || false}  // Pass current publish status
+            mode={publishModalMode}
+            onPublishChange={(published) => {
+              setInvitePage(prev =>
+                prev
+                  ? {
+                    ...prev,
+                    is_published: published,
+                    ...(published ? { published_at: new Date().toISOString() } : {}),
+                  }
+                  : prev,
+              )
+              if (published) {
+                // The published snapshot now matches the current draft — reset the
+                // baseline so the Publish button grays out, and open the live invite.
+                setPublishedBaseline(buildConfigToSave())
+                if (event?.slug && typeof window !== 'undefined') {
+                  window.open(`/invite/${event.slug}`, '_blank')
                 }
-                : prev,
-            )
-            if (published) {
-              // The published snapshot now matches the current draft — reset the
-              // baseline so the Publish button grays out, and open the live invite.
-              setPublishedBaseline(buildConfigToSave())
-              if (event?.slug && typeof window !== 'undefined') {
-                window.open(`/invite/${event.slug}`, '_blank')
               }
-            }
-          }}
-        />
-      )}
+            }}
+          />
+        )
+      }
       <DesignHistoryPanel
         eventId={eventId}
         isOpen={historyOpen}
         onClose={() => setHistoryOpen(false)}
       />
-    </div>
+    </div >
   )
 }

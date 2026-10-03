@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
+import MobileWizardNavigation from '@/components/host/MobileWizardNavigation'
 import EventDetailsForm, { type EventDetailsFormData } from '@/components/host/EventDetailsForm'
 import CoHostPanel from '@/components/host/CoHostPanel'
 import type { EventRole } from '@/lib/cohosts'
@@ -158,20 +159,33 @@ export default function EventDetailsEditPage() {
           </CardHeader>
           <CardContent>
             {event && (
-              <EventDetailsForm
-                defaultValues={{
-                  ...event,
-                  // Seed the fork from the event's current structure so a
-                  // multi-sub-event (ENVELOPE) event shows "multiple sub-events"
-                  // selected instead of defaulting to single.
-                  is_multi_sub_event: event.event_structure === 'ENVELOPE',
-                }}
-                onSubmit={handleSubmit}
-                submitLabel="Save changes"
-                loading={loading}
-                onCancel={() => router.back()}
-                showStructureChoice
-              />
+              <>
+                <EventDetailsForm
+                  defaultValues={{
+                    ...event,
+                    // Seed the fork from the event's current structure so a
+                    // multi-sub-event (ENVELOPE) event shows "multiple sub-events"
+                    // selected instead of defaulting to single.
+                    is_multi_sub_event: event.event_structure === 'ENVELOPE',
+                  }}
+                  onSubmit={handleSubmit}
+                  submitLabel="Save changes"
+                  loading={loading}
+                  onCancel={() => router.back()}
+                  showStructureChoice
+                />
+
+                <MobileWizardNavigation
+                  currentStep="details"
+                  eventId={eventId}
+                  includeSubEvents={event?.event_structure === 'ENVELOPE'}
+                  onNext={async () => {
+                    const form = document.getElementById('event-details-form') as HTMLFormElement | null
+                    form?.requestSubmit()
+                  }}
+                  nextDisabled={loading}
+                />
+              </>
             )}
           </CardContent>
         </Card>

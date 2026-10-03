@@ -1,5 +1,6 @@
 'use client'
 
+import ElementsLayer from '@/components/invite/elements/ElementsLayer'
 import React, { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { InviteConfig } from '@/lib/invite/schema'
@@ -883,6 +884,7 @@ export default function InvitePageClient({
             rsvpCount={event?.rsvp_count}
             foot={(event?.show_branding ?? true) && <PoweredByBranding config={config} />}
           />
+          <ElementsLayer elements={configForClient.elements} />
         </div>
       )}
       <ExperienceLayer id={experience} slug={slug} />
