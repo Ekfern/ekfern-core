@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,13 +12,20 @@ import EventDetailsForm, { eventPayloadOf, type EventDetailsFormData } from '@/c
 import { listCoHosts, type EventRole } from '@/lib/cohosts'
 import { getInvitePage, updateInvitePage } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
-import type { EventDetailsTileSettings, InviteConfig, Tile } from '@/lib/invite/schema'
+import type { InviteConfig } from '@/lib/invite/schema'
+import {
+  changedContent,
+  readEventDetailsContent,
+  withEventDetailsContent,
+  type EventDetailsContent,
+} from '@/lib/invite/eventDetailsContent'
 
 interface EventRecord extends EventDetailsFormData {
   id: number
   event_structure?: 'SIMPLE' | 'ENVELOPE'
   /** 'owner' for the host, 'cohost' for a collaborator. */
   my_role?: EventRole
+  page_config?: InviteConfig | null
 }
 
 function normalizeListResponse(payload: unknown): Array<{ will_attend?: string }> {
@@ -42,6 +49,9 @@ export default function EventDetailsEditPage() {
   const [rsvpWarningCount, setRsvpWarningCount] = useState<number | null>(null)
   // For Backstage's "2 co-hosts · Manage" link; co-hosts are managed on Overview.
   const [coHostCount, setCoHostCount] = useState(0)
+  // What the invitation says now - time, location line, Good to know - so the
+  // form starts from it and a save writes back only what changed.
+  const invitationContent = useMemo(() => readEventDetailsContent(event?.page_config), [event?.page_config])
 
   useEffect(() => {
     if (event?.my_role !== 'owner') return
@@ -62,39 +72,31 @@ export default function EventDetailsEditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
-  async function resyncEventDetailsTile(date?: string, city?: string): Promise<void> {
+  /**
+   * Write the invitation's own content - date, time, location line, Good to
+   * know - into its Event Details tile, only the parts that changed.
+   *
+   * Event.page_config and InvitePage.config are two separate stores that must be
+   * kept in sync (Page Editor reads from the former; publish reads from the latter -
+   * same dual-write the Layout step already does when applying a layout).
+   */
+  async function writeInvitationContent(patch: EventDetailsContent & { date?: string }, title: string): Promise<void> {
+    if (Object.keys(patch).length === 0) return
     try {
-      const patchTiles = (tiles: Tile[]): Tile[] =>
-        tiles.map((t) => {
-          if (t.type !== 'event-details') return t
-          const settings = t.settings as EventDetailsTileSettings
-          return {
-            ...t,
-            settings: {
-              ...settings,
-              date: date ?? settings.date,
-              location: city ?? settings.location,
-            },
-          }
-        })
-
-      // Event.page_config and InvitePage.config are two separate stores that must be
-      // kept in sync (Page Editor reads from the former; publish reads from the latter —
-      // same dual-write the Layout step already does when applying a layout).
       const pageConfig = await getEventPageConfig(eventId)
-      if (pageConfig?.page_config?.tiles) {
-        const updated: InviteConfig = { ...pageConfig.page_config, tiles: patchTiles(pageConfig.page_config.tiles) }
-        await updateEventPageConfig(eventId, updated)
-      }
+      const nextPageConfig = withEventDetailsContent(pageConfig?.page_config, patch, title)
+      if (nextPageConfig) await updateEventPageConfig(eventId, nextPageConfig)
 
       const invitePage = await getInvitePage(eventId)
-      if (invitePage?.config?.tiles) {
-        const updated: InviteConfig = { ...invitePage.config, tiles: patchTiles(invitePage.config.tiles) }
-        await updateInvitePage(eventId, { config: updated })
+      // Only an invitation that already has the tile; a starter lives in page_config.
+      if (invitePage?.config?.tiles?.some((t) => t.type === 'event-details')) {
+        const nextInvite = withEventDetailsContent(invitePage.config, patch, title)
+        if (nextInvite) await updateInvitePage(eventId, { config: nextInvite })
       }
     } catch (err) {
-      // Non-fatal — the Event itself already saved; the tile just needs a manual fix in Page Editor.
-      logError('EventDetailsEditPage: tile resync failed', err)
+      // Non-fatal — the Event itself already saved; the tile can be fixed in Page Editor.
+      logError('EventDetailsEditPage: invitation update failed', err)
+      showToast('Event saved, but the invitation could not be updated. Check it in the Page Editor.', 'error')
     }
   }
 
@@ -105,9 +107,13 @@ export default function EventDetailsEditPage() {
       const is_multi_sub_event = data.is_multi_sub_event
       const eventPayload = eventPayloadOf(data)
       await api.patch(`/api/events/${eventId}/`, eventPayload)
-      if (eventPayload.date !== event?.date || eventPayload.city !== event?.city) {
-        await resyncEventDetailsTile(eventPayload.date, eventPayload.city)
-      }
+      const patch: EventDetailsContent & { date?: string } = changedContent(invitationContent, {
+        time: is_multi_sub_event ? invitationContent.time : data.time,
+        location: is_multi_sub_event ? invitationContent.location : data.venue,
+        goodToKnow: data.good_to_know,
+      })
+      if (eventPayload.date && eventPayload.date !== event?.date) patch.date = eventPayload.date
+      await writeInvitationContent(patch, eventPayload.title)
       showToast('Event details updated.', 'success')
       // Continue the wizard the same way the create flow does: a multi-sub-event
       // event goes to the Sub-events step; a single event goes straight to Layout.
@@ -172,12 +178,16 @@ export default function EventDetailsEditPage() {
                   is_multi_sub_event: event.event_structure === 'ENVELOPE',
                   // The event has only ever stored a blank city for online.
                   where_mode: event.city ? 'in-person' : 'online',
+                  time: invitationContent.time,
+                  venue: invitationContent.location,
+                  good_to_know: invitationContent.goodToKnow,
                 }}
                 onSubmit={handleSubmit}
                 submitLabel="Save changes"
                 loading={loading}
                 onCancel={() => router.back()}
                 showStructureChoice
+                inviteContent="edit"
                 // Only the owner manages co-hosts.
                 coHosts={
                   event.my_role === 'owner'

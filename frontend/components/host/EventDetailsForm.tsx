@@ -88,10 +88,13 @@ interface EventDetailsFormProps {
   /** Show the single-event vs multiple-sub-events fork (creation flow only). */
   showStructureChoice?: boolean
   /**
-   * Creation only: ask for the time, the venue and Good to know too. Afterwards
-   * those live in the invitation's Event Details tile and are edited there.
+   * Also ask for the invitation's own content - time, venue, Good to know -
+   * which lives in its Event Details tile, not on the event.
+   * 'create': a venue to combine with the city, written as a starter invitation.
+   * 'edit': the location line exactly as the invitation shows it, read back and
+   * patched; the Page Editor edits the same values.
    */
-  showInviteContent?: boolean
+  inviteContent?: 'create' | 'edit'
   /** Backstage's Co-hosts chip: an invite panel while creating, a link to Overview after. */
   coHosts?: { count: number; panel?: ReactNode; href?: string }
 }
@@ -106,7 +109,7 @@ export default function EventDetailsForm({
   onCancel,
   cancelLabel = 'Cancel',
   showStructureChoice = false,
-  showInviteContent = false,
+  inviteContent,
   coHosts,
 }: EventDetailsFormProps) {
   const uid = useId()
@@ -135,7 +138,7 @@ export default function EventDetailsForm({
   const submit = handleSubmit(async (data) => {
     // A single event needs its date at creation: the invitation, its countdown
     // and reminders all hang off it. Several events take theirs per sub-event.
-    if (showInviteContent && !data.is_multi_sub_event && !data.date) {
+    if (inviteContent === 'create' && !data.is_multi_sub_event && !data.date) {
       setError('date', { message: 'Pick the date of your event' })
       return
     }
@@ -151,8 +154,12 @@ export default function EventDetailsForm({
       <section className="space-y-5">
         <div>
           <h2 className={sectionHeading}>The basics</h2>
-          {showInviteContent && (
-            <p className="text-sm text-gray-600">This shows on your invitation. You’ll choose how it looks next.</p>
+          {inviteContent && (
+            <p className="text-sm text-gray-600">
+              {inviteContent === 'create'
+                ? 'This shows on your invitation. You’ll choose how it looks next.'
+                : 'This shows on your invitation. Changes here update it too.'}
+            </p>
           )}
         </div>
 
@@ -225,7 +232,7 @@ export default function EventDetailsForm({
         )}
 
         {!isMultiSubEvent ? (
-          <div className={`grid gap-4 ${showInviteContent ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+          <div className={`grid gap-4 ${inviteContent ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
             <div>
               <label htmlFor={`date-${uid}`} className="block text-sm font-medium mb-1">
                 Date
@@ -233,7 +240,7 @@ export default function EventDetailsForm({
               <Input id={`date-${uid}`} type="date" {...register('date')} aria-invalid={!!errors.date} />
               {errors.date && <p className="text-red-600 text-sm mt-1">{errors.date.message}</p>}
             </div>
-            {showInviteContent && (
+            {inviteContent && (
               <div>
                 <label htmlFor={`time-${uid}`} className="block text-sm font-medium mb-1">
                   Time <span className="font-normal text-gray-500">(optional)</span>
@@ -243,7 +250,7 @@ export default function EventDetailsForm({
             )}
           </div>
         ) : (
-          showInviteContent && (
+          inviteContent === 'create' && (
             <p className="rounded-md bg-eco-beige/40 px-3 py-2 text-sm text-gray-700">
               You’ll add each event’s date, time and place in the next step.
             </p>
@@ -261,7 +268,7 @@ export default function EventDetailsForm({
           }}
         />
 
-        {showInviteContent && whereMode === 'in-person' && !isMultiSubEvent && (
+        {inviteContent === 'create' && whereMode === 'in-person' && !isMultiSubEvent && (
           <div>
             <label htmlFor={`venue-${uid}`} className="block text-sm font-medium mb-1">
               Venue <span className="font-normal text-gray-500">(optional)</span>
@@ -269,17 +276,30 @@ export default function EventDetailsForm({
             <Input id={`venue-${uid}`} {...register('venue')} placeholder="Hall, home, farmhouse…" />
           </div>
         )}
+        {inviteContent === 'edit' && !isMultiSubEvent && (
+          <div>
+            <label htmlFor={`venue-${uid}`} className="block text-sm font-medium mb-1">
+              Venue line on your invitation
+            </label>
+            <Input id={`venue-${uid}`} {...register('venue')} placeholder="The Lakeside Lawns, Udaipur" />
+            <p className="mt-1 text-xs text-gray-500">
+              Exactly what guests read under Location. Changing the city above doesn’t change it.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* ── Good to know ───────────────────────────────────────────────── */}
-      {showInviteContent && (
+      {inviteContent && (
         <section className="space-y-3">
           <div>
             <h2 className={sectionHeading}>Good to know</h2>
             <p className="text-sm text-gray-600">
-              {isMultiSubEvent
-                ? 'For the whole celebration - where to stay, who to call. Each event can add its own, like its dress code, in the next step.'
-                : 'Answers to what guests usually ask. Add only what you need.'}
+              {!isMultiSubEvent
+                ? 'Answers to what guests usually ask. Add only what you need.'
+                : inviteContent === 'create'
+                  ? 'For the whole celebration - where to stay, who to call. Each event can add its own, like its dress code, in the next step.'
+                  : 'For the whole celebration - where to stay, who to call. Each event’s own, like its dress code, is on the Sub-events page.'}
             </p>
           </div>
           <Controller

@@ -13,6 +13,7 @@ import { inviteCoHost } from '@/lib/cohosts'
 import { countryForZone, deviceTimeZone } from '@/lib/eventTimezone'
 import { updateEventPageConfig } from '@/lib/event/api'
 import { visibleItems } from '@/lib/invite/goodToKnow'
+import { withEventDetailsContent } from '@/lib/invite/eventDetailsContent'
 import type { InviteConfig } from '@/lib/invite/schema'
 
 /**
@@ -22,31 +23,23 @@ import type { InviteConfig } from '@/lib/invite/schema'
  * Null when there is nothing beyond what the event already holds.
  */
 function starterInvitation(data: EventDetailsFormData): InviteConfig | null {
-  const goodToKnow = visibleItems(data.good_to_know)
   // Several events take their own date, time and place; only Good to know,
   // which is for the whole celebration, goes on the invitation itself.
   const single = !data.is_multi_sub_event
-  const time = single ? data.time : ''
-  const venue = single && data.where_mode === 'in-person' ? data.venue?.trim() : ''
-  if (!time && !venue && goodToKnow.length === 0) return null
-  const city = single && data.where_mode === 'in-person' ? data.city?.trim() : ''
-  return {
-    tiles: [
-      { id: 'tile-title-start', type: 'title', enabled: true, order: 0, settings: { text: data.title } },
-      {
-        id: 'tile-event-details-start',
-        type: 'event-details',
-        enabled: true,
-        order: 1,
-        settings: {
-          date: single ? (data.date ?? '') : '',
-          ...(time ? { time } : {}),
-          location: [venue, city].filter(Boolean).join(', '),
-          ...(goodToKnow.length ? { goodToKnow } : {}),
-        },
-      },
-    ],
-  } as InviteConfig
+  const inPerson = single && data.where_mode === 'in-person'
+  const location = inPerson ? [data.venue?.trim(), data.city?.trim()].filter(Boolean).join(', ') : ''
+  const hasOwnContent = (single && !!data.time) || (inPerson && !!data.venue?.trim()) || visibleItems(data.good_to_know).length > 0
+  if (!hasOwnContent) return null
+  return withEventDetailsContent(
+    null,
+    {
+      date: single ? (data.date ?? '') : '',
+      time: single ? (data.time ?? '') : '',
+      location,
+      goodToKnow: visibleItems(data.good_to_know),
+    },
+    data.title,
+  )
 }
 
 export default function NewEventPage() {
@@ -155,7 +148,7 @@ export default function NewEventPage() {
               loading={loading}
               onCancel={() => router.back()}
               showStructureChoice
-              showInviteContent
+              inviteContent="create"
               coHosts={{
                 count: pendingCoHosts.length,
                 panel: <CoHostInviteDraft value={pendingCoHosts} onChange={setPendingCoHosts} />,
