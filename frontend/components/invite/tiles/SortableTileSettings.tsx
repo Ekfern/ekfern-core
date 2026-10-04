@@ -23,6 +23,7 @@ interface SortableTileSettingsProps {
   eventType?: string | null
   expandOnOpen?: boolean
   isHeadline?: boolean
+  eventWhere?: { online: boolean; city?: string }
 }
 
 export default function SortableTileSettings({
@@ -39,6 +40,7 @@ export default function SortableTileSettings({
   eventType,
   expandOnOpen = false,
   isHeadline = false,
+  eventWhere,
 }: SortableTileSettingsProps) {
   const {
     attributes,
@@ -96,6 +98,7 @@ export default function SortableTileSettings({
           eventType={eventType}
           expandOnOpen={expandOnOpen}
           isHeadline={isHeadline}
+          eventWhere={eventWhere}
         />
       </div>
     </div>

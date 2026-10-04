@@ -30,6 +30,8 @@ interface TileSettingsProps {
   expandOnOpen?: boolean
   /** This is the invitation's headline (lib/invite/headline.ts). */
   isHeadline?: boolean
+  /** In person or online, from the event: words Event Details' location line. */
+  eventWhere?: { online: boolean; city?: string }
 }
 
 const TILE_LABELS: Record<TileType, string> = {
@@ -45,7 +47,7 @@ const TILE_LABELS: Record<TileType, string> = {
   'event-carousel': 'Event Carousel',
 }
 
-export default function TileSettings({ tile, onUpdate, onToggle, onRemove, eventId, hasRsvp = false, hasRegistry = false, forceExpanded = false, eventType, expandOnOpen = false, isHeadline = false }: TileSettingsProps) {
+export default function TileSettings({ tile, onUpdate, onToggle, onRemove, eventId, hasRsvp = false, hasRegistry = false, forceExpanded = false, eventType, expandOnOpen = false, isHeadline = false, eventWhere }: TileSettingsProps) {
   const [isExpanded, setIsExpanded] = useState(expandOnOpen)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -93,7 +95,7 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
       case 'timer':
         return <TimerTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'event-details':
-        return <EventDetailsTileSettings settings={settings as any} onChange={handleSettingsChange} eventType={eventType} eventId={eventId} />
+        return <EventDetailsTileSettings settings={settings as any} onChange={handleSettingsChange} eventType={eventType} eventId={eventId} eventWhere={eventWhere} />
       case 'directions':
         return <DirectionsTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'description':

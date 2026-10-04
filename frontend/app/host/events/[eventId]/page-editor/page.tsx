@@ -2357,6 +2357,8 @@ export default function DesignInvitationPage(): JSX.Element {
                   eventType={event?.event_type}
                   expandTileType={panelFromLink}
                   protectHeadline
+                  // An event without a city is online - the convention Event Details keeps.
+                  eventWhere={event ? { online: !event.city, city: event.city } : undefined}
                 />
               ) : (
                 <p className="text-gray-500 text-sm">No tiles available</p>

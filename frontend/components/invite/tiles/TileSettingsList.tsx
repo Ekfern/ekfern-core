@@ -57,6 +57,8 @@ interface TileSettingsListProps {
    * messages, so it can be hidden but not removed. Off in the staff Layout Studio.
    */
   protectHeadline?: boolean
+  /** In person or online, from the event; passed to Event Details. */
+  eventWhere?: { online: boolean; city?: string }
 }
 
 export default function TileSettingsList({
@@ -76,6 +78,7 @@ export default function TileSettingsList({
   eventType,
   expandTileType,
   protectHeadline = false,
+  eventWhere,
 }: TileSettingsListProps) {
   const [showPicker, setShowPicker] = useState(false)
 
@@ -131,6 +134,7 @@ export default function TileSettingsList({
               hasRegistry={hasRegistry}
               forceExpanded={forceExpanded}
               eventType={eventType}
+              eventWhere={eventWhere}
               isChanged={changedTileIds?.has(tile.id) ?? false}
             />
           ))}
@@ -147,6 +151,7 @@ export default function TileSettingsList({
               hasRegistry={hasRegistry}
               forceExpanded={forceExpanded}
               eventType={eventType}
+              eventWhere={eventWhere}
               isFooter={true}
               isChanged={changedTileIds?.has(footerTile.id) ?? false}
             />

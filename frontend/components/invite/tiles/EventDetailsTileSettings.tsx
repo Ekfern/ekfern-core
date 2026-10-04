@@ -21,9 +21,16 @@ interface EventDetailsTileSettingsProps {
    * Edit Event Details, which also updates it here, and shown read-only here.
    */
   eventId?: number
+  /**
+   * Where the event is, from Edit Event Details (its home): online events are
+   * the ones without a city. Words the location line to match; absent in the
+   * staff Layout Studio.
+   */
+  eventWhere?: { online: boolean; city?: string }
 }
 
-export default function EventDetailsTileSettings({ settings, onChange, eventType, eventId = 0 }: EventDetailsTileSettingsProps) {
+export default function EventDetailsTileSettings({ settings, onChange, eventType, eventId = 0, eventWhere }: EventDetailsTileSettingsProps) {
+  const online = !!eventWhere?.online
   const dateIsEvents = eventId > 0
   const [showBorderStyling, setShowBorderStyling] = useState(false)
   const [showAppearance, setShowAppearance] = useState(false)
@@ -108,17 +115,30 @@ export default function EventDetailsTileSettings({ settings, onChange, eventType
         </select>
       </div>
 
-      {/* Location Input - Display text only */}
+      {/* Location line - display text only. In person or online is the event's, set on Event Details. */}
       <div>
-        <label className="block text-sm font-medium mb-2">Location *</label>
+        {eventWhere && eventId > 0 && (
+          <p className="mb-2 text-xs text-gray-600">
+            <span className="font-semibold text-gray-800">
+              {online ? 'Online event' : `In person${eventWhere.city ? ` · ${eventWhere.city}` : ''}`}
+            </span>{' '}
+            ·{' '}
+            <Link href={`/host/events/${eventId}/details`} className="font-medium text-eco-teal underline underline-offset-2">
+              Change on Event Details →
+            </Link>
+          </p>
+        )}
+        <label htmlFor="event-details-location" className="block text-sm font-medium mb-2">
+          {online ? 'How guests join' : 'Venue line'}
+        </label>
         <Input
+          id="event-details-location"
           value={settings.location || ''}
           onChange={(e) => handleLocationChange(e.target.value)}
-          placeholder="e.g., Grand Ballroom, Main Hall, Beachside Venue"
-          required
+          placeholder={online ? 'Online · link shared after you RSVP' : 'The Lakeside Lawns, Udaipur'}
         />
         <p className="text-xs text-gray-500 mt-1">
-          Enter the display name for your event location (this appears on your invitation)
+          Exactly what guests read under Location. Leave it empty and the line is not shown.
         </p>
       </div>
 
