@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
-import EventDetailsForm, { type EventDetailsFormData } from '@/components/host/EventDetailsForm'
+import EventDetailsForm, { eventPayloadOf, type EventDetailsFormData } from '@/components/host/EventDetailsForm'
 import CoHostPanel from '@/components/host/CoHostPanel'
 import type { EventRole } from '@/lib/cohosts'
 import { getInvitePage, updateInvitePage } from '@/lib/invite/api'
@@ -94,10 +94,11 @@ export default function EventDetailsEditPage() {
     setLoading(true)
     try {
       // is_multi_sub_event is a create-flow-only routing flag; not persisted here.
-      const { is_multi_sub_event, ...eventPayload } = data
+      const is_multi_sub_event = data.is_multi_sub_event
+      const eventPayload = eventPayloadOf(data)
       await api.patch(`/api/events/${eventId}/`, eventPayload)
-      if (data.date !== event?.date || data.city !== event?.city) {
-        await resyncEventDetailsTile(data.date, data.city)
+      if (eventPayload.date !== event?.date || eventPayload.city !== event?.city) {
+        await resyncEventDetailsTile(eventPayload.date, eventPayload.city)
       }
       showToast('Event details updated.', 'success')
       // Continue the wizard the same way the create flow does: a multi-sub-event
@@ -165,6 +166,8 @@ export default function EventDetailsEditPage() {
                   // multi-sub-event (ENVELOPE) event shows "multiple sub-events"
                   // selected instead of defaulting to single.
                   is_multi_sub_event: event.event_structure === 'ENVELOPE',
+                  // The event has only ever stored a blank city for online.
+                  where_mode: event.city ? 'in-person' : 'online',
                 }}
                 onSubmit={handleSubmit}
                 submitLabel="Save changes"
