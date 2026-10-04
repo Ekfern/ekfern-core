@@ -1531,7 +1531,7 @@ export default function DesignInvitationPage(): JSX.Element {
                         title: event.title,
                         date: event.date,
                         city: event.city,
-                      }, undefined, t.id)
+                      }, undefined, t.id, config)
 
                       setConfig(next)
                       if (next.tiles?.length) {

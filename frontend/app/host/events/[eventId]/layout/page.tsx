@@ -15,6 +15,7 @@ import {
 } from '@/lib/invite/api'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
+import type { InviteConfig } from '@/lib/invite/schema'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import api from '@/lib/api'
 import { buildStarterLayouts, isStarterLayoutId } from '@/lib/invite/starterLayouts'
@@ -54,6 +55,9 @@ export default function LayoutSelectPage(): React.ReactElement {
   // tracks the user's in-progress click on a different card). Used only to
   // pin the current layout to the front of the grid on load.
   const [appliedLayoutId, setAppliedLayoutId] = useState<string | null>(null)
+  // The invitation as it stands, so what the host already wrote in its tiles
+  // (time, venue, dress code) is carried into whichever layout they pick.
+  const [currentConfig, setCurrentConfig] = useState<InviteConfig | null>(null)
 
   // Load event data (title/date/city merged into the applied layout's tiles).
   useEffect(() => {
@@ -71,6 +75,7 @@ export default function LayoutSelectPage(): React.ReactElement {
     if (!eventId || isNaN(eventId)) return
     getEventPageConfig(eventId)
       .then((res) => {
+        if (res?.page_config) setCurrentConfig(res.page_config)
         const appliedId = res?.page_config?.appliedLayoutId
         if (appliedId) {
           setPendingLayoutId((prev) => prev ?? appliedId)
@@ -153,12 +158,12 @@ export default function LayoutSelectPage(): React.ReactElement {
         ? applyLayout(layout.config, undefined, {
             mergeEventIntoTitle: false,
             mergeEventIntoDetails: false,
-          }, layout.id)
+          }, layout.id, currentConfig)
         : applyLayout(layout.config, {
             title: event?.title,
             date: event?.date,
             city: event?.city,
-          }, undefined, layout.id)
+          }, undefined, layout.id, currentConfig)
 
       // Save to Event.page_config so the design page reads the layout's tiles
       await updateEventPageConfig(eventId, appliedConfig)
