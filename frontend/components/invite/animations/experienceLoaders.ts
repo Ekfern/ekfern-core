@@ -6,6 +6,7 @@
 export const experienceLoaders = {
   rose_petals: () => import('./modules/rose-petals'),
   chinese_lanterns: () => import('./modules/chinese-lanterns'),
+  letter_balloons: () => import('./modules/letter-balloons'),
 } as const
 
 export type ExperienceModuleId = keyof typeof experienceLoaders

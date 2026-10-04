@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -12,12 +12,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/components/ui/toast'
 import { PasswordRequirements } from '@/components/ui/PasswordRequirements'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
-import { signup, verifyOtp, setPassword, storeAuthTokens, getCurrentUser, otpCodeSchema, newPasswordSchema } from '@/lib/auth/api'
+import { signup, verifyOtp, setPassword, storeAuthTokens, storedAccessToken, getCurrentUser, otpCodeSchema, newPasswordSchema } from '@/lib/auth/api'
+import { MINIMUM_AGE, dateOfBirthProblem, isUnderage, todayIso } from '@/lib/auth/age'
+import { afterAuthPath } from '@/lib/auth/returnTo'
+
+const UNDERAGE_MESSAGE = `You must be ${MINIMUM_AGE} or older to create an Ekfern account.`
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
+  // Under the minimum age is an ordinary field error, so nothing is sent and a
+  // mistyped year can simply be corrected. The form validates on submit, so
+  // the age limit is not shown before someone answers.
+  dateOfBirth: z.string().superRefine((value, ctx) => {
+    const problem = dateOfBirthProblem(value) ?? (isUnderage(value) ? UNDERAGE_MESSAGE : null)
+    if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem })
+  }),
 })
+
+/** The server said the account already has a password - the first save worked. */
+function passwordAlreadySet(error: any): boolean {
+  return /already set/i.test(error?.response?.data?.error || '')
+}
 
 const codeSchema = z.object({
   code: otpCodeSchema,
@@ -37,24 +53,30 @@ type SetPasswordForm = z.infer<typeof setPasswordSchema>
 
 function SignupForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { showToast } = useToast()
   const [step, setStep] = useState<'signup' | 'verify' | 'set-password'>('signup')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+  // Once the password is saved we are on our way out; the buttons stay off so a
+  // second press cannot send it again while the next page loads.
+  const [leaving, setLeaving] = useState(false)
+  const nextPath = afterAuthPath(searchParams)
+
   // Send an already-authenticated visitor to the dashboard instead of showing
   // the signup form (tokens live in localStorage, shared across tabs).
   const [checkingSession, setCheckingSession] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    const token = storedAccessToken()
     if (!token) {
       setCheckingSession(false)
       return
     }
     getCurrentUser()
       .then(() => {
-        if (!cancelled) router.replace('/host/dashboard')
+        if (!cancelled) router.replace(nextPath)
       })
       .catch(() => {
         if (!cancelled) setCheckingSession(false)
@@ -62,14 +84,16 @@ function SignupForm() {
     return () => {
       cancelled = true
     }
-  }, [router])
+  }, [router, nextPath])
 
   const {
     register: registerSignup,
     handleSubmit: handleSubmitSignup,
+    setError: setSignupError,
     formState: { errors: signupErrors },
   } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
+    defaultValues: { email: searchParams.get('email') || '' },
   })
 
   const {
@@ -92,7 +116,7 @@ function SignupForm() {
   const onSignupSubmit = async (data: SignupForm) => {
     setLoading(true)
     try {
-      const response = await signup(data.name, data.email)
+      const response = await signup(data.name, data.email, data.dateOfBirth)
 
       setEmail(data.email)
       setStep('verify')
@@ -106,6 +130,11 @@ function SignupForm() {
         showToast('Verification code sent to your email', 'success')
       }
     } catch (error: any) {
+      if (error?.response?.data?.code === 'underage') {
+        // The server's own check (e.g. its date differs from the browser's).
+        setSignupError('dateOfBirth', { message: UNDERAGE_MESSAGE })
+        return
+      }
       logError('Signup error:', error)
       showToast(getErrorMessage(error), 'error')
     } finally {
@@ -129,21 +158,31 @@ function SignupForm() {
   }
 
   const onSetPasswordSubmit = async (data: SetPasswordForm) => {
+    if (leaving) return
     setLoading(true)
     try {
       await setPassword(data.password)
+      setLeaving(true)
       showToast('Password set! Welcome! 🌿', 'success')
-      router.push('/host/dashboard')
+      router.push(nextPath)
+      return
     } catch (error: any) {
+      if (passwordAlreadySet(error)) {
+        // A repeat of a save that already worked (the account was created a
+        // moment ago by this same verified person): carry on, don't alarm them.
+        setLeaving(true)
+        router.push(nextPath)
+        return
+      }
       logError('Set password error:', error)
       showToast(getErrorMessage(error), 'error')
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
 
   const onSkipPassword = () => {
-    router.push('/host/dashboard')
+    setLeaving(true)
+    router.push(nextPath)
   }
 
   if (checkingSession) {
@@ -204,6 +243,26 @@ function SignupForm() {
                 {signupErrors.email && (
                   <p className="text-red-500 text-sm mt-1">
                     {signupErrors.email.message}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="signup-dob" className="block text-sm font-medium mb-1 text-gray-700">
+                  Date of Birth *
+                </label>
+                <Input
+                  id="signup-dob"
+                  type="date"
+                  max={todayIso()}
+                  autoComplete="bday"
+                  {...registerSignup('dateOfBirth')}
+                  className="border-eco-green-light focus:border-eco-green"
+                />
+                {signupErrors.dateOfBirth ? (
+                  <p className="text-red-500 text-sm mt-1" role="alert">{signupErrors.dateOfBirth.message}</p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Required by law to create an account. We don&apos;t show it to anyone.
                   </p>
                 )}
               </div>
@@ -302,16 +361,16 @@ function SignupForm() {
               </div>
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || leaving}
                 className="w-full bg-eco-green hover:bg-eco-green-dark text-white py-6 text-lg"
               >
-                {loading ? 'Saving...' : 'Set Password & Continue →'}
+                {leaving ? 'Opening Ekfern...' : loading ? 'Saving...' : 'Set Password & Continue →'}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={onSkipPassword}
-                disabled={loading}
+                disabled={loading || leaving}
                 className="w-full border-eco-green text-eco-green"
               >
                 Skip — continue with OTP
@@ -323,7 +382,10 @@ function SignupForm() {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}
-                <Link href="/host/login" className="text-eco-green font-medium hover:underline">
+                <Link
+                  href={`/host/login${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+                  className="text-eco-green font-medium hover:underline"
+                >
                   Sign in
                 </Link>
               </p>

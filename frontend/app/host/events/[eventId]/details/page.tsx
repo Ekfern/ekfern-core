@@ -9,6 +9,8 @@ import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
 import EventDetailsForm, { type EventDetailsFormData } from '@/components/host/EventDetailsForm'
+import CoHostPanel from '@/components/host/CoHostPanel'
+import type { EventRole } from '@/lib/cohosts'
 import { getInvitePage, updateInvitePage } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import type { EventDetailsTileSettings, InviteConfig, Tile } from '@/lib/invite/schema'
@@ -16,6 +18,8 @@ import type { EventDetailsTileSettings, InviteConfig, Tile } from '@/lib/invite/
 interface EventRecord extends EventDetailsFormData {
   id: number
   event_structure?: 'SIMPLE' | 'ENVELOPE'
+  /** 'owner' for the host, 'cohost' for a collaborator. */
+  my_role?: EventRole
 }
 
 function normalizeListResponse(payload: unknown): Array<{ will_attend?: string }> {
@@ -171,6 +175,8 @@ export default function EventDetailsEditPage() {
             )}
           </CardContent>
         </Card>
+
+        <CoHostPanel eventId={eventId} canManage={event?.my_role === 'owner'} />
       </div>
 
       {pendingData && rsvpWarningCount !== null && (

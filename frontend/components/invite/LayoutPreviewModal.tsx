@@ -7,10 +7,10 @@ import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import { PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 import {
   PREVIEW_SAMPLE,
   enrichConfigWithSampleData,
-  skeletonizePosterTiles,
 } from '@/components/invite/PageLayoutCardPreview'
 
 export interface LayoutPreviewModalProps {
@@ -38,7 +38,7 @@ export default function LayoutPreviewModal({
   const config = layout.config
   const appearance = resolveAppearance(config)
   const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
-  const previewConfig = skeletonizePosterTiles(enrichConfigWithSampleData(config))
+  const previewConfig = enrichConfigWithSampleData(config)
 
   return (
     <div
@@ -65,8 +65,10 @@ export default function LayoutPreviewModal({
         </div>
 
         <div className="relative flex-1 overflow-y-auto">
-          <div className="relative" style={{ background: pageBackground }}>
+          <div className="relative min-h-full flex flex-col" style={{ background: pageBackground, ...PAPER_ROOT_STYLE }}>
             <TextureOverlay
+              layer="paper"
+              paperColor={pageBackground}
               type={config?.texture?.type || 'none'}
               intensity={config?.texture?.intensity ?? 40}
               imageUrl={config?.texture?.imageUrl}

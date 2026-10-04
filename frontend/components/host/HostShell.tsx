@@ -29,6 +29,7 @@ import Logo from '@/components/Logo'
 import { TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
+import OverflowNav from '@/components/host/OverflowNav'
 
 const AUTH_ROUTES = new Set([
   '/host/login',
@@ -65,8 +66,10 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
 
 
   useEffect(() => {
-    const stored = localStorage.getItem('host-nav-collapsed')
-    if (stored === 'true') setIsDesktopNavCollapsed(true)
+    // Blocked site data makes reading localStorage throw; keep the default.
+    try {
+      if (localStorage.getItem('host-nav-collapsed') === 'true') setIsDesktopNavCollapsed(true)
+    } catch {}
   }, [])
 
   const [eventSettings, setEventSettings] = useState<{
@@ -147,6 +150,27 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
     { href: '/host/profile', label: 'Profile', icon: User },
   ], [])
 
+  // The bottom bar drops labels on the narrowest phones, as it did before.
+  const [showBarLabels, setShowBarLabels] = useState(true)
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 360px)')
+    const sync = () => setShowBarLabels(query.matches)
+    sync()
+    query.addEventListener('change', sync)
+    return () => query.removeEventListener('change', sync)
+  }, [])
+
+  // Labels appear from xl up, as before; below that the icons alone fit more
+  // tabs inline before anything has to move into the More menu.
+  const [showTabLabels, setShowTabLabels] = useState(true)
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1280px)')
+    const sync = () => setShowTabLabels(query.matches)
+    sync()
+    query.addEventListener('change', sync)
+    return () => query.removeEventListener('change', sync)
+  }, [])
+
   const eventTabItems = useMemo(() => {
     if (!eventId) return []
     const hasRsvp = eventSettings?.has_rsvp ?? true
@@ -187,13 +211,18 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
       {/* ── Sidebar ───────────────────────────────────────────────── */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 bg-white border-r border-eco-green-light shadow-sm transition-all md:static md:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 bg-white border-r border-eco-green-light shadow-sm transition-all md:translate-x-0',
+          // Sticky rather than static on desktop: as a plain flex item the aside
+          // stretches to the height of the whole document, which pushed Help &
+          // Support and Logout to the bottom of the *page* instead of the
+          // *viewport* - off screen on any page taller than the window.
+          'md:sticky md:top-0 md:h-screen',
           isMobileDrawerOpen ? 'translate-x-0' : '-translate-x-full',
           isDesktopNavCollapsed ? 'md:w-20' : 'md:w-64',
           'w-72'
         )}
       >
-        <div className="flex h-full flex-col">
+        <div className="flex h-full flex-col overflow-y-auto">
           <div className="flex items-center justify-between border-b border-eco-green-light px-4 py-4">
             <Logo href="/host/dashboard" textClassName={cn(isDesktopNavCollapsed && 'md:hidden')} />
             <button
@@ -444,37 +473,30 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
               <div className="hidden lg:block mx-4 h-6 w-px shrink-0 bg-gray-200" />
               <>
                 {/* Desktop */}
-                <nav className="hidden lg:flex flex-1 items-center justify-center gap-5 overflow-x-auto scrollbar-none">
-                  {eventTabItems.map((item) => {
-                    const isRoot = item.href === `/host/events/${eventId}`
-                    const isActive = isActivePath(pathname, item.href, isRoot)
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-all",
-                          isActive
-                            ? "bg-eco-green text-white"
-                            : "text-gray-600 hover:bg-eco-green-light hover:text-eco-green"
-                        )}
-                      >
-                        <item.icon size={18} />
-
-                        <span className="hidden xl:inline">
-                          {item.label}
-                        </span>
-                      </Link>
-                    )
-                  })}
-                </nav>
+                <div className="hidden min-w-0 flex-1 lg:flex">
+                  <OverflowNav
+                    showLabels={showTabLabels}
+                    items={eventTabItems.map((item) => ({
+                      href: item.href,
+                      label: item.label,
+                      icon: item.icon,
+                      isActive: isActivePath(
+                        pathname,
+                        item.href,
+                        item.href === `/host/events/${eventId}`,
+                      ),
+                    }))}
+                  />
+                </div>
               </>
             </div>
           </div>
         </header>
 
-        <main className="min-w-0 flex-1">
+        {/* pb-28 clears the floating event-tab bar on mobile; the desktop
+            gutter is there so the last card never sits flush against the
+            bottom edge and it is obvious the page has ended. */}
+        <main className="min-w-0 flex-1 pb-28 lg:pb-16">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={pathname}
@@ -489,36 +511,35 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
         </main>
         {/* Mobile Bottom Navigation */}
         {mounted && eventId && eventTabItems.length > 0 && !isMobileDrawerOpen && (
-          <div className="fixed left-1/2 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 -translate-x-1/2 lg:hidden">
-            <div className="flex items-center gap-1 rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-xl">
-              {eventTabItems.map((item) => {
-                const isRoot = item.href === `/host/events/${eventId}`
-                const isActive = isActivePath(pathname, item.href, isRoot)
-                const Icon = item.icon
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "flex min-w-[44px] min-[360px]:min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-2 transition-colors",
-                      isActive
-                        ? "bg-eco-green text-white"
-                        : "text-gray-600 hover:bg-eco-green-light hover:text-eco-green"
-                    )}
-                  >
-                    <Icon size={18} />
-
-                    <span className="hidden min-[360px]:block text-[9px] font-medium">
-                      {item.label === "Page Editor"
-                        ? "Editor"
-                        : item.label === "Host Catalog"
-                          ? "Catalog"
-                          : item.label}
-                    </span>
-                  </Link>
-                )
-              })}
+          // Anchored to the viewport edges rather than centred on a fixed width:
+          // seven tabs are ~429px, so on any phone the old left-1/2 centring
+          // pushed the first and last tab off both edges with no way to reach
+          // them. Tabs that still do not fit move into the More menu, which
+          // opens upward here rather than off the bottom of the screen.
+          <div className="fixed inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex justify-center lg:hidden">
+            <div className="flex w-full max-w-md items-center rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-xl">
+              <OverflowNav
+                variant="stacked"
+                menuPlacement="top"
+                gap={4}
+                showLabels={showBarLabels}
+                items={eventTabItems.map((item) => ({
+                  href: item.href,
+                  label: item.label,
+                  shortLabel:
+                    item.label === 'Page Editor'
+                      ? 'Editor'
+                      : item.label === 'Host Catalog'
+                        ? 'Catalog'
+                        : item.label,
+                  icon: item.icon,
+                  isActive: isActivePath(
+                    pathname,
+                    item.href,
+                    item.href === `/host/events/${eventId}`,
+                  ),
+                }))}
+              />
             </div>
           </div>
         )}

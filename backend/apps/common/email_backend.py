@@ -184,6 +184,8 @@ def send_email(to_email, subject, body_text, body_html=None, unsubscribe_token=N
     """
     if unsubscribe_token:
         body_text = _append_unsubscribe_footer(body_text, unsubscribe_token)
+        if body_html:
+            body_html = _fill_unsubscribe_slot(body_html, unsubscribe_token)
 
     try:
         _send_via_ses(to_email, subject, body_text, body_html)
@@ -209,6 +211,17 @@ def _log_notification(to_email, subject, status, error='', recipient_id=None):
         )
     except Exception as log_err:
         logger.error(f'Failed to write NotificationLog for {to_email}: {log_err}')
+
+
+def _fill_unsubscribe_slot(body_html: str, unsubscribe_token) -> str:
+    """The HTML twin of _append_unsubscribe_footer, placed by the shared layout."""
+    from apps.common.email_layout import UNSUBSCRIBE_SLOT, unsubscribe_html
+
+    frontend = getattr(settings, 'FRONTEND_ORIGIN', 'https://ekfern.com')
+    return body_html.replace(
+        UNSUBSCRIBE_SLOT,
+        unsubscribe_html(f"{frontend}/host/profile", f"{frontend}/unsubscribe/{unsubscribe_token}"),
+    )
 
 
 def _append_unsubscribe_footer(body_text: str, unsubscribe_token) -> str:

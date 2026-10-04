@@ -114,9 +114,10 @@ export interface PosterTileSettings {
   // 'full-bleed': fills the full page width as a hero panel, aspectRatio controls height.
   frameMode?: 'card' | 'full-bleed'
   aspectRatio?: string // CSS aspect-ratio value, only used when frameMode is 'full-bleed' (default '4/5')
-  // Marks backgroundGradient/textOverlays as part of THIS layout's own baked-in identity
-  // (not a staff-authored photo choice) so the Layout gallery's skeletonize step — which
-  // hides staff photos pre-Design-step — preserves them instead of wiping them out.
+  // Marked by the layout seeders on a layout's own baked-in gradient/title.
+  // Nothing in the frontend reads it since the Layout gallery stopped hiding
+  // backgrounds: there is no Design step to defer that choice to, so previews
+  // now show what will actually be applied.
   isLayoutHero?: boolean
   // Texture confined to this tile's own box (e.g. grain on a full-bleed hero) instead of
   // the page-wide texture, which would otherwise paint every tile uniformly.
@@ -133,6 +134,8 @@ export interface EventDetailsTileSettings {
   location: string // Display text for location (flexible, e.g., "Grand Ballroom", "Beachside Venue")
   date: string // ISO date string
   time?: string // Time string (e.g., "18:00")
+  endTime?: string // Optional end, same format as time; shown as "10:00–11:00 AM" and used for calendar entries
+  repeats?: string // Optional free text for recurring events (e.g. "Saturdays"); compact layout shows it as "When"
   dressCode?: string
   mapUrl?: string // Map location - accepts address text or Google Maps URL (auto-validated and verified)
   locationVerified?: boolean // Auto-set by system based on map location validation (true if valid, false if invalid)
@@ -143,8 +146,9 @@ export interface EventDetailsTileSettings {
   showMap?: boolean // Option to display embedded map (only works if mapUrl is provided and valid and location is verified)
   mapZoom?: number // Zoom level for embedded map (11-20: 11-15 for city/area view, 16-20 for street view, default: 15)
   textAlign?: 'left' | 'center' | 'right' // Default: center
-  // Date block layout: single-line (default) or day-prominent (large day, then month year, then weekday · time)
-  dateLayout?: 'single-line' | 'day-prominent'
+  // Tile layout: single-line (default), day-prominent (large day, then month year, then weekday · time),
+  // or compact (one card of label / value rows: When, Starts, Where)
+  dateLayout?: 'single-line' | 'day-prominent' | 'compact'
   // Border styling options ('glass' = frosted blur card, ignores decorative border/symbol rendering)
   borderStyle?: 'elegant' | 'minimal' | 'ornate' | 'modern' | 'classic' | 'vintage' | 'none' | 'glass'
 }

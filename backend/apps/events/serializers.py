@@ -72,7 +72,33 @@ class InvitePageSummarySerializer(serializers.ModelSerializer):
         fields = ('is_published', 'config')
 
 
-class EventListSerializer(serializers.ModelSerializer):
+class MyRoleMixin:
+    """
+    Supplies ``my_role`` and ``my_capabilities`` for the requesting user.
+
+    The fields themselves are declared on each serializer rather than here:
+    DRF's metaclass only collects declared fields from bases that carry
+    ``_declared_fields``, so a plain mixin's would be silently dropped and then
+    resolved against the model.
+
+    Role is derived from ``host_id``, already loaded on the row, so splitting the
+    dashboard into Hosted and Shared costs no extra query.
+    """
+
+    def _access(self, obj):
+        from .access import resolve_event_access
+
+        request = self.context.get('request')
+        return resolve_event_access(getattr(request, 'user', None), obj)
+
+    def get_my_role(self, obj):
+        return self._access(obj).role
+
+    def get_my_capabilities(self, obj):
+        return sorted(self._access(obj).capabilities)
+
+
+class EventListSerializer(MyRoleMixin, serializers.ModelSerializer):
     """
     Lightweight serializer for the event LIST endpoint.
 
@@ -91,6 +117,8 @@ class EventListSerializer(serializers.ModelSerializer):
     """
     is_expired = serializers.BooleanField(read_only=True)
     invite_page_summary = InvitePageSummarySerializer(source='invite_page', read_only=True)
+    my_role = serializers.SerializerMethodField()
+    my_capabilities = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
@@ -98,11 +126,11 @@ class EventListSerializer(serializers.ModelSerializer):
             'id', 'slug', 'title', 'event_type', 'date', 'event_end_date',
             'city', 'country', 'timezone', 'is_public', 'has_rsvp', 'has_registry',
             'event_structure', 'expiry_date', 'is_expired', 'created_at',
-            'invite_page_summary',
+            'invite_page_summary', 'my_role', 'my_capabilities',
         )
 
 
-class EventSerializer(serializers.ModelSerializer):
+class EventSerializer(MyRoleMixin, serializers.ModelSerializer):
     # Only include minimal host info for privacy (name only, no email)
     host_name = serializers.CharField(source='host.name', read_only=True, allow_null=True)
     country_code = serializers.SerializerMethodField()
@@ -120,11 +148,13 @@ class EventSerializer(serializers.ModelSerializer):
     catalog_show_on_rsvp_confirmation = serializers.SerializerMethodField()
     catalog_title = serializers.SerializerMethodField()
     catalog_purpose = serializers.SerializerMethodField()
+    my_role = serializers.SerializerMethodField()
+    my_capabilities = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
-        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary')
-        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'created_at', 'updated_at', 'invite_page_summary')
+        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary', 'my_role', 'my_capabilities')
+        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'created_at', 'updated_at', 'invite_page_summary', 'my_role', 'my_capabilities')
 
     def get_catalog_show_on_event_page(self, obj):
         return _catalog_show_on_event_page(obj)
@@ -1220,6 +1250,25 @@ class HostSendQuotaSerializer(serializers.ModelSerializer):
         return obj.usage_this_month()
 
 
+MAX_LAYOUT_TAGS = 20
+MAX_LAYOUT_TAG_LENGTH = 40
+
+
+def normalize_layout_tags(tags):
+    """Trim, lowercase and de-duplicate tags while preserving author order."""
+    out = []
+    seen = set()
+    for tag in tags or []:
+        if not isinstance(tag, str):
+            continue
+        cleaned = ' '.join(tag.strip().lower().split())[:MAX_LAYOUT_TAG_LENGTH]
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        out.append(cleaned)
+    return out[:MAX_LAYOUT_TAGS]
+
+
 class InvitePageLayoutSerializer(serializers.ModelSerializer):
     """Serializer for InvitePageLayout (Page Layout Studio)."""
     created_by_name = serializers.CharField(source='created_by.name', read_only=True, allow_null=True)
@@ -1229,21 +1278,44 @@ class InvitePageLayoutSerializer(serializers.ModelSerializer):
     thumbnail = serializers.CharField(max_length=2000, allow_blank=True, required=False)
     # Stable design code of the linked card_sample; drives design-based filtering.
     card_code = serializers.CharField(source='card_sample.code', read_only=True, allow_null=True)
+    # Tags inherited from the linked design. Read-only here: they are edited on the
+    # GreetingCardSample and shown alongside the layout's own tags in the Studio.
+    design_tags = serializers.SerializerMethodField()
 
     class Meta:
         model = InvitePageLayout
         fields = (
             'id', 'name', 'description', 'thumbnail', 'card_sample', 'card_code', 'preview_alt', 'config',
-            'visibility', 'status', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name',
+            'visibility', 'status', 'tags', 'design_tags',
+            'created_by', 'created_by_name', 'updated_by', 'updated_by_name',
             'created_at', 'updated_at',
             'is_premium', 'price_cents', 'creator', 'creator_share_percent',
         )
-        read_only_fields = ('id', 'card_code', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'card_code', 'design_tags', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at')
+
+    def get_design_tags(self, obj):
+        sample = getattr(obj, 'card_sample', None)
+        tags = getattr(sample, 'tags', None) if sample else None
+        return normalize_layout_tags(tags) if isinstance(tags, list) else []
 
     def validate_config(self, value):
         if not isinstance(value, dict):
             raise serializers.ValidationError("config must be a JSON object.")
         return value
+
+    def validate_tags(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("tags must be a list of strings.")
+        if len(value) > MAX_LAYOUT_TAGS:
+            raise serializers.ValidationError(f"At most {MAX_LAYOUT_TAGS} tags are allowed.")
+        for tag in value:
+            if not isinstance(tag, str):
+                raise serializers.ValidationError("Each tag must be a string.")
+            if len(tag.strip()) > MAX_LAYOUT_TAG_LENGTH:
+                raise serializers.ValidationError(
+                    f"Each tag must be at most {MAX_LAYOUT_TAG_LENGTH} characters."
+                )
+        return normalize_layout_tags(value)
 
 
 class AnimationRegistryEntrySerializer(serializers.ModelSerializer):

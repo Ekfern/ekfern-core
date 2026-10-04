@@ -9,11 +9,11 @@ import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import PosterTileSSR from '@/components/invite/tiles/PosterTileSSR'
 import TitleTileSSR from '@/components/invite/tiles/TitleTileSSR'
-import TextureOverlay from '@/components/invite/render/TextureOverlay'
 import { BRAND_NAME, GENERIC_ENVELOPE_IMAGE } from '@/lib/brand_utility'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
 import http from 'http'
 import https from 'https'
+import { previewDescriptionFromHtml } from '@/lib/invite/previewText'
 
 // ISR: Revalidate every 60 seconds for public pages so freshly published
 // changes appear quickly on first paint. The client-side refresh in
@@ -725,8 +725,7 @@ export async function generateMetadata({
       (tile: any) => tile.type === 'description' && tile.settings?.content
     ) as any
     if (descTile?.settings?.content) {
-      // Strip HTML tags and limit length for description
-      description = descTile.settings.content.replace(/<[^>]*>/g, '').substring(0, 200)
+      description = previewDescriptionFromHtml(descTile.settings.content) || description
     }
   }
 

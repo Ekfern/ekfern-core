@@ -61,6 +61,22 @@ export function gradientStops(gradient: string): string[] {
 }
 
 /**
+ * Whether a page background reads as light or dark paper.
+ *
+ * Textures are a finish, picked independently of the colour, so each one has
+ * to work on either: a linen weave shows as shadow on ivory stock and as
+ * highlight on navy. A gradient is judged by the mean luminance of all its
+ * stops; anything unparseable counts as light, which is how every texture was
+ * drawn before it knew the colour.
+ */
+export function paperTone(background: string | undefined | null): 'light' | 'dark' {
+  const stops = background ? gradientStops(background) : []
+  if (stops.length === 0) return 'light'
+  const mean = stops.reduce((sum, stop) => sum + hexLuminance(stop), 0) / stops.length
+  return mean < 0.45 ? 'dark' : 'light'
+}
+
+/**
  * The WCAG contrast ratio between two colours, 1 (identical) to 21 (black on
  * white).
  *

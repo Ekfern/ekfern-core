@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
@@ -208,6 +209,13 @@ export default function GuestsPage() {
   const [nameSearch, setNameSearch] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [openRowActionsGuestId, setOpenRowActionsGuestId] = useState<number | null>(null)
+  // The table scrolls sideways, and `overflow-x` makes it clip vertically too,
+  // so a menu rendered inside it gets cut off. It is rendered into the body
+  // instead, pinned to the button's position on screen, which puts it above
+  // everything and out of reach of any ancestor's clipping.
+  const [rowActionsPos, setRowActionsPos] = useState<
+    { right: number; top?: number; bottom?: number } | null
+  >(null)
   const bulkActionsMenuRef = useRef<HTMLDivElement>(null)
   const [showBulkActionsMenu, setShowBulkActionsMenu] = useState(false)
   const hasInitializedFiltersRef = useRef(false)
@@ -370,8 +378,18 @@ export default function GuestsPage() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpenRowActionsGuestId(null)
     }
+    // The menu is pinned to where the button was on screen, so once anything
+    // scrolls it no longer belongs to that row. Close it rather than let it
+    // drift. Capture, so scrolling the table itself counts too.
+    const onScroll = () => setOpenRowActionsGuestId(null)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll, { capture: true })
+      window.removeEventListener('resize', onScroll)
+    }
   }, [openRowActionsGuestId])
 
   // Initialize filter/sort state from URL query params (one-time)
@@ -3365,19 +3383,40 @@ export default function GuestsPage() {
                                         type="button"
                                         aria-expanded={openRowActionsGuestId === guest.id}
                                         aria-haspopup="menu"
-                                        onClick={() =>
-                                          setOpenRowActionsGuestId(
+                                        onClick={(e) => {
+                                          const next =
                                             openRowActionsGuestId === guest.id ? null : guest.id
-                                          )
-                                        }
+                                          if (next !== null) {
+                                            // Roughly the tallest the menu gets: three items plus padding.
+                                            const MENU_HEIGHT = 120
+                                            const btn = e.currentTarget.getBoundingClientRect()
+                                            const right = window.innerWidth - btn.right
+                                            // Anchor the far edge to the button, so neither direction
+                                            // needs the menu's height measured before it exists.
+                                            setRowActionsPos(
+                                              window.innerHeight - btn.bottom < MENU_HEIGHT
+                                                ? { right, bottom: window.innerHeight - btn.top + 4 }
+                                                : { right, top: btn.bottom + 4 }
+                                            )
+                                          }
+                                          setOpenRowActionsGuestId(next)
+                                        }}
                                         className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
                                       >
                                         More
                                       </Button>
-                                      {openRowActionsGuestId === guest.id && (
+                                      {openRowActionsGuestId === guest.id && rowActionsPos && createPortal(
                                         <div
-                                          className="absolute right-0 top-full mt-1 z-50 min-w-[11rem] rounded-md border border-gray-200 bg-white shadow-lg py-1"
+                                          className="fixed z-[100] min-w-[11rem] rounded-md border border-gray-200 bg-white shadow-lg py-1"
+                                          style={{
+                                            right: rowActionsPos.right,
+                                            ...(rowActionsPos.top !== undefined
+                                              ? { top: rowActionsPos.top }
+                                              : { bottom: rowActionsPos.bottom }),
+                                          }}
                                           role="menu"
+                                          data-row-actions-root
+                                          data-guest-id={guest.id}
                                         >
                                           {guest.guest_token && (
                                             <button
@@ -3419,6 +3458,8 @@ export default function GuestsPage() {
                                             {guest.rsvp_status || guest.rsvp_will_attend ? 'Remove' : 'Delete'}
                                           </button>
                                         </div>
+                                      ,
+                                        document.body
                                       )}
                                     </div>
                                   </div>

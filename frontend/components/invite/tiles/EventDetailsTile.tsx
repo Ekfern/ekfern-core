@@ -2,13 +2,14 @@
 
 import React, { useState } from 'react'
 import { MapPin, ChevronDown, Calendar, Download } from 'lucide-react'
-import { recipe } from '@/lib/invite/recipes'
+import { recipe, recipeAtSize } from '@/lib/invite/recipes'
 import { surface } from '@/lib/invite/surfaces'
 import { EventDetailsTileSettings } from '@/lib/invite/schema'
 import { formatEventTime, zonedTimeToUtc } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
+import { buildCompactRows, formatTimeRange } from '@/lib/invite/eventDetailsCompact'
 
 export interface EventDetailsTileProps {
   settings: EventDetailsTileSettings
@@ -276,8 +277,10 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     const startDate = zonedTimeToUtc(dateToUse, settings.time, tz)
     if (!startDate) return
 
-    // No end time exists on the tile yet, so assume four hours.
-    const endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000)
+    // The host's end time when there is one; otherwise assume four hours.
+    const typedEnd = settings.time && settings.endTime ? zonedTimeToUtc(dateToUse, settings.endTime, tz) : null
+    const endDate =
+      typedEnd && typedEnd > startDate ? typedEnd : new Date(startDate.getTime() + 4 * 60 * 60 * 1000)
 
     // The public invitation, deliberately without the `?g=` token the guest is
     // reading under - a calendar entry gets forwarded, and a personal token
@@ -321,8 +324,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
     const dropdownPositionClass = textAlign === 'left' ? 'left-0' : textAlign === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'
 
     const isGlass = borderStyle === 'glass'
-    const topBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
-    const bottomBorder = isGlass ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+    const dateLayout = settings.dateLayout || 'single-line'
+    // Compact is one card: the border style draws its edge, not rules above and below it.
+    const isCompact = dateLayout === 'compact'
+    const topBorder = isGlass || isCompact ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
+    const bottomBorder = isGlass || isCompact ? null : renderDecorativeBorder(borderStyle, borderColor, borderWidth, decorativeSymbol)
 
     // Glass is a material now, not a height. This used to carry a 120px white
     // bloom and a 60px drop shadow of its own, which is why a page set flat
@@ -345,7 +351,49 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           )}
 
           {(() => {
-            const dateLayout = settings.dateLayout || 'single-line'
+            if (isCompact) {
+              const rows = buildCompactRows(settings, tz, zoneLabelDate)
+              if (rows.length === 0) return null
+              const cardStyle: React.CSSProperties = isGlass
+                ? { maxWidth: '420px' }
+                : borderStyle === 'none'
+                  ? { maxWidth: '420px' }
+                  : {
+                      maxWidth: '420px',
+                      border: `${borderStyle === 'classic' ? 3 : 1}px ${borderStyle === 'classic' ? 'double' : borderStyle === 'modern' ? 'dotted' : 'solid'} ${borderColor}`,
+                      borderRadius: 'var(--radius-surface)',
+                      padding: '14px 16px',
+                    }
+              return (
+                <div className={`w-full ${marginClass}`} style={cardStyle}>
+                  <dl
+                    className="grid gap-x-3 gap-y-2.5 text-left"
+                    style={{ ...recipe('body'), gridTemplateColumns: 'max-content 1fr', alignItems: 'baseline' }}
+                  >
+                    {rows.map((row) => (
+                      <React.Fragment key={row.label}>
+                        <dt style={recipeAtSize('eyebrow', '0.625rem')}>{row.label}</dt>
+                        {/* Row-sized, not the headline size the stacked layouts use. Each
+                            short " · " part stays whole, so a narrow card breaks between
+                            "Saturdays" and the time rather than inside the time; long parts
+                            (a street address) still wrap. */}
+                        <dd
+                          className="m-0"
+                          style={recipeAtSize('data', '0.9375rem', { lineHeight: 1.45, fontWeight: 600 })}
+                        >
+                          {row.value.split(' · ').map((part, i) => (
+                            <React.Fragment key={i}>
+                              {i > 0 && ' · '}
+                              <span style={part.length <= 22 ? { whiteSpace: 'nowrap' } : undefined}>{part}</span>
+                            </React.Fragment>
+                          ))}
+                        </dd>
+                      </React.Fragment>
+                    ))}
+                  </dl>
+                </div>
+              )
+            }
 
             if (dateLayout === 'day-prominent' && settings.date) {
               const parts = parseDateParts(settings.date)
@@ -476,7 +524,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
           {/* Save the Date Button */}
           <style dangerouslySetInnerHTML={{ __html: BUTTON_CSS }} />
-          <div className="relative mt-8 flex" style={{ justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center' }}>
+          <div className={`relative ${isCompact ? 'mt-5' : 'mt-8'} flex`} style={{ justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center' }}>
             <button
               type="button"
               onClick={handleSaveTheDate}
@@ -580,7 +628,8 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
               className="font-normal"
               style={recipe('data')}
             >
-              {formatTime(settings.time)}
+              {settings.repeats?.trim() ? `${settings.repeats.trim()} · ` : ''}
+              {formatTimeRange(settings.time, settings.endTime, tz, zoneLabelDate)}
             </span>
           </p>
         )}

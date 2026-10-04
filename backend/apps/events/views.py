@@ -26,6 +26,16 @@ from apps.common.whatsapp_backend import verify_webhook_signature
 from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
+from .access import get_event_or_404, require_event_access, resolve_event_access
+from .config_guards import (
+    MESSAGE as CONFIG_GUARD_MESSAGE,
+    collect_oversized_data_uris,
+    find_oversized_data_uris,
+)
+from .design_history import record_event_version
+from .capabilities import (
+    EDIT_CATALOG, EDIT_INVITATION, EDIT_RSVP, MANAGE_GUESTS, SEND_MESSAGES,
+)
 from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, InvitePageView, RSVPPageView, AnalyticsBatchRun, AttributionLink, AttributionClick, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, CustomField, AnimationRegistryEntry
 from .serializers import (
     EventSerializer, EventCreateSerializer, EventListSerializer,
@@ -253,10 +263,10 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         try:
-            return Event.objects.filter(host=self.request.user).select_related('invite_page', 'host_catalog')
+            return Event.objects.for_user(self.request.user).select_related('invite_page', 'host_catalog')
         except Exception:
             try:
-                return Event.objects.filter(host=self.request.user).select_related('invite_page', 'host_catalog').only(
+                return Event.objects.for_user(self.request.user).select_related('invite_page', 'host_catalog').only(
                     'id', 'host_id', 'slug', 'title', 'event_type', 'date',
                     'city', 'country', 'is_public', 'has_rsvp',
                     'has_registry', 'banner_image', 'description',
@@ -266,10 +276,24 @@ class EventViewSet(viewsets.ModelViewSet):
             except Exception:
                 return Event.objects.none()
 
+    #: Which capability each default ModelViewSet action needs. Reads are
+    #: implicit, so only the writes appear here; ``destroy`` is absent because
+    #: deleting an event is owner-only and answered by role, never by capability.
+    ACTION_CAPABILITIES = {
+        'update': EDIT_INVITATION,
+        'partial_update': EDIT_INVITATION,
+    }
+
     def get_object(self):
         obj = super().get_object()
-        if obj.host != self.request.user:
-            raise PermissionDenied("You can only access your own events.")
+        access = require_event_access(
+            self.request.user, obj, self.ACTION_CAPABILITIES.get(self.action)
+        )
+        # Deleting an event takes the guest list, RSVPs and invite page with it
+        # (Event has no soft delete and Guest.event cascades), so it stays with
+        # the owner regardless of what any co-host has been granted.
+        if self.action == 'destroy' and not access.is_owner:
+            raise PermissionDenied("Only the event host can delete this event.")
         return obj
 
     def get_serializer_class(self):
@@ -285,12 +309,25 @@ class EventViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(host=self.request.user)
 
-    def _verify_event_ownership(self, event):
-        if not self.request.user.is_authenticated:
-            raise PermissionDenied("Authentication required.")
-        if event.host != self.request.user:
-            raise PermissionDenied("You can only access your own events.")
-        return True
+    def perform_update(self, serializer):
+        """Record details edits in the same timeline as design edits.
+
+        A host does not think of "changed the date" and "changed the colours" as
+        belonging to different histories, so both are snapshotted here.
+        """
+        event = serializer.save()
+        record_event_version(event, saved_by=self.request.user)
+
+    def _verify_event_ownership(self, event, capability=None):
+        """
+        Access gate for this viewset's actions (403 on failure, as before).
+
+        ``capability=None`` means any access to the event is enough, which is
+        the read case; writes name the capability they need. Resolution itself
+        lives in ``apps.events.access`` so collaborators only have to be taught
+        to one function.
+        """
+        return require_event_access(self.request.user, event, capability)
 
     def _attribution_insights_unlocked(self, event):
         """
@@ -324,7 +361,7 @@ class EventViewSet(viewsets.ModelViewSet):
         from rest_framework.exceptions import ValidationError
 
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, MANAGE_GUESTS)
 
         data = request.data if isinstance(request.data, dict) else {}
         upsert = data.get('upsert', []) or []
@@ -420,7 +457,7 @@ class EventViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['delete'], url_path='rsvps/(?P<rsvp_id>[^/.]+)')
     def delete_rsvp(self, request, id=None, rsvp_id=None):
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, EDIT_RSVP)
 
         try:
             rsvp = RSVP.objects.get(id=rsvp_id, event=event)
@@ -447,7 +484,7 @@ class EventViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'post'])
     def guests(self, request, id=None):
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, MANAGE_GUESTS if request.method == 'POST' else None)
 
         if request.method == 'GET':
             guests = Guest.objects.filter(event=event, is_removed=False)
@@ -525,7 +562,7 @@ class EventViewSet(viewsets.ModelViewSet):
     def update_guest(self, request, id=None, guest_id=None):
         """Update a guest (PUT/PATCH)"""
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, MANAGE_GUESTS)
         
         try:
             guest = Guest.objects.get(id=guest_id, event=event)
@@ -545,7 +582,7 @@ class EventViewSet(viewsets.ModelViewSet):
     def delete_guest(self, request, id=None, guest_id=None):
         """Delete or soft-delete a guest"""
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, MANAGE_GUESTS)
         
         try:
             guest = Guest.objects.get(id=guest_id, event=event)
@@ -825,7 +862,7 @@ class EventViewSet(viewsets.ModelViewSet):
         if not getattr(settings, 'ENABLE_ATTRIBUTION_LINKS', True):
             return Response({'error': 'Attribution links are disabled.'}, status=status.HTTP_403_FORBIDDEN)
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, EDIT_INVITATION if request.method == 'POST' else None)
 
         if request.method == 'GET':
             queryset = AttributionLink.objects.filter(event=event, is_active=True).select_related('guest').order_by('-created_at')
@@ -847,7 +884,7 @@ class EventViewSet(viewsets.ModelViewSet):
     def import_guests(self, request, id=None):
         """Import guests from CSV, TXT, Excel, or vCard (.vcf) file"""
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, MANAGE_GUESTS)
 
         if 'file' not in request.FILES:
             return Response(
@@ -1014,7 +1051,7 @@ class EventViewSet(viewsets.ModelViewSet):
     def import_guests_json(self, request, id=None):
         """Bulk-import guests from JSON (e.g. Contact Picker). Body: { \"guests\": [{\"name\",\"phone\",\"email\"}] }"""
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, MANAGE_GUESTS)
 
         guests = request.data.get('guests')
         if guests is None:
@@ -1090,7 +1127,7 @@ class EventViewSet(viewsets.ModelViewSet):
         logger = logging.getLogger(__name__)
         
         event = self.get_object()
-        self._verify_event_ownership(event)
+        self._verify_event_ownership(event, EDIT_INVITATION)
         
         try:
             page_config = request.data.get('page_config')
@@ -1098,6 +1135,21 @@ class EventViewSet(viewsets.ModelViewSet):
                 return Response(
                     {'error': 'page_config is required'},
                     status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Compare against what is already stored so a legacy config can still
+            # be saved; only newly embedded images are refused.
+            oversized = find_oversized_data_uris(
+                page_config, existing=collect_oversized_data_uris(event.page_config)
+            )
+            if oversized:
+                logger.warning(
+                    '[Design] rejected embedded image data for event %s: %s',
+                    event.id, ', '.join(oversized),
+                )
+                return Response(
+                    {'error': CONFIG_GUARD_MESSAGE, 'fields': oversized},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Shallow-merge onto the existing draft rather than replacing it
@@ -1113,6 +1165,10 @@ class EventViewSet(viewsets.ModelViewSet):
             # Update event's page_config
             event.page_config = merged_config
             event.save(update_fields=['page_config', 'updated_at'])
+
+            # Snapshot after the write, so history only ever holds state that
+            # was actually stored.
+            record_event_version(event, saved_by=request.user)
 
             # Sync to InvitePage if it exists, or create one
             invite_page_created = False
@@ -1297,7 +1353,7 @@ def invite_page_by_event(request, event_id):
     
     # Verify event exists and user owns it
     try:
-        event = get_object_or_404(Event, id=event_id, host=request.user)
+        event = get_event_or_404(request.user, event_id, None if request.method == 'GET' else EDIT_INVITATION)
     except Http404:
         raise Http404("Event not found or you do not have permission")
     
@@ -1351,7 +1407,7 @@ class InvitePageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Hosts can only see invite pages for their own events"""
-        return InvitePage.objects.filter(event__host=self.request.user)
+        return InvitePage.objects.filter(event__in=Event.objects.for_user(self.request.user))
 
     def get_object(self):
         """Override to retrieve invite page by event_id instead of id"""
@@ -1362,7 +1418,11 @@ class InvitePageViewSet(viewsets.ModelViewSet):
         event_id = self.kwargs.get('event_id')
         if event_id:
             try:
-                event = get_object_or_404(Event, id=event_id, host=self.request.user)
+                event = get_event_or_404(
+                    self.request.user,
+                    event_id,
+                    None if self.request.method in ('GET', 'HEAD', 'OPTIONS') else EDIT_INVITATION,
+                )
             except Http404:
                 raise Http404("Event not found or you do not have permission")
             except Exception as e:
@@ -1372,8 +1432,7 @@ class InvitePageViewSet(viewsets.ModelViewSet):
                 invite_page = InvitePage.objects.select_related('event').get(event=event)
 
                 # Verify ownership (double-check)
-                if invite_page.event.host != self.request.user:
-                    raise PermissionDenied("You can only access invite pages for your own events.")
+                require_event_access(self.request.user, invite_page.event)
 
                 # Ensure event relationship is fully loaded for serializer
                 if not hasattr(invite_page, '_event_cache'):
@@ -1394,8 +1453,7 @@ class InvitePageViewSet(viewsets.ModelViewSet):
             if not hasattr(obj, '_event_cache'):
                 _ = obj.event
 
-            if obj.event.host != self.request.user:
-                raise PermissionDenied("You can only access invite pages for your own events.")
+            require_event_access(self.request.user, obj.event)
         except AttributeError as e:
             raise Http404(f"Error accessing event relationship: {str(e)}")
 
@@ -1423,7 +1481,7 @@ class InvitePageViewSet(viewsets.ModelViewSet):
 
             # Get event with proper error handling
             try:
-                event = Event.objects.select_related('host').get(id=event_id, host=request.user)
+                event = Event.objects.for_user(request.user).select_related('host').get(id=event_id)
             except Event.DoesNotExist:
                 logger.warning(f"Event {event_id} not found or user {request.user.id} doesn't own it")
                 return Response(
@@ -1580,8 +1638,7 @@ class InvitePageViewSet(viewsets.ModelViewSet):
                 slug = slug.lower()
                 try:
                     invite_page = InvitePage.objects.select_related('event').get(slug=slug)
-                    if invite_page.event.host != request.user:
-                        raise PermissionDenied("You can only publish invite pages for your own events.")
+                    require_event_access(request.user, invite_page.event, EDIT_INVITATION)
                 except InvitePage.DoesNotExist:
                     raise NotFound(f"Invite page not found for slug: {slug}")
             else:
@@ -1822,7 +1879,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 # - The authenticated host previewing their own page: allow (serves the draft below).
                 # - Everyone else: a branded "Coming Soon" page instead of a hard 404.
                 if not invite_page.is_published:
-                    is_owner = request.user.is_authenticated and event.host_id == request.user.id
+                    is_owner = resolve_event_access(request.user, event).has_access
                     if is_owner:
                         logger.info(
                             f"[PublicInviteViewSet.retrieve] Host preview of draft page - "
@@ -2032,7 +2089,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         # Determine if this is an editor preview (authenticated host with preview parameter)
         is_event_host = False
         if event and request.user.is_authenticated:
-            is_event_host = event.host == request.user
+            is_event_host = resolve_event_access(request.user, event).has_access
         
         # Always bypass cache for preview mode (regardless of authentication)
         # Preview mode is meant to show latest changes, so never use cache
@@ -2581,43 +2638,51 @@ def _notify_host_rsvp(event, rsvp):
 
     # --- Guest confirmation (always sent if email provided) ---
     if rsvp.email:
-        guest_name = rsvp.name or 'Guest'
-        attend_label = {'yes': 'attending', 'no': 'not attending', 'maybe': 'tentatively attending'}.get(
-            rsvp.will_attend, rsvp.will_attend
-        )
-        event_date_str = event.date.strftime('%B %d, %Y') if event.date else ''
-        guest_subject = f"RSVP confirmed – {event.title}"
-        guest_body = (
-            f"Hi {guest_name},\n\n"
-            f"Your RSVP for {event.title} has been received. "
-            f"You are currently marked as {attend_label}."
-            + (f"\n\nEvent date: {event_date_str}" if event_date_str else '')
-            + "\n\nSee you there!"
+        from apps.common import emails
+        rendered = emails.rsvp_confirmation(
+            guest_name=rsvp.name or '',
+            event_title=event.title,
+            event_date=event.date,
+            will_attend=rsvp.will_attend,
+            host_name=event.host.name or '',
         )
         try:
-            send_email(to_email=rsvp.email, subject=guest_subject, body_text=guest_body)
+            send_email(
+                to_email=rsvp.email, subject=rendered.subject,
+                body_text=rendered.text, body_html=rendered.html,
+            )
         except Exception as e:
             logger.warning(f"Failed to send RSVP confirmation to guest {rsvp.email}: {e}")
 
-    # --- Host notification (controlled by preferences) ---
-    host = event.host
+    # --- Host notifications: the owner plus co-hosts who have RSVP emails on,
+    # each at the frequency they chose for themselves ---
+    from .capabilities import NOTIFY_RSVP_NEW
+    from .recipients import notification_recipients
+    for recipient in notification_recipients(event, NOTIFY_RSVP_NEW):
+        # One recipient's failure must not cost the others their alert, nor
+        # the guest their RSVP.
+        try:
+            _notify_rsvp_recipient(event, rsvp, recipient)
+        except Exception as e:
+            logger.warning(f"RSVP notification failed for user {recipient.id}: {e}")
+
+
+def _notify_rsvp_recipient(event, rsvp, host):
+    """One RSVP alert to one host or co-host, at their own chosen frequency."""
     prefs = getattr(host, 'notification_preferences', None)
     freq = prefs.rsvp_new if prefs else 'immediately'
 
     if freq == 'never':
         return
 
-    attend_label = {'yes': 'attending', 'no': 'not attending', 'maybe': 'maybe attending'}.get(
-        rsvp.will_attend, rsvp.will_attend
-    )
-    host_subject = f"New RSVP – {event.title}"
-    host_body = (
-        f"Hi {host.name or 'there'},\n\n"
-        f"{rsvp.name or 'Someone'} has RSVP'd for {event.title}.\n\n"
-        f"Status: {attend_label}\n"
-        f"Guests: {rsvp.guests_count or 1}\n"
-        + (f"Email: {rsvp.email}\n" if rsvp.email else '')
-        + f"\nView all RSVPs: {settings.FRONTEND_ORIGIN}/host/events/{event.id}"
+    from apps.common import emails
+    rendered = emails.rsvp_alert(
+        event_title=event.title,
+        guest_name=rsvp.name or '',
+        will_attend=rsvp.will_attend,
+        guests_count=rsvp.guests_count or 1,
+        guest_email=rsvp.email or '',
+        rsvps_url=f"{settings.FRONTEND_ORIGIN}/host/events/{event.id}/rsvp",
     )
     unsubscribe_token = prefs.unsubscribe_token if prefs else None
 
@@ -2625,8 +2690,9 @@ def _notify_host_rsvp(event, rsvp):
         try:
             send_email(
                 to_email=host.email,
-                subject=host_subject,
-                body_text=host_body,
+                subject=rendered.subject,
+                body_text=rendered.text,
+                body_html=rendered.html,
                 unsubscribe_token=unsubscribe_token,
             )
         except Exception as e:
@@ -3186,7 +3252,7 @@ def upload_image(request, event_id):
         )
     
     # Verify user owns the event
-    if event.host != request.user:
+    if not resolve_event_access(request.user, event).can(EDIT_INVITATION):
         return Response(
             {'error': 'You do not have permission to upload images to this event.'},
             status=status.HTTP_403_FORBIDDEN
@@ -3254,7 +3320,9 @@ class SubEventViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Hosts can only see sub-events for their own events"""
-        queryset = SubEvent.objects.filter(event__host=self.request.user, is_removed=False).annotate(
+        queryset = SubEvent.objects.filter(
+            event__in=Event.objects.for_user(self.request.user), is_removed=False
+        ).annotate(
             # Non-removed guests assigned to each sub-event, so the host list can
             # show "N guests assigned" and flag private sub-events nobody can see.
             assigned_guests_count=Count(
@@ -3269,7 +3337,7 @@ class SubEventViewSet(viewsets.ModelViewSet):
         if event_id:
             # Verify the event belongs to the user
             try:
-                event = Event.objects.get(id=event_id, host=self.request.user)
+                event = Event.objects.for_user(self.request.user).get(id=event_id)
                 queryset = queryset.filter(event=event)
             except Event.DoesNotExist:
                 from rest_framework.exceptions import NotFound
@@ -3285,9 +3353,7 @@ class SubEventViewSet(viewsets.ModelViewSet):
     def get_object(self):
         """Override to ensure host can only access their own sub-events"""
         obj = super().get_object()
-        if obj.event.host != self.request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only access sub-events for your own events.")
+        require_event_access(self.request.user, obj.event, EDIT_INVITATION)
         return obj
     
     def perform_create(self, serializer):
@@ -3297,7 +3363,7 @@ class SubEventViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import ValidationError
             raise ValidationError("event_id is required")
         
-        event = get_object_or_404(Event, id=event_id, host=self.request.user)
+        event = get_event_or_404(self.request.user, event_id, EDIT_INVITATION)
 
         sub_event = serializer.save(event=event)
 
@@ -3340,21 +3406,19 @@ class GuestInviteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Hosts can only see guest invites for their own events"""
         return GuestSubEventInvite.objects.filter(
-            guest__event__host=self.request.user
+            guest__event__in=Event.objects.for_user(self.request.user)
         )
     
     def get_object(self):
         """Override to ensure host can only access their own guest invites"""
         obj = super().get_object()
-        if obj.guest.event.host != self.request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only access guest invites for your own events.")
+        require_event_access(self.request.user, obj.guest.event)
         return obj
     
     @action(detail=False, methods=['get'], url_path='event/(?P<event_id>[^/.]+)')
     def by_event(self, request, event_id=None):
         """Get all guest invites for an event"""
-        event = get_object_or_404(Event, id=event_id, host=request.user)
+        event = get_event_or_404(request.user, event_id)
         
         # Get all guests with their sub-event assignments
         guests = Guest.objects.filter(event=event, is_removed=False)
@@ -3372,12 +3436,12 @@ class GuestInviteViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['put'], url_path='guest/(?P<guest_id>[^/.]+)')
     def update_guest_invites(self, request, guest_id=None):
         """Update sub-event assignments for a guest"""
-        guest = get_object_or_404(Guest, id=guest_id, event__host=request.user)
+        guest = get_object_or_404(
+            Guest, id=guest_id, event__in=Event.objects.for_user(request.user)
+        )
         
         # Verify ownership
-        if guest.event.host != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only update guest invites for your own events.")
+        require_event_access(request.user, guest.event, MANAGE_GUESTS)
         
         # Get sub_event_ids from request
         sub_event_ids = request.data.get('sub_event_ids', [])
@@ -3500,7 +3564,7 @@ class GuestInviteViewSet(viewsets.ModelViewSet):
         # Get all guests and verify ownership (include removed guests for bulk operations)
         guests = Guest.objects.filter(
             id__in=guest_ids,
-            event__host=request.user
+            event__in=Event.objects.for_user(request.user)
         ).select_related('event')
         
         found_guest_ids = set(guests.values_list('id', flat=True))
@@ -3629,20 +3693,23 @@ class MessageTemplateViewSet(viewsets.ModelViewSet):
 
         if event_id:
             try:
-                event = Event.objects.get(id=event_id, host=self.request.user)
+                event = Event.objects.for_user(self.request.user).get(id=event_id)
             except Event.DoesNotExist:
                 return MessageTemplate.objects.none()
             return MessageTemplate.objects.visible_to(event)
 
         # Fallback for detail-level operations without event_id in URL
-        return MessageTemplate.objects.filter(event__host=self.request.user)
+        return MessageTemplate.objects.filter(event__in=Event.objects.for_user(self.request.user))
 
     def get_object(self):
         """Override to verify ownership for host-owned templates; allow reads of global ones."""
         obj = super().get_object()
-        if obj.event_id is not None and obj.event.host != self.request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only modify templates for your own events.")
+        if obj.event_id is not None:
+            require_event_access(
+                self.request.user,
+                obj.event,
+                None if self.request.method in ('GET', 'HEAD', 'OPTIONS') else SEND_MESSAGES,
+            )
         return obj
 
     def perform_create(self, serializer):
@@ -3652,9 +3719,10 @@ class MessageTemplateViewSet(viewsets.ModelViewSet):
             raise drf_serializers.ValidationError({'event': 'Event ID is required.'})
 
         try:
-            event = Event.objects.get(id=event_id, host=self.request.user)
+            event = Event.objects.for_user(self.request.user).get(id=event_id)
         except Event.DoesNotExist:
             raise drf_serializers.ValidationError({'event': 'Event not found or you do not have permission.'})
+        require_event_access(self.request.user, event, SEND_MESSAGES)
 
         channel = serializer.validated_data.get('channel', 'whatsapp')
         if MessageTemplate.objects.filter(
@@ -3675,9 +3743,10 @@ class MessageTemplateViewSet(viewsets.ModelViewSet):
         event_id = serializer.validated_data.get('event') or self.get_object().event.id
         
         try:
-            event = Event.objects.get(id=event_id, host=self.request.user)
+            event = Event.objects.for_user(self.request.user).get(id=event_id)
         except Event.DoesNotExist:
             raise drf_serializers.ValidationError({'event': 'Event not found or you do not have permission.'})
+        require_event_access(self.request.user, event, SEND_MESSAGES)
         
         # Check for duplicate name (excluding current template)
         # Use existing template.name if name not provided in PATCH request
@@ -3846,6 +3915,9 @@ def _invite_layout_thumbnail_url_variants(raw: str) -> list[str]:
     return uniq
 
 
+MAX_BULK_LAYOUT_IDS = 200
+
+
 class InvitePageLayoutViewSet(viewsets.ModelViewSet):
     """
     ViewSet for invite page layouts (Page Layout Studio).
@@ -3905,6 +3977,76 @@ class InvitePageLayoutViewSet(viewsets.ModelViewSet):
         if not getattr(request.user, 'is_staff', False):
             raise PermissionDenied("Only staff can delete invite page layouts.")
         return super().destroy(request, *args, **kwargs)
+
+    def bulk(self, request, *args, **kwargs):
+        """
+        Apply one action to many layouts at once (staff only, all-or-nothing).
+
+        Body: ``{"ids": [1, 2], "action": "delete" | "set_status" | "set_visibility",
+        "value": "draft" | "published" | "internal" | "public" | "premium"}``.
+
+        Unknown ids are rejected up front so a bulk call never half-applies.
+        """
+        if not getattr(request.user, 'is_staff', False):
+            raise PermissionDenied("Only staff can bulk-edit invite page layouts.")
+
+        data = request.data or {}
+        ids = data.get('ids')
+        if not isinstance(ids, list) or not ids:
+            raise ValidationError({'error': 'ids must be a non-empty list of layout ids.'})
+        if len(ids) > MAX_BULK_LAYOUT_IDS:
+            raise ValidationError({'error': f'At most {MAX_BULK_LAYOUT_IDS} layouts per request.'})
+        try:
+            clean_ids = {int(i) for i in ids}
+        except (TypeError, ValueError):
+            raise ValidationError({'error': 'ids must be integers.'})
+
+        bulk_action = (data.get('action') or '').strip()
+        value = data.get('value')
+
+        if bulk_action == 'set_status':
+            valid = {c[0] for c in InvitePageLayout.STATUS_CHOICES}
+            if value not in valid:
+                raise ValidationError({'error': f'value must be one of {sorted(valid)}.'})
+            update_fields = {'status': value}
+        elif bulk_action == 'set_visibility':
+            valid = {c[0] for c in InvitePageLayout.VISIBILITY_CHOICES}
+            if value not in valid:
+                raise ValidationError({'error': f'value must be one of {sorted(valid)}.'})
+            update_fields = {'visibility': value}
+        elif bulk_action == 'delete':
+            update_fields = None
+        else:
+            raise ValidationError({
+                'error': 'action must be one of ["delete", "set_status", "set_visibility"].'
+            })
+
+        with transaction.atomic():
+            qs = InvitePageLayout.objects.select_for_update().filter(id__in=clean_ids)
+            found = set(qs.values_list('id', flat=True))
+            missing = sorted(clean_ids - found)
+            if missing:
+                # Plain Response, not ValidationError: DRF stringifies detail values
+                # and the client needs the ids back as numbers.
+                return Response(
+                    {
+                        'error': 'Some layouts no longer exist; nothing was changed.',
+                        'missing_ids': missing,
+                    },
+                    status=400,
+                )
+            if update_fields is None:
+                affected, _ = qs.delete()
+                affected = len(found)
+            else:
+                # Queryset .update() bypasses auto_now, so stamp the audit columns here.
+                affected = qs.update(
+                    updated_by=request.user,
+                    updated_at=timezone.now(),
+                    **update_fields,
+                )
+
+        return Response({'action': bulk_action, 'value': value, 'affected': affected})
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -4186,10 +4328,8 @@ def whatsapp_template_preview(request, id):
     """Preview template with sample data"""
     try:
         template = MessageTemplate.objects.get(id=id)
-        # Verify ownership
-        if template.event.host != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only access templates for your own events.")
+        # Verify access
+        require_event_access(request.user, template.event, SEND_MESSAGES)
         
         sample_data = request.data.get('sample_data', {})
         preview_text = template.get_preview(sample_data)
@@ -4207,10 +4347,8 @@ def whatsapp_template_duplicate(request, id):
     """Duplicate a template"""
     try:
         template = MessageTemplate.objects.get(id=id)
-        # Verify ownership
-        if template.event.host != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only access templates for your own events.")
+        # Verify access
+        require_event_access(request.user, template.event, SEND_MESSAGES)
         
         new_name = request.data.get('name') or f"{template.name} (Copy)"
         
@@ -4246,10 +4384,8 @@ def whatsapp_template_archive(request, id):
     """Archive a template"""
     try:
         template = MessageTemplate.objects.get(id=id)
-        # Verify ownership
-        if template.event.host != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only access templates for your own events.")
+        # Verify access
+        require_event_access(request.user, template.event, SEND_MESSAGES)
         
         template.is_active = False
         template.save(update_fields=['is_active'])
@@ -4264,10 +4400,8 @@ def whatsapp_template_activate(request, id):
     """Activate a template"""
     try:
         template = MessageTemplate.objects.get(id=id)
-        # Verify ownership
-        if template.event.host != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only access templates for your own events.")
+        # Verify access
+        require_event_access(request.user, template.event, SEND_MESSAGES)
         
         template.is_active = True
         template.save(update_fields=['is_active'])
@@ -4282,10 +4416,8 @@ def whatsapp_template_increment_usage(request, id):
     """Increment template usage"""
     try:
         template = MessageTemplate.objects.get(id=id)
-        # Verify ownership
-        if template.event.host != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only access templates for your own events.")
+        # Verify access
+        require_event_access(request.user, template.event, SEND_MESSAGES)
         
         template.increment_usage()
         return Response(MessageTemplateSerializer(template).data)
@@ -4299,10 +4431,8 @@ def whatsapp_template_set_default(request, id):
     """Set this template as the event's default template"""
     try:
         template = MessageTemplate.objects.get(id=id)
-        # Verify ownership
-        if template.event.host != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only access templates for your own events.")
+        # Verify access
+        require_event_access(request.user, template.event, SEND_MESSAGES)
         
         # System default templates cannot be set as event defaults
         if template.is_system_default:
@@ -4336,8 +4466,7 @@ def get_event_impact(request, id):
     event = get_object_or_404(Event, id=id)
     
     # Verify ownership
-    if event.host != request.user:
-        raise PermissionDenied("You can only access your own events.")
+    require_event_access(request.user, event)
     
     impact = calculate_event_impact(event)
     
@@ -4371,7 +4500,7 @@ def get_overall_impact(request):
     from datetime import date
     
     # Get all expired events for the user
-    user_events = Event.objects.filter(host=request.user)
+    user_events = Event.objects.for_user(request.user)
     expired_events = []
     
     for event in user_events:
@@ -4505,18 +4634,23 @@ class GuestSegmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         event_id = self.kwargs.get('event_id')
-        return GuestSegment.objects.filter(event_id=event_id, event__host=self.request.user)
+        return GuestSegment.objects.filter(
+            event_id=event_id, event__in=Event.objects.for_user(self.request.user)
+        )
 
     def perform_create(self, serializer):
         event_id = self.kwargs.get('event_id')
-        event = get_object_or_404(Event, id=event_id, host=self.request.user)
+        event = get_event_or_404(self.request.user, event_id, MANAGE_GUESTS)
         filter_config = serializer.validated_data.get('filter_config', {})
         resolved = resolve_segment_guests(int(event_id), filter_config)
         serializer.save(event=event, guest_ids=resolved)
 
     @action(detail=True, methods=['post'])
     def resolve(self, request, event_id=None, pk=None):
-        segment = get_object_or_404(GuestSegment, pk=pk, event_id=event_id, event__host=request.user)
+        segment = get_object_or_404(
+            GuestSegment, pk=pk, event_id=event_id,
+            event__in=Event.objects.for_user(request.user),
+        )
         fresh_ids = resolve_segment_guests(int(event_id), segment.filter_config)
         segment.guest_ids = fresh_ids
         segment.save(update_fields=['guest_ids', 'updated_at'])
@@ -4619,7 +4753,7 @@ class MessageCampaignViewSet(viewsets.ModelViewSet):
         return MessageCampaignSerializer
 
     def get_queryset(self):
-        qs = MessageCampaign.objects.filter(event__host=self.request.user)
+        qs = MessageCampaign.objects.filter(event__in=Event.objects.for_user(self.request.user))
         event_id = self.kwargs.get('event_id')
         if event_id:
             qs = qs.filter(event_id=event_id)
@@ -4632,7 +4766,7 @@ class MessageCampaignViewSet(viewsets.ModelViewSet):
         obj = get_object_or_404(
             MessageCampaign,
             id=self.kwargs['id'],
-            event__host=self.request.user,
+            event__in=Event.objects.for_user(self.request.user),
         )
         self.check_object_permissions(self.request, obj)
         return obj
@@ -4640,9 +4774,10 @@ class MessageCampaignViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         event_id = self.kwargs.get('event_id')
         try:
-            event = Event.objects.get(id=event_id, host=self.request.user)
+            event = Event.objects.for_user(self.request.user).get(id=event_id)
         except Event.DoesNotExist:
             raise ValidationError({'event': 'Event not found.'})
+        require_event_access(self.request.user, event, SEND_MESSAGES)
         serializer.save(event=event, created_by=self.request.user)
 
     def update(self, request, *args, **kwargs):
@@ -4830,7 +4965,7 @@ def _slot_remaining_seats(slot):
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
 def booking_schedule_detail(request, event_id):
-    event = get_object_or_404(Event, id=event_id, host=request.user)
+    event = get_event_or_404(request.user, event_id, None if request.method == 'GET' else EDIT_RSVP)
     now = timezone.now()
     canonical_mode = event.get_canonical_rsvp_mode()
     default_is_enabled = canonical_mode == Event.RSVP_EXPERIENCE_MODE_SLOT_BASED
@@ -4855,7 +4990,7 @@ def booking_schedule_detail(request, event_id):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def booking_slots_collection(request, event_id):
-    event = get_object_or_404(Event, id=event_id, host=request.user)
+    event = get_event_or_404(request.user, event_id, None if request.method == 'GET' else EDIT_RSVP)
     now = timezone.now()
     canonical_mode = event.get_canonical_rsvp_mode()
     default_is_enabled = canonical_mode == Event.RSVP_EXPERIENCE_MODE_SLOT_BASED
@@ -4881,7 +5016,7 @@ def booking_slots_collection(request, event_id):
 @api_view(['PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def booking_slot_detail(request, event_id, slot_id):
-    event = get_object_or_404(Event, id=event_id, host=request.user)
+    event = get_event_or_404(request.user, event_id, EDIT_RSVP)
     slot = get_object_or_404(BookingSlot, id=slot_id, event=event)
 
     if request.method == 'DELETE':
@@ -4897,7 +5032,7 @@ def booking_slot_detail(request, event_id, slot_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def booking_slots_reorder(request, event_id):
-    event = get_object_or_404(Event, id=event_id, host=request.user)
+    event = get_event_or_404(request.user, event_id, EDIT_RSVP)
     slot_ids = request.data.get('slot_ids') or []
     if not isinstance(slot_ids, list):
         return Response({'error': 'slot_ids must be a list'}, status=status.HTTP_400_BAD_REQUEST)
@@ -5303,7 +5438,7 @@ def create_slot_booking(request, event_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def host_slot_bookings(request, event_id):
-    event = get_object_or_404(Event, id=event_id, host=request.user)
+    event = get_event_or_404(request.user, event_id)
     qs = SlotBooking.objects.filter(event=event).select_related('slot', 'guest')
     slot_id = request.query_params.get('slotId')
     slot_date = request.query_params.get('slotDate')
@@ -5323,7 +5458,7 @@ def host_slot_bookings(request, event_id):
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def host_update_slot_booking(request, event_id, booking_id):
-    event = get_object_or_404(Event, id=event_id, host=request.user)
+    event = get_event_or_404(request.user, event_id, EDIT_RSVP)
     booking = get_object_or_404(SlotBooking, id=booking_id, event=event)
     new_status = request.data.get('status')
     new_seats = request.data.get('seats_booked')
@@ -5349,7 +5484,7 @@ def host_update_slot_booking(request, event_id, booking_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def host_move_slot_booking(request, event_id, booking_id):
-    event = get_object_or_404(Event, id=event_id, host=request.user)
+    event = get_event_or_404(request.user, event_id, EDIT_RSVP)
     booking = get_object_or_404(SlotBooking, id=booking_id, event=event)
     target_slot_id = request.data.get('slot_id')
     if not target_slot_id:
@@ -5372,7 +5507,7 @@ def host_move_slot_booking(request, event_id, booking_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def host_override_slot_booking_capacity(request, event_id, booking_id):
-    event = get_object_or_404(Event, id=event_id, host=request.user)
+    event = get_event_or_404(request.user, event_id, EDIT_RSVP)
     booking = get_object_or_404(SlotBooking, id=booking_id, event=event)
     slot = booking.slot
     increment = int(request.data.get('increment') or 0)

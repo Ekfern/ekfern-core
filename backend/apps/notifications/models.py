@@ -142,16 +142,18 @@ def notify_staff_on_signup(sender, instance, created, **kwargs):
         return
     from apps.common.email_backend import send_email  # late import — avoids circular dep
     frontend = getattr(settings, 'FRONTEND_ORIGIN', 'https://ekfern.com')
-    subject = f"New signup: {instance.email}"
-    body = (
-        f"A new user just signed up on Ekfern.\n\n"
-        f"Name:   {getattr(instance, 'name', None) or '(not set)'}\n"
-        f"Email:  {instance.email}\n"
-        f"Joined: {instance.created_at.strftime('%Y-%m-%d %H:%M UTC')}\n\n"
-        f"View in admin: {frontend}/api/admin/users/customuser/{instance.pk}/change/"
+    from apps.common import emails  # late import, same reason as above
+    rendered = emails.staff_signup_alert(
+        name=getattr(instance, 'name', None) or '',
+        email=instance.email,
+        joined=instance.created_at.strftime('%b %d, %Y %H:%M UTC'),
+        admin_url=f"{frontend}/api/admin/users/customuser/{instance.pk}/change/",
     )
     for recipient in recipients:
         try:
-            send_email(to_email=recipient.email, subject=subject, body_text=body)
+            send_email(
+                to_email=recipient.email, subject=rendered.subject,
+                body_text=rendered.text, body_html=rendered.html,
+            )
         except Exception as e:
             logger.error(f'Failed to notify {recipient.email} of signup by {instance.email}: {e}')

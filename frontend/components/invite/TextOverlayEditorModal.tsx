@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from "react-dom";
 import type { TextOverlay } from '@/lib/invite/api'
 import { FONT_OPTIONS } from '@/lib/invite/fonts'
@@ -32,6 +32,16 @@ interface TextBox {
   shadowColor: string,
 }
 
+/**
+ * The width the invite actually renders a card at (`max-w-sm`). Overlay
+ * positions are percentages but font sizes are absolute pixels, so the two
+ * only agree at one width: draw the canvas at any other size and 32px type
+ * looks bigger or smaller against the card than a guest will ever see it, and
+ * wraps differently. So the canvas is always built at this width and scaled to
+ * fit, rather than rebuilt at whatever size happens to be available.
+ */
+const CARD_REFERENCE_WIDTH = 384
+
 type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
 
 interface DragState {
@@ -43,6 +53,14 @@ interface DragState {
   startBoxX: number
   startBoxY: number
   startBoxWidth: number
+  /**
+   * The box's rendered width as a percentage of the canvas. `width` on the box
+   * is a stored number the render ignores — the box is `fit-content` — so
+   * clamping against it pinned every box inside the leftmost 20% of the card.
+   */
+  renderedWidthPct: number
+  /** Rendered height as a percentage of the canvas, for the same reason. */
+  renderedBoxHeightPct: number
   startBoxHeight: number
   startFontSize: number
 }
@@ -96,6 +114,7 @@ export default function TextOverlayEditorModal({
   onClose,
 }: Props): React.ReactElement | null {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const canvasWrapRef = useRef<HTMLDivElement>(null)
   const fontPickerRef = useRef<HTMLDivElement>(null)
   const dragState = useRef<DragState | null>(null)
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -105,6 +124,7 @@ export default function TextOverlayEditorModal({
   const effectsButtonRef = useRef<HTMLButtonElement>(null)
   const effectsRef = useRef<HTMLDivElement>(null)
 
+  const [canvasScale, setCanvasScale] = useState(1)
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -157,9 +177,47 @@ export default function TextOverlayEditorModal({
     }
   }
 
+  // Fit the reference-width canvas into whatever room the modal has.
+  useEffect(() => {
+    if (!open) return
+    const el = canvasWrapRef.current
+    if (!el) return
+    const update = () => {
+      // Fit on both axes. Taking width alone overflowed: the wrapper's width
+      // comes from 62vh but a flex parent can shrink its height, so a canvas
+      // scaled to the width was taller than the room actually left for it.
+      const referenceHeight = (CARD_REFERENCE_WIDTH * 16) / 9
+      const byWidth = el.clientWidth / CARD_REFERENCE_WIDTH
+      const byHeight = el.clientHeight / referenceHeight
+      setCanvasScale(Math.min(byWidth, byHeight) || 1)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [open, bgSrc, bgGradient])
+
   // Keep a ref in sync so pointer-move callbacks always see the latest boxes
   const textBoxesRef = useRef<TextBox[]>([])
   useEffect(() => { textBoxesRef.current = textBoxes }, [textBoxes])
+
+  // Resolve the faces in use up front. Left to itself the browser resolves them
+  // lazily, painting fallback metrics on some frames and the real face on
+  // others — which is what made text flicker while being dragged. Keyed on the
+  // spec list, not textBoxes, which changes on every pointer move.
+  const fontSpecs = useMemo(
+    () => Array.from(new Set(textBoxes.map((b) => `${b.fontSize}px ${b.fontFamily}`))).sort().join('|'),
+    [textBoxes]
+  )
+
+  const loadFontSpecs = useCallback(() => {
+    if (typeof document === 'undefined' || !document.fonts) return
+    for (const spec of fontSpecs.split('|')) {
+      if (spec) void document.fonts.load(spec)
+    }
+  }, [fontSpecs])
+
+  useEffect(() => { loadFontSpecs() }, [loadFontSpecs])
 
 
 
@@ -231,6 +289,35 @@ export default function TextOverlayEditorModal({
     if (editingId === id) setEditingId(null)
   }
 
+  // Delete / Backspace removes the selected box — the gesture every canvas
+  // editor answers to, and the one a host reaches for before hunting the
+  // toolbar. Inert while text is being edited or any other field has focus, so
+  // it never eats a character the host meant to type. The `open` guard matters:
+  // this component stays mounted and renders null when closed, so without it a
+  // dismissed modal would keep swallowing Delete keys from the page behind it.
+  useEffect(() => {
+    if (!open) return
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      if (!selectedId || editingId) return
+      const active = document.activeElement as HTMLElement | null
+      if (
+        active &&
+        (active.isContentEditable ||
+          active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.tagName === 'SELECT')
+      ) {
+        return
+      }
+      e.preventDefault()
+      deleteBox(selectedId)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedId, editingId])
+
   function addTextBox(): void {
     const newBox: TextBox = {
       id: makeId(),
@@ -269,7 +356,7 @@ export default function TextOverlayEditorModal({
     const {
       mode, resizeHandle, boxId,
       startPointerX, startPointerY,
-      startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize
+      startBoxX, startBoxY, startBoxWidth, startBoxHeight, startFontSize, renderedWidthPct, renderedBoxHeightPct
     } = dragState.current
     const dx = ((e.clientX - startPointerX) / rect.width) * 100
     const dy = ((e.clientY - startPointerY) / rect.height) * 100
@@ -307,8 +394,12 @@ export default function TextOverlayEditorModal({
       setTextBoxes((prev) =>
         prev.map((b) => b.id !== boxId ? b : {
           ...b,
-          x: clamp(startBoxX + dx, 0, 100 - b.width),
-          y: clamp(startBoxY + dy, 0, 95),
+          // The whole box stays in view, with a 1% gutter off every edge. The
+          // card clips, so anything past an edge is simply gone — and the box
+          // is measured as rendered, not by the stored `width`, which the
+          // editor does not use for layout.
+          x: clamp(startBoxX + dx, 1, Math.max(1, 99 - renderedWidthPct)),
+          y: clamp(startBoxY + dy, 1, Math.max(1, 99 - renderedBoxHeightPct)),
         })
       )
     }
@@ -344,7 +435,7 @@ export default function TextOverlayEditorModal({
       >
         {/* Modal shell */}
         <div
-          className="relative w-full max-w-4xl max-h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="relative w-full max-w-4xl h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -629,19 +720,22 @@ export default function TextOverlayEditorModal({
 
               </div>
 
-              {/* Delete */}
-              <button
-                type="button"
-                onClick={() => selectedBox && deleteBox(selectedBox.id)}
-                className="text-red-500 hover:bg-red-50 px-2 py-1 rounded text-sm transition-colors"
-                title="Delete"
-              >
-                Delete
-              </button>
-
-
-
             </div>
+
+            {/* Delete lives OUTSIDE the dimmed group. Inside it, the group's
+                `pointer-events-none` made the only way to remove a text box
+                silently inert the moment the selection was lost — the button
+                looked present but swallowed every click. A real `disabled`
+                says "select something first" instead of doing nothing. */}
+            <button
+              type="button"
+              disabled={!selectedBox}
+              onClick={() => selectedBox && deleteBox(selectedBox.id)}
+              className="px-2 py-1 rounded text-sm transition-colors text-red-500 hover:bg-red-50 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+              title={selectedBox ? 'Delete text box' : 'Select a text box first'}
+            >
+              Delete
+            </button>
           </div>
           {showFontPicker &&
             createPortal(
@@ -776,11 +870,30 @@ export default function TextOverlayEditorModal({
                 <p className="text-sm">No background set — set a background image or gradient first.</p>
               </div>
             ) : (
-              <div style={{ height: '62vh', aspectRatio: '9 / 16' }} className="relative select-none">
+              <div
+                ref={canvasWrapRef}
+                // Takes the room the modal has left rather than a fixed 62vh.
+                // A fixed height cannot know how tall the toolbar wrapped to on
+                // this window, so on a narrow one it pushed the footer — Save
+                // and Cancel — out of a shell that does not scroll. The canvas
+                // is absolutely positioned inside and scaled to fit, so it
+                // never sizes this box back.
+                style={{ minHeight: 0 }}
+                className="relative select-none flex-1 w-full"
+              >
                 <div
                   ref={canvasRef}
-                  className="relative overflow-hidden rounded-2xl shadow-2xl"
-                  style={{ width: '100%', height: '100%', background: !bgSrc && bgGradient ? bgGradient : undefined, touchAction: 'none' }}
+                  className="absolute top-0 left-0 right-0 mx-auto overflow-hidden rounded-2xl shadow-2xl"
+                  style={{
+                    width: CARD_REFERENCE_WIDTH,
+                    height: (CARD_REFERENCE_WIDTH * 16) / 9,
+                    // Centred by auto margins at its layout width, then scaled
+                    // about that centre so it stays centred at any scale.
+                    transformOrigin: 'top center',
+                    transform: `scale(${canvasScale})`,
+                    background: !bgSrc && bgGradient ? bgGradient : undefined,
+                    touchAction: 'none',
+                  }}
                   onPointerMove={handleCanvasPointerMove}
                   onPointerUp={handleCanvasPointerUp}
                   onClick={(e) => {
@@ -836,6 +949,7 @@ export default function TextOverlayEditorModal({
                         onPointerDown={(e) => {
                           if (isEditing) return
                           e.stopPropagation()
+                          loadFontSpecs() // faces lapse when idle; re-assert before a drag
                           e.currentTarget.setPointerCapture(e.pointerId)
                           setSelectedId(box.id)
                           if (!canvasRef.current) return
@@ -848,6 +962,10 @@ export default function TextOverlayEditorModal({
                             startBoxX: box.x,
                             startBoxY: box.y,
                             startBoxWidth: box.width,
+                            renderedWidthPct:
+                              (e.currentTarget.offsetWidth / canvasRef.current.offsetWidth) * 100,
+                            renderedBoxHeightPct:
+                              (e.currentTarget.offsetHeight / canvasRef.current.offsetHeight) * 100,
                             startBoxHeight: 0,
                             startFontSize: box.fontSize,
                           }
@@ -900,6 +1018,46 @@ export default function TextOverlayEditorModal({
                           {isEditing ? undefined : box.text}
                         </div>
 
+                        {/* Remove handle — the direct way out, sitting on the
+                            box itself so getting rid of unwanted text never
+                            depends on finding the toolbar or keeping the
+                            selection alive. Paired with the resize handle on
+                            the opposite corner. */}
+                        {isSelected && !isEditing && (
+                          <button
+                            type="button"
+                            title="Remove this text"
+                            aria-label="Remove this text"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteBox(box.id)
+                            }}
+                            style={{
+                              position: 'absolute',
+                              top: -10,
+                              right: -10,
+                              width: 22,
+                              height: 22,
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: '#ffffff',
+                              border: '2px solid #ef4444',
+                              borderRadius: '9999px',
+                              color: '#ef4444',
+                              fontSize: 14,
+                              lineHeight: 1,
+                              cursor: 'pointer',
+                              zIndex: 21,
+                              touchAction: 'none',
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+
                         {/* Corner resize handles — only when selected and not editing */}
                         {isSelected && !isEditing && (
                           (['se'] as ResizeHandle[]).map((handle) => {
@@ -941,6 +1099,10 @@ export default function TextOverlayEditorModal({
                                     startBoxX: box.x,
                                     startBoxY: box.y,
                                     startBoxWidth: box.width,
+                                    renderedWidthPct: containerEl && canvasEl
+                                      ? (containerEl.offsetWidth / canvasEl.offsetWidth) * 100
+                                      : box.width,
+                                    renderedBoxHeightPct: renderedHeightPct,
                                     startBoxHeight: box.height ?? renderedHeightPct,
                                     startFontSize: box.fontSize,
                                   }

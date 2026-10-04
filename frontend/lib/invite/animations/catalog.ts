@@ -20,11 +20,17 @@ export const OPENING_ANIMATIONS: AnimationCatalogEntry[] = [
     slot: 'opening',
   },
   {
-    id: 'opening_door',
-    label: 'Opening Door',
-    description: 'A grand door opens to reveal the invitation',
-    slot: 'opening',
-  },
+  id: 'opening_door',
+  label: 'Opening Door',
+  description: 'A grand door opens to reveal the invitation',
+  slot: 'opening',
+},
+{
+  id: 'water_drop',
+  label: 'Water Drop',
+  description: 'Steamy glass clears as droplets run down the invite',
+  slot: 'opening',
+},
 ]
   
 
@@ -39,6 +45,12 @@ export const EXPERIENCE_ANIMATIONS: AnimationCatalogEntry[] = [
     id: 'chinese_lanterns',
     label: 'Chinese Lanterns',
     description: 'Sky lanterns glow and rise while guests read the invite',
+    slot: 'experience',
+  },
+  {
+    id: 'letter_balloons',
+    label: 'Letter Balloons',
+    description: 'Balloons with Marathi letters float up; tap one and it zips away with a squeak',
     slot: 'experience',
   },
 ]

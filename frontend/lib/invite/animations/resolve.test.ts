@@ -64,6 +64,13 @@ describe('resolveAnimations', () => {
     })
   })
 
+  it('resolves known water_drop opening id', () => {
+    expect(resolveAnimations({ opening: 'water_drop' })).toEqual({
+      opening: ['water_drop'],
+      experience: [],
+    })
+  })
+
   it('resolves known curtain_reveal opening id', () => {
     expect(resolveAnimations({ opening: 'curtain_reveal' })).toEqual({
       opening: ['curtain_reveal'],

@@ -116,6 +116,7 @@ export default function PosterTile({ settings, preview: _preview = false }: Post
 
   const heroTexture = settings.texture && settings.texture.type !== 'none' && (
     <TextureOverlay
+      layer="surface"
       type={settings.texture.type}
       intensity={settings.texture.intensity}
       imageUrl={settings.texture.imageUrl}

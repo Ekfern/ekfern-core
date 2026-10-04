@@ -11,6 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import PublishModal from '@/components/invite/PublishModal'
+import PageBackgroundSettings from '@/components/invite/PageBackgroundSettings'
+import LookAndStyleSettings from '@/components/invite/LookAndStyleSettings'
+import InviteAnimationSettings from '@/components/invite/InviteAnimationSettings'
+import { useConfigHistory } from '@/lib/invite/useConfigHistory'
 import ImageCropModal from '@/components/invite/ImageCropModal'
 import api, { uploadImage } from '@/lib/api'
 import { InviteConfig, Tile, TileType, InvitePage } from '@/lib/invite/schema'
@@ -22,26 +26,26 @@ import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
-import { resolveAnimations, clampAnimationSlot } from '@/lib/invite/animations/resolve'
-import { primaryAnimationId } from '@/lib/invite/animations/types'
-import { useAnimationRegistryPicker } from '@/lib/invite/animations/useAnimationRegistryPicker'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
 import TileList from '@/components/invite/tiles/TileList'
 import TileSettingsList from '@/components/invite/tiles/TileSettingsList'
 import { AppearanceProvider } from '@/components/invite/render/AppearanceProvider'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import SettingsSection from '@/components/invite/SettingsSection'
+import { PAPER_ROOT_STYLE } from '@/lib/invite/layers'
+import ComposedPage from '@/components/invite/render/ComposedPage'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
-import { cropImage, extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
-import { deriveInk, representativeColorFromGradient } from '@/lib/invite/paletteUtils'
+import { cropImage } from '@/lib/invite/imageAnalysis'
+import { deriveInk } from '@/lib/invite/paletteUtils'
 import { convertToCloudFrontUrl } from '@/lib/image-utils'
-import { colorInputValue } from '@/lib/invite/colorInputValue'
-import FontPicker from '@/components/invite/FontPicker'
 import WizardProgress from '@/components/host/WizardProgress'
 import {
   InviteMobileAnimationShell,
   PlayOpeningButton,
   useInvitePreviewAnimationState,
 } from '@/components/invite/InviteMobileAnimationPreview'
+import DesignHistoryPanel from '@/components/host/DesignHistoryPanel'
+import { previewDescriptionFromHtml } from '@/lib/invite/previewText'
 
 interface Event {
   id: number
@@ -132,50 +136,7 @@ const DEFAULT_TILES: Tile[] = [
 // `frameColor` and the timer's `textColor`: those fall back to hardcoded
 // literals, so clearing them would swap one fixed colour for another rather
 // than handing anything back to the page.
-// Tiles no longer carry a face of their own, so there is nothing to match back
-// to the page. The list is kept empty rather than deleted because the carousel
-// still has `subEventTitleStyling.font` to give up.
-const FONT_LINKED_TILE_KEYS = [] as const
 
-type FontRoleName = 'title' | 'header' | 'body'
-type PageFonts = NonNullable<InviteConfig['customFonts']>
-
-/**
- * The face a role is set to.
- *
- * Reads the version 1 spelling when the role itself has not been written yet.
- * `header` falls back to the body face on purpose: a config that never had a
- * header face should not look like it already chose one.
- */
-function roleFamily(fonts: InviteConfig['customFonts'], role: FontRoleName): string | undefined {
-  if (!fonts) return undefined
-  if (role === 'title') return fonts.title?.family ?? fonts.titleFont
-  if (role === 'body') return fonts.body?.family ?? fonts.bodyFont
-  // Nothing when unset, so the control can say "Same as headline" - which is
-  // what actually happens. Falling back to the body face here showed Courier in
-  // a picker whose headings were rendering in Pacifico.
-  return fonts.header?.family
-}
-
-/** Set one role's family, leaving the rest of its recipe alone. */
-function withRoleFamily(
-  fonts: InviteConfig['customFonts'],
-  role: FontRoleName,
-  family: string | undefined,
-): PageFonts {
-  const next: PageFonts = { ...(fonts ?? {}) }
-  if (family) next[role] = { ...(next[role] ?? {}), family }
-  else delete next[role]
-  return next
-}
-
-// What is left after the text colours went. Each of these still overrides the
-// page, and each leaves in a later pass.
-const PALETTE_LINKED_TILE_KEYS = [
-  'buttonColor',    // details, feature-buttons -> --theme-primary
-  'circleColor',    // timer      -> --theme-primary
-  'borderColor',    // details    -> --theme-muted
-] as const
 
 const KNOWN_TILE_TYPES = new Set<TileType>([
   'title', 'gallery', 'poster', 'timer', 'event-details', 'directions',
@@ -282,6 +243,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const [allowedSubEvents, setAllowedSubEvents] = useState<any[]>([])
   // Auto-save status shown in the toolbar chip
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [historyOpen, setHistoryOpen] = useState(false)
   // Snapshot of the published config, used to gate Publish and badge changed tiles
   const [publishedBaseline, setPublishedBaseline] = useState<InviteConfig | null>(null)
   // Which publish flow the modal should show
@@ -300,15 +262,7 @@ export default function DesignInvitationPage(): JSX.Element {
   const gridContainerRef = useRef<HTMLDivElement>(null)
   const previewImageInputRef = useRef<HTMLInputElement>(null)
   const previewWindowRef = useRef<Window | null>(null)
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
-  const [showInviteAnimations, setShowInviteAnimations] = useState(false)
-  const { openingOptions, experienceOptions } = useAnimationRegistryPicker()
-  const [showPageBackground, setShowPageBackground] = useState(false)
   const [showLinkMetadata, setShowLinkMetadata] = useState(false)
-  const [gradientColor1, setGradientColor1] = useState('#E8D8C3')
-  const [gradientColor2, setGradientColor2] = useState('#C4A882')
-  const [gradientAngle, setGradientAngle] = useState(160)
-  const [canRestoreBg, setCanRestoreBg] = useState(false)
   const [uploadingPreviewImage, setUploadingPreviewImage] = useState(false)
   const [isPreviewCropOpen, setIsPreviewCropOpen] = useState(false)
   const [previewCropSrc, setPreviewCropSrc] = useState<string | null>(null)
@@ -319,10 +273,8 @@ export default function DesignInvitationPage(): JSX.Element {
     tiles: DEFAULT_TILES,
     texture: { type: 'parchment', intensity: 20 },
   })
-  // Undo / redo history
-  const undoStack = useRef<InviteConfig[]>([])
-  const redoStack = useRef<InviteConfig[]>([])
-  const configRef = useRef<InviteConfig>(config)
+  const { pushHistory } = useConfigHistory(config, setConfig)
+
   // Preview order state - tracks real-time order for mobile preview (not saved to backend)
   const [previewOrder, setPreviewOrder] = useState<Map<string, number>>(new Map())
   // Fix 2: Add state for InvitePage and publish modal
@@ -342,64 +294,6 @@ export default function DesignInvitationPage(): JSX.Element {
       .then(setApiLayouts)
       .catch(() => setApiLayouts([]))
       .finally(() => setLayoutsLoading(false))
-  }, [])
-  useEffect(() => {
-    configRef.current = config
-  }, [config])
-  const pushHistory = useCallback(() => {
-    undoStack.current = [
-      ...undoStack.current,
-      structuredClone(configRef.current),
-    ].slice(-50)
-
-    redoStack.current = []
-  }, [])
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement
-
-      // Don't interfere with typing in inputs/textareas/contenteditable
-      if (
-        target.isContentEditable ||
-        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
-      ) {
-        return
-      }
-
-      // Undo: Ctrl+Z / Cmd+Z
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-
-        const previous = undoStack.current.pop()
-
-        if (previous) {
-          redoStack.current.push(structuredClone(configRef.current))
-          setConfig(previous)
-        }
-      }
-
-      // Redo: Ctrl+Y / Cmd+Y OR Ctrl+Shift+Z / Cmd+Shift+Z
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        (e.key.toLowerCase() === 'y' ||
-          (e.key.toLowerCase() === 'z' && e.shiftKey))
-      ) {
-        e.preventDefault()
-
-        const next = redoStack.current.pop()
-
-        if (next) {
-          undoStack.current.push(structuredClone(configRef.current))
-          setConfig(next)
-        }
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
   }, [])
 
   // Measure header height for sticky positioning
@@ -732,19 +626,6 @@ export default function DesignInvitationPage(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
-  // Sync gradient pickers when config loads (e.g. from saved invite page)
-  useEffect(() => {
-    const saved = config.customColors?.backgroundGradient
-    if (!saved) return
-    const m = saved.match(/linear-gradient\((\d+)deg,\s*(#[0-9a-fA-F]{3,8})\s+0%,\s*(#[0-9a-fA-F]{3,8})\s+100%\)/)
-    if (m) {
-      setGradientAngle(parseInt(m[1], 10))
-      setGradientColor1(m[2])
-      setGradientColor2(m[3])
-    }
-    // only run when a new config is loaded from the server, not on every user edit
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId])
 
   // Measure header height for sticky positioning
 
@@ -1038,6 +919,18 @@ export default function DesignInvitationPage(): JSX.Element {
     lastSavedSerializedRef.current = serializedConfig
     initialLoadDoneRef.current = true
   }, [loading, serializedConfig])
+
+  // Flush a pending auto-save when leaving. The card editor is reachable from
+  // the poster tile now, so a host can navigate away inside the debounce window
+  // and lose the edit that was still waiting on the timer.
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current)
+        persistDraftRef.current?.()
+      }
+    }
+  }, [])
 
   // Debounced auto-save: persist the draft ~1.5s after edits settle.
   useEffect(() => {
@@ -1452,10 +1345,6 @@ export default function DesignInvitationPage(): JSX.Element {
   // How many tiles carry a font of their own and would therefore ignore the
   // page selection. Shown only when there are any, so the offer to sweep them
   // appears exactly when it is useful.
-  const tilesOverridingFonts = (config.tiles ?? []).filter(tile => {
-    const settings = tile.settings as Record<string, unknown> | undefined
-    return !!settings && FONT_LINKED_TILE_KEYS.some(key => settings[key])
-  }).length
 
   // Every background change goes through here.
   //
@@ -1467,46 +1356,7 @@ export default function DesignInvitationPage(): JSX.Element {
   //
   // So the other three follow the background, unless the host has set one by
   // hand. At that point the palette is theirs and we stop touching it.
-  const applyBackground = (patch: { backgroundColor?: string; backgroundGradient?: string }) => {
-    setConfig(prev => {
-      const colors = prev.customColors ?? {}
-      if (colors.source === 'custom') {
-        return { ...prev, customColors: { ...colors, ...patch } }
-      }
-      const merged = { ...colors, ...patch }
-      if (!merged.backgroundGradient && !merged.backgroundColor) {
-        return { ...prev, customColors: merged }
-      }
-      // The whole background, not a representative colour from it: a gradient
-      // has two ends and ink has to be legible at both. Material goes too,
-      // because text on a frosted card sits on the blend, not on the page.
-      return {
-        ...prev,
-        customColors: {
-          ...merged,
-          ...deriveInk({
-            backgroundColor: merged.backgroundColor,
-            backgroundGradient: merged.backgroundGradient,
-            material: prev.material,
-          }),
-        },
-      }
-    })
-  }
 
-  // A host touching any ink directly takes ownership of the set.
-  const applyInkColor = (patch: {
-    titleColor?: string
-    headerColor?: string
-    fontColor?: string
-    primaryColor?: string
-    mutedColor?: string
-  }) => {
-    setConfig(prev => ({
-      ...prev,
-      customColors: { ...(prev.customColors ?? {}), ...patch, source: 'custom' as const },
-    }))
-  }
 
   const handleTileToggle = (tileId: string, enabled: boolean) => {
     const tile = config.tiles?.find(t => t.id === tileId)
@@ -1586,7 +1436,6 @@ export default function DesignInvitationPage(): JSX.Element {
     apiLayouts.find((t) => String(t.id) === String(layoutId))
   const displayBackgroundColor = resolveAppearance(config).backgroundColor
   const displayBackground = config.customColors?.backgroundGradient || displayBackgroundColor
-  const isGradientBg = !!config.customColors?.backgroundGradient
   const previewAnim = useInvitePreviewAnimationState(
     config,
     `editor-preview-${eventId || 'new'}`,
@@ -1753,7 +1602,7 @@ export default function DesignInvitationPage(): JSX.Element {
     if (descSource === 'custom' && config.linkMetadata?.description) return config.linkMetadata.description
     if (descSource === 'auto' || !config.linkMetadata?.description) {
       const descTile = config.tiles?.find((t: any) => t.type === 'description' && t.settings?.content) as any
-      return descTile?.settings?.content?.replace(/<[^>]*>/g, '').substring(0, 100) || ''
+      return descTile?.settings?.content ? previewDescriptionFromHtml(descTile.settings.content) : ''
     }
     return config.linkMetadata?.description || ''
   })()
@@ -1844,6 +1693,17 @@ export default function DesignInvitationPage(): JSX.Element {
                   </motion.button>
                 )}
               </AnimatePresence>
+
+              {/* Deliberately quiet: same size and colour as the save chip, no
+                  badge and no accent. It is there when wanted and ignorable
+                  otherwise. */}
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(true)}
+                className="hidden text-xs text-gray-400 underline-offset-2 hover:text-gray-600 hover:underline sm:inline"
+              >
+                History
+              </button>
 
               {/* Publish status badge */}
               {invitePage?.is_published ? (
@@ -2055,1125 +1915,391 @@ export default function DesignInvitationPage(): JSX.Element {
             <div className="bg-white rounded-lg border-2 border-eco-green-light p-3 sm:p-4 w-full overflow-x-hidden">
               <h2 className="text-lg font-semibold text-eco-green mb-4">Page Settings</h2>
               <div className="space-y-4">
-                {/* Page Background */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPageBackground(p => !p)}
-                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md"
-                  >
-                    <span className="text-sm font-medium">Page Background</span>
-                    <svg className={`w-4 h-4 text-gray-500 transition-transform ${showPageBackground ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  <div className={`space-y-3 mt-3 ${showPageBackground ? '' : 'hidden'}`}>
+                <PageBackgroundSettings
+                  config={config}
+                  setConfig={setConfig}
+                  syncKey={eventId}
+                />
 
-                    {/* Type toggle */}
-                    <div className="flex rounded-lg overflow-hidden border border-gray-300 w-fit">
-                      <button
-                        type="button"
-                        onClick={() => applyBackground({ backgroundGradient: undefined })}
-                        className={`px-3 py-1.5 text-sm font-medium transition-colors ${!isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                      >
-                        Solid
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
-                          applyBackground({ backgroundGradient: g })
-                        }}
-                        className={`px-3 py-1.5 text-sm font-medium transition-colors ${isGradientBg ? 'bg-eco-green text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                      >
-                        Gradient
-                      </button>
-                    </div>
 
-                    {/* Auto from card + restore previous */}
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const cardTile = config.tiles?.find(t => t.type === 'poster')
-                          const cardSrc = (cardTile?.settings as any)?.src as string | undefined
-                          if (!cardSrc) return
-                          const prevState = {
-                            backgroundColor: config.customColors?.backgroundColor,
-                            backgroundGradient: config.customColors?.backgroundGradient,
-                          }
-                          sessionStorage.setItem('bgRestorePrev', JSON.stringify(prevState))
-                          setCanRestoreBg(true)
-                          const colors = await extractDominantColors(cardSrc, isGradientBg ? 2 : 1)
-                          const hex1 = rgbToHex(colors[0] ?? 'rgb(232,216,195)')
-                          if (isGradientBg) {
-                            const hex2 = rgbToHex(colors[1] ?? 'rgb(196,168,130)')
-                            setGradientColor1(hex1)
-                            setGradientColor2(hex2)
-                            const g = `linear-gradient(${gradientAngle}deg, ${hex1} 0%, ${hex2} 100%)`
-                            applyBackground({ backgroundGradient: g })
-                          } else {
-                            applyBackground({ backgroundColor: hex1 })
-                          }
-                        }}
-                        className="px-3 py-1.5 text-sm font-medium bg-eco-beige text-eco-green border border-eco-green-light rounded hover:bg-eco-green hover:text-white transition-colors"
-                      >
-                        Auto from card
-                      </button>
-                      {canRestoreBg && (
+                <InviteAnimationSettings
+                  config={config}
+                  setConfig={setConfig}
+                  onPlay={playOpeningInPreview}
+                  canPlay={!!previewAnim.openingId}
+                />
+
+                <LookAndStyleSettings config={config} setConfig={setConfig} />
+
+                <SettingsSection
+                  title="Link Preview Settings"
+                  open={showLinkMetadata}
+                  onToggle={() => setShowLinkMetadata(!showLinkMetadata)}
+                  description="Customize how your invite appears when shared on WhatsApp, Facebook, and other platforms"
+                  badge={!showLinkMetadata && (() => {
+                    const src = effectiveImageSource
+                    const label =
+                      src === 'poster' ? 'Using poster' :
+                        src === 'gallery' ? 'Using gallery' :
+                          config.linkMetadata?.image ? 'Using custom image' : 'Using default'
+                    const isDefault = !config.linkMetadata?.image && src !== 'poster' && src !== 'gallery'
+                    return (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${isDefault ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
+                        {label}
+                      </span>
+                    )
+                  })()}
+                >
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Preview Title</label>
+                      <div className="flex gap-2 mb-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            const raw = sessionStorage.getItem('bgRestorePrev')
-                            if (!raw) return
-                            try {
-                              const prev = JSON.parse(raw) as { backgroundColor?: string; backgroundGradient?: string }
-                              applyBackground({ backgroundColor: prev.backgroundColor, backgroundGradient: prev.backgroundGradient })
-                              if (prev.backgroundGradient) {
-                                const m = prev.backgroundGradient.match(/linear-gradient\((\d+)deg,\s*(#[0-9a-fA-F]{3,8})\s+0%,\s*(#[0-9a-fA-F]{3,8})\s+100%\)/)
-                                if (m) { setGradientAngle(parseInt(m[1], 10)); setGradientColor1(m[2]); setGradientColor2(m[3]) }
-                              }
-                              setCanRestoreBg(false)
-                              sessionStorage.removeItem('bgRestorePrev')
-                            } catch { /* ignore */ }
-                          }}
-                          className="text-sm text-gray-500 hover:text-eco-green underline"
-                        >
-                          ← restore previous
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Solid: single color picker */}
-                    {!isGradientBg && (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={displayBackgroundColor}
-                          onChange={(e) => applyBackground({ backgroundColor: e.target.value })}
-                          className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
-                        />
-                        <Input
-                          type="text"
-                          value={displayBackgroundColor}
-                          onChange={(e) => applyBackground({ backgroundColor: e.target.value })}
-                          placeholder="#E8D8C3"
-                          className="w-32 font-mono text-sm"
-                        />
-                      </div>
-                    )}
-
-                    {/* Gradient: two pickers + preview strip + angle */}
-                    {isGradientBg && (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={gradientColor1}
-                            onChange={(e) => {
-                              setGradientColor1(e.target.value)
-                              const g = `linear-gradient(${gradientAngle}deg, ${e.target.value} 0%, ${gradientColor2} 100%)`
-                              applyBackground({ backgroundGradient: g })
-                            }}
-                            className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
-                          />
-                          <div className="flex-1 h-5 rounded" style={{ background: `linear-gradient(to right, ${gradientColor1}, ${gradientColor2})` }} />
-                          <input
-                            type="color"
-                            value={gradientColor2}
-                            onChange={(e) => {
-                              setGradientColor2(e.target.value)
-                              const g = `linear-gradient(${gradientAngle}deg, ${gradientColor1} 0%, ${e.target.value} 100%)`
-                              applyBackground({ backgroundGradient: g })
-                            }}
-                            className="w-10 h-10 rounded border-2 border-gray-300 cursor-pointer flex-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Direction: {gradientAngle}°</label>
-                          <input
-                            type="range"
-                            min={0}
-                            max={360}
-                            value={gradientAngle}
-                            onChange={(e) => {
-                              const a = parseInt(e.target.value, 10)
-                              setGradientAngle(a)
-                              const g = `linear-gradient(${a}deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
-                              applyBackground({ backgroundGradient: g })
-                            }}
-                            className="w-full mt-1"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Texture belongs with the background — it coats the same surface. */}
-                    <div className="border-t border-gray-100 pt-3 space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Background Texture</label>
-                        <select
-                          value={config.texture?.type || 'none'}
-                          onChange={(e) => setConfig(prev => ({
+                          onClick={() => setConfig(prev => ({
                             ...prev,
-                            texture: {
-                              ...prev.texture,
-                              type: e.target.value as any,
-                              intensity: prev.texture?.intensity ?? 40,
-                            },
+                            linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'auto' },
                           }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                        >
-                          <option value="none">None</option>
-                          <option value="paper-grain">Paper Grain</option>
-                          <option value="linen">Linen</option>
-                          <option value="canvas">Canvas</option>
-                          <option value="parchment">Parchment</option>
-                          <option value="vintage-paper">Vintage Paper</option>
-                          <option value="crumpled-paper">Crumpled Paper</option>
-                          <option value="stone">Stone Surface</option>
-                          <option value="silk">Silk</option>
-                          <option value="marble">Marble</option>
-                          <option value="stars">Stars</option>
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Coats the page colour — paper textures, or stars for a night sky
-                        </p>
+                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewTitleSource ?? 'auto') === 'auto'
+                            ? 'bg-eco-green text-white border-eco-green'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            }`}
+                        >Auto</button>
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'custom' },
+                          }))}
+                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewTitleSource === 'custom'
+                            ? 'bg-eco-green text-white border-eco-green'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            }`}
+                        >Custom</button>
                       </div>
-
-                      {config.texture?.type && config.texture.type !== 'none' && (
+                      {config.linkMetadata?.previewTitleSource === 'custom' ? (
                         <div>
-                          <label className="block text-sm font-medium mb-2">
-                            Texture Intensity: {config.texture?.intensity ?? 40}%
-                          </label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={config.texture?.intensity ?? 40}
+                          <Input
+                            type="text"
+                            value={config.linkMetadata?.title || ''}
                             onChange={(e) => setConfig(prev => ({
                               ...prev,
-                              texture: {
-                                ...prev.texture!,
-                                intensity: parseInt(e.target.value, 10),
+                              linkMetadata: {
+                                ...prev.linkMetadata,
+                                title: e.target.value || undefined,
                               },
                             }))}
+                            placeholder="Enter a custom preview title"
                             className="w-full"
+                            maxLength={60}
                           />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Recommended: 50–60 characters.
+                          </p>
+                          {config.linkMetadata?.title && (
+                            <p className="text-xs mt-1 text-gray-400">
+                              {config.linkMetadata.title.length} / 60 characters
+                            </p>
+                          )}
                         </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic px-3 py-2 bg-gray-50 rounded border border-gray-100">
+                          {resolvedPreviewTitle}
+                        </p>
                       )}
                     </div>
-                  </div>
-                </div>
 
-                {/* Invite Animations — opening + ambient experience */}
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowInviteAnimations(!showInviteAnimations)}
-                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md"
-                  >
-                    <span className="text-sm font-medium">Invite Animations</span>
-                    <svg className={`w-4 h-4 text-gray-500 transition-transform ${showInviteAnimations ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {showInviteAnimations && (
-                    <div className="mt-3 space-y-4">
-                      <p className="text-xs text-gray-500">
-                        How the invite opens and what drifts while guests read. Use Play to watch the opening in the Mobile Preview.
-                      </p>
-                      <div className="space-y-1">
-                        <label className="block text-sm font-medium" htmlFor="opening-animation">
-                          Opening
-                        </label>
-                        <p className="text-xs text-gray-500">Plays when guests first open the invite</p>
-                        <div className="mt-1 flex gap-2 items-stretch">
-                          <select
-                            id="opening-animation"
-                            value={primaryAnimationId(resolveAnimations(config.animations).opening) ?? ''}
-                            onChange={(e) => setConfig(prev => ({
-                              ...prev,
-                              animations: {
-                                ...prev.animations,
-                                opening: clampAnimationSlot(
-                                  e.target.value ? [e.target.value] : [],
-                                ),
-                              },
-                            }))}
-                            className="min-w-0 flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
-                          >
-                            <option value="">None</option>
-                            {openingOptions.map((entry) => (
-                              <option key={entry.moduleId} value={entry.moduleId}>
-                                {entry.label}
-                              </option>
-                            ))}
-                          </select>
-                          <PlayOpeningButton
-                            visible={!!previewAnim.openingId}
-                            onPlay={playOpeningInPreview}
-                            variant="inline"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-sm font-medium" htmlFor="experience-animation">
-                          While reading
-                        </label>
-                        <p className="text-xs text-gray-500">Soft ambient effect while guests explore</p>
-                        <select
-                          id="experience-animation"
-                          value={primaryAnimationId(resolveAnimations(config.animations).experience) ?? ''}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            animations: {
-                              ...prev.animations,
-                              experience: clampAnimationSlot(
-                                e.target.value ? [e.target.value] : [],
-                              ),
-                            },
-                          }))}
-                          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm accent-eco-green focus:ring-eco-green focus:border-eco-green"
-                        >
-                          <option value="">None</option>
-                          {experienceOptions.map((entry) => (
-                            <option key={entry.moduleId} value={entry.moduleId}>
-                              {entry.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Look & Style - Collapsible */}
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md p-2 -m-2"
-                  >
-                    <h3 className="text-sm font-semibold text-eco-green">Look &amp; Style</h3>
-                    <svg
-                      className={`w-5 h-5 text-gray-500 transition-transform ${showAdvancedSettings ? 'transform rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {showAdvancedSettings && (
-                    <div className="mt-4 space-y-4">
-                      {/* Button style is page-level: an invitation with two button
-                          shapes reads as a mistake. Both the RSVP buttons and Save
-                          the Date take this unless a tile overrides it. */}
-                      <div>
-                        <label htmlFor="page-buttonStyle" className="block text-sm font-medium mb-2">
-                          Button style
-                        </label>
-                        <select
-                          id="page-buttonStyle"
-                          value={config.buttonStyle ?? 'classic'}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            buttonStyle: e.target.value as NonNullable<typeof prev.buttonStyle>,
-                          }))}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                        >
-                          {([
-                            ['classic', 'Classic'], ['soft', 'Soft'], ['raised', 'Raised'],
-                            ['gloss', 'Gloss'], ['metal', 'Metal'], ['glow', 'Glow'],
-                            ['glass', 'Glass'], ['bracket', 'Bracket'], ['ornate', 'Ornate'],
-                            ['link', 'Link (text only)'],
-                          ] as const).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Applies to RSVP, Registry and Save the Date together.
-                        </p>
-                      </div>
-
-                      {/* Two faces, because that is how many an invitation has: the
-                          one the names are set in, and the one everything else uses. */}
-                      <div className="border-t border-gray-200 pt-4 mt-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium">Fonts</label>
-                          {tilesOverridingFonts > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setConfig(prev => ({
-                                ...prev,
-                                tiles: (prev.tiles ?? []).map(tile => {
-                                  const settings = tile.settings as Record<string, unknown> | undefined
-                                  if (!settings) return tile
-                                  const cleared = { ...settings }
-                                  for (const key of FONT_LINKED_TILE_KEYS) delete cleared[key]
-                                  return { ...tile, settings: cleared } as typeof tile
-                                }),
-                              }))}
-                              title="Some tiles have a font of their own, so they ignore the choices above. This returns them to these fonts."
-                              className="text-xs text-eco-green underline hover:no-underline"
-                            >
-                              Match {tilesOverridingFonts} {tilesOverridingFonts === 1 ? 'tile' : 'tiles'} to these fonts
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {([
-                            ['title', 'Title', 'The names on your invitation, plus the small lines that go with them \u2014 kickers like "You\u2019re invited", and photo captions.'],
-                            ['header', 'Header', 'The heading over your photos, and your sub-event titles. Follows the title until you change it.'],
-                            ['body', 'Content text', 'Dates, location, description, buttons and footer \u2014 all the running text.'],
-                          ] as const).map(([key, label, hint]) => (
-                            <div key={key} className="relative group">
-                              <label
-                                htmlFor={`page-${key}`}
-                                tabIndex={0}
-                                className="block text-xs text-gray-600 mb-1 cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-eco-green rounded"
-                              >
-                                {label}
-                              </label>
-                              <div
-                                role="tooltip"
-                                className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-52 rounded-md bg-gray-900 px-2.5 py-2 text-xs leading-snug text-white shadow-lg group-hover:block group-focus-within:block"
-                              >
-                                {hint}
-                              </div>
-                              <FontPicker
-                                id={`page-${key}`}
-                                ariaLabel={`${label} font. ${hint}`}
-                                value={roleFamily(config.customFonts, key)}
-                                onChange={(family) => setConfig(prev => ({
-                                  ...prev,
-                                  customFonts: withRoleFamily(prev.customFonts, key, family),
-                                }))}
-                                defaultLabel={key === 'header' ? 'Same as title' : 'Layout default'}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Ink, accent and muted. These follow the background until a
-                          host sets one, which is what the "Following the background"
-                          note is telling them. */}
-                      <div className="border-t border-gray-200 pt-4 mt-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium">Colours</label>
-                          {config.customColors?.source === 'custom' ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const ground = config.customColors?.backgroundGradient
-                                  ? representativeColorFromGradient(config.customColors.backgroundGradient)
-                                  : config.customColors?.backgroundColor
-                                if (!ground) return
-                                setConfig(prev => ({
-                                  ...prev,
-                                  customColors: {
-                                    ...(prev.customColors ?? {}),
-                                    ...deriveInk({
-                                      backgroundColor: prev.customColors?.backgroundColor,
-                                      backgroundGradient: prev.customColors?.backgroundGradient,
-                                      material: prev.material,
-                                    }),
-                                    source: 'derived' as const,
-                                  },
-                                  // Tiles carrying their own colour would keep
-                                  // overriding the page, so matching the page
-                                  // alone would appear to do nothing. Clearing
-                                  // these hands each tile back to the palette:
-                                  // every one of them already falls back to a
-                                  // theme token, so each lands on the right
-                                  // colour for its own job - the footer on
-                                  // Secondary, the buttons on Accent.
-                                  tiles: (prev.tiles ?? []).map(tile => {
-                                    const settings = tile.settings as Record<string, unknown> | undefined
-                                    if (!settings) return tile
-                                    const cleared = { ...settings }
-                                    for (const key of PALETTE_LINKED_TILE_KEYS) delete cleared[key]
-                                    return { ...tile, settings: cleared } as typeof tile
-                                  }),
-                                }))
-                              }}
-                              title="Puts the text and accent colours back in step with the background, and returns any tile you have recoloured to the page colours."
-                              className="text-xs text-eco-green underline hover:no-underline"
-                            >
-                              Match to background
-                            </button>
-                          ) : (
-                            <span className="text-xs text-gray-400">Following the background</span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {/* Each hint names what the colour actually paints, so a host can
-                              tell which swatch to move without guessing from its name. */}
-                          {([
-                            ['titleColor', 'Title', '#1F1B16',
-                              'The same text the Title font sets \u2014 your names, the kicker above them, and photo captions.'],
-                            ['headerColor', 'Header', '#1F1B16',
-                              'The same text the Header font sets. Follows the title until you change it.'],
-                            ['fontColor', 'Content text', '#1F1B16',
-                              'The same text the Content text font sets \u2014 dates, location, description and footer.'],
-                            // Accent sits in the Header column: it is the same
-                            // register of the invitation, used where a heading
-                            // would be if it were a control rather than words.
-                            ['primaryColor', 'Accent', '#A6815B',
-                              'Buttons like RSVP and Save the Date, and the countdown circles.'],
-                          ] as const).map(([key, label, fallback, hint]) => (
-                            <div
-                              key={key}
-                              className={`relative group ${key === 'primaryColor' ? 'col-start-2' : ''}`}
-                            >
-                              <label
-                                htmlFor={`page-${key}`}
-                                tabIndex={0}
-                                className="block text-xs text-gray-600 mb-1 cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-eco-green rounded"
-                              >
-                                {label}
-                              </label>
-                              {/* Shown on hover and on keyboard focus. A native `title`
-                                  needs a second of hovering and renders inconsistently,
-                                  which reads as "nothing happened". */}
-                              <div
-                                role="tooltip"
-                                className="pointer-events-none absolute left-0 top-full z-50 mt-1 hidden w-52 rounded-md bg-gray-900 px-2.5 py-2 text-xs leading-snug text-white shadow-lg group-hover:block group-focus-within:block"
-                              >
-                                {hint}
-                              </div>
-                              <input
-                                id={`page-${key}`}
-                                type="color"
-                                aria-label={`${label} colour. ${hint}`}
-                                value={colorInputValue(config.customColors?.[key], fallback)}
-                                onChange={(e) => applyInkColor({ [key]: e.target.value })}
-                                className="h-9 w-full rounded border border-gray-300"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Spacing between tiles</label>
-                        <select
-                          value={config.spacing || 'normal'}
-                          onChange={(e) => setConfig(prev => ({ ...prev, spacing: e.target.value as 'tight' | 'normal' | 'spacious' }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                        >
-                          <option value="tight">Tight</option>
-                          <option value="normal">Normal</option>
-                          <option value="spacious">Spacious</option>
-                        </select>
-                      </div>
-
-                      {/* Shape, depth, material, alignment and rules. All five were
-                          already answerable in the config and none had a control, so
-                          the only way to set them was to author a layout - which is
-                          how an invitation ended up with two cards raised by accident.
-                          Every label says what a host would say, not what CSS calls it. */}
-                      <div>
-                        <label htmlFor="page-shape" className="block text-sm font-medium mb-2">Corners</label>
-                        <select
-                          id="page-shape"
-                          value={config.shape ?? 'soft'}
-                          onChange={(e) => setConfig(prev => ({ ...prev, shape: e.target.value as NonNullable<typeof prev.shape> }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                        >
-                          <option value="sharp">Square</option>
-                          <option value="soft">Softly rounded</option>
-                          <option value="rounded">Fully rounded</option>
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">Cards, photos and buttons together.</p>
-                      </div>
-
-                      <div>
-                        <label htmlFor="page-depth" className="block text-sm font-medium mb-2">Card shadows</label>
-                        <select
-                          id="page-depth"
-                          value={config.depth === 'raised' || config.depth === 'lifted' ? 'uniform' : config.depth ?? 'uniform'}
-                          onChange={(e) => setConfig(prev => ({ ...prev, depth: e.target.value as NonNullable<typeof prev.depth> }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                        >
-                          <option value="flat">None &mdash; everything sits flat</option>
-                          <option value="uniform">Every card lifts a little</option>
-                          <option value="featured">One card stands out</option>
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {config.depth === 'featured'
-                            ? 'Your event details lift off the page; everything else lies flat.'
-                            : 'Applies to every card on the invitation, so none of them lifts by accident.'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label htmlFor="page-material" className="block text-sm font-medium mb-2">Card style</label>
-                        <select
-                          id="page-material"
-                          value={config.material ?? 'solid'}
-                          onChange={(e) => setConfig(prev => ({ ...prev, material: e.target.value as NonNullable<typeof prev.material> }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                        >
-                          <option value="solid">Plain</option>
-                          <option value="glass">Frosted glass</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label htmlFor="page-textAlign" className="block text-sm font-medium mb-2">Text alignment</label>
-                        <select
-                          id="page-textAlign"
-                          value={config.textAlign ?? 'center'}
-                          onChange={(e) => setConfig(prev => ({ ...prev, textAlign: e.target.value as NonNullable<typeof prev.textAlign> }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                        >
-                          <option value="center">Centred</option>
-                          <option value="left">Left</option>
-                          <option value="right">Right</option>
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">Centred reads formal; left reads like a magazine.</p>
-                      </div>
-
-                      <div>
-                        <label htmlFor="page-divider" className="block text-sm font-medium mb-2">Dividers</label>
-                        <select
-                          id="page-divider"
-                          value={config.ornament?.divider ?? 'hairline'}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            ornament: { ...(prev.ornament ?? {}), divider: e.target.value as 'none' | 'hairline' | 'symbol' },
-                          }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                        >
-                          <option value="none">None</option>
-                          <option value="hairline">Thin line</option>
-                          <option value="symbol">Small symbol</option>
-                        </select>
-                        {config.ornament?.divider === 'symbol' && (
-                          <div className="mt-2 flex gap-1">
-                            {['\u2766', '\u273F', '\u2724', '\u2726', '\u2022', '\u2014'].map((symbol) => (
-                              <button
-                                key={symbol}
-                                type="button"
-                                aria-label={`Use ${symbol} as the divider`}
-                                aria-pressed={(config.ornament?.symbol ?? '\u2766') === symbol}
-                                onClick={() => setConfig(prev => ({
-                                  ...prev,
-                                  ornament: { ...(prev.ornament ?? {}), divider: 'symbol', symbol },
-                                }))}
-                                className={`h-8 w-8 rounded border text-sm ${
-                                  (config.ornament?.symbol ?? '\u2766') === symbol
-                                    ? 'border-eco-green bg-green-50'
-                                    : 'border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
-                                {symbol}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Page Border Settings */}
-                      <div className="border-t border-gray-200 pt-4 mt-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium">Page Border</label>
-                          <input
-                            type="checkbox"
-                            checked={config.pageBorder?.enabled || false}
-                            onChange={(e) => setConfig(prev => ({
-                              ...prev,
-                              pageBorder: {
-                                ...prev.pageBorder,
-                                enabled: e.target.checked,
-                                style: prev.pageBorder?.style || 'solid',
-                                color: prev.pageBorder?.color ?? '#D1D5DB',
-                                width: prev.pageBorder?.width ?? 2,
-                              },
-                            }))}
-                            className="w-4 h-4 accent-eco-green border-gray-300 rounded"
-                          />
-                        </div>
-                        {config.pageBorder?.enabled && (
-                          <div className="mt-3 space-y-3">
-                            <div>
-                              <label className="block text-sm font-medium mb-2">Border Style</label>
-                              <select
-                                value={config.pageBorder?.style || 'solid'}
-                                onChange={(e) => setConfig(prev => ({
-                                  ...prev,
-                                  pageBorder: {
-                                    ...prev.pageBorder,
-                                    style: e.target.value as any,
-                                  },
-                                }))}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green"
-                              >
-                                <option value="solid">Solid</option>
-                                <option value="dotted">Dotted</option>
-                                <option value="dashed">Dashed</option>
-                                <option value="double">Double</option>
-                                <option value="groove">Groove</option>
-                                <option value="ridge">Ridge</option>
-                                <option value="inset">Inset</option>
-                                <option value="outset">Outset</option>
-                                <option value="intaglio">Intaglio (Decorative)</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium mb-2">Border colour</label>
-                              <p className="text-xs text-gray-500 mb-2">
-                                Also colours the fine rules inside your event details card, so
-                                every line on the invitation matches.
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={colorInputValue(config.pageBorder?.color, '#D1D5DB')}
-                                  onChange={(e) => setConfig(prev => ({
-                                    ...prev,
-                                    pageBorder: {
-                                      ...prev.pageBorder,
-                                      color: e.target.value,
-                                    },
-                                  }))}
-                                  className="w-12 h-12 rounded border-2 border-gray-300 cursor-pointer"
-                                />
-                                <Input
-                                  type="text"
-                                  value={config.pageBorder?.color ?? ''}
-                                  onChange={(e) => setConfig(prev => ({
-                                    ...prev,
-                                    pageBorder: {
-                                      ...prev.pageBorder,
-                                      color: e.target.value,
-                                    },
-                                  }))}
-                                  placeholder="#D1D5DB"
-                                  className="flex-1"
-                                />
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium mb-2">
-                                Border Width: {config.pageBorder?.width ?? 2}px
-                              </label>
-                              <input
-                                type="range"
-                                min="1"
-                                max="8"
-                                value={config.pageBorder?.width ?? 2}
-                                onChange={(e) => setConfig(prev => ({
-                                  ...prev,
-                                  pageBorder: {
-                                    ...prev.pageBorder,
-                                    width: parseInt(e.target.value),
-                                  },
-                                }))}
-                                className="w-full"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                    </div>
-                  )}
-                </div>
-
-                {/* Link Preview Settings - Collapsible */}
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowLinkMetadata(!showLinkMetadata)}
-                    className="flex items-center justify-between w-full text-left focus:outline-none focus:ring-2 focus:ring-eco-green rounded-md p-2 -m-2"
-                  >
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-semibold text-eco-green">Link Preview Settings</h3>
-                        {!showLinkMetadata && (() => {
-                          const src = effectiveImageSource
-                          const label =
-                            src === 'poster' ? 'Using poster' :
-                              src === 'gallery' ? 'Using gallery' :
-                                config.linkMetadata?.image ? 'Using custom image' : 'Using default'
-                          const isDefault = !config.linkMetadata?.image && src !== 'poster' && src !== 'gallery'
-                          return (
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${isDefault ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
-                              {label}
-                            </span>
-                          )
-                        })()}
+                      <label className="block text-sm font-medium mb-2">Preview Description</label>
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'auto' },
+                          }))}
+                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewDescriptionSource ?? 'auto') === 'auto'
+                            ? 'bg-eco-green text-white border-eco-green'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            }`}
+                        >Auto</button>
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'custom' },
+                          }))}
+                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewDescriptionSource === 'custom'
+                            ? 'bg-eco-green text-white border-eco-green'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                            }`}
+                        >Custom</button>
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">Customize how your invite appears when shared on WhatsApp, Facebook, and other platforms</p>
+                      {config.linkMetadata?.previewDescriptionSource === 'custom' ? (
+                        <div>
+                          <textarea
+                            value={config.linkMetadata?.description || ''}
+                            onChange={(e) => setConfig(prev => ({
+                              ...prev,
+                              linkMetadata: {
+                                ...prev.linkMetadata,
+                                description: e.target.value || undefined,
+                              },
+                            }))}
+                            placeholder="Enter a custom preview description"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green resize-none"
+                            rows={3}
+                            maxLength={200}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Recommended: 150–200 characters.
+                          </p>
+                          {config.linkMetadata?.description && (
+                            <p className="text-xs mt-1 text-gray-400">
+                              {config.linkMetadata.description.length} / 200 characters
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic px-3 py-2 bg-gray-50 rounded border border-gray-100">
+                          {resolvedPreviewDescription || 'No description tile found — add a Description tile to your page.'}
+                        </p>
+                      )}
                     </div>
-                    <svg
-                      className={`w-5 h-5 text-gray-500 transition-transform ${showLinkMetadata ? 'transform rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
 
-                  {showLinkMetadata && (
-                    <div className="mt-4 space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Preview Title</label>
-                        <div className="flex gap-2 mb-2">
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({
-                              ...prev,
-                              linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'auto' },
-                            }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewTitleSource ?? 'auto') === 'auto'
-                              ? 'bg-eco-green text-white border-eco-green'
-                              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                              }`}
-                          >Auto</button>
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({
-                              ...prev,
-                              linkMetadata: { ...prev.linkMetadata, previewTitleSource: 'custom' },
-                            }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewTitleSource === 'custom'
-                              ? 'bg-eco-green text-white border-eco-green'
-                              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                              }`}
-                          >Custom</button>
-                        </div>
-                        {config.linkMetadata?.previewTitleSource === 'custom' ? (
-                          <div>
-                            <Input
-                              type="text"
-                              value={config.linkMetadata?.title || ''}
-                              onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                linkMetadata: {
-                                  ...prev.linkMetadata,
-                                  title: e.target.value || undefined,
-                                },
-                              }))}
-                              placeholder="Enter a custom preview title"
-                              className="w-full"
-                              maxLength={60}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Recommended: 50–60 characters.
-                            </p>
-                            {config.linkMetadata?.title && (
-                              <p className="text-xs mt-1 text-gray-400">
-                                {config.linkMetadata.title.length} / 60 characters
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic px-3 py-2 bg-gray-50 rounded border border-gray-100">
-                            {resolvedPreviewTitle}
-                          </p>
-                        )}
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Preview Image</label>
 
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Preview Description</label>
-                        <div className="flex gap-2 mb-2">
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({
-                              ...prev,
-                              linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'auto' },
-                            }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${(config.linkMetadata?.previewDescriptionSource ?? 'auto') === 'auto'
-                              ? 'bg-eco-green text-white border-eco-green'
-                              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                              }`}
-                          >Auto</button>
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({
-                              ...prev,
-                              linkMetadata: { ...prev.linkMetadata, previewDescriptionSource: 'custom' },
-                            }))}
-                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${config.linkMetadata?.previewDescriptionSource === 'custom'
-                              ? 'bg-eco-green text-white border-eco-green'
-                              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                              }`}
-                          >Custom</button>
-                        </div>
-                        {config.linkMetadata?.previewDescriptionSource === 'custom' ? (
-                          <div>
-                            <textarea
-                              value={config.linkMetadata?.description || ''}
-                              onChange={(e) => setConfig(prev => ({
-                                ...prev,
-                                linkMetadata: {
-                                  ...prev.linkMetadata,
-                                  description: e.target.value || undefined,
-                                },
-                              }))}
-                              placeholder="Enter a custom preview description"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-eco-green resize-none"
-                              rows={3}
-                              maxLength={200}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Recommended: 150–200 characters.
-                            </p>
-                            {config.linkMetadata?.description && (
-                              <p className="text-xs mt-1 text-gray-400">
-                                {config.linkMetadata.description.length} / 200 characters
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic px-3 py-2 bg-gray-50 rounded border border-gray-100">
-                            {resolvedPreviewDescription || 'No description tile found — add a Description tile to your page.'}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Preview Image</label>
-
-                        {/* Source selector — 3 clickable cards */}
-                        <div className="grid grid-cols-3 gap-2 mb-3">
-                          {/* Poster option */}
-                          <button
-                            type="button"
-                            disabled={!posterTileForPreview}
-                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "poster" } }))}
-                            className={
-                              "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
-                              (effectiveImageSource === "poster" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
-                              (!posterTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
-                            }
-                          >
-                            <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {posterTileForPreview ? (
-                                <img
-                                  src={convertToCloudFrontUrl((posterTileForPreview.settings as any)?.src)}
-                                  alt="Poster"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Poster</span>
-                          </button>
-
-                          {/* Gallery option */}
-                          <button
-                            type="button"
-                            disabled={!galleryTileForPreview}
-                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "gallery" } }))}
-                            className={
-                              "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
-                              (effectiveImageSource === "gallery" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
-                              (!galleryTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
-                            }
-                          >
-                            <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {galleryTileForPreview ? (
-                                <img
-                                  src={convertToCloudFrontUrl((galleryTileForPreview.settings as any)?.images?.[0]?.src)}
-                                  alt="Gallery"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Gallery</span>
-                          </button>
-
-                          {/* Upload Custom option */}
-                          <button
-                            type="button"
-                            onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "upload" } }))}
-                            className={
-                              "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors cursor-pointer " +
-                              (effectiveImageSource === "upload" ? "border-eco-green bg-green-50" : "border-gray-200 hover:border-gray-300")
-                            }
-                          >
-                            <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
-                              {config.linkMetadata?.image ? (
-                                <img
-                                  src={convertToCloudFrontUrl(config.linkMetadata.image)}
-                                  alt="Custom Upload"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Upload Custom</span>
-                          </button>
-                        </div>
-
-                        {/* Conditionally render upload UI or tile thumbnail */}
-                        {effectiveImageSource === 'upload' ? (
-                          <div>
-                            {config.linkMetadata?.image ? (
-                              <div className="space-y-2">
-                                <div className="relative">
-                                  <img
-                                    src={config.linkMetadata.image}
-                                    alt="Preview"
-                                    className="w-full max-w-md h-48 object-contain bg-white rounded border border-gray-300"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none'
-                                    }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfig(prev => ({
-                                      ...prev,
-                                      linkMetadata: {
-                                        ...prev.linkMetadata,
-                                        image: undefined,
-                                        previewImageOriginal: undefined,
-                                        previewImageCrop: undefined,
-                                        previewImageCropAspectRatio: undefined,
-                                      },
-                                    }))}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                                    title="Remove image"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={handleAdjustPreviewFraming}
-                                  disabled={uploadingPreviewImage}
-                                  className="w-full"
-                                >
-                                  Adjust framing
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    previewImageInputRef.current?.click()
-                                  }}
-                                  disabled={uploadingPreviewImage}
-                                  className="w-full"
-                                >
-                                  {uploadingPreviewImage ? 'Uploading...' : 'Replace Image'}
-                                </Button>
-                              </div>
-                            ) : (
-                              <div>
-                                <input
-                                  ref={previewImageInputRef}
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={handlePreviewImageUpload}
-                                  className="hidden"
-                                  id="preview-image-upload"
-                                  disabled={uploadingPreviewImage}
-                                />
-                                <label
-                                  htmlFor="preview-image-upload"
-                                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
-                                >
-                                  {uploadingPreviewImage ? (
-                                    <div className="flex flex-col items-center">
-                                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-eco-green mb-2"></div>
-                                      <span className="text-sm text-gray-600">Uploading and optimizing...</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col items-center">
-                                      <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                      </svg>
-                                      <span className="text-sm text-gray-600">Click to upload preview image</span>
-                                      <span className="text-xs text-gray-400 mt-1">Recommended: 1200x630px (will be auto-optimized)</span>
-                                    </div>
-                                  )}
-                                </label>
-                              </div>
-                            )}
-                            <p className="text-xs text-gray-500 mt-2">
-                              Recommended: <strong>1200×630 (1.91:1)</strong>. Keep key content centered with padding. Use <strong>Adjust framing</strong> to choose what is visible in the frame.
-                            </p>
-                            <p className="text-xs text-eco-green mt-1 font-medium">
-                              WhatsApp requires preview images under 300KB - your image will be automatically compressed to meet this requirement.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="flex items-start gap-3 px-3 py-2 bg-gray-50 rounded border border-gray-100">
-                            {resolvedPreviewImage && (
+                      {/* Source selector — 3 clickable cards */}
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {/* Poster option */}
+                        <button
+                          type="button"
+                          disabled={!posterTileForPreview}
+                          onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "poster" } }))}
+                          className={
+                            "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
+                            (effectiveImageSource === "poster" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
+                            (!posterTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
+                          }
+                        >
+                          <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {posterTileForPreview ? (
                               <img
-                                src={convertToCloudFrontUrl(resolvedPreviewImage)}
-                                alt="Tile preview"
-                                className="w-16 h-12 object-cover rounded flex-shrink-0"
+                                src={convertToCloudFrontUrl((posterTileForPreview.settings as any)?.src)}
+                                alt="Poster"
+                                className="w-full h-full object-cover"
                               />
+                            ) : (
+                              <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
                             )}
-                            <p className="text-xs text-gray-500 mt-1">
-                              This image is pulled from your{' '}
-                              <strong>{effectiveImageSource === 'poster' ? 'Poster' : 'Gallery'} tile</strong>.
-                              {' '}To change it, update the tile directly.
-                            </p>
                           </div>
-                        )}
+                          <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Poster</span>
+                        </button>
+
+                        {/* Gallery option */}
+                        <button
+                          type="button"
+                          disabled={!galleryTileForPreview}
+                          onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "gallery" } }))}
+                          className={
+                            "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors " +
+                            (effectiveImageSource === "gallery" ? "border-eco-green bg-green-50 " : "border-gray-200 hover:border-gray-300 ") +
+                            (!galleryTileForPreview ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
+                          }
+                        >
+                          <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {galleryTileForPreview ? (
+                              <img
+                                src={convertToCloudFrontUrl((galleryTileForPreview.settings as any)?.images?.[0]?.src)}
+                                alt="Gallery"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Gallery</span>
+                        </button>
+
+                        {/* Upload Custom option */}
+                        <button
+                          type="button"
+                          onClick={() => setConfig(prev => ({ ...prev, linkMetadata: { ...prev.linkMetadata, previewImageSource: "upload" } }))}
+                          className={
+                            "flex flex-col items-center rounded-lg border-2 overflow-hidden transition-colors cursor-pointer " +
+                            (effectiveImageSource === "upload" ? "border-eco-green bg-green-50" : "border-gray-200 hover:border-gray-300")
+                          }
+                        >
+                          <div className="w-full h-14 bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {config.linkMetadata?.image ? (
+                              <img
+                                src={convertToCloudFrontUrl(config.linkMetadata.image)}
+                                alt="Custom Upload"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-xs py-1 px-1 text-center leading-tight text-gray-700">Upload Custom</span>
+                        </button>
                       </div>
 
-                      {/* WhatsApp / iMessage live preview card */}
-                      <div className="mt-4">
-                        <p className="text-xs font-medium text-gray-500 mb-2">Preview (WhatsApp / iMessage)</p>
-                        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white max-w-xs">
-                          {resolvedPreviewImage ? (
+                      {/* Conditionally render upload UI or tile thumbnail */}
+                      {effectiveImageSource === 'upload' ? (
+                        <div>
+                          {config.linkMetadata?.image ? (
+                            <div className="space-y-2">
+                              <div className="relative">
+                                <img
+                                  src={config.linkMetadata.image}
+                                  alt="Preview"
+                                  className="w-full max-w-md h-48 object-contain bg-white rounded border border-gray-300"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setConfig(prev => ({
+                                    ...prev,
+                                    linkMetadata: {
+                                      ...prev.linkMetadata,
+                                      image: undefined,
+                                      previewImageOriginal: undefined,
+                                      previewImageCrop: undefined,
+                                      previewImageCropAspectRatio: undefined,
+                                    },
+                                  }))}
+                                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                                  title="Remove image"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleAdjustPreviewFraming}
+                                disabled={uploadingPreviewImage}
+                                className="w-full"
+                              >
+                                Adjust framing
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  previewImageInputRef.current?.click()
+                                }}
+                                disabled={uploadingPreviewImage}
+                                className="w-full"
+                              >
+                                {uploadingPreviewImage ? 'Uploading...' : 'Replace Image'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <div>
+                              <input
+                                ref={previewImageInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePreviewImageUpload}
+                                className="hidden"
+                                id="preview-image-upload"
+                                disabled={uploadingPreviewImage}
+                              />
+                              <label
+                                htmlFor="preview-image-upload"
+                                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                              >
+                                {uploadingPreviewImage ? (
+                                  <div className="flex flex-col items-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-eco-green mb-2"></div>
+                                    <span className="text-sm text-gray-600">Uploading and optimizing...</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center">
+                                    <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    <span className="text-sm text-gray-600">Click to upload preview image</span>
+                                    <span className="text-xs text-gray-400 mt-1">Recommended: 1200x630px (will be auto-optimized)</span>
+                                  </div>
+                                )}
+                              </label>
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-500 mt-2">
+                            Recommended: <strong>1200×630 (1.91:1)</strong>. Keep key content centered with padding. Use <strong>Adjust framing</strong> to choose what is visible in the frame.
+                          </p>
+                          <p className="text-xs text-eco-green mt-1 font-medium">
+                            WhatsApp requires preview images under 300KB - your image will be automatically compressed to meet this requirement.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-3 px-3 py-2 bg-gray-50 rounded border border-gray-100">
+                          {resolvedPreviewImage && (
                             <img
                               src={convertToCloudFrontUrl(resolvedPreviewImage)}
-                              alt="preview"
-                              className="w-full h-32 object-cover"
+                              alt="Tile preview"
+                              className="w-16 h-12 object-cover rounded flex-shrink-0"
                             />
-                          ) : (
-                            <div className="w-full h-32 bg-gray-100 flex items-center justify-center">
-                              <span className="text-xs text-gray-400">No image selected</span>
-                            </div>
                           )}
-                          <div className="px-3 py-2 border-t border-gray-100">
-                            <p className="text-xs font-semibold text-gray-900 truncate">
-                              {resolvedPreviewTitle.length > 55 ? resolvedPreviewTitle.substring(0, 55) + '…' : resolvedPreviewTitle}
-                            </p>
-                            {resolvedPreviewDescription && (
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                                {resolvedPreviewDescription}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">ekfern.com</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            This image is pulled from your{' '}
+                            <strong>{effectiveImageSource === 'poster' ? 'Poster' : 'Gallery'} tile</strong>.
+                            {' '}To change it, update the tile directly.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* WhatsApp / iMessage live preview card */}
+                    <div className="mt-4">
+                      <p className="text-xs font-medium text-gray-500 mb-2">Preview (WhatsApp / iMessage)</p>
+                      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white max-w-xs">
+                        {resolvedPreviewImage ? (
+                          <img
+                            src={convertToCloudFrontUrl(resolvedPreviewImage)}
+                            alt="preview"
+                            className="w-full h-32 object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-32 bg-gray-100 flex items-center justify-center">
+                            <span className="text-xs text-gray-400">No image selected</span>
                           </div>
+                        )}
+                        <div className="px-3 py-2 border-t border-gray-100">
+                          <p className="text-xs font-semibold text-gray-900 truncate">
+                            {resolvedPreviewTitle.length > 55 ? resolvedPreviewTitle.substring(0, 55) + '…' : resolvedPreviewTitle}
+                          </p>
+                          {resolvedPreviewDescription && (
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                              {resolvedPreviewDescription}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">ekfern.com</p>
                         </div>
                       </div>
-
-                      <div className="bg-eco-green-light/20 border border-eco-green-light rounded-md p-3">
-                        <p className="text-xs text-eco-green">
-                          <strong>Tip:</strong> These settings control how your invite appears when shared on WhatsApp, Facebook, Twitter, and other platforms. If left empty, the system will automatically generate previews from your page content.
-                        </p>
-                      </div>
                     </div>
-                  )}
-                </div>
 
+                    <div className="bg-eco-green-light/20 border border-eco-green-light rounded-md p-3">
+                      <p className="text-xs text-eco-green">
+                        <strong>Tip:</strong> These settings control how your invite appears when shared on WhatsApp, Facebook, Twitter, and other platforms. If left empty, the system will automatically generate previews from your page content.
+                      </p>
+                    </div>
+                  </div>
+                </SettingsSection>
               </div>
             </div>
 
@@ -3301,10 +2427,13 @@ export default function DesignInvitationPage(): JSX.Element {
                             width: '100%',
                             aspectRatio: '1179 / 2556',
                             background: displayBackground,
-                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)'
+                            borderRadius: 'clamp(1.25rem, 3vw, 2.5rem)',
+                            ...PAPER_ROOT_STYLE,
                           }}
                         >
                             <TextureOverlay
+                              layer="paper"
+                              paperColor={displayBackground}
                               type={config.texture?.type ?? 'none'}
                               intensity={config.texture?.intensity ?? 40}
                               imageUrl={config.texture?.imageUrl}
@@ -3328,9 +2457,11 @@ export default function DesignInvitationPage(): JSX.Element {
                               ></div>
                             </div>
                             {/* Content Area */}
-                            <div className="overflow-y-auto flex-1 w-full overflow-x-hidden [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                            <div className="overflow-y-auto flex-1 w-full overflow-x-hidden flex flex-col [&::-webkit-scrollbar]:hidden" style={{ paddingBottom: '24px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                               {sortedTiles && sortedTiles.length > 0 ? (
-                                <>
+                                // The invitation's own composition, so a short page sits
+                                // where it will on the guest's screen.
+                                <ComposedPage firstTileType={sortedTiles.find(t => t.enabled !== false && t.type !== 'footer')?.type}>
                                   <TileList
                                     variant="invite"
                                     tiles={sortedTiles}
@@ -3342,7 +2473,7 @@ export default function DesignInvitationPage(): JSX.Element {
                                     hasRegistry={event?.has_registry}
                                     allowedSubEvents={allowedSubEvents}
                                   />
-                                </>
+                                </ComposedPage>
                               ) : (
                                 <div className="p-8 text-center text-gray-500">
                                   <p>Loading tiles...</p>
@@ -3417,6 +2548,11 @@ export default function DesignInvitationPage(): JSX.Element {
           }}
         />
       )}
+      <DesignHistoryPanel
+        eventId={eventId}
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   )
 }

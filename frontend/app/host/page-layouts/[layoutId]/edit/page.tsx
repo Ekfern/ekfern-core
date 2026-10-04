@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import StudioTagsInput from '@/components/invite/StudioTagsInput'
 import PageLayoutStudioCanvas from '@/components/invite/PageLayoutStudioCanvas'
 import { InviteConfig } from '@/lib/invite/schema'
 import { getInvitePageLayout, updateInvitePageLayout } from '@/lib/invite/api'
@@ -57,6 +58,9 @@ export default function EditPageLayoutPage() {
   const [previewAlt, setPreviewAlt] = useState('')
   const [visibility, setVisibility] = useState('public')
   const [status, setStatus] = useState('draft')
+  const [tags, setTags] = useState<string[]>([])
+  /** Read-only: owned by the linked design, shown next to the layout's own tags. */
+  const [designTags, setDesignTags] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isStaff, setIsStaff] = useState<boolean | null>(null)
@@ -108,6 +112,8 @@ export default function EditPageLayoutPage() {
         setPreviewAlt(template.preview_alt ?? '')
         setVisibility(template.visibility ?? 'public')
         setStatus(template.status ?? 'draft')
+        setTags(Array.isArray(template.tags) ? template.tags : [])
+        setDesignTags(Array.isArray(template.design_tags) ? template.design_tags : [])
         setConfig(template.config && typeof template.config === 'object' ? (template.config as InviteConfig) : null)
       })
       .catch((e: any) => {
@@ -149,6 +155,7 @@ export default function EditPageLayoutPage() {
           config: buildConfigToSave(config),
           visibility,
           status,
+          tags,
         })
         setAutoSaveStatus('saved')
       } catch (e: any) {
@@ -159,7 +166,7 @@ export default function EditPageLayoutPage() {
       }
     }, 2000)
     return () => clearTimeout(timer)
-  }, [config, name, description, thumbnail, previewAlt, visibility, status, layoutId])
+  }, [config, name, description, thumbnail, previewAlt, visibility, status, tags, layoutId])
 
   // Auto-dismiss the "Saved ✓" indicator after 3s
   useEffect(() => {
@@ -196,6 +203,7 @@ export default function EditPageLayoutPage() {
         config: buildConfigToSave(config),
         visibility,
         status,
+        tags,
       })
       setAutoSaveStatus('saved')
       hasUserEditedRef.current = false
@@ -350,6 +358,14 @@ export default function EditPageLayoutPage() {
                 <option value="premium">Premium</option>
               </select>
             </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-1">Tags</label>
+              <StudioTagsInput
+                tags={tags}
+                designTags={designTags}
+                onChange={(next) => { hasUserEditedRef.current = true; setTags(next) }}
+              />
+            </div>
           </div>
         </div>
 
@@ -358,6 +374,7 @@ export default function EditPageLayoutPage() {
           setConfig={handleConfigChange as React.Dispatch<React.SetStateAction<InviteConfig>>}
           eventLike={DUMMY_EVENT}
           eventIdForTiles={0}
+          syncKey={layoutId}
         />
       </div>
     </div>

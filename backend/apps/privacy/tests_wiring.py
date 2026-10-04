@@ -13,10 +13,10 @@ from apps.privacy.models import ConsentEvent, AuditEvent
 
 
 class SignupConsentTests(TestCase):
-    def test_signup_records_terms_and_privacy_consent(self):
+    def test_signup_records_terms_privacy_and_age_confirmation(self):
         resp = APIClient().post(
             reverse("signup"),
-            {"email": "newhost@example.com", "name": "New Host"},
+            {"email": "newhost@example.com", "name": "New Host", "date_of_birth": "1990-05-17"},
             format="json",
         )
         self.assertIn(resp.status_code, (200, 201))
@@ -24,7 +24,7 @@ class SignupConsentTests(TestCase):
         consents = ConsentEvent.objects.filter(subject_type="host", subject_id=user.id)
         self.assertEqual(
             set(consents.values_list("purpose", flat=True)),
-            {ConsentEvent.Purpose.TERMS, ConsentEvent.Purpose.PRIVACY},
+            {ConsentEvent.Purpose.TERMS, ConsentEvent.Purpose.PRIVACY, ConsentEvent.Purpose.AGE_CONFIRMATION},
         )
         self.assertTrue(all(c.source == "signup" for c in consents))
 

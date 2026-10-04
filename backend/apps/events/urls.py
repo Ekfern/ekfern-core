@@ -1,5 +1,15 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .design_history_views import design_version_detail, design_versions
+from .cohost_views import (
+    accept_cohost_invite,
+    cohost_invite_detail,
+    decline_cohost_invite,
+    event_cohost_detail,
+    event_cohosts,
+    leave_event,
+    my_cohost_invites,
+)
 from .views import (
     EventViewSet, create_rsvp, get_rsvp, check_phone_for_rsvp, rsvp_registration_status, get_guest_by_token,
     InvitePageViewSet, PublicInviteViewSet, upload_image,
@@ -31,6 +41,18 @@ urlpatterns = [
     # Put custom paths BEFORE router.urls so they take precedence
     # Invite page layouts (Page Layout Studio) - list/create and retrieve/update/delete
     path('invite-page-layouts/', InvitePageLayoutViewSet.as_view({'get': 'list', 'post': 'create'}), name='invite-page-layouts-list'),
+    # Event history (read-only: there is no restore)
+    path('<int:event_id>/versions/', design_versions, name='event-versions'),
+    path('<int:event_id>/versions/<int:version_id>/', design_version_detail, name='event-version-detail'),
+    # Co-hosts
+    path('cohost-invites/mine/', my_cohost_invites, name='cohost-invites-mine'),
+    path('cohost-invites/<str:token>/', cohost_invite_detail, name='cohost-invite-detail'),
+    path('cohost-invites/<str:token>/accept/', accept_cohost_invite, name='cohost-invite-accept'),
+    path('cohost-invites/<str:token>/decline/', decline_cohost_invite, name='cohost-invite-decline'),
+    path('<int:event_id>/cohosts/', event_cohosts, name='event-cohosts'),
+    path('<int:event_id>/cohosts/leave/', leave_event, name='event-cohost-leave'),
+    path('<int:event_id>/cohosts/<int:cohost_id>/', event_cohost_detail, name='event-cohost-detail'),
+    path('invite-page-layouts/bulk/', InvitePageLayoutViewSet.as_view({'post': 'bulk'}), name='invite-page-layouts-bulk'),
     path('invite-page-layouts/<int:id>/', InvitePageLayoutViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='invite-page-layout-detail'),
     # Animation registry (catalog above module runtime)
     path('animation-registry/', AnimationRegistryViewSet.as_view({'get': 'list'}), name='animation-registry-list'),

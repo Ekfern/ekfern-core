@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import type { InviteConfig } from '@/lib/invite/schema'
+import type { EventRole } from '@/lib/cohosts'
+import CoHostInviteBanner from '@/components/host/CoHostInviteBanner'
 
 const PageLayoutCardPreview = dynamic(
   () => import('@/components/invite/PageLayoutCardPreview'),
@@ -88,6 +90,8 @@ interface Event {
   city: string
   is_public: boolean
   invite_page_summary?: InvitePageSummary | null
+  /** 'owner' for events you host, 'cohost' for ones shared with you. */
+  my_role?: EventRole
 }
 
 interface ImpactData {
@@ -260,7 +264,81 @@ export default function DashboardPage() {
   }
 
   const filteredImpact = getFilteredImpact()
+  // Shared by the Hosted and Shared sections so the card markup exists once.
+  const renderEventCard = (event: Event) => {
+    return (
+      <Card
+        key={event.id}
+        className="bg-white border-2 border-eco-green-light hover:shadow-lg transition-shadow overflow-hidden"
+      >
+        <EventCardPreview invitePageSummary={event.invite_page_summary} />
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl text-eco-green">
+              {event.title}
+            </CardTitle>
+          </div>
+          <CardDescription className="capitalize">{event.event_type}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 mb-4">
+            {event.date && (
+              <p className="text-sm flex items-center gap-2 text-gray-700">
+                <span>📅</span>
+                {new Date(event.date).toLocaleDateString('en-IN', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
+            )}
+            {event.expiry_date && event.expiry_date !== event.date && (
+              <p className="text-xs flex items-center gap-2 text-gray-600">
+                <span>⏰</span>
+                Expires: {new Date(event.expiry_date).toLocaleDateString('en-IN', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
+            )}
+            {event.city && (
+              <p className="text-sm flex items-center gap-2 text-gray-700">
+                <span>📍</span>
+                {event.city}
+              </p>
+            )}
+            <p className="text-sm flex items-center gap-2 text-gray-700">
+              <span>{event.is_public ? '🌐' : '🔒'}</span>
+              {event.is_public ? 'Public event' : 'Private event'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => handleManageEvent(event.id)}
+              className="w-full flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
+            >
+              Manage
+            </Button>
+            <Link
+              href={`/invite/${event.slug}`}
+              target="_blank"
+              className="flex-1"
+            >
+              <Button variant="outline" className="w-full border-eco-green text-eco-green hover:bg-eco-green-light">
+                View Invitation
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   const activeEvents = events.filter(e => !e.is_expired)
+  // my_role comes from the API: 'owner' for events you host, 'cohost' for shared ones.
+  const hostedEvents = activeEvents.filter(e => e.my_role !== 'cohost')
+  const sharedEvents = activeEvents.filter(e => e.my_role === 'cohost')
   const expiredEvents = events.filter(e => e.is_expired)
 
   if (loading) {
@@ -412,6 +490,8 @@ export default function DashboardPage() {
           </Card>
         )}
 
+        <CoHostInviteBanner />
+
         {/* Events Section */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-eco-green">Active Events</h2>
@@ -438,76 +518,34 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activeEvents.map((event) => {
-              return (
-                <Card
-                  key={event.id}
-                  className="bg-white border-2 border-eco-green-light hover:shadow-lg transition-shadow overflow-hidden"
-                >
-                  <EventCardPreview invitePageSummary={event.invite_page_summary} />
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-xl text-eco-green">
-                        {event.title}
-                      </CardTitle>
-                    </div>
-                    <CardDescription className="capitalize">{event.event_type}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 mb-4">
-                      {event.date && (
-                        <p className="text-sm flex items-center gap-2 text-gray-700">
-                          <span>📅</span>
-                          {new Date(event.date).toLocaleDateString('en-IN', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
-                        </p>
-                      )}
-                      {event.expiry_date && event.expiry_date !== event.date && (
-                        <p className="text-xs flex items-center gap-2 text-gray-600">
-                          <span>⏰</span>
-                          Expires: {new Date(event.expiry_date).toLocaleDateString('en-IN', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
-                        </p>
-                      )}
-                      {event.city && (
-                        <p className="text-sm flex items-center gap-2 text-gray-700">
-                          <span>📍</span>
-                          {event.city}
-                        </p>
-                      )}
-                      <p className="text-sm flex items-center gap-2 text-gray-700">
-                        <span>{event.is_public ? '🌐' : '🔒'}</span>
-                        {event.is_public ? 'Public event' : 'Private event'}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => handleManageEvent(event.id)}
-                        className="w-full flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
-                      >
-                        Manage
-                      </Button>
-                      <Link
-                        href={`/invite/${event.slug}`}
-                        target="_blank"
-                        className="flex-1"
-                      >
-                        <Button variant="outline" className="w-full border-eco-green text-eco-green hover:bg-eco-green-light">
-                          View Invitation
-                        </Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+          <div className="space-y-10">
+            <div>
+              {/* The headings only earn their place once there is a Shared group
+                  to tell Hosted apart from. A host with no co-hosted events sees
+                  exactly the grid they saw before. */}
+              {sharedEvents.length > 0 && (
+                <h3 className="text-lg font-semibold text-eco-green mb-4">Hosted</h3>
+              )}
+              {hostedEvents.length === 0 ? (
+                <p className="text-sm text-gray-600">You are not hosting any active events.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {hostedEvents.map(renderEventCard)}
+                </div>
+              )}
+            </div>
+
+            {sharedEvents.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-eco-green mb-1">Shared</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Events you co-host. Only the host can delete these or manage who else helps.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {sharedEvents.map(renderEventCard)}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -6,6 +6,7 @@ type InvitePublishStatus = 'Published' | 'Draft' | 'Not created' | 'Unknown'
 interface NextActionCardProps {
   eventId: string
   invitePublishStatus: InvitePublishStatus
+  hasLayout: boolean
   totalGuests: number
   responseRate: number
   isExpired?: boolean
@@ -21,6 +22,7 @@ interface ActionConfig {
 export default function NextActionCard({
   eventId,
   invitePublishStatus,
+  hasLayout,
   totalGuests,
   responseRate,
   isExpired,
@@ -41,19 +43,21 @@ export default function NextActionCard({
 
   let action: ActionConfig | null = null
 
-  if (invitePublishStatus === 'Not created') {
-    action = {
-      message: 'Your invite page is not set up yet.',
-      cta: 'Design your invite',
-      href: `/host/page-layouts/new`,
-      variant: 'warning',
-    }
-  } else if (invitePublishStatus === 'Draft') {
-    action = {
-      message: 'Invite page is configured but not published.',
-      cta: 'Publish to go live',
-      href: `/host/events/${eventId}/layout`,
-      variant: 'warning',
+  if (invitePublishStatus === 'Not created' || invitePublishStatus === 'Draft') {
+    if (!hasLayout) {
+      action = {
+        message: 'Your invite page is not set up yet.',
+        cta: 'Choose a layout',
+        href: `/host/events/${eventId}/layout`,
+        variant: 'warning',
+      }
+    } else {
+      action = {
+        message: 'Invite page is configured but not published.',
+        cta: 'Finish and publish',
+        href: `/host/events/${eventId}/page-editor`,
+        variant: 'warning',
+      }
     }
   } else if (totalGuests === 0) {
     action = {

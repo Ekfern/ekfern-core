@@ -9,6 +9,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.events.access import resolve_event_access
+from apps.events.capabilities import EDIT_CATALOG
 from apps.events.models import CatalogPageView, Event, Guest, RSVP, invite_view_bucket
 from apps.events.utils import upload_to_s3
 
@@ -31,9 +33,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _get_event_for_host(event_id, user):
-    """Return event if user is the host, else raise 403."""
+    """Return event if the user may manage its catalog, else a 403 response."""
     event = get_object_or_404(Event, id=event_id)
-    if event.host != user:
+    if not resolve_event_access(user, event).can(EDIT_CATALOG):
         return None, Response(
             {'error': 'You do not have permission to manage this event.'},
             status=status.HTTP_403_FORBIDDEN,

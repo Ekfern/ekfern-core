@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { afterAuthPath } from '@/lib/auth/returnTo'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -17,6 +18,7 @@ import {
   passwordLogin,
   checkPasswordEnabled,
   storeAuthTokens,
+  storedAccessToken,
   getCurrentUser,
   otpCodeSchema,
   requiredPasswordSchema,
@@ -54,10 +56,12 @@ function LoginForm() {
   // opens /host/login (e.g. in a second tab) is sent to the dashboard instead of
   // being asked to log in again. Tokens live in localStorage, shared across tabs.
   const [checkingSession, setCheckingSession] = useState(true)
+  // A page that needed an account (the co-host invite) asked to be returned to.
+  const nextPath = afterAuthPath(searchParams)
 
   useEffect(() => {
     let cancelled = false
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    const token = storedAccessToken()
     if (!token) {
       // No session — show the login form.
       setCheckingSession(false)
@@ -68,7 +72,7 @@ function LoginForm() {
     // handles refresh/clear on 401.
     getCurrentUser()
       .then(() => {
-        if (!cancelled) router.replace('/host/dashboard')
+        if (!cancelled) router.replace(nextPath)
       })
       .catch(() => {
         if (!cancelled) setCheckingSession(false)
@@ -76,7 +80,7 @@ function LoginForm() {
     return () => {
       cancelled = true
     }
-  }, [router])
+  }, [router, nextPath])
 
   useEffect(() => {
     // Check if coming from email link
@@ -96,6 +100,8 @@ function LoginForm() {
   } = useForm<EmailForm>({
     resolver: zodResolver(emailSchema),
     mode: 'onSubmit',
+    // Pre-filled when a page such as the co-host invite knows who to expect.
+    defaultValues: { email: searchParams.get('email') || '' },
   })
 
   const {
@@ -243,7 +249,7 @@ function LoginForm() {
 
       // Use window.location.href for full page reload (ensures clean state)
       // This is more reliable than router.push for post-login navigation
-      window.location.href = '/host/dashboard'
+      window.location.href = nextPath
     } catch (error: any) {
       logError('OTP verification error:', error)
       showToast(getErrorMessage(error), 'error')
@@ -271,7 +277,7 @@ function LoginForm() {
       showToast('Login successful!', 'success')
 
       // Use window.location.href for full page reload (ensures clean state)
-      window.location.href = '/host/dashboard'
+      window.location.href = nextPath
     } catch (error: any) {
       logError('Password login error:', error)
       showToast(getErrorMessage(error), 'error')

@@ -5,6 +5,7 @@ import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import InviteRenderer from '@/components/invite/render/InviteRenderer'
 import TextureOverlay from '@/components/invite/render/TextureOverlay'
+import { PAPER_ROOT_STYLE } from '@/lib/invite/layers'
 
 // Inviting sample copy for library previews so cards look like real invites, not placeholders
 export const PREVIEW_SAMPLE = {
@@ -48,57 +49,18 @@ export function enrichConfigWithSampleData(config: InviteConfig): InviteConfig {
 }
 
 /**
- * Blanks out the `design` tile's background art (image/gradient/text) so the
- * layout gallery doesn't present a staff-authored companion background as if
- * it were already chosen — that decision belongs to the (later) Design step.
- * Structure, theme, and every other tile's styling is left untouched.
- * `PosterTile` already renders a dashed empty-state box when given no
- * image/gradient/overlays, so this alone produces the "add your design here"
- * placeholder. Pure function — never mutates the original config.
- *
- * Exception: tiles marked `isLayoutHero` are the layout's OWN baked-in
- * gradient/title (e.g. a full-bleed hero design), not a staff-chosen photo —
- * these are preserved so the layout's actual identity is visible while
- * browsing, the same way page-level customColors.backgroundGradient already is.
- * Only `src` (an actual uploaded photo) is still blanked in that case.
- */
-export function skeletonizePosterTiles(config: InviteConfig): InviteConfig {
-  if (!config.tiles?.length) return config
-  const tiles = config.tiles.map((tile: Tile) => {
-    if (tile.type !== 'poster') return tile
-    const settings = tile.settings as Record<string, unknown>
-    if (settings.isLayoutHero) {
-      return { ...tile, settings: { ...settings, src: undefined } }
-    }
-    return {
-      ...tile,
-      settings: {
-        ...settings,
-        src: undefined,
-        backgroundGradient: undefined,
-        textOverlays: [],
-      },
-    }
-  })
-  return { ...config, tiles }
-}
-
-/**
  * Renders a live preview of an invite config inside a fixed aspect box (e.g. page layout library card).
  * Uses inviting sample copy so the library looks professional; same pipeline as the invite page.
  */
 export default function PageLayoutCardPreview({ config, className = '' }: PageLayoutCardPreviewProps): React.ReactElement {
   const appearance = resolveAppearance(config)
   const pageBackground = appearance.backgroundGradient || appearance.backgroundColor
-  const previewConfig = useMemo(
-    () => skeletonizePosterTiles(enrichConfigWithSampleData(config)),
-    [config]
-  )
+  const previewConfig = useMemo(() => enrichConfigWithSampleData(config), [config])
 
   return (
     <div
       className={`relative w-full aspect-[9/16] overflow-hidden ${className}`}
-      style={{ background: pageBackground }}
+      style={{ background: pageBackground, ...PAPER_ROOT_STYLE }}
       aria-hidden
     >
       {/*
@@ -109,13 +71,15 @@ export default function PageLayoutCardPreview({ config, className = '' }: PageLa
         as a backdrop keeps the look continuous.
       */}
       <TextureOverlay
+        layer="paper"
+        paperColor={pageBackground}
         type={config.texture?.type || 'none'}
         intensity={config.texture?.intensity ?? 40}
         imageUrl={config.texture?.imageUrl}
         textureBlend={config.texture?.textureBlend}
       />
       <div
-        className="relative w-full h-full overflow-hidden"
+        className="relative w-full h-full overflow-hidden flex flex-col"
         style={{
           transform: `scale(${CARD_SCALE})`,
           transformOrigin: 'top left',

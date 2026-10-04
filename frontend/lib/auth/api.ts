@@ -38,16 +38,44 @@ export const newPasswordSchema = z
   .refine((value) => /[a-zA-Z]/.test(value), 'Password must contain at least one letter')
   .refine((value) => /[0-9]/.test(value), 'Password must contain at least one number')
 
+/**
+ * The saved access token, or null. Reading localStorage throws when the browser
+ * blocks site data, which would crash the page; that counts as "not signed in".
+ */
+export function storedAccessToken(): string | null {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage.getItem('access_token') : null
+  } catch {
+    return null
+  }
+}
+
 export function storeAuthTokens(tokens: AuthTokens) {
   localStorage.setItem('access_token', tokens.access)
   localStorage.setItem('refresh_token', tokens.refresh)
 }
 
+function browserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    return undefined
+  }
+}
+
 export async function signup(
   name: string,
-  email: string
+  email: string,
+  dateOfBirth: string,
 ): Promise<{ otp_code?: string; needs_verification?: boolean }> {
-  const response = await api.post('/api/auth/signup/', { name, email })
+  // The visitor's timezone, so the server counts the birthday on the same
+  // day the form does (see apps/users/age.py local_today).
+  const response = await api.post('/api/auth/signup/', {
+    name,
+    email,
+    date_of_birth: dateOfBirth,
+    time_zone: browserTimeZone(),
+  })
   return response.data
 }
 

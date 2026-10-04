@@ -216,7 +216,7 @@ export default function DirectionsMapPicker({
         )}
         {treatment.texture && (
           <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
-            <TextureOverlay type={treatment.texture} intensity={treatment.textureIntensity ?? 30} />
+            <TextureOverlay layer="surface" type={treatment.texture} intensity={treatment.textureIntensity ?? 30} />
           </div>
         )}
       </div>

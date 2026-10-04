@@ -15,6 +15,7 @@ class ConsentEvent(models.Model):
         PRIVACY = "privacy", "Privacy Policy"
         EVENT_PROCESSING = "event_processing", "Guest data for running an event"
         MARKETING = "marketing", "Marketing"
+        AGE_CONFIRMATION = "age_confirmation", "Confirmed minimum age at signup"
 
     class Basis(models.TextChoices):
         CONSENT = "consent", "Consent"

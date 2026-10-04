@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.db import models, IntegrityError
@@ -13,6 +13,25 @@ from apps.users.models import User
 def _default_data_region():
     from django.conf import settings
     return getattr(settings, 'DEFAULT_DATA_REGION', 'in')
+
+
+class EventQuerySet(models.QuerySet):
+    """Event lookups that are scoped to a user rather than to ownership alone."""
+
+    def for_user(self, user):
+        """
+        Every event this user may work on.
+
+        Today that is the events they own. Co-hosted events join here, which is
+        why callers ask for ``for_user`` rather than filtering on ``host``
+        directly — the definition of "my events" then lives in one place.
+        """
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return self.none()
+        return self.filter(
+            Q(host=user)
+            | Q(cohosts__user=user, cohosts__status=EventCoHost.STATUS_ACCEPTED)
+        ).distinct()
 
 
 class Event(models.Model):
@@ -99,6 +118,8 @@ class Event(models.Model):
         (RSVP_EXPERIENCE_MODE_AUTO_CONFIRM, 'Confirm attendance'),
     ]
     
+    objects = EventQuerySet.as_manager()
+
     host = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events')
     slug = models.SlugField(unique=True, max_length=100)
     title = models.CharField(max_length=255)
@@ -404,6 +425,175 @@ class Event(models.Model):
         if existing_rsvp and existing_rsvp.will_attend == 'yes':
             return False
         return True
+
+
+class EventCoHost(models.Model):
+    """
+    A co-host on one event.
+
+    The owner is ``Event.host`` and never appears here, so the two sets are
+    disjoint and no ownership fact is stored twice. ``status`` is the gate: a row
+    can have a linked ``user`` and still grant nothing until it is accepted,
+    which is what makes acceptance an explicit step rather than a formality.
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_ACCEPTED = 'accepted'
+    STATUS_DECLINED = 'declined'
+    STATUS_REVOKED = 'revoked'
+    STATUS_LEFT = 'left'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_ACCEPTED, 'Accepted'),
+        (STATUS_DECLINED, 'Declined'),
+        (STATUS_REVOKED, 'Revoked'),   # the owner removed them
+        (STATUS_LEFT, 'Left'),         # they removed themselves
+    ]
+
+    #: Statuses that still occupy the invite slot for an email on an event.
+    ACTIVE_STATUSES = [STATUS_PENDING, STATUS_ACCEPTED]
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='cohosts')
+
+    # Null until acceptance: an invite can be sent to someone with no account.
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='cohosted_events',
+    )
+    # Canonical form (stripped, lowercased) so the unique constraint below means
+    # what it says and a case difference cannot create a second live invite.
+    invited_email = models.EmailField()
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    #: Capability names from apps.events.capabilities. Stored per row even while
+    #: every co-host gets the same default, so adding a toggle UI later changes
+    #: only what is written here, never how it is enforced.
+    capabilities = models.JSONField(default=list, blank=True)
+
+    #: Notification names from apps.events.capabilities (NOTIFY_*): which host
+    #: emails this co-host also receives. Separate from ``capabilities`` because
+    #: it grants nothing - it only adds them to a mailing.
+    notifications = models.JSONField(default=list, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+    left_at = models.DateTimeField(null=True, blank=True)
+    #: Set when the owner has been told this invite is still unanswered. Stamped
+    #: rather than inferred from dates so the reminder can only ever fire once,
+    #: however often the sweep runs or is re-run.
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'event_cohosts'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['event', 'user'],
+                condition=Q(user__isnull=False),
+                name='event_cohost_unique_user_per_event',
+            ),
+            models.UniqueConstraint(
+                fields=['event', 'invited_email'],
+                condition=Q(status__in=['pending', 'accepted']),
+                name='event_cohost_unique_active_email_per_event',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'status'], name='event_cohost_user_status_idx'),
+            models.Index(fields=['event', 'status'], name='event_cohost_event_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.invited_email} on {self.event_id} ({self.status})"
+
+    def clean(self):
+        """
+        The owner may not also be a co-host.
+
+        This cannot be a database CheckConstraint: constraints cannot reference
+        a column on another table, and the owner lives on ``Event``. Enforced
+        here and covered by a test instead.
+        """
+        from django.core.exceptions import ValidationError
+
+        if self.user_id and self.event_id and self.user_id == self.event.host_id:
+            raise ValidationError({'user': "The event owner is already the host and cannot be a co-host."})
+
+    def save(self, *args, **kwargs):
+        if self.invited_email:
+            self.invited_email = self.invited_email.strip().lower()
+        return super().save(*args, **kwargs)
+
+    @property
+    def is_active(self):
+        return self.status == self.STATUS_ACCEPTED
+
+
+class EventVersion(models.Model):
+    """
+    A snapshot of an event: its invite design and its details, so a host can see
+    what changed and when.
+
+    Read-only by design: there is no restore. Reverting a whole design in one
+    click can set aside work someone else did minutes ago, and deciding who may
+    do that is a question worth avoiding until it is actually needed. Seeing the
+    old settings and redoing them by hand is slower, but nobody loses anything
+    they did not choose to.
+
+    Snapshots are full configs rather than deltas: a version has to be readable
+    on its own, and replaying a chain of deltas breaks entirely if one link is
+    missing. At ~1.5KB a config that costs nothing worth optimising.
+    """
+    #: Versions inside this window by the same person fold into one another, so
+    #: the list reads as editing sessions rather than as keystrokes. Autosave
+    #: fires 1.5s after each change, which would otherwise mean hundreds of rows
+    #: for one afternoon.
+    COALESCE_WINDOW = timedelta(minutes=10)
+
+    #: Total bytes of history kept per event. A limit on size rather than on
+    #: count keeps a normal 1.5KB config with plenty of versions, while an event
+    #: carrying embedded images cannot quietly grow history into the megabytes.
+    MAX_TOTAL_BYTES = 1024 * 1024
+
+    LABEL_PUBLISHED = 'published'
+    LABEL_LAYOUT_APPLIED = 'layout_applied'
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='versions')
+    config = models.JSONField(default=dict, help_text='The invite design (page_config).')
+    #: The fields a host edits on Event Details. Kept beside the design so one
+    #: timeline answers "what changed about this event", rather than splitting
+    #: a date change and a colour change across two histories.
+    details = models.JSONField(default=dict, blank=True)
+    saved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='event_versions',
+        help_text='Who saved this version. Kept if the account is later deleted.',
+    )
+    #: Marks a version worth keeping separate from the session around it.
+    label = models.CharField(max_length=32, blank=True)
+    #: Size of the stored config, so retention does not have to re-serialize
+    #: every row to work out what to drop.
+    size_bytes = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'event_versions'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['event', '-created_at'], name='event_version_event_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.event_id} @ {self.created_at:%Y-%m-%d %H:%M}'
 
 
 class InvitePage(models.Model):
@@ -1787,6 +1977,12 @@ class InvitePageLayout(models.Model):
     config = models.JSONField(default=dict, help_text='Full InviteConfig: tiles, customColors, customFonts, texture, etc.')
     visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Layout-level tags, e.g. ["wedding", "image-hero", "playful"]. '
+                  'Separate from the linked design\'s own tags.',
+    )
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_invite_page_layouts')
     updated_by = models.ForeignKey(
         User,
