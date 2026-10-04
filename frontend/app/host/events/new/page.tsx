@@ -26,9 +26,11 @@ function starterInvitation(data: EventDetailsFormData): InviteConfig | null {
   // Several events take their own date, time and place; only Good to know,
   // which is for the whole celebration, goes on the invitation itself.
   const single = !data.is_multi_sub_event
-  const inPerson = single && data.where_mode === 'in-person'
-  const location = inPerson ? [data.venue?.trim(), data.city?.trim()].filter(Boolean).join(', ') : ''
-  const hasOwnContent = (single && !!data.time) || (inPerson && !!data.venue?.trim()) || visibleItems(data.good_to_know).length > 0
+  const venue = single ? data.venue?.trim() ?? '' : ''
+  // In person: "The Lakeside Lawns, Udaipur". Online: how guests join, as typed.
+  const location =
+    single && data.where_mode === 'in-person' ? [venue, data.city?.trim()].filter(Boolean).join(', ') : venue
+  const hasOwnContent = (single && !!data.time) || !!venue || visibleItems(data.good_to_know).length > 0
   if (!hasOwnContent) return null
   return withEventDetailsContent(
     null,

@@ -174,7 +174,7 @@ export default function EventDetailsForm({
               {inviteContent === 'create' ? (
                 'This shows on your invitation. You’ll choose how it looks next.'
               ) : locked ? (
-                <>Time, venue line and Good to know are on your invitation now. {editOnInvitation}</>
+                <>Time, {whereMode === 'online' ? 'how guests join' : 'venue line'} and Good to know are on your invitation now. {editOnInvitation}</>
               ) : (
                 'This shows on your invitation. Changes here update it too.'
               )}
@@ -294,30 +294,37 @@ export default function EventDetailsForm({
           }}
         />
 
-        {inviteContent === 'create' && whereMode === 'in-person' && !isMultiSubEvent && (
+        {inviteContent === 'create' && !isMultiSubEvent && (
           <div>
             <label htmlFor={`venue-${uid}`} className="block text-sm font-medium mb-1">
-              Venue <span className="font-normal text-gray-500">(optional)</span>
+              {whereMode === 'online' ? 'How guests join' : 'Venue'}{' '}
+              <span className="font-normal text-gray-500">(optional)</span>
             </label>
-            <Input id={`venue-${uid}`} {...register('venue')} placeholder="Hall, home, farmhouse…" />
+            <Input
+              id={`venue-${uid}`}
+              {...register('venue')}
+              placeholder={whereMode === 'online' ? 'Online · link shared after you RSVP' : 'Hall, home, farmhouse…'}
+            />
           </div>
         )}
         {inviteContent === 'edit' && !isMultiSubEvent && (
           <div>
             <label htmlFor={`venue-${uid}`} className="block text-sm font-medium mb-1">
-              Venue line on your invitation
+              {whereMode === 'online' ? 'How guests join, shown on your invitation' : 'Venue line on your invitation'}
             </label>
             <Input
               id={`venue-${uid}`}
               {...register('venue')}
-              placeholder="The Lakeside Lawns, Udaipur"
+              placeholder={whereMode === 'online' ? 'Online · link shared after you RSVP' : 'The Lakeside Lawns, Udaipur'}
               readOnly={locked}
               aria-readonly={locked}
               className={lockedInput}
             />
             {!locked && (
               <p className="mt-1 text-xs text-gray-500">
-                Exactly what guests read under Location. Changing the city above doesn’t change it.
+                {whereMode === 'online'
+                  ? 'Exactly what guests read under Location.'
+                  : 'Exactly what guests read under Location. Changing the city above doesn’t change it.'}
               </p>
             )}
           </div>
