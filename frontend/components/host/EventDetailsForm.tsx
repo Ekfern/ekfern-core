@@ -272,11 +272,15 @@ export default function EventDetailsForm({
       </section>
 
       {/* ── Good to know ───────────────────────────────────────────────── */}
-      {showInviteContent && !isMultiSubEvent && (
+      {showInviteContent && (
         <section className="space-y-3">
           <div>
             <h2 className={sectionHeading}>Good to know</h2>
-            <p className="text-sm text-gray-600">Answers to what guests usually ask. Add only what you need.</p>
+            <p className="text-sm text-gray-600">
+              {isMultiSubEvent
+                ? 'For the whole celebration - where to stay, who to call. Each event can add its own, like its dress code, in the next step.'
+                : 'Answers to what guests usually ask. Add only what you need.'}
+            </p>
           </div>
           <Controller
             name="good_to_know"

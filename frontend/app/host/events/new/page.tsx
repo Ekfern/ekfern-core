@@ -23,9 +23,13 @@ import type { InviteConfig } from '@/lib/invite/schema'
  */
 function starterInvitation(data: EventDetailsFormData): InviteConfig | null {
   const goodToKnow = visibleItems(data.good_to_know)
-  const venue = data.where_mode === 'in-person' ? data.venue?.trim() : ''
-  if (data.is_multi_sub_event || (!data.time && !venue && goodToKnow.length === 0)) return null
-  const city = data.where_mode === 'in-person' ? data.city?.trim() : ''
+  // Several events take their own date, time and place; only Good to know,
+  // which is for the whole celebration, goes on the invitation itself.
+  const single = !data.is_multi_sub_event
+  const time = single ? data.time : ''
+  const venue = single && data.where_mode === 'in-person' ? data.venue?.trim() : ''
+  if (!time && !venue && goodToKnow.length === 0) return null
+  const city = single && data.where_mode === 'in-person' ? data.city?.trim() : ''
   return {
     tiles: [
       { id: 'tile-title-start', type: 'title', enabled: true, order: 0, settings: { text: data.title } },
@@ -35,8 +39,8 @@ function starterInvitation(data: EventDetailsFormData): InviteConfig | null {
         enabled: true,
         order: 1,
         settings: {
-          date: data.date ?? '',
-          ...(data.time ? { time: data.time } : {}),
+          date: single ? (data.date ?? '') : '',
+          ...(time ? { time } : {}),
           location: [venue, city].filter(Boolean).join(', '),
           ...(goodToKnow.length ? { goodToKnow } : {}),
         },

@@ -792,6 +792,12 @@ class SubEvent(models.Model):
     background_color = models.CharField(max_length=7, blank=True, null=True, help_text="Background color for sub-event image (hex format, e.g., #FFFFFF)")
     rsvp_enabled = models.BooleanField(default=True)
     is_public_visible = models.BooleanField(default=False, help_text="Visible on public invite links without guest token")
+    good_to_know = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="This sub-event's answers to what guests ask - dress code, stay, parking, food, contact. "
+                  "List of {id, kind, text, url?}; see apps/events/good_to_know.py.",
+    )
     is_removed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -10,6 +10,10 @@ import {
   type ImageDimensions 
 } from '@/lib/invite/imageUtils'
 import { getTimezoneLabel } from '@/lib/invite/timezone'
+import type { GoodToKnowItem } from '@/lib/invite/schema'
+import { GOOD_TO_KNOW_PRESETS, visibleItems } from '@/lib/invite/goodToKnow'
+import { safeExternalUrl } from '@/lib/safeUrl'
+import { GOOD_TO_KNOW_ICONS } from '@/components/invite/GoodToKnowList'
 
 interface SubEvent {
   id: number
@@ -21,6 +25,8 @@ interface SubEvent {
   image_url?: string | null
   background_color?: string | null
   rsvp_enabled: boolean
+  /** This function's own answers - its dress code, its parking. */
+  good_to_know?: GoodToKnowItem[]
 }
 
 export interface EventCarouselTileProps {
@@ -520,6 +526,32 @@ export default function EventCarouselTile({
               <MapPin className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{subEvent.location}</span>
             </div>
+          )}
+
+          {/* This function's own Good to know, in the same icon rows as its time and place. */}
+          {visibleItems(subEvent.good_to_know).length > 0 && (
+            <ul className="mb-3 space-y-2" style={{ color: detailsColor }}>
+              {visibleItems(subEvent.good_to_know).map((item) => {
+                const Icon = GOOD_TO_KNOW_ICONS[item.kind]
+                const href = safeExternalUrl(item.url)
+                const text = item.text.trim()
+                return (
+                  <li key={item.id} className="flex items-start gap-2 text-sm">
+                    {Icon && <Icon className="mt-0.5 h-5 w-5 flex-shrink-0" aria-hidden="true" />}
+                    <span className="min-w-0 break-words">
+                      <span className="font-semibold">{GOOD_TO_KNOW_PRESETS[item.kind].label}:</span>{' '}
+                      {href ? (
+                        <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                          {text}
+                        </a>
+                      ) : (
+                        text
+                      )}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
           )}
           
           {subEvent.description && (() => {

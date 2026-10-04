@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, AttributionLink, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, AnimationRegistryEntry
 from apps.users.serializers import UserSerializer
+from .good_to_know import validate_good_to_know
 from .utils import get_country_code, format_phone_with_country_code, normalize_csv_header, normalize_phone_for_match, phones_loosely_match
 import re
 import secrets
@@ -1006,7 +1007,7 @@ class SubEventSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SubEvent
-        fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
+        fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'good_to_know', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
         # is_removed is read-only: soft delete goes through perform_destroy, never
         # a client write. Leaving it writable let any update that spreads the whole
         # object carry a soft delete along with it.
@@ -1014,6 +1015,9 @@ class SubEventSerializer(serializers.ModelSerializer):
 
     def get_assigned_guests_count(self, obj):
         return getattr(obj, 'assigned_guests_count', None)
+
+    def validate_good_to_know(self, value):
+        return validate_good_to_know(value)
     
     def validate(self, data):
         """Validate that end_at is after start_at if both are provided"""
@@ -1031,7 +1035,10 @@ class SubEventCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SubEvent
-        fields = ('title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible')
+        fields = ('title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'good_to_know')
+
+    def validate_good_to_know(self, value):
+        return validate_good_to_know(value)
     
     def validate(self, data):
         """Validate that end_at is after start_at if both are provided"""

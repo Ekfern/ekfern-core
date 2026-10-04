@@ -59,6 +59,7 @@ interface Event {
   has_registry: boolean
   event_structure?: 'SIMPLE' | 'ENVELOPE'
   event_type?: string
+  timezone?: string
   custom_fields_metadata?: Record<string, any>
 }
 
@@ -1285,7 +1286,9 @@ export default function DesignInvitationPage(): JSX.Element {
       'description': { content: '' },
       'feature-buttons': {},
       'footer': {},
-      'event-carousel': {},
+      // Every card field on, like the built-in default and layout defaults: with
+      // `{}` an added carousel showed cards with no title, date or place.
+      'event-carousel': { showFields: { image: true, title: true, dateTime: true, location: true, cta: true } },
     }
     // A new tile goes after everything except the footer, which is always last.
     // Counting the footer here is how tiles ended up numbered past it: the
@@ -2473,6 +2476,9 @@ export default function DesignInvitationPage(): JSX.Element {
                                     hasRsvp={event?.has_rsvp}
                                     hasRegistry={event?.has_registry}
                                     allowedSubEvents={allowedSubEvents}
+                                    // As the guest's invitation does: times read in the event's
+                                    // zone, not the host's (a host in Chicago planning Udaipur).
+                                    eventTimezone={event?.timezone}
                                   />
                                 </ComposedPage>
                               ) : (
