@@ -72,7 +72,7 @@ from django.core.cache import cache
 import threading
 from collections import defaultdict
 import time
-import boto3
+from apps.common.aws import aws_client
 from botocore.exceptions import ClientError
 
 
@@ -157,7 +157,7 @@ def invalidate_cloudfront_cache_immediate(slug):
         # Only try SSM lookup in production/staging environments
         # This prevents slow SSM API calls in local development
         try:
-            ssm = boto3.client('ssm', region_name='us-east-1')
+            ssm = aws_client('ssm', region_name='us-east-1')
             response = ssm.get_parameter(
                 Name='/event-registry-staging/CLOUDFRONT_DISTRIBUTION_ID'
             )
@@ -172,7 +172,7 @@ def invalidate_cloudfront_cache_immediate(slug):
     try:
         
         # Create CloudFront client
-        cloudfront = boto3.client('cloudfront', region_name='us-east-1')
+        cloudfront = aws_client('cloudfront', region_name='us-east-1')
         
         # Invalidate both the exact page path and any sub-paths.
         # NOTE: the wildcard '/invite/{slug}/*' does NOT match the exact
@@ -4133,7 +4133,7 @@ def _store_greeting_card_bytes(content: bytes, key: str, content_type: str) -> s
     if access_key and secret_key:
         s3_kwargs['aws_access_key_id'] = access_key
         s3_kwargs['aws_secret_access_key'] = secret_key
-    s3_client = boto3.client(**s3_kwargs)
+    s3_client = aws_client(**s3_kwargs)
     s3_client.put_object(
         Bucket=bucket_name,
         Key=key,

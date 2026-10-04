@@ -12,7 +12,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
 
-import boto3
+from apps.common.aws import aws_client
 from django.conf import settings
 from apps.notifications.models import NotificationLog
 
@@ -140,7 +140,7 @@ def _send_campaign_via_ses(
         ses_kwargs['aws_access_key_id'] = settings.SES_ACCESS_KEY_ID
         ses_kwargs['aws_secret_access_key'] = settings.SES_SECRET_ACCESS_KEY
 
-    ses_client = boto3.client('ses', **ses_kwargs)
+    ses_client = aws_client('ses', **ses_kwargs)
     from_addr = getattr(settings, 'SES_FROM_EMAIL', 'no-reply@ekfern.com')
     from_header = f'{from_name} <{from_addr}>' if from_name else from_addr
 
@@ -247,7 +247,7 @@ def _send_via_ses(to_email, subject, body_text, body_html=None):
         ses_kwargs['aws_access_key_id'] = settings.SES_ACCESS_KEY_ID
         ses_kwargs['aws_secret_access_key'] = settings.SES_SECRET_ACCESS_KEY
 
-    ses_client = boto3.client('ses', **ses_kwargs)
+    ses_client = aws_client('ses', **ses_kwargs)
 
     message = {
         'Subject': {'Data': subject},
