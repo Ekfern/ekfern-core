@@ -29,8 +29,9 @@ export interface ApplyLayoutOptions {
  * Pass the source layout's own id as `layoutId` so it's stamped onto the result as
  * `appliedLayoutId`, letting the Layout step later show what's currently applied.
  * Pass the invitation's config as it stands as `current` so what the host wrote in
- * its tiles - the time, the venue, the dress code - outlives the change of look
- * (see tileContent.ts). It wins over the event merge: it is the newer word.
+ * its tiles outlives the change of look (see tileContent.ts) - it wins over the
+ * event merge, being the newer word - and the layout it was last given as
+ * `previousLayout`, so that layout's untouched sample copy stays behind.
  */
 export function applyLayout(
   layoutConfig: InviteConfig,
@@ -38,6 +39,7 @@ export function applyLayout(
   options?: ApplyLayoutOptions,
   layoutId?: string,
   current?: InviteConfig | null,
+  previousLayout?: InviteConfig | null,
 ): InviteConfig {
   const mergeTitle = options?.mergeEventIntoTitle !== false
   const mergeDetails = options?.mergeEventIntoDetails !== false
@@ -127,7 +129,7 @@ export function applyLayout(
   return {
     ...layoutConfig,
     ...resetFields,
-    tiles: carryContent(mergedTiles, current),
+    tiles: carryContent(mergedTiles, current, previousLayout),
     tileSetComplete: true,
     appliedLayoutId: layoutId,
   }

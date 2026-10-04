@@ -151,6 +151,13 @@ export default function LayoutSelectPage(): React.ReactElement {
       return
     }
 
+    // The layout the invitation was last given, so its untouched samples stay behind.
+    const previousId = currentConfig?.appliedLayoutId
+    const previousLayoutConfig =
+      (previousId &&
+        (layouts.find((t) => t.id === previousId) ?? starterLayouts.find((t) => t.id === previousId))?.config) ||
+      null
+
     setApplying(true)
     setApplyingId(layoutId)
     try {
@@ -158,12 +165,12 @@ export default function LayoutSelectPage(): React.ReactElement {
         ? applyLayout(layout.config, undefined, {
             mergeEventIntoTitle: false,
             mergeEventIntoDetails: false,
-          }, layout.id, currentConfig)
+          }, layout.id, currentConfig, previousLayoutConfig)
         : applyLayout(layout.config, {
             title: event?.title,
             date: event?.date,
             city: event?.city,
-          }, undefined, layout.id, currentConfig)
+          }, undefined, layout.id, currentConfig, previousLayoutConfig)
 
       // Save to Event.page_config so the design page reads the layout's tiles
       await updateEventPageConfig(eventId, appliedConfig)

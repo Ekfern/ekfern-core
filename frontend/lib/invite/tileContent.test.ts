@@ -73,8 +73,69 @@ describe('applying a layout over an invitation that has content', () => {
     expect(tiles.map((t) => t.order)).toEqual([0, 1, 2, 3, 4])
   })
 
-  it('leaves description to the layout, since layouts ship sample text there', () => {
-    expect(byType(applied, 'description').content).toBe('<p>Join us for an evening to remember.</p>')
+  it('keeps the host’s own description', () => {
+    expect(byType(applied, 'description').content).toBe('<p>Our own words.</p>')
+  })
+})
+
+describe('content changes nothing but the look', () => {
+  /** What layout A shipped: the host has applied it and edited some of it. */
+  const layoutA: InviteConfig = {
+    tiles: [
+      tile('title', 0, { text: 'Event Title', eyebrow: 'SAVE THE DATE', size: 'large' }),
+      tile('poster', 1, { src: 'https://cdn/sample-a.jpg' }),
+      tile('description', 2, { content: '<p>Sample from A.</p>' }),
+      tile('event-details', 3, { date: '2026-01-01', location: '' }),
+    ],
+  } as InviteConfig
+
+  const afterA: InviteConfig = {
+    appliedLayoutId: 'A',
+    tiles: [
+      tile('title', 0, { text: 'Riya weds Kabir', eyebrow: 'SAVE THE DATE', size: 'large' }),
+      tile('poster', 1, { src: 'https://cdn/sample-a.jpg' }),
+      tile('description', 2, { content: '<p>Sample from A.</p>' }),
+      tile('event-details', 3, { date: '2026-12-12', location: 'Udaipur' }),
+      tile('gallery', 4, { images: [{ id: 'p1', src: 'https://cdn/us.jpg' }] }),
+    ],
+  } as InviteConfig
+
+  const layoutB: InviteConfig = {
+    tiles: [
+      tile('title', 0, { text: 'Event Title', eyebrow: 'YOU ARE INVITED', size: 'small' }),
+      tile('poster', 1, { src: 'https://cdn/sample-b.jpg' }),
+      tile('description', 2, { content: '<p>Sample from B.</p>' }),
+      tile('event-details', 3, { date: '2026-01-01', location: '' }),
+    ],
+  } as InviteConfig
+
+  const switched = applyLayout(layoutB, { title: 'Sharma wedding', date: '2026-12-12', city: 'Udaipur' }, undefined, 'B', afterA, layoutA)
+
+  it('keeps the headline the host wrote over the event title', () => {
+    expect(byType(switched, 'title')).toMatchObject({ text: 'Riya weds Kabir', size: 'small' })
+  })
+
+  it('lets the new layout’s samples show where the host never changed the old ones', () => {
+    expect(byType(switched, 'title').eyebrow).toBe('YOU ARE INVITED')
+    expect(byType(switched, 'poster').src).toBe('https://cdn/sample-b.jpg')
+    expect(byType(switched, 'description').content).toBe('<p>Sample from B.</p>')
+  })
+
+  it('brings the host’s photos along though the new layout has no gallery', () => {
+    expect(byType(switched, 'gallery').images).toEqual([{ id: 'p1', src: 'https://cdn/us.jpg' }])
+  })
+
+  it('without the previous layout to compare, keeps everything filled in', () => {
+    const blind = applyLayout(layoutB, undefined, { mergeEventIntoTitle: false, mergeEventIntoDetails: false }, 'B', afterA)
+    expect(byType(blind, 'poster').src).toBe('https://cdn/sample-a.jpg')
+    expect(byType(blind, 'title').text).toBe('Riya weds Kabir')
+  })
+
+  it('a missing title comes back at the top', () => {
+    const noTitle: InviteConfig = { tiles: [tile('event-details', 0, { date: '2026-01-01', location: '' })] } as InviteConfig
+    const next = applyLayout(noTitle, undefined, undefined, 'C', afterA, layoutA)
+    const first = [...next.tiles!].sort((a, b) => a.order - b.order)[0]
+    expect(first).toMatchObject({ type: 'title', settings: { text: 'Riya weds Kabir' } })
   })
 })
 
