@@ -3,6 +3,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
+from .models import invitation_title_from_config
 from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, AttributionLink, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, AnimationRegistryEntry
 from apps.users.serializers import UserSerializer
 from .good_to_know import validate_good_to_know
@@ -303,7 +304,9 @@ class InvitePageSerializer(serializers.ModelSerializer):
     # endpoints must use `event`, not `id`.
     country_code = serializers.SerializerMethodField()
     # Presentation, and effectively immutable - the cacheable side of the split.
-    title = serializers.CharField(source='event.title', read_only=True)
+    # The invitation's headline (Event.invitation_title), read from this page's
+    # own configs so it costs no extra query; the event's title is the host's name for it.
+    title = serializers.SerializerMethodField()
     host_name = serializers.CharField(source='event.host.name', read_only=True, allow_null=True)
     state = serializers.SerializerMethodField()  # Expose state property using method field
     rsvp_count = serializers.SerializerMethodField()
@@ -339,6 +342,13 @@ class InvitePageSerializer(serializers.ModelSerializer):
         # This will be set by the view using context
         return self.context.get('guest_context', None)
     
+    def get_title(self, obj):
+        return (
+            invitation_title_from_config(obj.published_config)
+            or invitation_title_from_config(obj.config)
+            or obj.event.title
+        )
+
     def get_state(self, obj):
         """Get the state property from the InvitePage model"""
         return obj.state
@@ -1161,7 +1171,7 @@ class MessageTemplateSerializer(serializers.ModelSerializer):
         variables = [
             {'key': '[name]', 'label': 'Guest Name', 'description': 'Name of the guest', 'example': 'Sarah'},
             {'key': '[event_title]', 'label': 'Event Title', 'description': 'Title of the event',
-             'example': event.title if event else 'Your Event'},
+             'example': event.invitation_title if event else 'Your Event'},
             {'key': '[event_date]', 'label': 'Event Date', 'description': 'Date of the event',
              'example': (event.date.strftime('%B %d, %Y') if event and event.date else 'TBD')},
             {'key': '[event_url]', 'label': 'Event URL', 'description': 'Link to the event invitation',

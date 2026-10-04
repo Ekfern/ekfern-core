@@ -2,10 +2,12 @@ import re
 from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, IntegrityError
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
+from django.utils.functional import cached_property
 from django.db.models import Q
 from apps.users.models import User
 
@@ -32,6 +34,28 @@ class EventQuerySet(models.QuerySet):
             Q(host=user)
             | Q(cohosts__user=user, cohosts__status=EventCoHost.STATUS_ACCEPTED)
         ).distinct()
+
+
+def invitation_title_from_config(config):
+    """
+    The headline an invitation config shows: its first enabled Title tile's text,
+    whitespace collapsed. None when there is no such tile or it is blank.
+    """
+    if not isinstance(config, dict):
+        return None
+    tiles = config.get('tiles')
+    if not isinstance(tiles, list):
+        return None
+    titles = [
+        t for t in tiles
+        if isinstance(t, dict) and t.get('type') == 'title' and t.get('enabled', True) is not False
+    ]
+    titles.sort(key=lambda t: t.get('order') if isinstance(t.get('order'), (int, float)) else 0)
+    for tile in titles:
+        text = (tile.get('settings') or {}).get('text')
+        if isinstance(text, str) and text.strip():
+            return ' '.join(text.split())
+    return None
 
 
 class Event(models.Model):
@@ -251,6 +275,35 @@ class Event(models.Model):
     
     def __str__(self):
         return f"{self.title} ({self.slug})"
+
+    @cached_property
+    def invitation_title(self):
+        """
+        The event's name as guests know it: the invitation's headline.
+
+        `title` is the host's own name for the event, used on their dashboard
+        and in co-host emails. Everything guests read, and the notifications
+        about them, use this instead - so "Sharma wedding" on the dashboard can
+        be "Riya weds Kabir" in a WhatsApp message.
+
+        Read from the published invitation (what guests have seen), else the
+        draft, else the event title. Cached per instance: one lookup per send.
+        """
+        page = None
+        if self.pk:
+            try:
+                page = self.invite_page
+            except ObjectDoesNotExist:  # no invitation yet
+                page = None
+        for config in (
+            getattr(page, 'published_config', None),
+            getattr(page, 'config', None),
+            self.page_config,
+        ):
+            headline = invitation_title_from_config(config)
+            if headline:
+                return headline
+        return self.title
 
     def get_canonical_rsvp_mode(self):
         """
@@ -1618,7 +1671,7 @@ class MessageTemplate(models.Model):
                 date_str = event.date.strftime('%B %d, %Y') if event.date else 'TBD'
                 sample_data = {
                     'name': 'Sarah',
-                    'event_title': event.title,
+                    'event_title': event.invitation_title,
                     'event_date': date_str,
                     'event_url': f"https://example.com/invite/{event.slug}",
                     'host_name': (event.host.name if event.host else '') or 'Host',

@@ -34,7 +34,7 @@ def _send_guest_receipt(response, item, event):
     rendered = emails.catalog_receipt(
         guest_name=response.name or '',
         item_title=item.title,
-        event_title=event.title,
+        event_title=event.invitation_title,
         amount_paise=response.amount if response.response_type == 'pledge' else None,
         guest_message=response.message or '',
         instructions=item.manual_instructions or '',
@@ -59,7 +59,7 @@ def _send_host_alert(response, item, event, host):
     from django.conf import settings
 
     rendered = emails.catalog_alert(
-        event_title=event.title,
+        event_title=event.invitation_title,
         item_title=item.title,
         response_label=dict(response.RESPONSE_TYPE_CHOICES).get(response.response_type, response.response_type),
         guest_name=response.name or '',
@@ -91,7 +91,7 @@ def _send_host_alert(response, item, event, host):
                 notification_type='gift_received',
                 payload_json={
                     'event_id': event.id,
-                    'event_title': event.title,
+                    'event_title': event.invitation_title,
                     'item_title': item.title,
                     'response_type': response.response_type,
                     'guest_name': response.name,

@@ -522,7 +522,8 @@ def render_template_with_guest(template_text: str, event, guest=None, base_url: 
         replacements['[name]'] = ''
     
     # Event title
-    replacements['[event_title]'] = event.title or 'Event'
+    # The invitation's headline, as guests know the event (Event.invitation_title).
+    replacements['[event_title]'] = event.invitation_title or 'Event'
     
     # Event date
     if event.date:

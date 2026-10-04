@@ -1276,7 +1276,7 @@ class EventViewSet(viewsets.ModelViewSet):
         # Default variables
         default_vars = [
             {'key': '[name]', 'label': 'Guest Name', 'description': 'Name of the guest', 'example': 'Sarah'},
-            {'key': '[event_title]', 'label': 'Event Title', 'description': 'Title of the event', 'example': event.title or 'Event Title'},
+            {'key': '[event_title]', 'label': 'Event Title', 'description': 'Title of the event', 'example': event.invitation_title or 'Event Title'},
             {'key': '[event_date]', 'label': 'Event Date', 'description': 'Date of the event', 'example': event.date.strftime('%B %d, %Y') if event.date else 'TBD'},
             {'key': '[event_url]', 'label': 'Event URL', 'description': 'Link to the event invitation', 'example': f'https://example.com/invite/{event.slug}' if event.slug else 'https://example.com/invite/event-slug'},
             {'key': '[host_name]', 'label': 'Host Name', 'description': 'Name of the event host', 'example': getattr(event.host, 'name', None) or getattr(event.host, 'username', 'Host')},
@@ -2647,7 +2647,7 @@ def _notify_host_rsvp(event, rsvp):
         from apps.common import emails
         rendered = emails.rsvp_confirmation(
             guest_name=rsvp.name or '',
-            event_title=event.title,
+            event_title=event.invitation_title,
             event_date=event.date,
             will_attend=rsvp.will_attend,
             host_name=event.host.name or '',
@@ -2683,7 +2683,7 @@ def _notify_rsvp_recipient(event, rsvp, host):
 
     from apps.common import emails
     rendered = emails.rsvp_alert(
-        event_title=event.title,
+        event_title=event.invitation_title,
         guest_name=rsvp.name or '',
         will_attend=rsvp.will_attend,
         guests_count=rsvp.guests_count or 1,
@@ -2710,7 +2710,7 @@ def _notify_rsvp_recipient(event, rsvp, host):
             notification_type='rsvp_new',
             payload_json={
                 'event_id': event.id,
-                'event_title': event.title,
+                'event_title': event.invitation_title,
                 'rsvp_name': rsvp.name or '',
                 'rsvp_email': rsvp.email or '',
                 'will_attend': rsvp.will_attend,
