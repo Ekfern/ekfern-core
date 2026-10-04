@@ -9,8 +9,7 @@ import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
 import EventDetailsForm, { eventPayloadOf, type EventDetailsFormData } from '@/components/host/EventDetailsForm'
-import CoHostPanel from '@/components/host/CoHostPanel'
-import type { EventRole } from '@/lib/cohosts'
+import { listCoHosts, type EventRole } from '@/lib/cohosts'
 import { getInvitePage, updateInvitePage } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import type { EventDetailsTileSettings, InviteConfig, Tile } from '@/lib/invite/schema'
@@ -41,6 +40,15 @@ export default function EventDetailsEditPage() {
   const [loading, setLoading] = useState(false)
   const [pendingData, setPendingData] = useState<EventDetailsFormData | null>(null)
   const [rsvpWarningCount, setRsvpWarningCount] = useState<number | null>(null)
+  // For Backstage's "2 co-hosts · Manage" link; co-hosts are managed on Overview.
+  const [coHostCount, setCoHostCount] = useState(0)
+
+  useEffect(() => {
+    if (event?.my_role !== 'owner') return
+    listCoHosts(eventId)
+      .then((all) => setCoHostCount(all.filter((c) => c.status === 'pending' || c.status === 'accepted').length))
+      .catch(() => { /* the link still works; it just shows no count */ })
+  }, [event?.my_role, eventId])
 
   useEffect(() => {
     if (!eventId || isNaN(eventId)) return
@@ -174,12 +182,17 @@ export default function EventDetailsEditPage() {
                 loading={loading}
                 onCancel={() => router.back()}
                 showStructureChoice
+                // Only the owner manages co-hosts.
+                coHosts={
+                  event.my_role === 'owner'
+                    ? { count: coHostCount, href: `/host/events/${eventId}#cohosts` }
+                    : undefined
+                }
               />
             )}
           </CardContent>
         </Card>
 
-        <CoHostPanel eventId={eventId} canManage={event?.my_role === 'owner'} />
       </div>
 
       {pendingData && rsvpWarningCount !== null && (

@@ -92,8 +92,8 @@ interface EventDetailsFormProps {
    * those live in the invitation's Event Details tile and are edited there.
    */
   showInviteContent?: boolean
-  /** Creation only: the co-host invite section, opened from Backstage's Co-hosts chip. */
-  coHosts?: { count: number; panel: ReactNode }
+  /** Backstage's Co-hosts chip: an invite panel while creating, a link to Overview after. */
+  coHosts?: { count: number; panel?: ReactNode; href?: string }
 }
 
 const sectionHeading = 'text-lg font-bold text-eco-green'

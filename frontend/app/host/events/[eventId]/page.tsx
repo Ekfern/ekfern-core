@@ -17,11 +17,15 @@ import EventOverviewStats from '@/components/events/stats/EventOverviewStats'
 import EventStatusBadge from '@/components/events/EventStatusBadge'
 import NextActionCard from '@/components/events/NextActionCard'
 import { updateCatalog } from '@/lib/catalog/api'
+import CoHostPanel from '@/components/host/CoHostPanel'
+import type { EventRole } from '@/lib/cohosts'
 
 interface Event {
   id: number
   slug: string
   title: string
+  /** 'owner' for the host, 'cohost' for a collaborator. Only the owner manages co-hosts. */
+  my_role?: EventRole
   event_type: string
   date: string
   expiry_date?: string | null
@@ -67,6 +71,13 @@ export default function EventDetailPage() {
   const eventId = params.eventId as string
   const { showToast } = useToast()
   const [event, setEvent] = useState<Event | null>(null)
+
+  // Edit Event Details links to #cohosts. The card exists only once the event
+  // has loaded, after the browser's own jump to the anchor, so jump again then.
+  useEffect(() => {
+    if (!event || typeof window === 'undefined' || window.location.hash !== '#cohosts') return
+    requestAnimationFrame(() => document.getElementById('cohosts')?.scrollIntoView({ block: 'start' }))
+  }, [event])
   const [catalogResponseCount, setCatalogResponseCount] = useState<number>(0)
   const [guests, setGuests] = useState<any[]>([])
   const [rsvps, setRsvps] = useState<any[]>([])
@@ -928,6 +939,14 @@ export default function EventDetailPage() {
             </CardContent>
           </Card>
         ) : null}
+
+        {/* Co-hosts: managed here for the life of the event (added in Backstage at creation;
+            Edit Event Details links here). The panel renders nothing for a co-host. */}
+        {event.my_role === 'owner' && (
+          <div id="cohosts" className="mb-8 scroll-mt-28">
+            <CoHostPanel eventId={eventId} canManage />
+          </div>
+        )}
 
         {/* Settings & Configuration Section */}
         <div className="mb-8">

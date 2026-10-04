@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Check, Globe, Lock, UserPlus, X } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowRight, Check, Globe, Lock, UserPlus, X } from 'lucide-react'
 
 export interface BackstageValue {
   is_public: boolean
@@ -12,8 +13,11 @@ export interface BackstageValue {
 interface BackstageChipsProps {
   value: BackstageValue
   onChange: (patch: Partial<BackstageValue>) => void
-  /** The co-host invite section; only the create flow passes one. */
-  coHosts?: { count: number; panel: React.ReactNode }
+  /**
+   * Co-hosts. While creating, `panel` opens the invite section here. Once the
+   * event exists they are managed on its Overview, and `href` links there.
+   */
+  coHosts?: { count: number; panel?: React.ReactNode; href?: string }
 }
 
 type Panel = 'who' | 'cohosts' | null
@@ -74,7 +78,17 @@ export default function BackstageChips({ value, onChange, coHosts }: BackstageCh
           {value.has_registry ? <Check className="h-4 w-4" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}
           {value.has_registry ? 'Host catalog on' : 'Host catalog off'}
         </button>
-        {coHosts && (
+        {coHosts?.href && (
+          <Link href={coHosts.href} className={chip(coHosts.count > 0)}>
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            <span>
+              {coHosts.count === 0 ? 'Co-hosts' : `${coHosts.count} co-host${coHosts.count === 1 ? '' : 's'}`}
+              <span className="font-normal opacity-80"> · Manage</span>
+            </span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        )}
+        {coHosts?.panel && (
           <button
             type="button"
             aria-expanded={panel === 'cohosts'}
