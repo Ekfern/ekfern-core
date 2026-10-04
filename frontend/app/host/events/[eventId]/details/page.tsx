@@ -159,13 +159,9 @@ export default function EventDetailsEditPage() {
         includeSubEvents={event?.event_structure === 'ENVELOPE'}
       />
       <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <h1 className="text-4xl font-bold mb-2 text-eco-green">Edit Event Details</h1>
-        <p className="text-lg text-gray-700 mb-8">Update your event&apos;s basic details.</p>
+        <h1 className="text-4xl font-bold mb-6 text-eco-green">Edit Event Details</h1>
         <Card className="bg-white border-2 border-eco-green-light">
-          <CardHeader>
-            <CardTitle className="text-eco-green">Event Details</CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {event && (
               <EventDetailsForm
                 defaultValues={{
