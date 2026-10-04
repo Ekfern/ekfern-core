@@ -5148,10 +5148,14 @@ def place_suggest(request):
     Always 200 - an empty list means "no suggestions", whether that is because
     nothing matched or because the lookup service is unreachable, and the editor
     falls back to a plain text field either way.
-    """
-    from .services.places import ATTRIBUTION, search_places
 
-    results, available = search_places(request.query_params.get('q', ''))
+    `?kind=city` is the create-event form's lookup: towns only, each with its
+    country code and time zone.
+    """
+    from .services.places import ATTRIBUTION, search_cities, search_places
+
+    search = search_cities if request.query_params.get('kind') == 'city' else search_places
+    results, available = search(request.query_params.get('q', ''))
     response = Response({'results': results, 'attribution': ATTRIBUTION, 'available': available})
     response['Cache-Control'] = 'private, max-age=300'
     return response
