@@ -16,7 +16,7 @@
 import type { InviteConfig, Tile, TileType } from './schema'
 
 export const TILE_CONTENT_FIELDS: Partial<Record<TileType, readonly string[]>> = {
-  'event-details': ['date', 'time', 'endTime', 'repeats', 'location', 'dressCode'],
+  'event-details': ['date', 'time', 'endTime', 'repeats', 'location', 'goodToKnow'],
   directions: ['mapUrl', 'coordinates', 'locationVerified', 'addressLine'],
 }
 

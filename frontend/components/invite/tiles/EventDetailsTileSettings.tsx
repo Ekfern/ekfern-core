@@ -7,13 +7,16 @@ import { Input } from '@/components/ui/input'
 import { FONT_OPTIONS, findFontByFamily } from '@/lib/invite/fonts'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import FontPicker from '@/components/invite/FontPicker'
+import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
 
 interface EventDetailsTileSettingsProps {
   settings: EventDetailsTileSettings
   onChange: (settings: EventDetailsTileSettings) => void
+  /** Orders the Good to know chips by what this kind of event's guests ask first. */
+  eventType?: string | null
 }
 
-export default function EventDetailsTileSettings({ settings, onChange }: EventDetailsTileSettingsProps) {
+export default function EventDetailsTileSettings({ settings, onChange, eventType }: EventDetailsTileSettingsProps) {
   const [showBorderStyling, setShowBorderStyling] = useState(false)
   const [showAppearance, setShowAppearance] = useState(false)
 
@@ -100,13 +103,16 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         </p>
       </div>
 
-      {/* Additional Details */}
+      {/* Good to know - where the lone Dress Code field used to be */}
       <div>
-        <label className="block text-sm font-medium mb-2">Dress Code (optional)</label>
-        <Input
-          value={settings.dressCode || ''}
-          onChange={(e) => onChange({ ...settings, dressCode: e.target.value || undefined })}
-          placeholder="e.g., Formal, Casual, Traditional"
+        <p className="block text-sm font-medium mb-1">Good to know</p>
+        <p className="text-xs text-gray-500 mb-2">
+          Answers to what guests usually ask. Only what you fill in appears on your invitation.
+        </p>
+        <GoodToKnowEditor
+          items={settings.goodToKnow ?? []}
+          onChange={(goodToKnow) => onChange({ ...settings, goodToKnow: goodToKnow.length ? goodToKnow : undefined })}
+          eventType={eventType}
         />
       </div>
 

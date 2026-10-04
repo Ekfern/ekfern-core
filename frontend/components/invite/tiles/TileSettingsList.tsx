@@ -47,6 +47,8 @@ interface TileSettingsListProps {
   templateStudio?: boolean
   /** Tile ids that differ from the published version (renders an "Edited" badge). */
   changedTileIds?: Set<string>
+  /** Passed to Event Details so its Good to know chips follow the event type. */
+  eventType?: string | null
 }
 
 export default function TileSettingsList({
@@ -63,6 +65,7 @@ export default function TileSettingsList({
   eventStructure,
   templateStudio = false,
   changedTileIds,
+  eventType,
 }: TileSettingsListProps) {
   const [showPicker, setShowPicker] = useState(false)
 
@@ -114,6 +117,7 @@ export default function TileSettingsList({
               hasRsvp={hasRsvp}
               hasRegistry={hasRegistry}
               forceExpanded={forceExpanded}
+              eventType={eventType}
               isChanged={changedTileIds?.has(tile.id) ?? false}
             />
           ))}
@@ -128,6 +132,7 @@ export default function TileSettingsList({
               hasRsvp={hasRsvp}
               hasRegistry={hasRegistry}
               forceExpanded={forceExpanded}
+              eventType={eventType}
               isFooter={true}
               isChanged={changedTileIds?.has(footerTile.id) ?? false}
             />

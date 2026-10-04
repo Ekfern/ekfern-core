@@ -56,6 +56,16 @@ NAMED_TILE_FIELDS = {
     'label': 'label',
 }
 
+#: Good to know items, named as the host and guests see them (frontend
+#: lib/invite/goodToKnow.ts holds the same labels).
+GOOD_TO_KNOW_LABELS = {
+    'dress': 'Dress code',
+    'stay': 'Stay',
+    'parking': 'Parking',
+    'food': 'Food',
+    'contact': 'Contact',
+}
+
 
 def _short(value):
     """A value a host can read: scalars in full-ish, structures merely named."""
@@ -135,6 +145,35 @@ def diff_configs(before, after):
     return changes
 
 
+def _diff_good_to_know(name, before_items, after_items, changes):
+    """One line per answer that changed, rather than "2 items" -> "3 items"."""
+    def by_kind(items):
+        result = {}
+        for item in items if isinstance(items, list) else []:
+            if isinstance(item, dict) and item.get('kind') and item['kind'] not in result:
+                result[item['kind']] = item
+        return result
+
+    before, after = by_kind(before_items), by_kind(after_items)
+    for kind in sorted(set(before) | set(after)):
+        label = GOOD_TO_KNOW_LABELS.get(kind, kind)
+        old, new = before.get(kind), after.get(kind)
+        if old == new:
+            continue
+        if old is None:
+            changes.append({'location': f'{name} · {label}', 'from': '—', 'to': _short(new.get('text'))})
+        elif new is None:
+            changes.append({'location': f'{name} · {label}', 'from': _short(old.get('text')), 'to': 'removed'})
+        else:
+            for field, suffix in (('text', ''), ('url', ' link')):
+                if old.get(field) != new.get(field):
+                    changes.append({
+                        'location': f'{name} · {label}{suffix}',
+                        'from': _short(old.get(field)),
+                        'to': _short(new.get(field)),
+                    })
+
+
 def _diff_tiles(before_tiles, after_tiles, changes):
     before_by_id = {t.get('id'): t for t in before_tiles if isinstance(t, dict) and t.get('id')}
     after_by_id = {t.get('id'): t for t in after_tiles if isinstance(t, dict) and t.get('id')}
@@ -165,6 +204,9 @@ def _diff_tiles(before_tiles, after_tiles, changes):
         for key in sorted(set(old_settings) | set(new_settings)):
             old, new = old_settings.get(key), new_settings.get(key)
             if old == new:
+                continue
+            if key == 'goodToKnow':
+                _diff_good_to_know(name, old, new, changes)
                 continue
             label = NAMED_TILE_FIELDS.get(key, key)
             changes.append({'location': f'{name} · {label}', 'from': _short(old), 'to': _short(new)})

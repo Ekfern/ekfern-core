@@ -58,6 +58,7 @@ interface Event {
   has_rsvp: boolean
   has_registry: boolean
   event_structure?: 'SIMPLE' | 'ENVELOPE'
+  event_type?: string
   custom_fields_metadata?: Record<string, any>
 }
 
@@ -742,7 +743,6 @@ export default function DesignInvitationPage(): JSX.Element {
             location: eventDetailsSettings.location || '',
             date: eventDetailsSettings.date || '',
             time: eventDetailsSettings.time, // Can be undefined, that's fine
-            dressCode: eventDetailsSettings.dressCode,
             mapUrl: eventDetailsSettings.mapUrl,
             locationVerified: eventDetailsSettings.locationVerified,
             coordinates: eventDetailsSettings.coordinates,
@@ -2335,6 +2335,7 @@ export default function DesignInvitationPage(): JSX.Element {
                   forceExpanded={allTilesExpanded}
                   eventStructure={event?.event_structure}
                   changedTileIds={changedTileIds}
+                  eventType={event?.event_type}
                 />
               ) : (
                 <p className="text-gray-500 text-sm">No tiles available</p>

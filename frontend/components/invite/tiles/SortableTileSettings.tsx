@@ -20,6 +20,7 @@ interface SortableTileSettingsProps {
   isFooter?: boolean
   /** Highlight that this tile differs from the published version (unpublished change). */
   isChanged?: boolean
+  eventType?: string | null
 }
 
 export default function SortableTileSettings({
@@ -33,6 +34,7 @@ export default function SortableTileSettings({
   forceExpanded = false,
   isFooter = false,
   isChanged = false,
+  eventType,
 }: SortableTileSettingsProps) {
   const {
     attributes,
@@ -87,6 +89,7 @@ export default function SortableTileSettings({
           hasRsvp={hasRsvp}
           hasRegistry={hasRegistry}
           forceExpanded={forceExpanded}
+          eventType={eventType}
         />
       </div>
     </div>

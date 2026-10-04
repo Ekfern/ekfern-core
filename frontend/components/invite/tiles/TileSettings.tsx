@@ -24,6 +24,8 @@ interface TileSettingsProps {
   hasRsvp?: boolean
   hasRegistry?: boolean
   forceExpanded?: boolean
+  /** Orders Event Details' Good to know chips by what this kind of event's guests ask. */
+  eventType?: string | null
 }
 
 const TILE_LABELS: Record<TileType, string> = {
@@ -39,7 +41,7 @@ const TILE_LABELS: Record<TileType, string> = {
   'event-carousel': 'Event Carousel',
 }
 
-export default function TileSettings({ tile, onUpdate, onToggle, onRemove, eventId, hasRsvp = false, hasRegistry = false, forceExpanded = false }: TileSettingsProps) {
+export default function TileSettings({ tile, onUpdate, onToggle, onRemove, eventId, hasRsvp = false, hasRegistry = false, forceExpanded = false, eventType }: TileSettingsProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   // Sync with forceExpanded prop
@@ -77,7 +79,7 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
       case 'timer':
         return <TimerTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'event-details':
-        return <EventDetailsTileSettings settings={settings as any} onChange={handleSettingsChange} />
+        return <EventDetailsTileSettings settings={settings as any} onChange={handleSettingsChange} eventType={eventType} />
       case 'directions':
         return <DirectionsTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'description':

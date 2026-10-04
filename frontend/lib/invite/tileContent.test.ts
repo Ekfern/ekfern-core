@@ -29,7 +29,7 @@ const current: InviteConfig = {
       time: '19:00',
       endTime: '23:00',
       location: 'The Lakeside Lawns, Udaipur',
-      dressCode: 'Pastels',
+      goodToKnow: [{ id: 'gtk-1', kind: 'dress', text: 'Pastels' }],
       dateLayout: 'single-line',
       borderStyle: 'ornate',
     }),
@@ -47,13 +47,13 @@ function byType(config: InviteConfig, type: Tile['type']) {
 describe('applying a layout over an invitation that has content', () => {
   const applied = applyLayout(layout, event, undefined, 'layout-2', current)
 
-  it('keeps the time, venue and dress code typed into Event Details', () => {
+  it('keeps the time, venue and Good to know typed into Event Details', () => {
     expect(byType(applied, 'event-details')).toMatchObject({
       date: '2026-12-12',
       time: '19:00',
       endTime: '23:00',
       location: 'The Lakeside Lawns, Udaipur',
-      dressCode: 'Pastels',
+      goodToKnow: [{ id: 'gtk-1', kind: 'dress', text: 'Pastels' }],
     })
   })
 
