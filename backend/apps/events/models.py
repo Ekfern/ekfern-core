@@ -38,18 +38,18 @@ class EventQuerySet(models.QuerySet):
 
 def invitation_title_from_config(config):
     """
-    The headline an invitation config shows: its first enabled Title tile's text,
-    whitespace collapsed. None when there is no such tile or it is blank.
+    An invitation's headline: its first Title tile's text, whitespace collapsed.
+
+    Shown or hidden - a host may hide it when a poster carries the names in its
+    artwork, and it still names the event (frontend lib/invite/headline.ts).
+    None when there is no Title tile or it is blank.
     """
     if not isinstance(config, dict):
         return None
     tiles = config.get('tiles')
     if not isinstance(tiles, list):
         return None
-    titles = [
-        t for t in tiles
-        if isinstance(t, dict) and t.get('type') == 'title' and t.get('enabled', True) is not False
-    ]
+    titles = [t for t in tiles if isinstance(t, dict) and t.get('type') == 'title']
     titles.sort(key=lambda t: t.get('order') if isinstance(t.get('order'), (int, float)) else 0)
     for tile in titles:
         text = (tile.get('settings') or {}).get('text')

@@ -17,12 +17,16 @@ def title_tile(text, order=0, enabled=True, tile_id='t'):
 
 
 class InvitationTitleFromConfigTests(SimpleTestCase):
-    def test_first_enabled_title_by_order(self):
+    def test_first_title_by_order_whitespace_collapsed(self):
         config = {'tiles': [
             title_tile('Second', order=2, tile_id='b'),
-            title_tile('Hidden', order=0, enabled=False, tile_id='a'),
             title_tile('  Riya   weds\nKabir ', order=1, tile_id='c'),
         ]}
+        self.assertEqual(invitation_title_from_config(config), 'Riya weds Kabir')
+
+    def test_a_hidden_headline_still_names_the_event(self):
+        """A poster carrying the names in its artwork hides the tile, not the name."""
+        config = {'tiles': [title_tile('Riya weds Kabir', order=0, enabled=False), title_tile('Welcome', order=1, tile_id='d')]}
         self.assertEqual(invitation_title_from_config(config), 'Riya weds Kabir')
 
     def test_nothing_usable_is_none(self):

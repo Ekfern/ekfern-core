@@ -24,6 +24,7 @@ import { getInvitePageLayouts } from '@/lib/invite/api'
 import { getInvitePage, createInvitePage, publishInvitePage } from '@/lib/invite/api'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
+import { headlineText, headlineTile } from '@/lib/invite/headline'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
@@ -655,6 +656,9 @@ export default function DesignInvitationPage(): JSX.Element {
       if (!Array.isArray(images) || images.every((image: any) => !image?.src)) {
         return 'Gallery tile is enabled but has no photos. Please add a photo or disable the gallery tile.'
       }
+    }
+    if (headlineTile(config.tiles) && !headlineText(config.tiles)) {
+      return 'Add a headline in the Title tile. Guests see it in messages and link previews, even when the tile is hidden.'
     }
     const enabledTitleTiles = config.tiles?.filter(t => t.type === 'title' && t.enabled) || []
     for (const titleTile of enabledTitleTiles) {
@@ -1338,6 +1342,8 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
   const handleRemoveTile = (tileId: string) => {
+    // The headline names the event in messages: it can be hidden, not removed.
+    if (headlineTile(config.tiles)?.id === tileId) return
     pushHistory()
     setConfig(prev => ({
       ...prev,
@@ -2350,6 +2356,7 @@ export default function DesignInvitationPage(): JSX.Element {
                   changedTileIds={changedTileIds}
                   eventType={event?.event_type}
                   expandTileType={panelFromLink}
+                  protectHeadline
                 />
               ) : (
                 <p className="text-gray-500 text-sm">No tiles available</p>

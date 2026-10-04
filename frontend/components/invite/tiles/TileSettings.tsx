@@ -28,6 +28,8 @@ interface TileSettingsProps {
   eventType?: string | null
   /** Open this panel, and bring it into view, when the editor loads (?panel=<tile type>). */
   expandOnOpen?: boolean
+  /** This is the invitation's headline (lib/invite/headline.ts). */
+  isHeadline?: boolean
 }
 
 const TILE_LABELS: Record<TileType, string> = {
@@ -43,7 +45,7 @@ const TILE_LABELS: Record<TileType, string> = {
   'event-carousel': 'Event Carousel',
 }
 
-export default function TileSettings({ tile, onUpdate, onToggle, onRemove, eventId, hasRsvp = false, hasRegistry = false, forceExpanded = false, eventType, expandOnOpen = false }: TileSettingsProps) {
+export default function TileSettings({ tile, onUpdate, onToggle, onRemove, eventId, hasRsvp = false, hasRegistry = false, forceExpanded = false, eventType, expandOnOpen = false, isHeadline = false }: TileSettingsProps) {
   const [isExpanded, setIsExpanded] = useState(expandOnOpen)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -81,6 +83,7 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
           <TitleTileSettings
             settings={settings as any}
             onChange={handleSettingsChange}
+            isHeadline={isHeadline}
           />
         )
       case 'gallery':
