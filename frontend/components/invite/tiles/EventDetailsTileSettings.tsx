@@ -137,9 +137,6 @@ export default function EventDetailsTileSettings({ settings, onChange, eventType
           onChange={(e) => handleLocationChange(e.target.value)}
           placeholder={online ? 'Online · link shared after you RSVP' : 'The Lakeside Lawns, Udaipur'}
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Exactly what guests read under Location. Leave it empty and the line is not shown.
-        </p>
       </div>
 
       {/* Good to know - where the lone Dress Code field used to be */}
