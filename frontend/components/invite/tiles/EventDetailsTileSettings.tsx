@@ -8,15 +8,23 @@ import { FONT_OPTIONS, findFontByFamily } from '@/lib/invite/fonts'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import FontPicker from '@/components/invite/FontPicker'
 import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
+import Link from 'next/link'
 
 interface EventDetailsTileSettingsProps {
   settings: EventDetailsTileSettings
   onChange: (settings: EventDetailsTileSettings) => void
   /** Orders the Good to know chips by what this kind of event's guests ask first. */
   eventType?: string | null
+  /**
+   * The real event (0 in the staff Layout Studio). For a real event the date is
+   * the event's - it drives reminders and the countdown - so it is changed on
+   * Edit Event Details, which also updates it here, and shown read-only here.
+   */
+  eventId?: number
 }
 
-export default function EventDetailsTileSettings({ settings, onChange, eventType }: EventDetailsTileSettingsProps) {
+export default function EventDetailsTileSettings({ settings, onChange, eventType, eventId = 0 }: EventDetailsTileSettingsProps) {
+  const dateIsEvents = eventId > 0
   const [showBorderStyling, setShowBorderStyling] = useState(false)
   const [showAppearance, setShowAppearance] = useState(false)
 
@@ -34,8 +42,19 @@ export default function EventDetailsTileSettings({ settings, onChange, eventType
           type="date"
           value={settings.date || ''}
           onChange={(e) => onChange({ ...settings, date: e.target.value })}
-          required
+          required={!dateIsEvents}
+          readOnly={dateIsEvents}
+          aria-readonly={dateIsEvents}
+          className={dateIsEvents ? 'cursor-not-allowed bg-gray-100 text-gray-500' : undefined}
         />
+        {dateIsEvents && (
+          <p className="mt-1 text-xs text-gray-500">
+            The event’s date.{' '}
+            <Link href={`/host/events/${eventId}/details`} className="font-medium text-eco-teal underline underline-offset-2">
+              Change it on Event Details →
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

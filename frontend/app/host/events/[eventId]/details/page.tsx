@@ -15,6 +15,7 @@ import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import type { InviteConfig } from '@/lib/invite/schema'
 import {
   changedContent,
+  invitationIsLaidOut,
   readEventDetailsContent,
   withEventDetailsContent,
   type EventDetailsContent,
@@ -52,6 +53,9 @@ export default function EventDetailsEditPage() {
   // What the invitation says now - time, location line, Good to know - so the
   // form starts from it and a save writes back only what changed.
   const invitationContent = useMemo(() => readEventDetailsContent(event?.page_config), [event?.page_config])
+  // Once laid out, the invitation is where its time, venue line and Good to know
+  // are edited; here they show greyed out. The date stays here: it is the event's.
+  const invitationLocked = invitationIsLaidOut(event?.page_config)
 
   useEffect(() => {
     if (event?.my_role !== 'owner') return
@@ -107,11 +111,13 @@ export default function EventDetailsEditPage() {
       const is_multi_sub_event = data.is_multi_sub_event
       const eventPayload = eventPayloadOf(data)
       await api.patch(`/api/events/${eventId}/`, eventPayload)
-      const patch: EventDetailsContent & { date?: string } = changedContent(invitationContent, {
-        time: is_multi_sub_event ? invitationContent.time : data.time,
-        location: is_multi_sub_event ? invitationContent.location : data.venue,
-        goodToKnow: data.good_to_know,
-      })
+      const patch: EventDetailsContent & { date?: string } = invitationLocked
+        ? {}
+        : changedContent(invitationContent, {
+            time: is_multi_sub_event ? invitationContent.time : data.time,
+            location: is_multi_sub_event ? invitationContent.location : data.venue,
+            goodToKnow: data.good_to_know,
+          })
       if (eventPayload.date && eventPayload.date !== event?.date) patch.date = eventPayload.date
       await writeInvitationContent(patch, eventPayload.title)
       showToast('Event details updated.', 'success')
@@ -188,6 +194,9 @@ export default function EventDetailsEditPage() {
                 onCancel={() => router.back()}
                 showStructureChoice
                 inviteContent="edit"
+                inviteContentLockedHref={
+                  invitationLocked ? `/host/events/${eventId}/page-editor?panel=event-details` : undefined
+                }
                 // Only the owner manages co-hosts.
                 coHosts={
                   event.my_role === 'owner'

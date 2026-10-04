@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, type ReactNode } from 'react'
+import Link from 'next/link'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -95,6 +96,11 @@ interface EventDetailsFormProps {
    * patched; the Page Editor edits the same values.
    */
   inviteContent?: 'create' | 'edit'
+  /**
+   * Edit only, once the invitation is laid out: its time, venue line and Good
+   * to know are edited there, so they show here greyed out with a link to it.
+   */
+  inviteContentLockedHref?: string
   /** Backstage's Co-hosts chip: an invite panel while creating, a link to Overview after. */
   coHosts?: { count: number; panel?: ReactNode; href?: string }
 }
@@ -110,6 +116,7 @@ export default function EventDetailsForm({
   cancelLabel = 'Cancel',
   showStructureChoice = false,
   inviteContent,
+  inviteContentLockedHref,
   coHosts,
 }: EventDetailsFormProps) {
   const uid = useId()
@@ -145,6 +152,14 @@ export default function EventDetailsForm({
     await onSubmit(data)
   })
 
+  const locked = !!inviteContentLockedHref
+  const lockedInput = locked ? 'cursor-not-allowed bg-gray-100 text-gray-500' : ''
+  const editOnInvitation = locked ? (
+    <Link href={inviteContentLockedHref!} className="font-medium text-eco-teal underline underline-offset-2">
+      Edit in the Page Editor →
+    </Link>
+  ) : null
+
   const set = (key: 'where_mode' | 'city' | 'country' | 'timezone' | 'is_public' | 'has_rsvp' | 'has_registry', value: string | boolean) =>
     setValue(key, value as never, { shouldDirty: true })
 
@@ -156,9 +171,13 @@ export default function EventDetailsForm({
           <h2 className={sectionHeading}>The basics</h2>
           {inviteContent && (
             <p className="text-sm text-gray-600">
-              {inviteContent === 'create'
-                ? 'This shows on your invitation. You’ll choose how it looks next.'
-                : 'This shows on your invitation. Changes here update it too.'}
+              {inviteContent === 'create' ? (
+                'This shows on your invitation. You’ll choose how it looks next.'
+              ) : locked ? (
+                <>Time, venue line and Good to know are on your invitation now. {editOnInvitation}</>
+              ) : (
+                'This shows on your invitation. Changes here update it too.'
+              )}
             </p>
           )}
         </div>
@@ -245,7 +264,14 @@ export default function EventDetailsForm({
                 <label htmlFor={`time-${uid}`} className="block text-sm font-medium mb-1">
                   Time <span className="font-normal text-gray-500">(optional)</span>
                 </label>
-                <Input id={`time-${uid}`} type="time" {...register('time')} />
+                <Input
+                  id={`time-${uid}`}
+                  type="time"
+                  {...register('time')}
+                  readOnly={locked}
+                  aria-readonly={locked}
+                  className={lockedInput}
+                />
               </div>
             )}
           </div>
@@ -281,10 +307,19 @@ export default function EventDetailsForm({
             <label htmlFor={`venue-${uid}`} className="block text-sm font-medium mb-1">
               Venue line on your invitation
             </label>
-            <Input id={`venue-${uid}`} {...register('venue')} placeholder="The Lakeside Lawns, Udaipur" />
-            <p className="mt-1 text-xs text-gray-500">
-              Exactly what guests read under Location. Changing the city above doesn’t change it.
-            </p>
+            <Input
+              id={`venue-${uid}`}
+              {...register('venue')}
+              placeholder="The Lakeside Lawns, Udaipur"
+              readOnly={locked}
+              aria-readonly={locked}
+              className={lockedInput}
+            />
+            {!locked && (
+              <p className="mt-1 text-xs text-gray-500">
+                Exactly what guests read under Location. Changing the city above doesn’t change it.
+              </p>
+            )}
           </div>
         )}
       </section>
@@ -295,7 +330,9 @@ export default function EventDetailsForm({
           <div>
             <h2 className={sectionHeading}>Good to know</h2>
             <p className="text-sm text-gray-600">
-              {!isMultiSubEvent
+              {locked
+                ? <>On your invitation. {editOnInvitation}</>
+                : !isMultiSubEvent
                 ? 'Answers to what guests usually ask. Add only what you need.'
                 : inviteContent === 'create'
                   ? 'For the whole celebration - where to stay, who to call. Each event can add its own, like its dress code, in the next step.'
@@ -306,7 +343,13 @@ export default function EventDetailsForm({
             name="good_to_know"
             control={control}
             render={({ field }) => (
-              <GoodToKnowEditor items={field.value ?? []} onChange={field.onChange} eventType={eventType} variant="form" />
+              <GoodToKnowEditor
+                items={field.value ?? []}
+                onChange={field.onChange}
+                eventType={eventType}
+                variant="form"
+                readOnly={locked}
+              />
             )}
           />
         </section>

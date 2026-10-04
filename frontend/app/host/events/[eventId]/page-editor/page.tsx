@@ -271,6 +271,15 @@ export default function DesignInvitationPage(): JSX.Element {
   const [previewCropDimensions, setPreviewCropDimensions] = useState<{ width: number; height: number; aspectRatio: number } | null>(null)
   const [previewCropFilename, setPreviewCropFilename] = useState<string>('preview.jpg')
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
+  // ?panel=event-details (from Edit Event Details): open that tile's panel on load.
+  // Read after mount rather than with useSearchParams, which would need a Suspense
+  // boundary around this whole page.
+  const [panelFromLink, setPanelFromLink] = useState<TileType | null>(null)
+  useEffect(() => {
+    const panel = new URLSearchParams(window.location.search).get('panel')
+    if (panel && KNOWN_TILE_TYPES.has(panel as TileType)) setPanelFromLink(panel as TileType)
+  }, [])
+
   const [config, setConfig] = useState<InviteConfig>({
     tiles: DEFAULT_TILES,
     texture: { type: 'parchment', intensity: 20 },
@@ -2339,6 +2348,7 @@ export default function DesignInvitationPage(): JSX.Element {
                   eventStructure={event?.event_structure}
                   changedTileIds={changedTileIds}
                   eventType={event?.event_type}
+                  expandTileType={panelFromLink}
                 />
               ) : (
                 <p className="text-gray-500 text-sm">No tiles available</p>

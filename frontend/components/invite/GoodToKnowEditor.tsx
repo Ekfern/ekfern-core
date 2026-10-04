@@ -14,6 +14,8 @@ interface GoodToKnowEditorProps {
   eventType?: string | null
   /** Chips use the surrounding form's look; 'panel' is the editor sidebar. */
   variant?: 'form' | 'panel'
+  /** Shown greyed out, not editable: the answers live on the invitation now. */
+  readOnly?: boolean
 }
 
 /**
@@ -23,7 +25,7 @@ interface GoodToKnowEditorProps {
  * never drift. A chip adds an empty row - its placeholder hints, it never
  * writes - and disappears once used: one dress code, one parking note.
  */
-export default function GoodToKnowEditor({ items, onChange, eventType, variant = 'panel' }: GoodToKnowEditorProps) {
+export default function GoodToKnowEditor({ items, onChange, eventType, variant = 'panel', readOnly = false }: GoodToKnowEditorProps) {
   const uid = useId()
   // Links stay folded until asked for; one already filled in starts open.
   const [linkOpen, setLinkOpen] = useState<Record<string, boolean>>({})
@@ -39,7 +41,7 @@ export default function GoodToKnowEditor({ items, onChange, eventType, variant =
     onChange(next)
   }
 
-  const chips = remainingKinds(items, eventType)
+  const chips = readOnly ? [] : remainingKinds(items, eventType)
   const chipClass =
     variant === 'form'
       ? 'inline-flex h-11 items-center gap-2 rounded-full border border-eco-green-light bg-white pl-3 pr-4 text-sm font-medium text-eco-green hover:bg-eco-beige/40'
@@ -57,7 +59,10 @@ export default function GoodToKnowEditor({ items, onChange, eventType, variant =
             const showLink = linkOpen[item.id] || !!item.url
             const badLink = !!item.url?.trim() && !safeExternalUrl(item.url)
             return (
-              <li key={item.id} className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3">
+              <li
+                key={item.id}
+                className={`flex items-start gap-3 rounded-lg border border-gray-200 p-3 ${readOnly ? 'bg-gray-50' : 'bg-white'}`}
+              >
                 <Icon className="mt-7 h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
                 <div className="min-w-0 flex-1 space-y-2">
                   <label htmlFor={textId} className="block text-xs font-semibold uppercase tracking-wide text-gray-600">
@@ -68,9 +73,20 @@ export default function GoodToKnowEditor({ items, onChange, eventType, variant =
                     value={item.text}
                     onChange={(e) => update(item.id, { text: e.target.value })}
                     placeholder={preset.placeholder}
-                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+                    readOnly={readOnly}
+                    aria-readonly={readOnly}
+                    className={`h-10 w-full rounded-md border border-gray-300 px-3 text-sm ${
+                      readOnly ? 'cursor-not-allowed bg-gray-100 text-gray-500' : ''
+                    }`}
                   />
-                  {showLink ? (
+                  {readOnly ? (
+                    item.url ? (
+                      <p className="flex items-center gap-2 text-sm text-gray-500">
+                        <Link2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{item.url}</span>
+                      </p>
+                    ) : null
+                  ) : showLink ? (
                     <div>
                       <label htmlFor={urlId} className="sr-only">
                         Link for {preset.label} (optional)
@@ -104,7 +120,7 @@ export default function GoodToKnowEditor({ items, onChange, eventType, variant =
                     </button>
                   )}
                 </div>
-                <div className="flex shrink-0 flex-col gap-1">
+                {!readOnly && <div className="flex shrink-0 flex-col gap-1">
                   <button
                     type="button"
                     onClick={() => move(index, -1)}
@@ -131,7 +147,7 @@ export default function GoodToKnowEditor({ items, onChange, eventType, variant =
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
-                </div>
+                </div>}
               </li>
             )
           })}

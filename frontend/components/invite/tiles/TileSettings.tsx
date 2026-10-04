@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Tile, TileType } from '@/lib/invite/schema'
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { tileSettingsOf } from './tileSettingsOf'
@@ -26,6 +26,8 @@ interface TileSettingsProps {
   forceExpanded?: boolean
   /** Orders Event Details' Good to know chips by what this kind of event's guests ask. */
   eventType?: string | null
+  /** Open this panel, and bring it into view, when the editor loads (?panel=<tile type>). */
+  expandOnOpen?: boolean
 }
 
 const TILE_LABELS: Record<TileType, string> = {
@@ -41,13 +43,22 @@ const TILE_LABELS: Record<TileType, string> = {
   'event-carousel': 'Event Carousel',
 }
 
-export default function TileSettings({ tile, onUpdate, onToggle, onRemove, eventId, hasRsvp = false, hasRegistry = false, forceExpanded = false, eventType }: TileSettingsProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+export default function TileSettings({ tile, onUpdate, onToggle, onRemove, eventId, hasRsvp = false, hasRegistry = false, forceExpanded = false, eventType, expandOnOpen = false }: TileSettingsProps) {
+  const [isExpanded, setIsExpanded] = useState(expandOnOpen)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  // Sync with forceExpanded prop
+  // Sync with forceExpanded prop (a panel opened from a link stays open)
   useEffect(() => {
-    setIsExpanded(forceExpanded)
+    setIsExpanded(forceExpanded || expandOnOpen)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceExpanded])
+
+  // Arriving from a link to this panel: open it and bring it into view.
+  useEffect(() => {
+    if (!expandOnOpen) return
+    setIsExpanded(true)
+    requestAnimationFrame(() => panelRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+  }, [expandOnOpen])
 
   // Every panel below reads settings.<field> directly, so one tile missing its
   // settings object took the whole editor down rather than rendering an empty
@@ -79,7 +90,7 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
       case 'timer':
         return <TimerTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'event-details':
-        return <EventDetailsTileSettings settings={settings as any} onChange={handleSettingsChange} eventType={eventType} />
+        return <EventDetailsTileSettings settings={settings as any} onChange={handleSettingsChange} eventType={eventType} eventId={eventId} />
       case 'directions':
         return <DirectionsTileSettings settings={settings as any} onChange={handleSettingsChange} />
       case 'description':
@@ -96,7 +107,7 @@ export default function TileSettings({ tile, onUpdate, onToggle, onRemove, event
   }
 
   return (
-    <div className={`border rounded-lg w-full overflow-x-hidden transition-opacity ${tile.enabled ? 'bg-white border-gray-200' : 'bg-gray-50 border-dashed border-gray-300 opacity-50'}`}>
+    <div ref={panelRef} className={`scroll-mt-24 border rounded-lg w-full overflow-x-hidden transition-opacity ${tile.enabled ? 'bg-white border-gray-200' : 'bg-gray-50 border-dashed border-gray-300 opacity-50'}`}>
       <div className="flex items-center justify-between p-3 sm:p-4 border-b border-inherit w-full min-w-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 pl-8 sm:pl-10">
             <input

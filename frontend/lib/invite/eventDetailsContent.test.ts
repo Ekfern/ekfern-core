@@ -77,3 +77,18 @@ describe('withEventDetailsContent', () => {
     expect(withEventDetailsContent({}, { date: '2026-12-12' }, 'x')).toBeNull()
   })
 })
+
+describe('invitationIsLaidOut', () => {
+  it('is false with no invitation, or only the create form’s starter', async () => {
+    const { invitationIsLaidOut } = await import('./eventDetailsContent')
+    expect(invitationIsLaidOut(null)).toBe(false)
+    expect(invitationIsLaidOut({})).toBe(false)
+    const starter = withEventDetailsContent({}, { goodToKnow: [dress] }, 'x')
+    expect(invitationIsLaidOut(starter)).toBe(false)
+  })
+
+  it('is true once a layout or the editor has written its own tiles', async () => {
+    const { invitationIsLaidOut } = await import('./eventDetailsContent')
+    expect(invitationIsLaidOut(invitation)).toBe(true)
+  })
+})

@@ -92,3 +92,15 @@ export function withEventDetailsContent(
     ],
   } as InviteConfig
 }
+
+/**
+ * Whether the invitation has been laid out - a layout applied, or the editor
+ * saved a page of its own - as opposed to empty or only the starter the create
+ * form writes (ids ending "-start"). From then on the invitation is where its
+ * time, location line and Good to know are edited; Edit Event Details shows
+ * them greyed out.
+ */
+export function invitationIsLaidOut(config: InviteConfig | null | undefined): boolean {
+  const tiles = config?.tiles ?? []
+  return tiles.length > 0 && !tiles.every((tile) => tile.id.endsWith('-start'))
+}

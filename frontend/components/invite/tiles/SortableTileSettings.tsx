@@ -21,6 +21,7 @@ interface SortableTileSettingsProps {
   /** Highlight that this tile differs from the published version (unpublished change). */
   isChanged?: boolean
   eventType?: string | null
+  expandOnOpen?: boolean
 }
 
 export default function SortableTileSettings({
@@ -35,6 +36,7 @@ export default function SortableTileSettings({
   isFooter = false,
   isChanged = false,
   eventType,
+  expandOnOpen = false,
 }: SortableTileSettingsProps) {
   const {
     attributes,
@@ -90,6 +92,7 @@ export default function SortableTileSettings({
           hasRegistry={hasRegistry}
           forceExpanded={forceExpanded}
           eventType={eventType}
+          expandOnOpen={expandOnOpen}
         />
       </div>
     </div>

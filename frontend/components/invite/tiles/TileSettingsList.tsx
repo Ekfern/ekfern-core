@@ -49,6 +49,8 @@ interface TileSettingsListProps {
   changedTileIds?: Set<string>
   /** Passed to Event Details so its Good to know chips follow the event type. */
   eventType?: string | null
+  /** Open this tile's panel on load, e.g. 'event-details' from Edit Event Details. */
+  expandTileType?: TileType | null
 }
 
 export default function TileSettingsList({
@@ -66,6 +68,7 @@ export default function TileSettingsList({
   templateStudio = false,
   changedTileIds,
   eventType,
+  expandTileType,
 }: TileSettingsListProps) {
   const [showPicker, setShowPicker] = useState(false)
 
@@ -110,6 +113,7 @@ export default function TileSettingsList({
             <SortableTileSettings
               key={tile.id}
               tile={tile}
+              expandOnOpen={tile.type === expandTileType}
               onUpdate={onUpdate}
               onToggle={onToggle}
               onRemove={onRemoveTile ? () => onRemoveTile(tile.id) : undefined}
@@ -125,6 +129,7 @@ export default function TileSettingsList({
             <SortableTileSettings
               key={footerTile.id}
               tile={footerTile}
+              expandOnOpen={footerTile.type === expandTileType}
               onUpdate={onUpdate}
               onToggle={onToggle}
               onRemove={onRemoveTile ? () => onRemoveTile(footerTile.id) : undefined}
