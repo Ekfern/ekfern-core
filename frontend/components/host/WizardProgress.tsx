@@ -14,11 +14,14 @@
  * edited from the poster tile inside the Page Editor. Completed steps are clickable when eventId is set.
  */
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
+import api from '@/lib/api'
+import { completedSteps, type WizardEvent } from '@/lib/host/wizardSteps'
 
-export type WizardStepKey = 'details' | 'sub-events' | 'layout' | 'page-editor'
+export type { WizardStepKey } from '@/lib/host/wizardSteps'
+import type { WizardStepKey } from '@/lib/host/wizardSteps'
 
 export interface WizardProgressProps {
   currentStep: WizardStepKey
@@ -52,11 +55,17 @@ function buildSteps(includeSubEvents: boolean): StepDefinition[] {
   return [BASE_STEPS[0], SUB_EVENTS_STEP, ...BASE_STEPS.slice(1)]
 }
 
-type StepState = 'completed' | 'active' | 'future'
+type StepState = 'completed' | 'active' | 'active-completed' | 'available' | 'future'
 
-function stepState(stepIndex: number, currentIndex: number): StepState {
-  if (stepIndex < currentIndex) return 'completed'
-  if (stepIndex === currentIndex) return 'active'
+/**
+ * Done comes from the event (lib/host/wizardSteps.ts), not from position: a host
+ * back on Event Details sees Layout already done, and can jump to it.
+ */
+function stepState(stepIndex: number, currentIndex: number, done: boolean, reachable: boolean): StepState {
+  if (stepIndex === currentIndex) return done ? 'active-completed' : 'active'
+  if (done || stepIndex < currentIndex) return 'completed'
+  // Not done, but everything before it is (the editor before publishing): open.
+  if (reachable) return 'available'
   return 'future'
 }
 
@@ -102,6 +111,14 @@ function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
       </span>
     )
   }
+  if (state === 'active-completed') {
+    // Here, and already done: the check, with the ring that marks where you are.
+    return (
+      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green ring-offset-2 flex-shrink-0">
+        <CheckIcon />
+      </span>
+    )
+  }
   if (state === 'active') {
     return (
       <motion.span
@@ -111,6 +128,13 @@ function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
       >
         {number}
       </motion.span>
+    )
+  }
+  if (state === 'available') {
+    return (
+      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white text-eco-green ring-2 ring-eco-green flex-shrink-0 text-sm font-semibold">
+        {number}
+      </span>
     )
   }
   // future
@@ -129,11 +153,11 @@ interface StepNodeProps {
 }
 
 function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React.ReactElement {
-  const isClickable = state === 'completed' && eventId != null
+  const isClickable = (state === 'completed' || state === 'available') && eventId != null
   const circle = <StepCircle state={state} number={displayNumber} />
 
   const labelClasses =
-    state === 'active'
+    state === 'active' || state === 'active-completed'
       ? 'font-semibold text-eco-green'
       : state === 'completed'
       ? 'font-medium text-gray-500'
@@ -159,9 +183,9 @@ function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React
         <motion.span
           whileHover={{ scale: 1.1 }}
           transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0"
+          className="flex items-center justify-center flex-shrink-0"
         >
-          <CheckIcon />
+          {circle}
         </motion.span>
         <span className={`hidden sm:block text-xs leading-tight text-center ${labelClasses} group-hover:text-eco-green transition-colors`}>
           {step.label}
@@ -188,6 +212,22 @@ export default function WizardProgress({
   eventId,
   includeSubEvents = false,
 }: WizardProgressProps): React.ReactElement {
+  // What this event has already done; until it loads, position alone decides.
+  const [done, setDone] = useState<Record<WizardStepKey, boolean> | null>(null)
+  useEffect(() => {
+    if (eventId == null || isNaN(eventId)) return
+    let cancelled = false
+    api
+      .get<WizardEvent>(`/api/events/${eventId}/`)
+      .then((res) => {
+        if (!cancelled) setDone(completedSteps(res.data))
+      })
+      .catch(() => { /* the stepper still works by position */ })
+    return () => {
+      cancelled = true
+    }
+  }, [eventId])
+
   // The Sub-events step must appear when we're standing on it, even if the caller
   // didn't pass includeSubEvents.
   const effectiveInclude = includeSubEvents || currentStep === 'sub-events'
@@ -202,7 +242,9 @@ export default function WizardProgress({
       <div className="max-w-2xl mx-auto">
         <ol className="flex items-center w-full" role="list">
           {steps.map((step, index) => {
-            const state = stepState(index, currentIndex)
+            // Reachable once every step before it is done.
+            const reachable = !!done && steps.slice(0, index).every((s) => done[s.key])
+            const state = stepState(index, currentIndex, !!done?.[step.key], reachable)
             const isLast = index === steps.length - 1
             return (
               <React.Fragment key={step.key}>

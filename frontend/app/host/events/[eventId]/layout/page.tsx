@@ -14,6 +14,8 @@ import {
   updateInvitePage,
 } from '@/lib/invite/api'
 import { applyLayout } from '@/lib/invite/applyLayout'
+import { invitationIsLaidOut } from '@/lib/invite/eventDetailsContent'
+import { completedSteps, type WizardEvent } from '@/lib/host/wizardSteps'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import type { InviteConfig } from '@/lib/invite/schema'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
@@ -24,12 +26,10 @@ import { buildStarterLayouts, isStarterLayoutId } from '@/lib/invite/starterLayo
 // Types
 // ---------------------------------------------------------------------------
 
-interface EventData {
-  id: number
+interface EventData extends WizardEvent {
   title: string
   date?: string
   city?: string
-  event_structure?: 'SIMPLE' | 'ENVELOPE'
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +221,15 @@ export default function LayoutSelectPage(): React.ReactElement {
     layouts.find((t) => t.id === pendingLayoutId) ??
     starterLayouts.find((t) => t.id === pendingLayoutId)
 
+  // Already laid out: this step is a place to come back to, not to walk through.
+  // Keeping the current layout must not re-apply it - applying resets the
+  // colours and fonts the host set in the editor.
+  const laidOut = invitationIsLaidOut(currentConfig) || (event ? completedSteps(event).layout : false)
+  const currentLayout =
+    layouts.find((t) => t.id === appliedLayoutId) ?? starterLayouts.find((t) => t.id === appliedLayoutId)
+  const switching = laidOut && !!pendingLayout && pendingLayout.id !== appliedLayoutId
+  const continueToEditor = () => router.push(`/host/events/${eventId}/page-editor`)
+
   return (
     <div className="min-h-screen bg-eco-beige pb-24">
       {/* Show the Sub-events step in the stepper for multi-sub-event (ENVELOPE) events. */}
@@ -240,10 +249,13 @@ export default function LayoutSelectPage(): React.ReactElement {
           <span aria-hidden>&#8592;</span> Back
         </button>
 
-        <h1 className="text-3xl font-bold text-eco-green mb-1">Choose your invite layout</h1>
+        <h1 className="text-3xl font-bold text-eco-green mb-1">
+          {laidOut ? 'Your layout' : 'Choose your invite layout'}
+        </h1>
         <p className="text-gray-600 mb-4 text-sm">
-          Pick a starting point — you'll choose colors and a background next, then fine-tune
-          everything in the page editor.
+          {laidOut
+            ? 'Keep it and carry on, or pick another - your words and photos stay either way.'
+            : 'Pick a starting point — you\'ll choose colors and a background next, then fine-tune everything in the page editor.'}
         </p>
 
         {layoutsLoading || (layouts.length === 0 && startersLoading) ? (
@@ -274,17 +286,43 @@ export default function LayoutSelectPage(): React.ReactElement {
         )}
       </div>
 
-      {/* Sticky apply bar */}
-      {pendingLayout && (
+      {/* Laid out, current layout selected (or none picked): keep it and move on. */}
+      {laidOut && !switching && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
             <p className="text-sm font-medium text-gray-800 truncate">
-              <span className="text-gray-500 font-normal">Selected: </span>{pendingLayout.name}
+              <span className="text-gray-500 font-normal">Current layout: </span>
+              {currentLayout?.name ?? 'your own page'}
             </p>
+            <button
+              type="button"
+              onClick={continueToEditor}
+              className="flex-shrink-0 bg-eco-green hover:bg-eco-green-dark text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+            >
+              Keep it and continue →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sticky apply bar: a first layout, or switching to another */}
+      {pendingLayout && (!laidOut || switching) && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate">
+                <span className="text-gray-500 font-normal">Selected: </span>{pendingLayout.name}
+              </p>
+              {switching && (
+                <p className="text-xs text-gray-600">
+                  Your words and photos stay. Colours and fonts you changed in the editor go back to this layout’s.
+                </p>
+              )}
+            </div>
             <div className="flex gap-3 flex-shrink-0">
               <button
                 type="button"
-                onClick={() => setPendingLayoutId(null)}
+                onClick={() => setPendingLayoutId(laidOut ? appliedLayoutId : null)}
                 className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
               >
                 Cancel
@@ -295,7 +333,7 @@ export default function LayoutSelectPage(): React.ReactElement {
                 onClick={() => handleLayoutSelect(pendingLayout.id)}
                 className="bg-eco-green hover:bg-eco-green-dark disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
               >
-                {applying ? 'Applying...' : 'Apply layout →'}
+                {applying ? 'Applying...' : switching ? 'Switch to this layout' : 'Apply layout →'}
               </button>
             </div>
           </div>

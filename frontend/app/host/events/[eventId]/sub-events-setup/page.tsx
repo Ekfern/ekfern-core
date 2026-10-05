@@ -24,6 +24,7 @@ import { getErrorMessage, logError } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
 import { eventTzLocalToUtcISO } from '@/lib/datetime/eventTz'
 import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
+import { completedSteps, nextStepAfter, type WizardEvent } from '@/lib/host/wizardSteps'
 import { GOOD_TO_KNOW_PRESETS, visibleItems } from '@/lib/invite/goodToKnow'
 import type { GoodToKnowItem } from '@/lib/invite/schema'
 
@@ -36,8 +37,7 @@ interface SubEvent {
   good_to_know?: GoodToKnowItem[]
 }
 
-interface EventRecord {
-  id: number
+interface EventRecord extends WizardEvent {
   title: string
   timezone?: string
   event_type?: string
@@ -189,7 +189,8 @@ export default function SubEventsSetupPage() {
       const saved = await savePendingForm(false)
       if (!saved) return
     }
-    router.push(`/host/events/${eventId}/layout`)
+    // Layout already chosen: straight back to the editor, not through Layout again.
+    router.push(event ? nextStepAfter('sub-events', event, true) : `/host/events/${eventId}/layout`)
   }
 
   if (loading) {
@@ -344,7 +345,7 @@ export default function SubEventsSetupPage() {
             disabled={saving || (subEvents.length === 0 && !formHasContent)}
             className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
           >
-            {saving ? 'Saving…' : 'Next: Choose Layout'}
+            {saving ? 'Saving…' : event && completedSteps(event).layout ? 'Continue to editor' : 'Next: Choose Layout'}
           </Button>
         </div>
         {subEvents.length === 0 && !formHasContent && (

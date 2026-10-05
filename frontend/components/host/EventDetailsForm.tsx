@@ -93,6 +93,8 @@ interface EventDetailsFormProps {
   cancelLabel?: string
   /** Show the single-event vs multiple-sub-events fork (creation flow only). */
   showStructureChoice?: boolean
+  /** The submit label while "Several events together" is chosen (default "Next: Add Sub-events"). */
+  multiSubmitLabel?: string
   /**
    * Also ask for the invitation's own content - time, venue, Good to know -
    * which lives in its Event Details tile, not on the event.
@@ -120,6 +122,7 @@ export default function EventDetailsForm({
   onCancel,
   cancelLabel = 'Cancel',
   showStructureChoice = false,
+  multiSubmitLabel = 'Next: Add Sub-events',
   inviteContent,
   inviteContentLockedHref,
   coHosts,
@@ -145,7 +148,7 @@ export default function EventDetailsForm({
   const country = watch('country')
   const timezone = watch('timezone')
   const effectiveSubmitLabel =
-    showStructureChoice && isMultiSubEvent ? 'Next: Add Sub-events' : submitLabel
+    showStructureChoice && isMultiSubEvent ? multiSubmitLabel : submitLabel
 
   const submit = handleSubmit(async (data) => {
     // A single event needs its date at creation: the invitation, its countdown

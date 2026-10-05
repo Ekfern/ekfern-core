@@ -13,6 +13,7 @@ import { listCoHosts, type EventRole } from '@/lib/cohosts'
 import { getInvitePage, updateInvitePage } from '@/lib/invite/api'
 import { getEventPageConfig, updateEventPageConfig } from '@/lib/event/api'
 import type { InviteConfig } from '@/lib/invite/schema'
+import { completedSteps, invitationOf, nextStepAfter, type WizardEvent } from '@/lib/host/wizardSteps'
 import {
   changedContent,
   invitationIsLaidOut,
@@ -27,6 +28,7 @@ interface EventRecord extends EventDetailsFormData {
   /** 'owner' for the host, 'cohost' for a collaborator. */
   my_role?: EventRole
   page_config?: InviteConfig | null
+  invite_page_summary?: WizardEvent['invite_page_summary']
 }
 
 function normalizeListResponse(payload: unknown): Array<{ will_attend?: string }> {
@@ -57,22 +59,14 @@ export default function EventDetailsEditPage() {
   // in the InvitePage draft with an empty page_config, so read whichever has
   // tiles - judging by page_config alone took such an event for one with no
   // invitation and wrote a two-tile starter over its design.
-  const [invitePageConfig, setInvitePageConfig] = useState<InviteConfig | null | undefined>(undefined)
-  const currentInvitation = useMemo(
-    () => (event?.page_config?.tiles?.length ? event.page_config : invitePageConfig ?? null),
-    [event?.page_config, invitePageConfig],
-  )
+  const currentInvitation = useMemo(() => invitationOf(event), [event])
   const invitationContent = useMemo(() => readEventDetailsContent(currentInvitation), [currentInvitation])
   // Once laid out, the invitation is where its time, venue line and Good to know
   // are edited; here they show greyed out. The date stays here: it is the event's.
   const invitationLocked = invitationIsLaidOut(currentInvitation)
-
-  useEffect(() => {
-    if (!eventId || isNaN(eventId)) return
-    getInvitePage(eventId)
-      .then((page) => setInvitePageConfig(page?.config ?? null))
-      .catch(() => setInvitePageConfig(null))
-  }, [eventId])
+  // Steps already done are skipped on the way forward (lib/host/wizardSteps.ts).
+  const done = event ? completedSteps(event) : null
+  const forwardLabel = done?.layout ? 'Save and return to editor' : 'Save and choose layout'
 
   useEffect(() => {
     if (event?.my_role !== 'owner') return
@@ -140,13 +134,8 @@ export default function EventDetailsEditPage() {
       if (eventPayload.date && eventPayload.date !== event?.date) patch.date = eventPayload.date
       await writeInvitationContent(patch, eventPayload.title)
       showToast('Event details updated.', 'success')
-      // Continue the wizard the same way the create flow does: a multi-sub-event
-      // event goes to the Sub-events step; a single event goes straight to Layout.
-      router.push(
-        is_multi_sub_event
-          ? `/host/events/${eventId}/sub-events-setup`
-          : `/host/events/${eventId}/layout`,
-      )
+      // On to the first step still to do; once laid out, straight back to the editor.
+      router.push(nextStepAfter('details', event!, is_multi_sub_event))
     } catch (err: unknown) {
       logError('EventDetailsEditPage: save failed', err)
       showToast(getErrorMessage(err), 'error')
@@ -193,7 +182,7 @@ export default function EventDetailsEditPage() {
         <h1 className="text-4xl font-bold mb-6 text-eco-green">Edit Event Details</h1>
         <Card className="bg-white border-2 border-eco-green-light">
           <CardContent className="pt-6">
-            {event && invitePageConfig !== undefined && (
+            {event && (
               <EventDetailsForm
                 defaultValues={{
                   ...event,
@@ -210,7 +199,8 @@ export default function EventDetailsEditPage() {
                   good_to_know: invitationContent.goodToKnow,
                 }}
                 onSubmit={handleSubmit}
-                submitLabel="Save changes"
+                submitLabel={forwardLabel}
+                multiSubmitLabel={done?.['sub-events'] ? forwardLabel : 'Save and add sub-events'}
                 loading={loading}
                 onCancel={() => router.back()}
                 showStructureChoice
