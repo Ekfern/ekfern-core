@@ -101,6 +101,7 @@ class Event(models.Model):
         ('fundraiser', 'Fundraiser'),
         ('charity_event', 'Charity Event'),
         ('community_event', 'Community Event'),
+        ('meetup', 'Meetup'),
         ('festival', 'Festival'),
         ('cultural_event', 'Cultural Event'),
         ('exhibition', 'Exhibition'),

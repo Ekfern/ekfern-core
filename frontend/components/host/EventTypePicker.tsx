@@ -6,10 +6,12 @@ import EventTypeSelect from '@/components/ui/EventTypeSelect'
 import { getEventTypeLabel, type EventTypeValue } from '@/lib/eventTypes'
 
 /**
- * What most hosts pick, one tap each. Everything else is a search away: 58
- * types are too many for chips and too many to scroll.
+ * What most hosts pick, one tap each: private celebrations Ekfern is built
+ * around, and the commercial and community events its sessions, capacity and
+ * catalog serve. Everything else is a search away - the full list is too long
+ * for chips. Revisit with real usage once hosts are creating events.
  */
-export const QUICK_EVENT_TYPES: EventTypeValue[] = ['wedding', 'birthday', 'engagement', 'puja', 'housewarming']
+export const QUICK_EVENT_TYPES: EventTypeValue[] = ['wedding', 'birthday', 'baby_shower', 'workshop', 'meetup', 'fundraiser']
 
 interface EventTypePickerProps {
   value: string
