@@ -27,6 +27,8 @@ const DEBOUNCE_MS = 350
 const SLOW_MS = 800
 /** One failed search changes nothing on screen; this many in a row brings in Country. */
 const FAILURES_BEFORE_FALLBACK = 2
+/** After a failed search, try the same text again this soon, even if the host has stopped typing. */
+const RETRY_MS = 1200
 
 const COUNTRY_OPTIONS = Object.entries(COUNTRY_CODES).sort(([, a], [, b]) => a.name.localeCompare(b.name))
 
@@ -66,6 +68,8 @@ export default function WhereField({ mode, onModeChange, value, onChange }: Wher
   const [zoneSource, setZoneSource] = useState<'city' | 'country' | 'device' | 'chosen' | 'saved'>('saved')
   const [zonePickerOpen, setZonePickerOpen] = useState(false)
   const failures = useRef(0)
+  // Bumped to re-run the search for the same text after a failure.
+  const [retry, setRetry] = useState(0)
 
   // Search as the host types, after a pause; a newer keystroke cancels the old search.
   useEffect(() => {
@@ -78,21 +82,28 @@ export default function WhereField({ mode, onModeChange, value, onChange }: Wher
     }
     const controller = new AbortController()
     let slowTimer: ReturnType<typeof setTimeout> | undefined
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
     const timer = setTimeout(async () => {
       slowTimer = setTimeout(() => setSlow(true), SLOW_MS)
       const result = await searchCities(q, controller.signal)
       clearTimeout(slowTimer)
       if (controller.signal.aborted) return
-      setSlow(false)
       if (result.status === 'unavailable') {
         failures.current += 1
         if (failures.current >= FAILURES_BEFORE_FALLBACK) {
+          setSlow(false)
           setServiceDown(true)
           setManual(true)
           setZoneSource('country')
+          return
         }
+        // A host who has stopped typing would otherwise wait on a search that
+        // never comes: try the same text once more, still "Searching…".
+        setSlow(true)
+        retryTimer = setTimeout(() => setRetry((n) => n + 1), RETRY_MS)
         return
       }
+      setSlow(false)
       failures.current = 0
       setSuggestions(result.results)
       setAttribution(result.attribution)
@@ -102,9 +113,10 @@ export default function WhereField({ mode, onModeChange, value, onChange }: Wher
     return () => {
       clearTimeout(timer)
       clearTimeout(slowTimer)
+      clearTimeout(retryTimer)
       controller.abort()
     }
-  }, [query, mode, picked, manual])
+  }, [query, mode, picked, manual, retry])
 
   // Typing a country by hand: its zone, or the first of several until the host picks.
   useEffect(() => {
