@@ -18,6 +18,8 @@ export const eventDetailsSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   event_type: z.enum(EVENT_TYPE_VALUES, { errorMap: () => ({ message: 'Please select an event type' }) }),
   date: z.string().optional(),
+  // Several events only: the last day, so the event expires after it, not after day one.
+  event_end_date: z.string().nullable().optional(),
   city: z.string().optional(),
   country: z.string().default('IN'),
   timezone: z.string().default('Asia/Kolkata'),
@@ -43,7 +45,7 @@ export type EventDetailsFormData = z.infer<typeof eventDetailsSchema>
 /** The fields the Event API takes. Everything else is UI state or invitation content. */
 export type EventPayload = Pick<
   EventDetailsFormData,
-  'title' | 'event_type' | 'date' | 'city' | 'country' | 'timezone' | 'is_public' | 'has_rsvp' | 'has_registry'
+  'title' | 'event_type' | 'date' | 'event_end_date' | 'city' | 'country' | 'timezone' | 'is_public' | 'has_rsvp' | 'has_registry'
 >
 
 export function eventPayloadOf(data: EventDetailsFormData): EventPayload {
@@ -51,8 +53,10 @@ export function eventPayloadOf(data: EventDetailsFormData): EventPayload {
   return {
     title,
     event_type,
-    // The API wants null, not "", for an unset date (several events: dates come later).
+    // The API wants null, not "", for an unset date.
     date: date || undefined,
+    // A single event is one day; only several events keep a last day.
+    event_end_date: data.is_multi_sub_event ? data.event_end_date || null : null,
     city: data.where_mode === 'online' ? '' : (city ?? '').trim(),
     country,
     timezone,
@@ -66,6 +70,7 @@ const BASE_DEFAULTS: EventDetailsFormData = {
   title: '',
   event_type: '' as EventDetailsFormData['event_type'],
   date: '',
+  event_end_date: '',
   city: '',
   country: 'IN',
   timezone: 'Asia/Kolkata',
@@ -145,8 +150,13 @@ export default function EventDetailsForm({
   const submit = handleSubmit(async (data) => {
     // A single event needs its date at creation: the invitation, its countdown
     // and reminders all hang off it. Several events take theirs per sub-event.
-    if (inviteContent === 'create' && !data.is_multi_sub_event && !data.date) {
-      setError('date', { message: 'Pick the date of your event' })
+    // The invitation, its countdown, reminders and expiry all hang off the date.
+    if (inviteContent === 'create' && !data.date) {
+      setError('date', { message: data.is_multi_sub_event ? 'Pick the first day' : 'Pick the date of your event' })
+      return
+    }
+    if (data.is_multi_sub_event && data.event_end_date && data.date && data.event_end_date < data.date) {
+      setError('event_end_date', { message: 'The last day can’t be before the first' })
       return
     }
     await onSubmit(data)
@@ -276,11 +286,30 @@ export default function EventDetailsForm({
             )}
           </div>
         ) : (
-          inviteContent === 'create' && (
-            <p className="rounded-md bg-eco-beige/40 px-3 py-2 text-sm text-gray-700">
-              You’ll add each event’s date, time and place in the next step.
-            </p>
-          )
+          // Several events: the span of days. The event expires after its last
+          // day; each event's own time is set on it in the next step.
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor={`date-${uid}`} className="block text-sm font-medium mb-1">
+                First day
+              </label>
+              <Input id={`date-${uid}`} type="date" {...register('date')} aria-invalid={!!errors.date} />
+              {errors.date && <p className="text-red-600 text-sm mt-1">{errors.date.message}</p>}
+            </div>
+            <div>
+              <label htmlFor={`end-date-${uid}`} className="block text-sm font-medium mb-1">
+                Last day <span className="font-normal text-gray-500">(optional)</span>
+              </label>
+              <Input
+                id={`end-date-${uid}`}
+                type="date"
+                min={watch('date') || undefined}
+                {...register('event_end_date')}
+                aria-invalid={!!errors.event_end_date}
+              />
+              {errors.event_end_date && <p className="text-red-600 text-sm mt-1">{errors.event_end_date.message}</p>}
+            </div>
+          </div>
         )}
 
         <WhereField

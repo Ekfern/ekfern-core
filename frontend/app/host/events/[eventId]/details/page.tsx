@@ -181,7 +181,9 @@ export default function EventDetailsEditPage() {
                   // Seed the fork from the event's current structure so a
                   // multi-sub-event (ENVELOPE) event shows "multiple sub-events"
                   // selected instead of defaulting to single.
-                  is_multi_sub_event: event.event_structure === 'ENVELOPE',
+                  // A last day means several events too: the host chose that before
+                  // adding any sub-events, which is what ENVELOPE waits for.
+                  is_multi_sub_event: event.event_structure === 'ENVELOPE' || !!event.event_end_date,
                   // The event has only ever stored a blank city for online.
                   where_mode: event.city ? 'in-person' : 'online',
                   time: invitationContent.time,

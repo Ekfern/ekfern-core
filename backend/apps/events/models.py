@@ -246,9 +246,13 @@ class Event(models.Model):
     
     @property
     def is_expired(self):
-        """Check if event is expired based on expiry_date or date"""
+        """
+        Expired once its last day has passed: an explicit expiry_date, else the
+        last day of a multi-day event, else its date. A three-day wedding is
+        not over on day two.
+        """
         from datetime import date
-        expiry = self.expiry_date or self.date
+        expiry = self.expiry_date or self.event_end_date or self.date
         if not expiry:
             return False
         return expiry < date.today()

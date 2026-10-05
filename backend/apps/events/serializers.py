@@ -132,6 +132,15 @@ class EventListSerializer(MyRoleMixin, serializers.ModelSerializer):
         )
 
 
+
+def _check_last_day(attrs, instance=None):
+    """A multi-day event's last day cannot come before its first."""
+    start = attrs.get('date', getattr(instance, 'date', None))
+    end = attrs.get('event_end_date', getattr(instance, 'event_end_date', None))
+    if start and end and end < start:
+        raise serializers.ValidationError({'event_end_date': "The last day can't be before the first."})
+
+
 class EventSerializer(MyRoleMixin, serializers.ModelSerializer):
     # Only include minimal host info for privacy (name only, no email)
     host_name = serializers.CharField(source='host.name', read_only=True, allow_null=True)
@@ -220,6 +229,7 @@ class EventSerializer(MyRoleMixin, serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         instance = self.instance
+        _check_last_day(attrs, instance)
 
         # Non-RSVP PATCHes (e.g. has_rsvp, title) must not re-derive legacy RSVP fields.
         if instance and not (EVENT_RSVP_MUTATION_KEYS & attrs.keys()):
@@ -420,7 +430,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Event
-        fields = ('slug', 'title', 'event_type', 'date', 'city', 'country', 'timezone', 'is_public', 'has_rsvp', 'has_registry', 'rsvp_experience_mode')
+        fields = ('slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'is_public', 'has_rsvp', 'has_registry', 'rsvp_experience_mode')
         read_only_fields = ('id',)
 
     @staticmethod
@@ -436,6 +446,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        _check_last_day(attrs)
         slug = attrs.get('slug', '').strip()
         mode = attrs.get('rsvp_experience_mode', Event.RSVP_EXPERIENCE_MODE_STANDARD)
 
