@@ -171,14 +171,16 @@ export default function WhereField({ mode, onModeChange, value, onChange }: Wher
 
   return (
     <div className="space-y-3">
-      <div className="text-sm font-medium">Where</div>
-      <div role="group" aria-label="In person or online" className="inline-flex gap-1 rounded-full bg-eco-beige/60 p-1">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div id={id('label')} className="text-sm font-medium">Where</div>
+      <div role="group" aria-labelledby={id('label')} className="inline-flex gap-1 rounded-full bg-eco-beige/60 p-1">
         <button type="button" aria-pressed={mode === 'in-person'} onClick={() => switchMode('in-person')} className={segment(mode === 'in-person')}>
           In person
         </button>
         <button type="button" aria-pressed={mode === 'online'} onClick={() => switchMode('online')} className={segment(mode === 'online')}>
           Online
         </button>
+      </div>
       </div>
 
       {mode === 'in-person' && !manual && picked && (
