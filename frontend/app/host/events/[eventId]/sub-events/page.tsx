@@ -13,6 +13,8 @@ import { extractDominantColors, rgbToHex } from '@/lib/invite/imageAnalysis'
 import { colorInputValue } from '@/lib/invite/colorInputValue'
 import RichTextEditor from '@/components/invite/RichTextEditor'
 import DescriptionEditorModal from '@/components/invite/DescriptionEditorModal'
+import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
+import type { GoodToKnowItem } from '@/lib/invite/schema'
 
 interface Event {
   id: number
@@ -21,6 +23,7 @@ interface Event {
   event_structure: 'SIMPLE' | 'ENVELOPE'
   rsvp_mode: 'PER_SUBEVENT' | 'ONE_TAP_ALL'
   timezone?: string
+  event_type?: string
 }
 
 interface SubEvent {
@@ -34,6 +37,8 @@ interface SubEvent {
   background_color?: string | null
   rsvp_enabled: boolean
   is_public_visible: boolean
+  /** This function's own answers - its dress code, parking - shown on its card. */
+  good_to_know?: GoodToKnowItem[]
   assigned_guests_count?: number | null
 }
 
@@ -61,6 +66,7 @@ export default function SubEventsPage() {
     background_color: '#ffffff',
     rsvp_enabled: true,
     is_public_visible: false,
+    good_to_know: [] as GoodToKnowItem[],
   })
   const [saving, setSaving] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -249,6 +255,7 @@ export default function SubEventsPage() {
       background_color: '#ffffff',
       rsvp_enabled: true,
       is_public_visible: false,
+      good_to_know: [],
     })
     setShowCreateModal(true)
   }
@@ -265,6 +272,7 @@ export default function SubEventsPage() {
       background_color: subEvent.background_color || '#ffffff',
       rsvp_enabled: subEvent.rsvp_enabled,
       is_public_visible: subEvent.is_public_visible,
+      good_to_know: subEvent.good_to_know ?? [],
     })
     setShowCreateModal(true)
   }
@@ -525,6 +533,18 @@ export default function SubEventsPage() {
                         value={formData.description || ''}
                         onChange={(value) => setFormData({ ...formData, description: value })}
                         placeholder="Enter sub-event description..."
+                      />
+                    </div>
+
+                    <div>
+                      <p className="block text-sm font-medium text-gray-700 mb-1">Good to know</p>
+                      <p className="text-xs text-gray-500 mb-2">
+                        What guests ask about this function in particular - its dress code, its parking. Shown on its card.
+                      </p>
+                      <GoodToKnowEditor
+                        items={formData.good_to_know}
+                        onChange={(good_to_know) => setFormData({ ...formData, good_to_know })}
+                        eventType={event?.event_type}
                       />
                     </div>
 
@@ -1080,6 +1100,18 @@ export default function SubEventsPage() {
                       value={formData.description || ''}
                       onChange={(value) => setFormData({ ...formData, description: value })}
                       placeholder="Enter sub-event description..."
+                    />
+                  </div>
+
+                  <div>
+                    <p className="block text-sm font-medium text-gray-700 mb-1">Good to know</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      What guests ask about this function in particular - its dress code, its parking. Shown on its card.
+                    </p>
+                    <GoodToKnowEditor
+                      items={formData.good_to_know}
+                      onChange={(good_to_know) => setFormData({ ...formData, good_to_know })}
+                      eventType={event?.event_type}
                     />
                   </div>
 

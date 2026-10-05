@@ -20,3 +20,7 @@ Pillow==10.4.0
 # Full timezone database for zoneinfo, including the legacy names browsers
 # report (Asia/Calcutta, Europe/Kiev); the slim base image ships without them.
 tzdata==2026.4
+
+# Time zone for a city from its coordinates (create-event city search).
+# Offline zone boundaries, a single prebuilt wheel with no dependencies.
+tzfpy==2.1.0

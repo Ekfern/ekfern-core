@@ -6,8 +6,11 @@
 
 import type { EventDetailsTileSettings } from './schema'
 import { formatEventTime } from './timezone'
+import { GOOD_TO_KNOW_PRESETS, visibleItems } from './goodToKnow'
+import { safeExternalUrl } from '../safeUrl'
 
-export type CompactRow = { label: string; value: string }
+/** `href` only ever holds a link safe to open (see safeUrl.ts). */
+export type CompactRow = { label: string; value: string; href?: string }
 
 /** "Sat, Oct 10, 2026". Date-only strings are read as local dates, like the other layouts. */
 export function formatCompactDate(dateString: string): string {
@@ -46,7 +49,7 @@ export function formatTimeRange(start: string, end?: string, timeZone?: string, 
 }
 
 export function buildCompactRows(
-  settings: Pick<EventDetailsTileSettings, 'date' | 'time' | 'endTime' | 'repeats' | 'location' | 'dressCode'>,
+  settings: Pick<EventDetailsTileSettings, 'date' | 'time' | 'endTime' | 'repeats' | 'location' | 'goodToKnow'>,
   timeZone?: string,
   on?: Date,
 ): CompactRow[] {
@@ -65,7 +68,10 @@ export function buildCompactRows(
   }
   const location = settings.location?.trim()
   if (location) rows.push({ label: 'Where', value: location })
-  const dressCode = settings.dressCode?.trim()
-  if (dressCode) rows.push({ label: 'Dress code', value: dressCode })
+  // Good to know follows, one row per answer, in the host's order.
+  for (const item of visibleItems(settings.goodToKnow)) {
+    const href = safeExternalUrl(item.url)
+    rows.push({ label: GOOD_TO_KNOW_PRESETS[item.kind].label, value: item.text.trim(), ...(href ? { href } : {}) })
+  }
   return rows
 }

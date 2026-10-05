@@ -10,9 +10,11 @@ import FontPicker from '@/components/invite/FontPicker'
 interface TitleTileSettingsProps {
   settings: TitleTileSettings
   onChange: (settings: TitleTileSettings) => void
+  /** The invitation's headline (lib/invite/headline.ts): explain what else uses it. */
+  isHeadline?: boolean
 }
 
-export default function TitleTileSettings({ settings, onChange }: TitleTileSettingsProps) {
+export default function TitleTileSettings({ settings, onChange, isHeadline = false }: TitleTileSettingsProps) {
   return (
     <div className="space-y-4">
       <div>
@@ -23,6 +25,12 @@ export default function TitleTileSettings({ settings, onChange }: TitleTileSetti
           placeholder="Event Title"
           required
         />
+        {isHeadline && (
+          <p className="mt-1 text-xs text-gray-500">
+            Your invitation’s headline. Messages and link previews use it to name your event, even when this tile
+            is hidden.
+          </p>
+        )}
       </div>
 
 

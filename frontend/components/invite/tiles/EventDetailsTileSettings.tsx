@@ -7,13 +7,31 @@ import { Input } from '@/components/ui/input'
 import { FONT_OPTIONS, findFontByFamily } from '@/lib/invite/fonts'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import FontPicker from '@/components/invite/FontPicker'
+import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
+import Link from 'next/link'
 
 interface EventDetailsTileSettingsProps {
   settings: EventDetailsTileSettings
   onChange: (settings: EventDetailsTileSettings) => void
+  /** Orders the Good to know chips by what this kind of event's guests ask first. */
+  eventType?: string | null
+  /**
+   * The real event (0 in the staff Layout Studio). For a real event the date is
+   * the event's - it drives reminders and the countdown - so it is changed on
+   * Edit Event Details, which also updates it here, and shown read-only here.
+   */
+  eventId?: number
+  /**
+   * Where the event is, from Edit Event Details (its home): online events are
+   * the ones without a city. Words the location line to match; absent in the
+   * staff Layout Studio.
+   */
+  eventWhere?: { online: boolean; city?: string }
 }
 
-export default function EventDetailsTileSettings({ settings, onChange }: EventDetailsTileSettingsProps) {
+export default function EventDetailsTileSettings({ settings, onChange, eventType, eventId = 0, eventWhere }: EventDetailsTileSettingsProps) {
+  const online = !!eventWhere?.online
+  const dateIsEvents = eventId > 0
   const [showBorderStyling, setShowBorderStyling] = useState(false)
   const [showAppearance, setShowAppearance] = useState(false)
 
@@ -31,8 +49,19 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
           type="date"
           value={settings.date || ''}
           onChange={(e) => onChange({ ...settings, date: e.target.value })}
-          required
+          required={!dateIsEvents}
+          readOnly={dateIsEvents}
+          aria-readonly={dateIsEvents}
+          className={dateIsEvents ? 'cursor-not-allowed bg-gray-100 text-gray-500' : undefined}
         />
+        {dateIsEvents && (
+          <p className="mt-1 text-xs text-gray-500">
+            The event’s date.{' '}
+            <Link href={`/host/events/${eventId}/details`} className="font-medium text-eco-teal underline underline-offset-2">
+              Change it on Event Details →
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -86,27 +115,40 @@ export default function EventDetailsTileSettings({ settings, onChange }: EventDe
         </select>
       </div>
 
-      {/* Location Input - Display text only */}
+      {/* Location line - display text only. In person or online is the event's, set on Event Details. */}
       <div>
-        <label className="block text-sm font-medium mb-2">Location *</label>
+        {eventWhere && eventId > 0 && (
+          <p className="mb-2 text-xs text-gray-600">
+            <span className="font-semibold text-gray-800">
+              {online ? 'Online event' : `In person${eventWhere.city ? ` · ${eventWhere.city}` : ''}`}
+            </span>{' '}
+            ·{' '}
+            <Link href={`/host/events/${eventId}/details`} className="font-medium text-eco-teal underline underline-offset-2">
+              Change on Event Details →
+            </Link>
+          </p>
+        )}
+        <label htmlFor="event-details-location" className="block text-sm font-medium mb-2">
+          {online ? 'How guests join' : 'Venue line'}
+        </label>
         <Input
+          id="event-details-location"
           value={settings.location || ''}
           onChange={(e) => handleLocationChange(e.target.value)}
-          placeholder="e.g., Grand Ballroom, Main Hall, Beachside Venue"
-          required
+          placeholder={online ? 'Online · link shared after you RSVP' : 'The Lakeside Lawns, Udaipur'}
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Enter the display name for your event location (this appears on your invitation)
-        </p>
       </div>
 
-      {/* Additional Details */}
+      {/* Good to know - where the lone Dress Code field used to be */}
       <div>
-        <label className="block text-sm font-medium mb-2">Dress Code (optional)</label>
-        <Input
-          value={settings.dressCode || ''}
-          onChange={(e) => onChange({ ...settings, dressCode: e.target.value || undefined })}
-          placeholder="e.g., Formal, Casual, Traditional"
+        <p className="block text-sm font-medium mb-1">Good to know</p>
+        <p className="text-xs text-gray-500 mb-2">
+          Answers to what guests usually ask. Only what you fill in appears on your invitation.
+        </p>
+        <GoodToKnowEditor
+          items={settings.goodToKnow ?? []}
+          onChange={(goodToKnow) => onChange({ ...settings, goodToKnow: goodToKnow.length ? goodToKnow : undefined })}
+          eventType={eventType}
         />
       </div>
 

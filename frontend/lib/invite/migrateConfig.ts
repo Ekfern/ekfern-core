@@ -123,7 +123,6 @@ export function migrateToTileConfig(config: InviteConfig, eventTitle?: string, e
     location: eventCity || config.location?.name || config.location?.address || '',
     date: eventDate || config.hero?.eventDate || new Date().toISOString().split('T')[0],
     time: undefined,
-    dressCode: undefined,
   }
   tiles.push({
     id: `tile-${order}`,

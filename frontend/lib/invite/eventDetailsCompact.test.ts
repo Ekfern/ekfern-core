@@ -61,7 +61,7 @@ describe('buildCompactRows', () => {
   })
 
   it('shows no row for an empty field', () => {
-    expect(buildCompactRows({ date: '2026-10-10', location: '  ', dressCode: '' })).toEqual([
+    expect(buildCompactRows({ date: '2026-10-10', location: '  ' })).toEqual([
       { label: 'Date', value: 'Sat, Oct 10, 2026' },
     ])
   })
@@ -72,14 +72,25 @@ describe('buildCompactRows', () => {
     ])
   })
 
+  it('adds Good to know after Where, in the host order, linking only safe links', () => {
+    const rows = buildCompactRows({
+      date: '2026-10-10',
+      location: 'Hall',
+      goodToKnow: [
+        { id: '1', kind: 'stay', text: 'Rooms at the Taj', url: 'booking.com/taj' },
+        { id: '2', kind: 'dress', text: '  ' },
+        { id: '3', kind: 'dress', text: 'Festive', url: 'javascript:alert(1)' },
+      ],
+    })
+    expect(rows.slice(2)).toEqual([
+      { label: 'Stay', value: 'Rooms at the Taj', href: 'https://booking.com/taj' },
+      { label: 'Dress code', value: 'Festive' },
+    ])
+  })
+
   it('ignores an end time that has no start time', () => {
     expect(buildCompactRows({ date: '2026-10-10', endTime: '11:00', location: '' })).toEqual([
       { label: 'Date', value: 'Sat, Oct 10, 2026' },
     ])
-  })
-
-  it('adds dress code last when set', () => {
-    const rows = buildCompactRows({ date: '2026-10-10', location: 'Hall', dressCode: 'Festive' })
-    expect(rows[rows.length - 1]).toEqual({ label: 'Dress code', value: 'Festive' })
   })
 })

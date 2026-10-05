@@ -371,7 +371,8 @@ class PublicCatalogView(APIView):
             'items': PublicCatalogItemSerializer(items, many=True).data,
             'event': {
                 'id': event.id,
-                'title': event.title,
+                # Guests' page: the invitation's headline, not the host's own name for it.
+                'title': event.invitation_title,
                 'slug': event.slug,
                 'is_public': event.is_public,
             },

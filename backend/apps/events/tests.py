@@ -2662,3 +2662,113 @@ class PlaceSuggestTestCase(TestCase):
 
         label = _label({'name': 'Mumbai', 'city': 'Mumbai', 'state': 'Maharashtra', 'country': 'India'})
         self.assertEqual(label, 'Mumbai, Maharashtra, India')
+
+
+class CitySuggestTestCase(TestCase):
+    """
+    City lookup for the create-event form (`?kind=city`).
+
+    What the event keeps from a pick is the country code and the time zone, so
+    those are what these hold to: the right zone for the right Perth, and no
+    zone at all rather than a wrong one.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.host = User.objects.create_user(email='cities@test.com', name='City Host')
+        self.client.force_authenticate(user=self.host)
+        self.url = '/api/events/places/suggest/'
+
+    def _feature(self, name, lng, lat, state=None, country=None, countrycode=None):
+        return {
+            'geometry': {'type': 'Point', 'coordinates': [lng, lat]},
+            'properties': {
+                'name': name, 'state': state, 'country': country, 'countrycode': countrycode,
+            },
+        }
+
+    def _get(self, q, features):
+        from unittest.mock import Mock, patch
+
+        with patch('apps.events.services.places.requests.get') as get:
+            get.return_value = Mock(
+                status_code=200,
+                json=lambda: {'features': features},
+                raise_for_status=lambda: None,
+            )
+            r = self.client.get(self.url, {'q': q, 'kind': 'city'})
+        return r, get
+
+    def test_asks_photon_for_towns_in_english(self):
+        r, get = self._get('udaipur', [])
+        params = get.call_args.kwargs['params']
+        self.assertEqual(params['layer'], 'city')
+        self.assertEqual(params['lang'], 'en')
+
+    def test_a_pick_carries_country_code_and_time_zone(self):
+        r, _ = self._get('udaipur', [
+            self._feature('Udaipur', 73.7125, 24.5854, 'Rajasthan', 'India', 'in'),
+        ])
+        city = r.data['results'][0]
+        self.assertEqual(city['name'], 'Udaipur')
+        self.assertEqual(city['region'], 'Rajasthan, India')
+        self.assertEqual(city['label'], 'Udaipur, Rajasthan, India')
+        self.assertEqual(city['country_code'], 'IN')
+        self.assertEqual(city['timezone'], 'Asia/Kolkata')
+
+    def test_same_name_different_country_gets_its_own_zone(self):
+        """Country alone cannot say which Perth: the point decides."""
+        r, _ = self._get('perth', [
+            self._feature('Perth', 115.8605, -31.9505, 'Western Australia', 'Australia', 'AU'),
+            self._feature('Perth', -3.4372, 56.3950, 'Scotland', 'United Kingdom', 'GB'),
+        ])
+        zones = [c['timezone'] for c in r.data['results']]
+        self.assertEqual(zones, ['Australia/Perth', 'Europe/London'])
+
+    def test_a_point_at_sea_gives_no_zone_rather_than_a_wrong_one(self):
+        r, _ = self._get('nowhere', [self._feature('Nowhere', -30.0, 30.0, None, None, None)])
+        self.assertIsNone(r.data['results'][0]['timezone'])
+
+    def test_city_state_is_not_repeated_in_its_region(self):
+        r, _ = self._get('singapore', [
+            self._feature('Singapore', 103.8198, 1.3521, None, 'Singapore', 'SG'),
+        ])
+        city = r.data['results'][0]
+        self.assertEqual(city['label'], 'Singapore')
+        self.assertEqual(city['region'], '')
+
+    def test_duplicate_towns_appear_once(self):
+        """OSM often holds a village twice, as a point and as a boundary."""
+        r, _ = self._get('kasauli', [
+            self._feature('Kasauli', 76.0, 30.9, 'Punjab', 'India', 'IN'),
+            self._feature('Kasauli', 76.01, 30.91, 'Punjab', 'India', 'IN'),
+            self._feature('Kasauli', 76.96, 30.90, 'Himachal Pradesh', 'India', 'IN'),
+        ])
+        labels = [c['label'] for c in r.data['results']]
+        self.assertEqual(labels, ['Kasauli, Punjab, India', 'Kasauli, Himachal Pradesh, India'])
+
+    def test_a_dead_lookup_service_lets_the_form_fall_back(self):
+        from unittest.mock import patch
+        import requests as requests_lib
+
+        with patch('apps.events.services.places.requests.get',
+                   side_effect=requests_lib.ConnectionError('down')):
+            r = self.client.get(self.url, {'q': 'udaipur', 'kind': 'city'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['results'], [])
+        self.assertFalse(r.data['available'])
+
+    def test_city_and_address_answers_are_cached_apart(self):
+        """The same words mean a town in one mode and a venue in the other."""
+        from unittest.mock import Mock, patch
+
+        with patch('apps.events.services.places.requests.get') as get:
+            get.return_value = Mock(
+                status_code=200,
+                json=lambda: {'features': [self._feature('Udaipur', 73.7125, 24.5854, 'Rajasthan', 'India', 'IN')]},
+                raise_for_status=lambda: None,
+            )
+            self.client.get(self.url, {'q': 'udaipur', 'kind': 'city'})
+            self.client.get(self.url, {'q': 'udaipur'})
+            self.assertEqual(get.call_count, 2)

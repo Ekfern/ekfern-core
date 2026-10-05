@@ -21,6 +21,12 @@ RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Start server with gunicorn
-CMD ["gunicorn", "registry_backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120"]
+# Start server with gunicorn.
+# Threaded workers: much of a request's time is spent waiting on someone else
+# (SES sending an email, Photon suggesting a town, S3 taking a photo). With
+# plain sync workers two such waits stalled every other request, guests'
+# included; 2 workers x 8 threads serve 16 at once. Code that creates AWS
+# clients must go through apps.common.aws.aws_client - boto3's default
+# session is not thread-safe.
+CMD ["gunicorn", "registry_backend.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-class", "gthread", "--threads", "8", "--timeout", "120"]
 
