@@ -131,6 +131,16 @@ describe('content changes nothing but the look', () => {
     expect(byType(blind, 'title').text).toBe('Riya weds Kabir')
   })
 
+  it('without an Event Details tile, carried tiles go before the footer, not after it', () => {
+    const posterOnly: InviteConfig = {
+      tiles: [tile('poster', 0, {}), tile('footer', 1, { text: 'Made with care.' })],
+    } as InviteConfig
+    const next = applyLayout(posterOnly, undefined, undefined, 'P', afterA, layoutA)
+    const types = [...next.tiles!].sort((a, b) => a.order - b.order).map((t) => t.type)
+    expect(types[types.length - 1]).toBe('footer')
+    expect(types).toContain('event-details')
+  })
+
   it('a missing title comes back at the top', () => {
     const noTitle: InviteConfig = { tiles: [tile('event-details', 0, { date: '2026-01-01', location: '' })] } as InviteConfig
     const next = applyLayout(noTitle, undefined, undefined, 'C', afterA, layoutA)

@@ -151,26 +151,35 @@ export default function LayoutSelectPage(): React.ReactElement {
       return
     }
 
+    // The invitation as it stands, read now rather than trusting the copy loaded
+    // in the background - a host who picks a layout before that load finishes
+    // would otherwise lose what they typed at creation.
+    setApplying(true)
+    setApplyingId(layoutId)
+    let current = currentConfig
+    try {
+      current = (await getEventPageConfig(eventId))?.page_config ?? null
+    } catch {
+      // Fall back to whatever loaded; the layout still applies.
+    }
     // The layout the invitation was last given, so its untouched samples stay behind.
-    const previousId = currentConfig?.appliedLayoutId
+    const previousId = current?.appliedLayoutId
     const previousLayoutConfig =
       (previousId &&
         (layouts.find((t) => t.id === previousId) ?? starterLayouts.find((t) => t.id === previousId))?.config) ||
       null
 
-    setApplying(true)
-    setApplyingId(layoutId)
     try {
       const appliedConfig = isStarter
         ? applyLayout(layout.config, undefined, {
             mergeEventIntoTitle: false,
             mergeEventIntoDetails: false,
-          }, layout.id, currentConfig, previousLayoutConfig)
+          }, layout.id, current, previousLayoutConfig)
         : applyLayout(layout.config, {
             title: event?.title,
             date: event?.date,
             city: event?.city,
-          }, undefined, layout.id, currentConfig, previousLayoutConfig)
+          }, undefined, layout.id, current, previousLayoutConfig)
 
       // Save to Event.page_config so the design page reads the layout's tiles
       await updateEventPageConfig(eventId, appliedConfig)

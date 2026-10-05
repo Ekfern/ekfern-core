@@ -52,10 +52,27 @@ export default function EventDetailsEditPage() {
   const [coHostCount, setCoHostCount] = useState(0)
   // What the invitation says now - time, location line, Good to know - so the
   // form starts from it and a save writes back only what changed.
-  const invitationContent = useMemo(() => readEventDetailsContent(event?.page_config), [event?.page_config])
+  //
+  // The invitation lives in two stores. Older events can hold their design only
+  // in the InvitePage draft with an empty page_config, so read whichever has
+  // tiles - judging by page_config alone took such an event for one with no
+  // invitation and wrote a two-tile starter over its design.
+  const [invitePageConfig, setInvitePageConfig] = useState<InviteConfig | null | undefined>(undefined)
+  const currentInvitation = useMemo(
+    () => (event?.page_config?.tiles?.length ? event.page_config : invitePageConfig ?? null),
+    [event?.page_config, invitePageConfig],
+  )
+  const invitationContent = useMemo(() => readEventDetailsContent(currentInvitation), [currentInvitation])
   // Once laid out, the invitation is where its time, venue line and Good to know
   // are edited; here they show greyed out. The date stays here: it is the event's.
-  const invitationLocked = invitationIsLaidOut(event?.page_config)
+  const invitationLocked = invitationIsLaidOut(currentInvitation)
+
+  useEffect(() => {
+    if (!eventId || isNaN(eventId)) return
+    getInvitePage(eventId)
+      .then((page) => setInvitePageConfig(page?.config ?? null))
+      .catch(() => setInvitePageConfig(null))
+  }, [eventId])
 
   useEffect(() => {
     if (event?.my_role !== 'owner') return
@@ -87,11 +104,13 @@ export default function EventDetailsEditPage() {
   async function writeInvitationContent(patch: EventDetailsContent & { date?: string }, title: string): Promise<void> {
     if (Object.keys(patch).length === 0) return
     try {
-      const pageConfig = await getEventPageConfig(eventId)
-      const nextPageConfig = withEventDetailsContent(pageConfig?.page_config, patch, title)
+      const pageConfig = (await getEventPageConfig(eventId))?.page_config
+      const invitePage = await getInvitePage(eventId)
+      // Patch the design wherever it is; an empty page_config takes the draft's.
+      const base = pageConfig?.tiles?.length ? pageConfig : invitePage?.config?.tiles?.length ? invitePage.config : pageConfig
+      const nextPageConfig = withEventDetailsContent(base, patch, title)
       if (nextPageConfig) await updateEventPageConfig(eventId, nextPageConfig)
 
-      const invitePage = await getInvitePage(eventId)
       // Only an invitation that already has the tile; a starter lives in page_config.
       if (invitePage?.config?.tiles?.some((t) => t.type === 'event-details')) {
         const nextInvite = withEventDetailsContent(invitePage.config, patch, title)
@@ -174,7 +193,7 @@ export default function EventDetailsEditPage() {
         <h1 className="text-4xl font-bold mb-6 text-eco-green">Edit Event Details</h1>
         <Card className="bg-white border-2 border-eco-green-light">
           <CardContent className="pt-6">
-            {event && (
+            {event && invitePageConfig !== undefined && (
               <EventDetailsForm
                 defaultValues={{
                   ...event,

@@ -61,9 +61,9 @@ export default function WhereField({ mode, onModeChange, value, onChange }: Wher
   const [listOpen, setListOpen] = useState(false)
   const [manual, setManual] = useState(false)
   const [serviceDown, setServiceDown] = useState(false)
-  const [zoneSource, setZoneSource] = useState<'city' | 'country' | 'device' | 'chosen' | 'saved'>(
-    value.city ? 'saved' : mode === 'online' ? 'device' : 'saved',
-  )
+  // Whatever the form starts with is the event's saved zone (or the create
+  // page's default); "from your device" only once switching to online sets it.
+  const [zoneSource, setZoneSource] = useState<'city' | 'country' | 'device' | 'chosen' | 'saved'>('saved')
   const [zonePickerOpen, setZonePickerOpen] = useState(false)
   const failures = useRef(0)
 

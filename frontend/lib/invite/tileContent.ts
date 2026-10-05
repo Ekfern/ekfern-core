@@ -115,8 +115,11 @@ export function carryContent(
     const source = sources.get(type) as Tile
     return { ...source, id: newTileId(type), overlayTargetId: undefined, previewOrder: undefined }
   })
-  const anchor = merged.findIndex((tile) => tile.type === 'event-details')
-  merged.splice(anchor === -1 ? merged.length : anchor + 1, 0, ...added.filter((t) => t.type !== 'title'))
+  // After Event Details; failing that, before the footer, which stays last.
+  const details = merged.findIndex((tile) => tile.type === 'event-details')
+  const footer = merged.findIndex((tile) => tile.type === 'footer')
+  const insertAt = details !== -1 ? details + 1 : footer !== -1 ? footer : merged.length
+  merged.splice(insertAt, 0, ...added.filter((t) => t.type !== 'title'))
   merged.unshift(...added.filter((t) => t.type === 'title'))
   return merged.map((tile, index) => ({ ...tile, order: index }))
 }
