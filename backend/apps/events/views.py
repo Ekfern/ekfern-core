@@ -72,7 +72,7 @@ from django.core.cache import cache
 import threading
 from collections import defaultdict
 import time
-import boto3
+from apps.common.aws import aws_client
 from botocore.exceptions import ClientError
 
 
@@ -157,7 +157,7 @@ def invalidate_cloudfront_cache_immediate(slug):
         # Only try SSM lookup in production/staging environments
         # This prevents slow SSM API calls in local development
         try:
-            ssm = boto3.client('ssm', region_name='us-east-1')
+            ssm = aws_client('ssm', region_name='us-east-1')
             response = ssm.get_parameter(
                 Name='/event-registry-staging/CLOUDFRONT_DISTRIBUTION_ID'
             )
@@ -172,7 +172,7 @@ def invalidate_cloudfront_cache_immediate(slug):
     try:
         
         # Create CloudFront client
-        cloudfront = boto3.client('cloudfront', region_name='us-east-1')
+        cloudfront = aws_client('cloudfront', region_name='us-east-1')
         
         # Invalidate both the exact page path and any sub-paths.
         # NOTE: the wildcard '/invite/{slug}/*' does NOT match the exact
@@ -1276,7 +1276,7 @@ class EventViewSet(viewsets.ModelViewSet):
         # Default variables
         default_vars = [
             {'key': '[name]', 'label': 'Guest Name', 'description': 'Name of the guest', 'example': 'Sarah'},
-            {'key': '[event_title]', 'label': 'Event Title', 'description': 'Title of the event', 'example': event.title or 'Event Title'},
+            {'key': '[event_title]', 'label': 'Event Title', 'description': 'Title of the event', 'example': event.invitation_title or 'Event Title'},
             {'key': '[event_date]', 'label': 'Event Date', 'description': 'Date of the event', 'example': event.date.strftime('%B %d, %Y') if event.date else 'TBD'},
             {'key': '[event_url]', 'label': 'Event URL', 'description': 'Link to the event invitation', 'example': f'https://example.com/invite/{event.slug}' if event.slug else 'https://example.com/invite/event-slug'},
             {'key': '[host_name]', 'label': 'Host Name', 'description': 'Name of the event host', 'example': getattr(event.host, 'name', None) or getattr(event.host, 'username', 'Host')},
@@ -1972,7 +1972,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                         is_removed=False
                     ).only(
                         'id', 'title', 'start_at', 'end_at', 'location',
-                        'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible'
+                        'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'good_to_know',
+                        # Every field SubEventSerializer returns: one left out is fetched a row at a time.
+                        'event', 'is_removed', 'created_at', 'updated_at'
                     ).distinct().order_by('start_at')
 
                 except Guest.DoesNotExist:
@@ -1993,7 +1995,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                             is_removed=False
                         ).only(
                             'id', 'title', 'start_at', 'end_at', 'location',
-                            'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible'
+                            'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'good_to_know',
+                            # Every field SubEventSerializer returns: one left out is fetched a row at a time.
+                            'event', 'is_removed', 'created_at', 'updated_at'
                         ).order_by('start_at')
                     else:
                         # Fallback to separate query if prefetch didn't happen
@@ -2003,7 +2007,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                             is_removed=False
                         ).only(
                             'id', 'title', 'start_at', 'end_at', 'location',
-                            'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible'
+                            'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'good_to_know',
+                            # Every field SubEventSerializer returns: one left out is fetched a row at a time.
+                            'event', 'is_removed', 'created_at', 'updated_at'
                         ).order_by('start_at')
 
             # Convert to list early to evaluate queryset and check count efficiently
@@ -2641,7 +2647,7 @@ def _notify_host_rsvp(event, rsvp):
         from apps.common import emails
         rendered = emails.rsvp_confirmation(
             guest_name=rsvp.name or '',
-            event_title=event.title,
+            event_title=event.invitation_title,
             event_date=event.date,
             will_attend=rsvp.will_attend,
             host_name=event.host.name or '',
@@ -2677,7 +2683,7 @@ def _notify_rsvp_recipient(event, rsvp, host):
 
     from apps.common import emails
     rendered = emails.rsvp_alert(
-        event_title=event.title,
+        event_title=event.invitation_title,
         guest_name=rsvp.name or '',
         will_attend=rsvp.will_attend,
         guests_count=rsvp.guests_count or 1,
@@ -2704,7 +2710,7 @@ def _notify_rsvp_recipient(event, rsvp, host):
             notification_type='rsvp_new',
             payload_json={
                 'event_id': event.id,
-                'event_title': event.title,
+                'event_title': event.invitation_title,
                 'rsvp_name': rsvp.name or '',
                 'rsvp_email': rsvp.email or '',
                 'will_attend': rsvp.will_attend,
@@ -4133,7 +4139,7 @@ def _store_greeting_card_bytes(content: bytes, key: str, content_type: str) -> s
     if access_key and secret_key:
         s3_kwargs['aws_access_key_id'] = access_key
         s3_kwargs['aws_secret_access_key'] = secret_key
-    s3_client = boto3.client(**s3_kwargs)
+    s3_client = aws_client(**s3_kwargs)
     s3_client.put_object(
         Bucket=bucket_name,
         Key=key,
@@ -5148,10 +5154,14 @@ def place_suggest(request):
     Always 200 - an empty list means "no suggestions", whether that is because
     nothing matched or because the lookup service is unreachable, and the editor
     falls back to a plain text field either way.
-    """
-    from .services.places import ATTRIBUTION, search_places
 
-    results, available = search_places(request.query_params.get('q', ''))
+    `?kind=city` is the create-event form's lookup: towns only, each with its
+    country code and time zone.
+    """
+    from .services.places import ATTRIBUTION, search_cities, search_places
+
+    search = search_cities if request.query_params.get('kind') == 'city' else search_places
+    results, available = search(request.query_params.get('q', ''))
     response = Response({'results': results, 'attribution': ATTRIBUTION, 'available': available})
     response['Cache-Control'] = 'private, max-age=300'
     return response

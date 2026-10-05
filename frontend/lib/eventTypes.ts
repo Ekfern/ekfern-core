@@ -49,6 +49,7 @@ export const EVENT_TYPES = [
   { value: 'exhibition',          label: 'Exhibition',          group: 'Social & Community' },
   { value: 'festival',            label: 'Festival',            group: 'Social & Community' },
   { value: 'fundraiser',          label: 'Fundraiser',          group: 'Social & Community' },
+  { value: 'meetup',              label: 'Meetup',              group: 'Social & Community' },
   // Entertainment — alphabetical
   { value: 'comedy_show',         label: 'Comedy Show',         group: 'Entertainment' },
   { value: 'concert',             label: 'Concert',             group: 'Entertainment' },

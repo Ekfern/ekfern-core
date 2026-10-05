@@ -3,8 +3,10 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
+from .models import invitation_title_from_config
 from .models import Event, RSVP, Guest, InvitePage, SubEvent, GuestSubEventInvite, MessageTemplate, AttributionLink, InvitePageLayout, GreetingCardSample, GuestSegment, MessageCampaign, CampaignRecipient, BookingSchedule, BookingSlot, SlotBooking, MetaApprovedTemplate, HostSendQuota, AnimationRegistryEntry
 from apps.users.serializers import UserSerializer
+from .good_to_know import validate_good_to_know
 from .utils import get_country_code, format_phone_with_country_code, normalize_csv_header, normalize_phone_for_match, phones_loosely_match
 import re
 import secrets
@@ -130,6 +132,15 @@ class EventListSerializer(MyRoleMixin, serializers.ModelSerializer):
         )
 
 
+
+def _check_last_day(attrs, instance=None):
+    """A multi-day event's last day cannot come before its first."""
+    start = attrs.get('date', getattr(instance, 'date', None))
+    end = attrs.get('event_end_date', getattr(instance, 'event_end_date', None))
+    if start and end and end < start:
+        raise serializers.ValidationError({'event_end_date': "The last day can't be before the first."})
+
+
 class EventSerializer(MyRoleMixin, serializers.ModelSerializer):
     # Only include minimal host info for privacy (name only, no email)
     host_name = serializers.CharField(source='host.name', read_only=True, allow_null=True)
@@ -218,6 +229,7 @@ class EventSerializer(MyRoleMixin, serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         instance = self.instance
+        _check_last_day(attrs, instance)
 
         # Non-RSVP PATCHes (e.g. has_rsvp, title) must not re-derive legacy RSVP fields.
         if instance and not (EVENT_RSVP_MUTATION_KEYS & attrs.keys()):
@@ -302,7 +314,9 @@ class InvitePageSerializer(serializers.ModelSerializer):
     # endpoints must use `event`, not `id`.
     country_code = serializers.SerializerMethodField()
     # Presentation, and effectively immutable - the cacheable side of the split.
-    title = serializers.CharField(source='event.title', read_only=True)
+    # The invitation's headline (Event.invitation_title), read from this page's
+    # own configs so it costs no extra query; the event's title is the host's name for it.
+    title = serializers.SerializerMethodField()
     host_name = serializers.CharField(source='event.host.name', read_only=True, allow_null=True)
     state = serializers.SerializerMethodField()  # Expose state property using method field
     rsvp_count = serializers.SerializerMethodField()
@@ -338,6 +352,13 @@ class InvitePageSerializer(serializers.ModelSerializer):
         # This will be set by the view using context
         return self.context.get('guest_context', None)
     
+    def get_title(self, obj):
+        return (
+            invitation_title_from_config(obj.published_config)
+            or invitation_title_from_config(obj.config)
+            or obj.event.title
+        )
+
     def get_state(self, obj):
         """Get the state property from the InvitePage model"""
         return obj.state
@@ -409,7 +430,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Event
-        fields = ('slug', 'title', 'event_type', 'date', 'city', 'country', 'timezone', 'is_public', 'has_rsvp', 'has_registry', 'rsvp_experience_mode')
+        fields = ('slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'is_public', 'has_rsvp', 'has_registry', 'rsvp_experience_mode')
         read_only_fields = ('id',)
 
     @staticmethod
@@ -425,6 +446,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        _check_last_day(attrs)
         slug = attrs.get('slug', '').strip()
         mode = attrs.get('rsvp_experience_mode', Event.RSVP_EXPERIENCE_MODE_STANDARD)
 
@@ -1006,7 +1028,7 @@ class SubEventSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SubEvent
-        fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
+        fields = ('id', 'event', 'title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'good_to_know', 'assigned_guests_count', 'is_removed', 'created_at', 'updated_at')
         # is_removed is read-only: soft delete goes through perform_destroy, never
         # a client write. Leaving it writable let any update that spreads the whole
         # object carry a soft delete along with it.
@@ -1014,6 +1036,9 @@ class SubEventSerializer(serializers.ModelSerializer):
 
     def get_assigned_guests_count(self, obj):
         return getattr(obj, 'assigned_guests_count', None)
+
+    def validate_good_to_know(self, value):
+        return validate_good_to_know(value)
     
     def validate(self, data):
         """Validate that end_at is after start_at if both are provided"""
@@ -1031,7 +1056,10 @@ class SubEventCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SubEvent
-        fields = ('title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible')
+        fields = ('title', 'start_at', 'end_at', 'location', 'description', 'image_url', 'background_color', 'rsvp_enabled', 'is_public_visible', 'good_to_know')
+
+    def validate_good_to_know(self, value):
+        return validate_good_to_know(value)
     
     def validate(self, data):
         """Validate that end_at is after start_at if both are provided"""
@@ -1154,7 +1182,7 @@ class MessageTemplateSerializer(serializers.ModelSerializer):
         variables = [
             {'key': '[name]', 'label': 'Guest Name', 'description': 'Name of the guest', 'example': 'Sarah'},
             {'key': '[event_title]', 'label': 'Event Title', 'description': 'Title of the event',
-             'example': event.title if event else 'Your Event'},
+             'example': event.invitation_title if event else 'Your Event'},
             {'key': '[event_date]', 'label': 'Event Date', 'description': 'Date of the event',
              'example': (event.date.strftime('%B %d, %Y') if event and event.date else 'TBD')},
             {'key': '[event_url]', 'label': 'Event URL', 'description': 'Link to the event invitation',

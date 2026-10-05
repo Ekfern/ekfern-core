@@ -14,6 +14,7 @@ import {
 } from '@dnd-kit/sortable'
 import { Plus, X } from 'lucide-react'
 import { Tile, TileType } from '@/lib/invite/schema'
+import { headlineTile } from '@/lib/invite/headline'
 import SortableTileSettings from './SortableTileSettings'
 
 // All available tile types with descriptions for the picker
@@ -47,6 +48,17 @@ interface TileSettingsListProps {
   templateStudio?: boolean
   /** Tile ids that differ from the published version (renders an "Edited" badge). */
   changedTileIds?: Set<string>
+  /** Passed to Event Details so its Good to know chips follow the event type. */
+  eventType?: string | null
+  /** Open this tile's panel on load, e.g. 'event-details' from Edit Event Details. */
+  expandTileType?: TileType | null
+  /**
+   * An event's invitation: its headline (first Title tile) names the event in
+   * messages, so it can be hidden but not removed. Off in the staff Layout Studio.
+   */
+  protectHeadline?: boolean
+  /** In person or online, from the event; passed to Event Details. */
+  eventWhere?: { online: boolean; city?: string }
 }
 
 export default function TileSettingsList({
@@ -63,11 +75,16 @@ export default function TileSettingsList({
   eventStructure,
   templateStudio = false,
   changedTileIds,
+  eventType,
+  expandTileType,
+  protectHeadline = false,
+  eventWhere,
 }: TileSettingsListProps) {
   const [showPicker, setShowPicker] = useState(false)
 
   const sensors = useTileDragSensors()
 
+  const headlineId = protectHeadline ? headlineTile(tiles)?.id : undefined
   const footerTile = tiles.find((t) => t.type === 'footer')
   const otherTiles = tiles.filter((t) => t.type !== 'footer')
 
@@ -107,13 +124,17 @@ export default function TileSettingsList({
             <SortableTileSettings
               key={tile.id}
               tile={tile}
+              expandOnOpen={tile.type === expandTileType}
               onUpdate={onUpdate}
               onToggle={onToggle}
-              onRemove={onRemoveTile ? () => onRemoveTile(tile.id) : undefined}
+              onRemove={onRemoveTile && tile.id !== headlineId ? () => onRemoveTile(tile.id) : undefined}
+              isHeadline={tile.id === headlineId}
               eventId={eventId}
               hasRsvp={hasRsvp}
               hasRegistry={hasRegistry}
               forceExpanded={forceExpanded}
+              eventType={eventType}
+              eventWhere={eventWhere}
               isChanged={changedTileIds?.has(tile.id) ?? false}
             />
           ))}
@@ -121,6 +142,7 @@ export default function TileSettingsList({
             <SortableTileSettings
               key={footerTile.id}
               tile={footerTile}
+              expandOnOpen={footerTile.type === expandTileType}
               onUpdate={onUpdate}
               onToggle={onToggle}
               onRemove={onRemoveTile ? () => onRemoveTile(footerTile.id) : undefined}
@@ -128,6 +150,8 @@ export default function TileSettingsList({
               hasRsvp={hasRsvp}
               hasRegistry={hasRegistry}
               forceExpanded={forceExpanded}
+              eventType={eventType}
+              eventWhere={eventWhere}
               isFooter={true}
               isChanged={changedTileIds?.has(footerTile.id) ?? false}
             />

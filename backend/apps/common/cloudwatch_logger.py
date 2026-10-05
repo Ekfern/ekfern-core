@@ -3,7 +3,7 @@ CloudWatch logging utility for structured logging
 """
 import json
 import logging
-import boto3
+from apps.common.aws import aws_client
 from datetime import datetime
 from django.conf import settings
 from botocore.exceptions import ClientError
@@ -25,7 +25,7 @@ def _get_cloudwatch_client():
         kwargs['aws_access_key_id'] = aws_access_key_id
         kwargs['aws_secret_access_key'] = aws_secret_access_key
     
-    return boto3.client('logs', **kwargs)
+    return aws_client('logs', **kwargs)
 
 
 def log_to_cloudwatch(
