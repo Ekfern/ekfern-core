@@ -34,18 +34,21 @@ export interface WizardProgressProps {
 interface StepDefinition {
   key: WizardStepKey
   label: string
+  /** Shown on phones, where the full label does not fit beside its neighbours. */
+  shortLabel: string
   href: (id: number) => string
 }
 
 const BASE_STEPS: StepDefinition[] = [
-  { key: 'details', label: 'Event Details', href: (id) => `/host/events/${id}/details` },
-  { key: 'layout', label: 'Layout', href: (id) => `/host/events/${id}/layout` },
-  { key: 'page-editor', label: 'Page Editor', href: (id) => `/host/events/${id}/page-editor` },
+  { key: 'details', label: 'Event Details', shortLabel: 'Details', href: (id) => `/host/events/${id}/details` },
+  { key: 'layout', label: 'Layout', shortLabel: 'Layout', href: (id) => `/host/events/${id}/layout` },
+  { key: 'page-editor', label: 'Page Editor', shortLabel: 'Editor', href: (id) => `/host/events/${id}/page-editor` },
 ]
 
 const SUB_EVENTS_STEP: StepDefinition = {
   key: 'sub-events',
   label: 'Sub-events',
+  shortLabel: 'Sub-events',
   href: (id) => `/host/events/${id}/sub-events-setup`,
 }
 
@@ -96,7 +99,7 @@ interface StepCircleProps {
 function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
   if (state === 'completed') {
     return (
-      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0">
+      <span className="flex items-center justify-center w-7 h-7 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0">
         <AnimatePresence mode="wait" initial={false}>
           <motion.span
             key="check"
@@ -114,7 +117,7 @@ function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
   if (state === 'active-completed') {
     // Here, and already done: the check, with the ring that marks where you are.
     return (
-      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green ring-offset-2 flex-shrink-0">
+      <span className="flex items-center justify-center w-7 h-7 rounded-full bg-eco-green text-white ring-2 ring-eco-green ring-offset-2 flex-shrink-0">
         <CheckIcon />
       </span>
     )
@@ -122,7 +125,7 @@ function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
   if (state === 'active') {
     return (
       <motion.span
-        className="flex items-center justify-center w-8 h-8 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0 text-sm font-bold"
+        className="flex items-center justify-center w-7 h-7 rounded-full bg-eco-green text-white ring-2 ring-eco-green flex-shrink-0 text-sm font-bold"
         animate={{ scale: [1, 1.1, 1] }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
@@ -132,14 +135,14 @@ function StepCircle({ state, number }: StepCircleProps): React.ReactElement {
   }
   if (state === 'available') {
     return (
-      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white text-eco-green ring-2 ring-eco-green flex-shrink-0 text-sm font-semibold">
+      <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white text-eco-green ring-2 ring-eco-green flex-shrink-0 text-sm font-semibold">
         {number}
       </span>
     )
   }
   // future
   return (
-    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white text-gray-400 ring-2 ring-gray-300 flex-shrink-0 text-sm font-medium">
+    <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white text-gray-400 ring-2 ring-gray-300 flex-shrink-0 text-sm font-medium">
       {number}
     </span>
   )
@@ -152,49 +155,63 @@ interface StepNodeProps {
   eventId?: number
 }
 
+/** What a screen reader hears after the step's name. */
+const STATE_TEXT: Record<StepState, string> = {
+  completed: 'completed',
+  'active-completed': 'current step, completed',
+  active: 'current step',
+  available: 'next',
+  future: 'not started',
+}
+
 function StepNode({ step, state, displayNumber, eventId }: StepNodeProps): React.ReactElement {
   const isClickable = (state === 'completed' || state === 'available') && eventId != null
   const circle = <StepCircle state={state} number={displayNumber} />
 
+  // Greys dark enough to read at this size (the lighter ones were ~2.5:1).
   const labelClasses =
     state === 'active' || state === 'active-completed'
       ? 'font-semibold text-eco-green'
-      : state === 'completed'
-      ? 'font-medium text-gray-500'
-      : 'font-medium text-gray-400'
+      : state === 'completed' || state === 'available'
+      ? 'font-medium text-gray-600'
+      : 'font-medium text-gray-500'
 
-  const inner = (
-    <div className="flex flex-col items-center gap-1.5">
-      {circle}
-      {/* Label: hidden on very small screens, shown sm+ */}
-      <span className={`hidden sm:block text-xs leading-tight text-center ${labelClasses}`}>
-        {step.label}
-      </span>
-    </div>
+  // Labels show on every screen: short on phones, where three bare circles
+  // would not say which step is which.
+  const label = (
+    <span className={`text-[11px] sm:text-xs leading-tight text-center whitespace-nowrap ${labelClasses}`}>
+      <span className="sm:hidden">{step.shortLabel}</span>
+      <span className="hidden sm:inline">{step.label}</span>
+      <span className="sr-only">, {STATE_TEXT[state]}</span>
+    </span>
   )
 
   if (isClickable) {
+    // The whole step - circle and label - is the target, at least 44px, though
+    // the circle itself is small.
     return (
       <Link
         href={step.href(eventId!)}
-        className="flex flex-col items-center gap-1.5 group focus:outline-none"
-        aria-label={`Go to step ${displayNumber}: ${step.label}`}
+        className="group flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1 rounded-lg px-1 sm:px-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-eco-green"
       >
         <motion.span
-          whileHover={{ scale: 1.1 }}
+          whileHover={{ scale: 1.08 }}
           transition={{ type: 'spring', stiffness: 400, damping: 20 }}
           className="flex items-center justify-center flex-shrink-0"
         >
           {circle}
         </motion.span>
-        <span className={`hidden sm:block text-xs leading-tight text-center ${labelClasses} group-hover:text-eco-green transition-colors`}>
-          {step.label}
-        </span>
+        <span className="transition-colors group-hover:text-eco-green">{label}</span>
       </Link>
     )
   }
 
-  return inner
+  return (
+    <div className="flex min-h-[44px] flex-col items-center justify-center gap-1 px-1 sm:px-2">
+      {circle}
+      {label}
+    </div>
+  )
 }
 
 /** Connector line between two step nodes. */
@@ -237,7 +254,7 @@ export default function WizardProgress({
   return (
     <nav
       aria-label="Invitation creation wizard progress"
-      className="w-full bg-white border-b border-gray-100 px-4 py-4"
+      className="w-full bg-white border-b border-gray-100 px-3 py-1.5 sm:px-4"
     >
       <div className="max-w-2xl mx-auto">
         <ol className="flex items-center w-full" role="list">
@@ -248,7 +265,7 @@ export default function WizardProgress({
             const isLast = index === steps.length - 1
             return (
               <React.Fragment key={step.key}>
-                <li className="flex items-center justify-center">
+                <li className="flex items-center justify-center" aria-current={index === currentIndex ? 'step' : undefined}>
                   <StepNode step={step} state={state} displayNumber={index + 1} eventId={eventId} />
                 </li>
                 {!isLast && <Connector leftState={state} />}
