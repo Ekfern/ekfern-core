@@ -164,6 +164,12 @@ export default function EventDetailsForm({
 
   const locked = !!inviteContentLockedHref
   const lockedInput = locked ? 'cursor-not-allowed bg-gray-100 text-gray-500' : ''
+  // Under each greyed field: where it is edited now.
+  const editOnInvitationShort = locked ? (
+    <Link href={inviteContentLockedHref!} className="mt-1 inline-block text-xs font-medium text-eco-teal underline underline-offset-2">
+      Edit on your invitation →
+    </Link>
+  ) : null
   const editOnInvitation = locked ? (
     <Link href={inviteContentLockedHref!} className="font-medium text-eco-teal underline underline-offset-2">
       Edit in the Page Editor →
@@ -179,15 +185,11 @@ export default function EventDetailsForm({
       <section className="space-y-5">
         <div>
           <h2 className={sectionHeading}>The basics</h2>
-          {inviteContent && (
+          {inviteContent && !locked && (
             <p className="text-sm text-gray-600">
-              {inviteContent === 'create' ? (
-                'This shows on your invitation. You’ll choose how it looks next.'
-              ) : locked ? (
-                <>Time, {whereMode === 'online' ? 'how guests join' : 'venue line'} and Good to know are on your invitation now. {editOnInvitation}</>
-              ) : (
-                'This shows on your invitation. Changes here update it too.'
-              )}
+              {inviteContent === 'create'
+                ? 'This shows on your invitation. You’ll choose how it looks next.'
+                : 'This shows on your invitation. Changes here update it too.'}
             </p>
           )}
         </div>
@@ -282,6 +284,7 @@ export default function EventDetailsForm({
                   aria-readonly={locked}
                   className={lockedInput}
                 />
+                {editOnInvitationShort}
               </div>
             )}
           </div>
@@ -349,6 +352,7 @@ export default function EventDetailsForm({
               aria-readonly={locked}
               className={lockedInput}
             />
+            {editOnInvitationShort}
             {!locked && (
               <p className="mt-1 text-xs text-gray-500">
                 {whereMode === 'online'
