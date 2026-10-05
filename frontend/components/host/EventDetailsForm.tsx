@@ -409,7 +409,7 @@ export default function EventDetailsForm({
         coHosts={coHosts}
       />
 
-      <div className="flex gap-2">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
         {onCancel && (
           <Button
             type="button"

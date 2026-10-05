@@ -231,7 +231,7 @@ export default function LayoutSelectPage(): React.ReactElement {
   const continueToEditor = () => router.push(`/host/events/${eventId}/page-editor`)
 
   return (
-    <div className="min-h-screen bg-eco-beige pb-24">
+    <div className="min-h-screen bg-eco-beige pb-48 lg:pb-24">
       {/* Show the Sub-events step in the stepper for multi-sub-event (ENVELOPE) events. */}
       <WizardProgress
         currentStep="layout"
@@ -288,16 +288,16 @@ export default function LayoutSelectPage(): React.ReactElement {
 
       {/* Laid out, current layout selected (or none picked): keep it and move on. */}
       {laidOut && !switching && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-            <p className="text-sm font-medium text-gray-800 truncate">
+        <div className="fixed inset-x-3 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.5rem)] z-40 rounded-2xl border border-gray-200 bg-white shadow-lg lg:inset-x-0 lg:bottom-0 lg:rounded-none lg:border-x-0 lg:border-b-0">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <p className="text-sm font-medium text-gray-800 sm:truncate">
               <span className="text-gray-500 font-normal">Current layout: </span>
               {currentLayout?.name ?? 'your own page'}
             </p>
             <button
               type="button"
               onClick={continueToEditor}
-              className="flex-shrink-0 bg-eco-green hover:bg-eco-green-dark text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+              className="flex-shrink-0 bg-eco-green hover:bg-eco-green-dark text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
             >
               Keep it and continue →
             </button>
@@ -307,10 +307,10 @@ export default function LayoutSelectPage(): React.ReactElement {
 
       {/* Sticky apply bar: a first layout, or switching to another */}
       {pendingLayout && (!laidOut || switching) && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <div className="fixed inset-x-3 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.5rem)] z-40 rounded-2xl border border-gray-200 bg-white shadow-lg lg:inset-x-0 lg:bottom-0 lg:rounded-none lg:border-x-0 lg:border-b-0">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">
+              <p className="text-sm font-medium text-gray-800 sm:truncate">
                 <span className="text-gray-500 font-normal">Selected: </span>{pendingLayout.name}
               </p>
               {switching && (
@@ -319,7 +319,7 @@ export default function LayoutSelectPage(): React.ReactElement {
                 </p>
               )}
             </div>
-            <div className="flex gap-3 flex-shrink-0">
+            <div className="flex justify-end gap-3 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setPendingLayoutId(laidOut ? appliedLayoutId : null)}
