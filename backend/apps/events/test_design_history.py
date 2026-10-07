@@ -181,6 +181,27 @@ class DesignDiffTests(TestCase):
             c = self.at(self.diff(before, after), 'title “Join us” · text')
         self.assertEqual((c['from'], c['to']), ("You're Invited", 'Join us'))
 
+    def test_good_to_know_changes_are_named_per_answer(self):
+        def gtk(items):
+            return {'tiles': [{'id': 'g', 'type': 'event-details', 'settings': {'goodToKnow': items}}]}
+
+        before = gtk([{'id': '1', 'kind': 'dress', 'text': 'Pastels'}])
+        after = gtk([
+            {'id': '1', 'kind': 'dress', 'text': 'Black tie', 'url': 'pinterest.com/b'},
+            {'id': '2', 'kind': 'parking', 'text': 'Valet'},
+        ])
+        changes = self.diff(before, after)
+        self.assertEqual(
+            (self.at(changes, 'event-details · Dress code')['from'], self.at(changes, 'event-details · Dress code')['to']),
+            ('Pastels', 'Black tie'),
+        )
+        self.assertEqual(self.at(changes, 'event-details · Dress code link')['to'], 'pinterest.com/b')
+        self.assertEqual(self.at(changes, 'event-details · Parking')['to'], 'Valet')
+        self.assertIsNone(self.at(changes, 'event-details · goodToKnow'))
+
+        removed = self.diff(after, before)
+        self.assertEqual(self.at(removed, 'event-details · Parking')['to'], 'removed')
+
     def test_hiding_a_tile_reads_as_shown_to_hidden(self):
         before = {'tiles': [{'id': 'a', 'type': 'timer', 'enabled': True}]}
         after = {'tiles': [{'id': 'a', 'type': 'timer', 'enabled': False}]}

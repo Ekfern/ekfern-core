@@ -20,6 +20,10 @@ interface SortableTileSettingsProps {
   isFooter?: boolean
   /** Highlight that this tile differs from the published version (unpublished change). */
   isChanged?: boolean
+  eventType?: string | null
+  expandOnOpen?: boolean
+  isHeadline?: boolean
+  eventWhere?: { online: boolean; city?: string }
 }
 
 export default function SortableTileSettings({
@@ -33,6 +37,10 @@ export default function SortableTileSettings({
   forceExpanded = false,
   isFooter = false,
   isChanged = false,
+  eventType,
+  expandOnOpen = false,
+  isHeadline = false,
+  eventWhere,
 }: SortableTileSettingsProps) {
   const {
     attributes,
@@ -87,6 +95,10 @@ export default function SortableTileSettings({
           hasRsvp={hasRsvp}
           hasRegistry={hasRegistry}
           forceExpanded={forceExpanded}
+          eventType={eventType}
+          expandOnOpen={expandOnOpen}
+          isHeadline={isHeadline}
+          eventWhere={eventWhere}
         />
       </div>
     </div>

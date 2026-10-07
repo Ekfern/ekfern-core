@@ -4,6 +4,7 @@
  */
 
 import type { InviteConfig, Tile } from './schema'
+import { carryContent } from './tileContent'
 
 function uniqueTileId(type: string): string {
   return `tile-${type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
@@ -27,12 +28,18 @@ export interface ApplyLayoutOptions {
  * Use when applying a layout from the library or when switching layouts in the editor.
  * Pass the source layout's own id as `layoutId` so it's stamped onto the result as
  * `appliedLayoutId`, letting the Layout step later show what's currently applied.
+ * Pass the invitation's config as it stands as `current` so what the host wrote in
+ * its tiles outlives the change of look (see tileContent.ts) - it wins over the
+ * event merge, being the newer word - and the layout it was last given as
+ * `previousLayout`, so that layout's untouched sample copy stays behind.
  */
 export function applyLayout(
   layoutConfig: InviteConfig,
   event?: EventDataForLayout,
   options?: ApplyLayoutOptions,
   layoutId?: string,
+  current?: InviteConfig | null,
+  previousLayout?: InviteConfig | null,
 ): InviteConfig {
   const mergeTitle = options?.mergeEventIntoTitle !== false
   const mergeDetails = options?.mergeEventIntoDetails !== false
@@ -122,7 +129,7 @@ export function applyLayout(
   return {
     ...layoutConfig,
     ...resetFields,
-    tiles: mergedTiles,
+    tiles: carryContent(mergedTiles, current, previousLayout),
     tileSetComplete: true,
     appliedLayoutId: layoutId,
   }

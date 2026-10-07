@@ -1,15 +1,48 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError, logDebug } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
-import EventDetailsForm, { type EventDetailsFormData } from '@/components/host/EventDetailsForm'
+import EventDetailsForm, { eventPayloadOf, type EventDetailsFormData } from '@/components/host/EventDetailsForm'
 import CoHostInviteDraft from '@/components/host/CoHostInviteDraft'
 import { inviteCoHost } from '@/lib/cohosts'
+import { countryForZone, deviceTimeZone } from '@/lib/eventTimezone'
+import { updateEventPageConfig } from '@/lib/event/api'
+import { visibleItems } from '@/lib/invite/goodToKnow'
+import { withEventDetailsContent } from '@/lib/invite/eventDetailsContent'
+import type { InviteConfig } from '@/lib/invite/schema'
+
+/**
+ * What the host typed for the invitation itself - the time, the venue, Good to
+ * know - as a starter invitation. There is no layout yet; applying one carries
+ * this content into it (lib/invite/tileContent.ts), so nothing is typed twice.
+ * Null when there is nothing beyond what the event already holds.
+ */
+function starterInvitation(data: EventDetailsFormData): InviteConfig | null {
+  // Several events take their own date, time and place; only Good to know,
+  // which is for the whole celebration, goes on the invitation itself.
+  const single = !data.is_multi_sub_event
+  const venue = single ? data.venue?.trim() ?? '' : ''
+  // In person: "The Lakeside Lawns, Udaipur". Online: how guests join, as typed.
+  const location =
+    single && data.where_mode === 'in-person' ? [venue, data.city?.trim()].filter(Boolean).join(', ') : venue
+  const hasOwnContent = (single && !!data.time) || !!venue || visibleItems(data.good_to_know).length > 0
+  if (!hasOwnContent) return null
+  return withEventDetailsContent(
+    null,
+    {
+      date: single ? (data.date ?? '') : '',
+      time: single ? (data.time ?? '') : '',
+      location,
+      goodToKnow: visibleItems(data.good_to_know),
+    },
+    data.title,
+  )
+}
 
 export default function NewEventPage() {
   const router = useRouter()
@@ -17,6 +50,14 @@ export default function NewEventPage() {
   const [loading, setLoading] = useState(false)
   // Collected while the event does not exist yet; sent the moment it does.
   const [pendingCoHosts, setPendingCoHosts] = useState<string[]>([])
+  // Start from where the host is: their device's zone, and the country it belongs to.
+  // Read after mount - the server renders this page too, in its own zone, and
+  // the two disagreeing breaks hydration.
+  const [defaults, setDefaults] = useState<{ timezone: string; country: string } | null>(null)
+  useEffect(() => {
+    const timezone = deviceTimeZone()
+    setDefaults({ timezone, country: countryForZone(timezone) ?? 'IN' })
+  }, [])
 
   /**
    * Send the invites gathered during creation.
@@ -52,15 +93,24 @@ export default function NewEventPage() {
   const onSubmit = async (data: EventDetailsFormData) => {
     setLoading(true)
     try {
-      // is_multi_sub_event is a UI-only routing flag — keep it out of the API payload.
-      const { is_multi_sub_event, ...eventPayload } = data
-      const response = await api.post('/api/events/', eventPayload)
+      const is_multi_sub_event = data.is_multi_sub_event
+      const response = await api.post('/api/events/', eventPayloadOf(data))
       const eventId = response.data.id
       if (!eventId) {
         logError('Event ID not found in response:', response.data)
         showToast('Event created but ID not found. Please refresh the dashboard.', 'error')
         router.push('/host/dashboard')
         return
+      }
+      const starter = starterInvitation(data)
+      if (starter) {
+        try {
+          await updateEventPageConfig(eventId, starter)
+        } catch (err) {
+          // Never strands the host: the event exists, and the time and venue can
+          // still be typed into Event Details in the editor.
+          logError('Starter invitation save failed', err)
+        }
       }
       await sendPendingCoHostInvites(eventId)
 
@@ -90,23 +140,22 @@ export default function NewEventPage() {
       <WizardProgress currentStep="details" />
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <h1 className="text-4xl font-bold mb-2 text-eco-green">Create Your Event</h1>
-        <p className="text-lg text-gray-700 mb-8">Start with your basic details — you can add RSVP or a host catalog anytime.</p>
+        <p className="text-lg text-gray-700 mb-8">What guests need to know, and how the event runs.</p>
         <Card className="bg-white border-2 border-eco-green-light">
-          <CardHeader>
-            <CardTitle className="text-eco-green">Event Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EventDetailsForm
+          <CardContent className="pt-6">
+            {defaults && <EventDetailsForm
+              defaultValues={defaults}
               onSubmit={onSubmit}
               submitLabel="Next: Choose Layout"
               loading={loading}
               onCancel={() => router.back()}
               showStructureChoice
-              beforeActions={<CoHostInviteDraft value={pendingCoHosts} onChange={setPendingCoHosts} />}
-            />
-            <p className="text-sm text-center text-gray-600 mt-4">
-              You can enable RSVP or Registry later from your Dashboard.
-            </p>
+              inviteContent="create"
+              coHosts={{
+                count: pendingCoHosts.length,
+                panel: <CoHostInviteDraft value={pendingCoHosts} onChange={setPendingCoHosts} />,
+              }}
+            />}
           </CardContent>
         </Card>
 

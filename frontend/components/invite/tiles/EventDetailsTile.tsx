@@ -10,6 +10,8 @@ import { getGoogleCalendarHref } from '@/lib/calendar'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
 import { buildCompactRows, formatTimeRange } from '@/lib/invite/eventDetailsCompact'
+import { GOOD_TO_KNOW_PRESETS, visibleItems } from '@/lib/invite/goodToKnow'
+import GoodToKnowList from '@/components/invite/GoodToKnowList'
 
 export interface EventDetailsTileProps {
   settings: EventDetailsTileSettings
@@ -381,12 +383,18 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                           className="m-0"
                           style={recipeAtSize('data', '0.9375rem', { lineHeight: 1.45, fontWeight: 600 })}
                         >
-                          {row.value.split(' · ').map((part, i) => (
-                            <React.Fragment key={i}>
-                              {i > 0 && ' · '}
-                              <span style={part.length <= 22 ? { whiteSpace: 'nowrap' } : undefined}>{part}</span>
-                            </React.Fragment>
-                          ))}
+                          {row.href ? (
+                            <a href={row.href} target="_blank" rel="noopener noreferrer" className="underline decoration-1 underline-offset-4">
+                              {row.value}
+                            </a>
+                          ) : (
+                            row.value.split(' · ').map((part, i) => (
+                              <React.Fragment key={i}>
+                                {i > 0 && ' · '}
+                                <span style={part.length <= 22 ? { whiteSpace: 'nowrap' } : undefined}>{part}</span>
+                              </React.Fragment>
+                            ))
+                          )}
                         </dd>
                       </React.Fragment>
                     ))}
@@ -433,6 +441,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                         </div>
                       )
                     })()}
+                    <GoodToKnowList items={settings.goodToKnow} textAlign={textAlign} />
                     {/* Save the Date button for day-prominent - rendered below in shared section */}
                   </div>
                 )
@@ -494,23 +503,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     </div>
                   )
                 })()}
-
-                {settings.dressCode && (
-                  <div className="space-y-2">
-                    <div
-                      className="mb-3"
-                      style={recipe('eyebrow')}
-                    >
-                      Dress Code
-                    </div>
-                    <div
-                      className="text-xl md:text-2xl font-normal leading-relaxed italic"
-                      style={recipe('data')}
-                    >
-                      {settings.dressCode}
-                    </div>
-                  </div>
-                )}
+                <GoodToKnowList items={settings.goodToKnow} textAlign={textAlign} />
               </div>
             )
           })()}
@@ -656,19 +649,16 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
             </div>
           )
         })()}
-        {settings.dressCode && (
+        {visibleItems(settings.goodToKnow).length > 0 && (
           <p>
             <span
               className="text-xs uppercase tracking-widest font-light italic mr-2"
               style={recipe('eyebrow')}
             >
-              Dress Code:
+              Good to know:
             </span>
-            <span
-              className="font-normal italic"
-              style={recipe('data')}
-            >
-              {settings.dressCode}
+            <span className="font-normal" style={recipe('data')}>
+              {visibleItems(settings.goodToKnow).map((item) => GOOD_TO_KNOW_PRESETS[item.kind].label).join(', ')}
             </span>
           </p>
         )}

@@ -23,6 +23,10 @@ import { useToast } from '@/components/ui/toast'
 import { getErrorMessage, logError } from '@/lib/error-handler'
 import WizardProgress from '@/components/host/WizardProgress'
 import { eventTzLocalToUtcISO } from '@/lib/datetime/eventTz'
+import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
+import { completedSteps, nextStepAfter, type WizardEvent } from '@/lib/host/wizardSteps'
+import { GOOD_TO_KNOW_PRESETS, visibleItems } from '@/lib/invite/goodToKnow'
+import type { GoodToKnowItem } from '@/lib/invite/schema'
 
 interface SubEvent {
   id: number
@@ -30,15 +34,16 @@ interface SubEvent {
   start_at: string
   end_at?: string | null
   location: string
+  good_to_know?: GoodToKnowItem[]
 }
 
-interface EventRecord {
-  id: number
+interface EventRecord extends WizardEvent {
   title: string
   timezone?: string
+  event_type?: string
 }
 
-const EMPTY_FORM = { title: '', start_at: '', end_at: '', location: '' }
+const EMPTY_FORM = { title: '', start_at: '', end_at: '', location: '', good_to_know: [] as GoodToKnowItem[] }
 
 export default function SubEventsSetupPage() {
   const params = useParams()
@@ -111,6 +116,7 @@ export default function SubEventsSetupPage() {
         start_at: eventTzLocalToUtcISO(form.start_at, eventTimezone),
         end_at: form.end_at ? eventTzLocalToUtcISO(form.end_at, eventTimezone) : null,
         location: form.location.trim(),
+        good_to_know: visibleItems(form.good_to_know),
       }
       await api.post(`/api/events/envelopes/${eventId}/sub-events/`, payload)
       showToast('Sub-event added', 'success')
@@ -162,7 +168,11 @@ export default function SubEventsSetupPage() {
 
   // The form represents a sub-event the host has started typing but not yet added.
   const formHasContent =
-    form.title.trim() !== '' || form.start_at !== '' || form.end_at !== '' || form.location.trim() !== ''
+    form.title.trim() !== '' ||
+    form.start_at !== '' ||
+    form.end_at !== '' ||
+    form.location.trim() !== '' ||
+    visibleItems(form.good_to_know).length > 0
   const formIsComplete = form.title.trim() !== '' && form.start_at !== ''
 
   // Continuing should save any in-progress sub-event, so the last (or only) one
@@ -179,7 +189,8 @@ export default function SubEventsSetupPage() {
       const saved = await savePendingForm(false)
       if (!saved) return
     }
-    router.push(`/host/events/${eventId}/layout`)
+    // Layout already chosen: straight back to the editor, not through Layout again.
+    router.push(event ? nextStepAfter('sub-events', event, true) : `/host/events/${eventId}/layout`)
   }
 
   if (loading) {
@@ -215,6 +226,11 @@ export default function SubEventsSetupPage() {
                     {se.end_at ? ` – ${formatDateTime(se.end_at)}` : ''}
                     {se.location ? ` · ${se.location}` : ''}
                   </p>
+                  {visibleItems(se.good_to_know).length > 0 && (
+                    <p className="text-xs text-gray-500">
+                      {visibleItems(se.good_to_know).map((item) => GOOD_TO_KNOW_PRESETS[item.kind].label).join(' · ')}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -271,6 +287,19 @@ export default function SubEventsSetupPage() {
                   placeholder="Venue or address"
                 />
               </div>
+              <div>
+                <p className="block text-sm font-medium mb-1">
+                  Good to know <span className="font-normal text-gray-500">(optional)</span>
+                </p>
+                <p className="text-xs text-gray-500 mb-2">
+                  Anything that differs for this one - most often its dress code.
+                </p>
+                <GoodToKnowEditor
+                  items={form.good_to_know}
+                  onChange={(good_to_know) => setForm((f) => ({ ...f, good_to_know }))}
+                  eventType={event?.event_type}
+                />
+              </div>
               <p className="text-xs text-gray-500">
                 Times are in the event timezone ({eventTimezone}).
               </p>
@@ -316,7 +345,7 @@ export default function SubEventsSetupPage() {
             disabled={saving || (subEvents.length === 0 && !formHasContent)}
             className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
           >
-            {saving ? 'Saving…' : 'Next: Choose Layout'}
+            {saving ? 'Saving…' : event && completedSteps(event).layout ? 'Continue to editor' : 'Next: Choose Layout'}
           </Button>
         </div>
         {subEvents.length === 0 && !formHasContent && (

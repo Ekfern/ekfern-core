@@ -142,9 +142,9 @@ export default function CoHostPanel({ eventId, canManage }: CoHostPanelProps) {
   }
 
   return (
-    <Card className="bg-white border-2 border-eco-green-light mt-6">
+    <Card className="bg-white border-2 border-eco-green-light">
       <CardHeader>
-        <CardTitle className="text-eco-green">Invite a Co-host (Optional)</CardTitle>
+        <CardTitle className="text-eco-green">Co-hosts</CardTitle>
         <CardDescription>
           Co-hosts help you run this event. They can see and manage it, but only you can
           delete the event, invite other co-hosts, or change who hosts it.

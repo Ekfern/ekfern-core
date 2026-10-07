@@ -55,7 +55,7 @@ PROFESSIONAL = (
     "networking", "product_launch", "team_building", "award_ceremony",
 )
 SOCIAL = (
-    "fundraiser", "charity_event", "community_event", "festival",
+    "fundraiser", "charity_event", "community_event", "meetup", "festival",
     "cultural_event", "exhibition", "art_show",
 )
 ENTERTAINMENT = (

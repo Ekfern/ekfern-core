@@ -13,6 +13,8 @@ interface Props {
   className?: string
   /** Show an error outline */
   hasError?: boolean
+  /** Start with the list open, e.g. when a "Something else…" button revealed it. */
+  defaultOpen?: boolean
 }
 
 export default function EventTypeSelect({
@@ -22,8 +24,9 @@ export default function EventTypeSelect({
   id,
   className = '',
   hasError = false,
+  defaultOpen = false,
 }: Props) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const [query, setQuery] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)

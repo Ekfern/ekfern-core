@@ -72,7 +72,8 @@ def replace_template_variables(template_text: str, guest, event, extra: dict = N
 
     standard_replacements = {
         '[name]': (guest.name if guest else '') or '',
-        '[event_title]': getattr(event, 'title', '') or '',
+        # The invitation's headline, as guests know the event (Event.invitation_title).
+        '[event_title]': getattr(event, 'invitation_title', None) or getattr(event, 'title', '') or '',
         '[event_date]': event_date_str,
         '[event_url]': guest_url,
         '[host_name]': host_name,

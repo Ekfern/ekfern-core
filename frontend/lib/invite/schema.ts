@@ -136,7 +136,8 @@ export interface EventDetailsTileSettings {
   time?: string // Time string (e.g., "18:00")
   endTime?: string // Optional end, same format as time; shown as "10:00–11:00 AM" and used for calendar entries
   repeats?: string // Optional free text for recurring events (e.g. "Saturdays"); compact layout shows it as "When"
-  dressCode?: string
+  /** Dress code, stay, parking, food, who to call - shown under the venue. See lib/invite/goodToKnow.ts. */
+  goodToKnow?: GoodToKnowItem[]
   mapUrl?: string // Map location - accepts address text or Google Maps URL (auto-validated and verified)
   locationVerified?: boolean // Auto-set by system based on map location validation (true if valid, false if invalid)
   coordinates?: {
@@ -177,6 +178,19 @@ export interface DirectionsTileSettings {
   /** How the map is treated. See lib/invite/mapStyles.ts. */
   mapStyle?: 'standard' | 'vintage' | 'muted'
   textAlign?: 'left' | 'center' | 'right'
+}
+
+/** The things guests ask the host the week before. See lib/invite/goodToKnow.ts. */
+export type GoodToKnowKind = 'dress' | 'stay' | 'parking' | 'food' | 'contact'
+
+export interface GoodToKnowItem {
+  /** Stable across reordering, for React keys. */
+  id: string
+  kind: GoodToKnowKind
+  /** The answer as the guest reads it. An item without text is not shown. */
+  text: string
+  /** Optional. Only http(s) ever becomes a link (lib/safeUrl.ts). */
+  url?: string
 }
 
 export interface DescriptionTileSettings {

@@ -24,6 +24,7 @@ import { getInvitePageLayouts } from '@/lib/invite/api'
 import { getInvitePage, createInvitePage, publishInvitePage } from '@/lib/invite/api'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
 import { applyLayout } from '@/lib/invite/applyLayout'
+import { headlineText, headlineTile } from '@/lib/invite/headline'
 import type { InvitePageLayout } from '@/lib/invite/pageLayouts'
 import { resolveAppearance } from '@/lib/invite/appearance'
 import PageLayoutLibrary from '@/components/invite/PageLayoutLibrary'
@@ -58,6 +59,8 @@ interface Event {
   has_rsvp: boolean
   has_registry: boolean
   event_structure?: 'SIMPLE' | 'ENVELOPE'
+  event_type?: string
+  timezone?: string
   custom_fields_metadata?: Record<string, any>
 }
 
@@ -269,6 +272,15 @@ export default function DesignInvitationPage(): JSX.Element {
   const [previewCropDimensions, setPreviewCropDimensions] = useState<{ width: number; height: number; aspectRatio: number } | null>(null)
   const [previewCropFilename, setPreviewCropFilename] = useState<string>('preview.jpg')
   const [allTilesExpanded, setAllTilesExpanded] = useState(false)
+  // ?panel=event-details (from Edit Event Details): open that tile's panel on load.
+  // Read after mount rather than with useSearchParams, which would need a Suspense
+  // boundary around this whole page.
+  const [panelFromLink, setPanelFromLink] = useState<TileType | null>(null)
+  useEffect(() => {
+    const panel = new URLSearchParams(window.location.search).get('panel')
+    if (panel && KNOWN_TILE_TYPES.has(panel as TileType)) setPanelFromLink(panel as TileType)
+  }, [])
+
   const [config, setConfig] = useState<InviteConfig>({
     tiles: DEFAULT_TILES,
     texture: { type: 'parchment', intensity: 20 },
@@ -645,6 +657,9 @@ export default function DesignInvitationPage(): JSX.Element {
         return 'Gallery tile is enabled but has no photos. Please add a photo or disable the gallery tile.'
       }
     }
+    if (headlineTile(config.tiles) && !headlineText(config.tiles)) {
+      return 'Add a headline in the Title tile. Guests see it in messages and link previews, even when the tile is hidden.'
+    }
     const enabledTitleTiles = config.tiles?.filter(t => t.type === 'title' && t.enabled) || []
     for (const titleTile of enabledTitleTiles) {
       const titleText = (titleTile.settings as any)?.text?.trim()
@@ -742,7 +757,6 @@ export default function DesignInvitationPage(): JSX.Element {
             location: eventDetailsSettings.location || '',
             date: eventDetailsSettings.date || '',
             time: eventDetailsSettings.time, // Can be undefined, that's fine
-            dressCode: eventDetailsSettings.dressCode,
             mapUrl: eventDetailsSettings.mapUrl,
             locationVerified: eventDetailsSettings.locationVerified,
             coordinates: eventDetailsSettings.coordinates,
@@ -1285,7 +1299,9 @@ export default function DesignInvitationPage(): JSX.Element {
       'description': { content: '' },
       'feature-buttons': {},
       'footer': {},
-      'event-carousel': {},
+      // Every card field on, like the built-in default and layout defaults: with
+      // `{}` an added carousel showed cards with no title, date or place.
+      'event-carousel': { showFields: { image: true, title: true, dateTime: true, location: true, cta: true } },
     }
     // A new tile goes after everything except the footer, which is always last.
     // Counting the footer here is how tiles ended up numbered past it: the
@@ -1326,6 +1342,8 @@ export default function DesignInvitationPage(): JSX.Element {
   }
 
   const handleRemoveTile = (tileId: string) => {
+    // The headline names the event in messages: it can be hidden, not removed.
+    if (headlineTile(config.tiles)?.id === tileId) return
     pushHistory()
     setConfig(prev => ({
       ...prev,
@@ -1531,7 +1549,8 @@ export default function DesignInvitationPage(): JSX.Element {
                         title: event.title,
                         date: event.date,
                         city: event.city,
-                      }, undefined, t.id)
+                      }, undefined, t.id, config,
+                        config.appliedLayoutId ? getLayoutFromList(config.appliedLayoutId)?.config : null)
 
                       setConfig(next)
                       if (next.tiles?.length) {
@@ -2335,6 +2354,11 @@ export default function DesignInvitationPage(): JSX.Element {
                   forceExpanded={allTilesExpanded}
                   eventStructure={event?.event_structure}
                   changedTileIds={changedTileIds}
+                  eventType={event?.event_type}
+                  expandTileType={panelFromLink}
+                  protectHeadline
+                  // An event without a city is online - the convention Event Details keeps.
+                  eventWhere={event ? { online: !event.city, city: event.city } : undefined}
                 />
               ) : (
                 <p className="text-gray-500 text-sm">No tiles available</p>
@@ -2472,6 +2496,9 @@ export default function DesignInvitationPage(): JSX.Element {
                                     hasRsvp={event?.has_rsvp}
                                     hasRegistry={event?.has_registry}
                                     allowedSubEvents={allowedSubEvents}
+                                    // As the guest's invitation does: times read in the event's
+                                    // zone, not the host's (a host in Chicago planning Udaipur).
+                                    eventTimezone={event?.timezone}
                                   />
                                 </ComposedPage>
                               ) : (

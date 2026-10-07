@@ -6,7 +6,7 @@ import os
 import uuid
 import hashlib
 from datetime import datetime
-import boto3
+from apps.common.aws import aws_client
 from botocore.exceptions import ClientError
 from django.conf import settings
 from .country_codes import COUNTRY_CODES, PHONE_TO_ISO, DEFAULT_COUNTRY_CODE, DEFAULT_COUNTRY_ISO
@@ -322,7 +322,7 @@ def upload_to_s3(file, event_id, folder='events'):
             s3_kwargs['aws_access_key_id'] = access_key
             s3_kwargs['aws_secret_access_key'] = secret_key
         
-        s3_client = boto3.client(**s3_kwargs)
+        s3_client = aws_client(**s3_kwargs)
         
         try:
             # Set content type based on file extension
@@ -522,7 +522,8 @@ def render_template_with_guest(template_text: str, event, guest=None, base_url: 
         replacements['[name]'] = ''
     
     # Event title
-    replacements['[event_title]'] = event.title or 'Event'
+    # The invitation's headline, as guests know the event (Event.invitation_title).
+    replacements['[event_title]'] = event.invitation_title or 'Event'
     
     # Event date
     if event.date:

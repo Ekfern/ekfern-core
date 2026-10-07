@@ -1,5 +1,6 @@
 """
-Tests for the tile data migrations (0100 poster, 0101 gallery, 0109 timer gate).
+Tests for the tile data migrations (0100 poster, 0101 gallery, 0109 timer gate,
+0117 dress code into Good to know).
 
 These exercise the transform functions directly rather than running the
 migrations against a database. What can go wrong here is the rewriting of one
@@ -23,6 +24,9 @@ gallery_migration = importlib.import_module(
 )
 timer_migration = importlib.import_module(
     'apps.events.migrations.0109_timer_gate_collapse'
+)
+good_to_know_migration = importlib.import_module(
+    'apps.events.migrations.0117_dress_code_into_good_to_know'
 )
 
 
@@ -205,3 +209,53 @@ class TimerGateCollapseTests(SimpleTestCase):
         self.assertFalse(timer_migration._migrate_config(
             {'tiles': [{'id': 't', 'type': 'timer', 'settings': None}]}
         ))
+
+
+class DressCodeIntoGoodToKnowTests(SimpleTestCase):
+    def _details(self, settings, tile_id='d'):
+        return {'id': tile_id, 'type': 'event-details', 'enabled': True, 'order': 1, 'settings': settings}
+
+    def test_dress_code_becomes_the_first_answer_in_the_same_tile(self):
+        config = {'tiles': [
+            {'id': 't', 'type': 'title', 'order': 0, 'settings': {'text': 'Hi'}},
+            self._details({'date': '2026-12-12', 'dressCode': '  Pastels '}),
+        ]}
+        config, changed = good_to_know_migration._convert(config)
+        self.assertTrue(changed)
+        self.assertEqual([t['type'] for t in config['tiles']], ['title', 'event-details'])
+        settings = config['tiles'][1]['settings']
+        self.assertNotIn('dressCode', settings)
+        self.assertEqual(settings['goodToKnow'], [{'id': 'gtk-dress-d', 'kind': 'dress', 'text': 'Pastels'}])
+        self.assertEqual(settings['date'], '2026-12-12')
+
+    def test_an_empty_dress_code_is_dropped_without_adding_an_answer(self):
+        config, changed = good_to_know_migration._convert({'tiles': [self._details({'dressCode': ''})]})
+        self.assertTrue(changed)
+        self.assertEqual(config['tiles'][0]['settings'], {})
+
+    def test_answers_already_there_are_kept_and_not_doubled(self):
+        settings = {'dressCode': 'Formal', 'goodToKnow': [{'id': 'p', 'kind': 'parking', 'text': 'Valet'}]}
+        config, _ = good_to_know_migration._convert({'tiles': [self._details(settings)]})
+        self.assertEqual([i['kind'] for i in config['tiles'][0]['settings']['goodToKnow']], ['dress', 'parking'])
+
+        settings = {'dressCode': 'Formal', 'goodToKnow': [{'id': 'x', 'kind': 'dress', 'text': 'Black tie'}]}
+        config, _ = good_to_know_migration._convert({'tiles': [self._details(settings)]})
+        self.assertEqual(config['tiles'][0]['settings']['goodToKnow'], [{'id': 'x', 'kind': 'dress', 'text': 'Black tie'}])
+
+    def test_every_event_details_tile_is_visited(self):
+        config = {'tiles': [self._details({'dressCode': 'A'}, 'one'), self._details({'dressCode': 'B'}, 'two')]}
+        config, _ = good_to_know_migration._convert(config)
+        self.assertEqual([t['settings']['goodToKnow'][0]['text'] for t in config['tiles']], ['A', 'B'])
+
+    def test_running_twice_changes_nothing_the_second_time(self):
+        config, _ = good_to_know_migration._convert({'tiles': [self._details({'dressCode': 'Formal'})]})
+        _, changed = good_to_know_migration._convert(config)
+        self.assertFalse(changed)
+
+    def test_no_dress_code_no_change(self):
+        _, changed = good_to_know_migration._convert({'tiles': [self._details({'date': 'x'})]})
+        self.assertFalse(changed)
+
+    def test_junk_is_left_alone(self):
+        self.assertEqual(good_to_know_migration._convert(None), (None, False))
+        self.assertFalse(good_to_know_migration._convert({'tiles': 'nope'})[1])
