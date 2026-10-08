@@ -20,12 +20,19 @@ export const OPENING_ANIMATIONS: AnimationCatalogEntry[] = [
     slot: 'opening',
   },
   {
-    id: 'water_drop',
-    label: 'Water Drop',
-    description: 'Steamy glass clears as droplets run down the invite',
-    slot: 'opening',
-  },
+  id: 'opening_door',
+  label: 'Opening Door',
+  description: 'A grand door opens to reveal the invitation',
+  slot: 'opening',
+},
+{
+  id: 'water_drop',
+  label: 'Water Drop',
+  description: 'Steamy glass clears as droplets run down the invite',
+  slot: 'opening',
+},
 ]
+  
 
 export const EXPERIENCE_ANIMATIONS: AnimationCatalogEntry[] = [
   {

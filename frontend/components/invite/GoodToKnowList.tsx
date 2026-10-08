@@ -39,17 +39,40 @@ export default function GoodToKnowList({ items, textAlign = 'center' }: GoodToKn
     textAlign === 'center' ? { marginInline: 'auto' } : textAlign === 'right' ? { marginInlineStart: 'auto' } : {}
 
   return (
-    <ul className="flex w-full max-w-[420px] flex-col gap-4 text-left" style={placement}>
+    <ul
+      className={`flex w-full max-w-[420px] flex-col gap-4 ${textAlign === 'left'
+        ? 'text-left'
+        : textAlign === 'right'
+          ? 'text-right'
+          : 'text-center'
+        }`}
+      style={placement}
+    >
       {shown.map((item) => {
         const Icon = GOOD_TO_KNOW_ICONS[item.kind]
         const label = GOOD_TO_KNOW_PRESETS[item.kind]?.label ?? ''
         const href = safeExternalUrl(item.url)
         const text = item.text.trim()
         return (
-          <li key={item.id} className="flex items-start gap-3">
+          <li
+            key={item.id}
+            className={`flex items-start gap-3 ${textAlign === 'left'
+              ? 'justify-start'
+              : textAlign === 'right'
+                ? 'justify-end'
+                : 'justify-center'
+              }`}
+          >
             {Icon && <Icon className="mt-0.5 h-5 w-5 shrink-0 opacity-70" aria-hidden="true" />}
-            <div className="min-w-0 flex-1">
-              <div className="mb-0.5 opacity-70" style={recipe('eyebrow')}>
+            <div className="min-w-0 max-w-[280px]">
+              <div
+                className="mb-0.5 opacity-70"
+                style={{
+                  ...recipe('eyebrow'),
+                  fontFamily: 'var(--font-header-family)',
+                  color: 'var(--font-header-color)',
+                }}
+              >
                 {label}
               </div>
               {href ? (

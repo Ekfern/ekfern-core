@@ -64,10 +64,10 @@ export default function PageLayoutStudioCanvas({
 
   const sortedTiles: Tile[] = config.tiles?.length
     ? [...config.tiles].sort((a, b) => {
-        const orderA = previewOrder.get(a.id) ?? a.previewOrder ?? a.order ?? 0
-        const orderB = previewOrder.get(b.id) ?? b.previewOrder ?? b.order ?? 0
-        return orderA - orderB
-      })
+      const orderA = previewOrder.get(a.id) ?? a.previewOrder ?? a.order ?? 0
+      const orderB = previewOrder.get(b.id) ?? b.previewOrder ?? b.order ?? 0
+      return orderA - orderB
+    })
     : []
 
   const handleTileReorder = (tiles: Tile[]) => {
@@ -192,44 +192,44 @@ export default function PageLayoutStudioCanvas({
             <LookAndStyleSettings config={config} setConfig={setConfig}>
               {/* Staff-only: layouts carry frame art and corner decorations
                   that hosts deliberately do not get to change. */}
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <label className="block text-sm font-medium mb-2">Frame image (optional)</label>
-                    <Input
-                      type="url"
-                      value={config.pageFrame?.imageUrl || ''}
-                      onChange={(e) =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          pageFrame: e.target.value.trim() ? { imageUrl: e.target.value.trim() } : undefined,
-                        }))
-                      }
-                      placeholder="https://… (SVG or PNG with transparency)"
-                      className="w-full"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Full-page frame overlay (e.g. ornate border). Leave empty for none.</p>
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <label className="block text-sm font-medium mb-2">Frame image (optional)</label>
+                <Input
+                  type="url"
+                  value={config.pageFrame?.imageUrl || ''}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      pageFrame: e.target.value.trim() ? { imageUrl: e.target.value.trim() } : undefined,
+                    }))
+                  }
+                  placeholder="https://… (SVG or PNG with transparency)"
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">Full-page frame overlay (e.g. ornate border). Leave empty for none.</p>
+              </div>
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <label className="block text-sm font-medium mb-2">Corner decorations (optional)</label>
+                <p className="text-xs text-gray-500 mb-2">Image URLs for corner flourishes.</p>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-600">Top left</label>
+                    <Input type="url" value={config.cornerDecorations?.topLeft || ''} onChange={(e) => setConfig((prev) => ({ ...prev, cornerDecorations: { ...prev.cornerDecorations, topLeft: e.target.value.trim() || undefined } }))} placeholder="https://…" className="w-full mt-0.5" />
                   </div>
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <label className="block text-sm font-medium mb-2">Corner decorations (optional)</label>
-                    <p className="text-xs text-gray-500 mb-2">Image URLs for corner flourishes.</p>
-                    <div className="grid grid-cols-1 gap-3">
-                      <div>
-                        <label className="text-xs text-gray-600">Top left</label>
-                        <Input type="url" value={config.cornerDecorations?.topLeft || ''} onChange={(e) => setConfig((prev) => ({ ...prev, cornerDecorations: { ...prev.cornerDecorations, topLeft: e.target.value.trim() || undefined } }))} placeholder="https://…" className="w-full mt-0.5" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Top right</label>
-                        <Input type="url" value={config.cornerDecorations?.topRight || ''} onChange={(e) => setConfig((prev) => ({ ...prev, cornerDecorations: { ...prev.cornerDecorations, topRight: e.target.value.trim() || undefined } }))} placeholder="https://…" className="w-full mt-0.5" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Bottom left</label>
-                        <Input type="url" value={config.cornerDecorations?.bottomLeft || ''} onChange={(e) => setConfig((prev) => ({ ...prev, cornerDecorations: { ...prev.cornerDecorations, bottomLeft: e.target.value.trim() || undefined } }))} placeholder="https://…" className="w-full mt-0.5" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Bottom right</label>
-                        <Input type="url" value={config.cornerDecorations?.bottomRight || ''} onChange={(e) => setConfig((prev) => ({ ...prev, cornerDecorations: { ...prev.cornerDecorations, bottomRight: e.target.value.trim() || undefined } }))} placeholder="https://…" className="w-full mt-0.5" />
-                      </div>
-                    </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Top right</label>
+                    <Input type="url" value={config.cornerDecorations?.topRight || ''} onChange={(e) => setConfig((prev) => ({ ...prev, cornerDecorations: { ...prev.cornerDecorations, topRight: e.target.value.trim() || undefined } }))} placeholder="https://…" className="w-full mt-0.5" />
                   </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Bottom left</label>
+                    <Input type="url" value={config.cornerDecorations?.bottomLeft || ''} onChange={(e) => setConfig((prev) => ({ ...prev, cornerDecorations: { ...prev.cornerDecorations, bottomLeft: e.target.value.trim() || undefined } }))} placeholder="https://…" className="w-full mt-0.5" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Bottom right</label>
+                    <Input type="url" value={config.cornerDecorations?.bottomRight || ''} onChange={(e) => setConfig((prev) => ({ ...prev, cornerDecorations: { ...prev.cornerDecorations, bottomRight: e.target.value.trim() || undefined } }))} placeholder="https://…" className="w-full mt-0.5" />
+                  </div>
+                </div>
+              </div>
             </LookAndStyleSettings>
           </div>
         </div>
@@ -272,9 +272,9 @@ export default function PageLayoutStudioCanvas({
               <p className="text-gray-500 text-sm">No tiles yet — add one below.</p>
               <TileSettingsList
                 tiles={[]}
-                onReorder={() => {}}
-                onUpdate={() => {}}
-                onToggle={() => {}}
+                onReorder={() => { }}
+                onUpdate={() => { }}
+                onToggle={() => { }}
                 onAddTile={handleAddTile}
                 eventId={eventIdForTiles}
                 hasRsvp={eventLike.has_rsvp}
@@ -378,19 +378,20 @@ export default function PageLayoutStudioCanvas({
                           palette on the preview screen. */}
                       {sortedTiles.length > 0 ? (
                         <AppearanceProvider config={config}>
-                        <TileList
-                          tiles={sortedTiles}
-                          onReorder={handleTileReorder}
-                          eventDate={eventLike.date}
-                          eventSlug={eventLike.slug}
-                          eventTitle={
-                            (sortedTiles.find((t) => t.type === 'title')?.settings as { text?: string })?.text ||
-                            eventLike.title
-                          }
-                          hasRsvp={eventLike.has_rsvp}
-                          hasRegistry={eventLike.has_registry}
-                          allowedSubEvents={[]}
-                        />
+                          <TileList
+                            tiles={sortedTiles}
+                            onReorder={handleTileReorder}
+                            eventDate={eventLike.date}
+                            eventSlug={eventLike.slug}
+                            eventTitle={
+                              (sortedTiles.find((t) => t.type === 'title')?.settings as { text?: string })?.text ||
+                              eventLike.title
+                            }
+                            hasRsvp={eventLike.has_rsvp}
+                            hasRegistry={eventLike.has_registry}
+                            allowedSubEvents={[]}
+                            variant="invite"
+                          />
                         </AppearanceProvider>
                       ) : (
                         <div className="p-8 text-center text-gray-500">
