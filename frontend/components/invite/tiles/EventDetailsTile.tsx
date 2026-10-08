@@ -361,11 +361,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                 : borderStyle === 'none'
                   ? { maxWidth: '420px' }
                   : {
-                      maxWidth: '420px',
-                      border: `${borderStyle === 'classic' ? 3 : 1}px ${borderStyle === 'classic' ? 'double' : borderStyle === 'modern' ? 'dotted' : 'solid'} ${borderColor}`,
-                      borderRadius: 'var(--radius-surface)',
-                      padding: '14px 16px',
-                    }
+                    maxWidth: '420px',
+                    border: `${borderStyle === 'classic' ? 3 : 1}px ${borderStyle === 'classic' ? 'double' : borderStyle === 'modern' ? 'dotted' : 'solid'} ${borderColor}`,
+                    borderRadius: 'var(--radius-surface)',
+                    padding: '14px 16px',
+                  }
               return (
                 <div className={`w-full ${marginClass}`} style={cardStyle}>
                   <dl
@@ -374,7 +374,15 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   >
                     {rows.map((row) => (
                       <React.Fragment key={row.label}>
-                        <dt style={recipeAtSize('eyebrow', '0.625rem')}>{row.label}</dt>
+                        <dt
+                          style={{
+                            ...recipeAtSize('eyebrow', '0.625rem'),
+                            fontFamily: 'var(--font-header-family)',
+                            color: 'var(--font-header-color)',
+                          }}
+                        >
+                          {row.label}
+                        </dt>
                         {/* Row-sized, not the headline size the stacked layouts use. Each
                             short " · " part stays whole, so a narrow card breaks between
                             "Saturdays" and the time rather than inside the time; long parts
@@ -454,7 +462,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   <div className="space-y-2">
                     <div
                       className="mb-3"
-                      style={recipe('eyebrow')}
+                      style={{
+                        ...recipe('eyebrow'),
+                        fontFamily: 'var(--font-header-family)',
+                        color: 'var(--font-header-color)',
+                      }}
                     >
                       Date
                     </div>
@@ -470,7 +482,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                   <div className="space-y-2">
                     <div
                       className="mb-3"
-                      style={recipe('eyebrow')}
+                      style={{
+                        ...recipe('eyebrow'),
+                        fontFamily: 'var(--font-header-family)',
+                        color: 'var(--font-header-color)',
+                      }}
                     >
                       Time
                     </div>
@@ -488,7 +504,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                     <div className="space-y-2">
                       <div
                         className="mb-3"
-                        style={recipe('eyebrow')}
+                        style={{
+                          ...recipe('eyebrow'),
+                          fontFamily: 'var(--font-header-family)',
+                          color: 'var(--font-header-color)',
+                        }}
                       >
                         Location
                       </div>
@@ -597,7 +617,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           <p>
             <span
               className="text-xs uppercase tracking-widest font-light italic mr-2"
-              style={recipe('eyebrow')}
+              style={{
+                ...recipe('eyebrow'),
+                fontFamily: 'var(--font-header-family)',
+                color: 'var(--font-header-color)',
+              }}
             >
               Date:
             </span>
@@ -613,7 +637,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           <p>
             <span
               className="text-xs uppercase tracking-widest font-light italic mr-2"
-              style={recipe('eyebrow')}
+              style={{
+                ...recipe('eyebrow'),
+                fontFamily: 'var(--font-header-family)',
+                color: 'var(--font-header-color)',
+              }}
             >
               Time:
             </span>
@@ -633,7 +661,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
               <p>
                 <span
                   className="text-xs uppercase tracking-widest font-light italic mr-2"
-                  style={recipe('eyebrow')}
+                  style={{
+                    ...recipe('eyebrow'),
+                    fontFamily: 'var(--font-header-family)',
+                    color: 'var(--font-header-color)',
+                  }}
                 >
                   Location:
                 </span>
@@ -653,7 +685,11 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           <p>
             <span
               className="text-xs uppercase tracking-widest font-light italic mr-2"
-              style={recipe('eyebrow')}
+              style={{
+                ...recipe('eyebrow'),
+                fontFamily: 'var(--font-header-family)',
+                color: 'var(--font-header-color)',
+              }}
             >
               Good to know:
             </span>
