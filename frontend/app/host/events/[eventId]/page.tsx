@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { useParams, useRouter } from 'next/navigation'
 import api, { getEventAnalyticsSummary, enableEventAnalyticsInsights, type EventAnalyticsSummary } from '@/lib/api'
 import { getSiteUrl } from '@/lib/site-url'
@@ -21,6 +21,7 @@ import CoHostPanel from '@/components/host/CoHostPanel'
 import type { EventRole } from '@/lib/cohosts'
 import EventLifecycleCard, { type HostLifecycle } from '@/components/host/EventLifecycleCard'
 import { daysBetween, hostBadge, todayInZone } from '@/lib/invite/lifecycle'
+import PageSkeleton from '@/components/host/PageSkeleton'
 
 interface Event {
   id: number
@@ -520,13 +521,7 @@ export default function EventDetailPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-eco-beige flex items-center justify-center">
-        <div className="text-eco-green text-xl">Loading...</div>
-      </div>
-    )
-  }
+  if (loading) return <PageSkeleton shape="overview" />
 
   if (!event) {
     return (

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -23,6 +23,7 @@ import { isLikelyIOS } from '@/lib/contactImportUi'
 import CustomFieldsModal from "@/components/custom-fields/CustomFieldsModal";
 import dynamic from 'next/dynamic'
 import { Columns2, Filter, AlertTriangle } from 'lucide-react'
+import PageSkeleton from '@/components/host/PageSkeleton'
 
 const TemplateSelector = dynamic(
   () => import('@/components/communications/TemplateSelector'),
@@ -1779,13 +1780,7 @@ export default function GuestsPage() {
   }
 
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-eco-beige flex items-center justify-center">
-        <div className="text-eco-green text-xl">Loading...</div>
-      </div>
-    )
-  }
+  if (loading) return <PageSkeleton shape="list" />
 
   return (
     <div className="min-h-screen bg-eco-beige">

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { ChevronDown } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
@@ -12,6 +12,7 @@ import { getErrorMessage, logError } from '@/lib/error-handler'
 import type { InviteConfig, RsvpFormConfig } from '@/lib/invite/schema'
 
 import RsvpFormEditor from '@/components/rsvp/RsvpFormEditor'
+import PageSkeleton from '@/components/host/PageSkeleton'
 import CustomFieldsModal from "@/components/custom-fields/CustomFieldsModal";
 
 
@@ -250,13 +251,7 @@ export default function HostRsvpSettingsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-eco-beige flex items-center justify-center">
-        <p className="text-gray-600">Loading…</p>
-      </div>
-    )
-  }
+  if (loading) return <PageSkeleton shape="form" />
 
   if (!event) {
     return (

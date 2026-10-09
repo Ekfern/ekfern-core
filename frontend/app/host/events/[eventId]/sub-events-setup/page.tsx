@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { useParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +27,7 @@ import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
 import { completedSteps, nextStepAfter, type WizardEvent } from '@/lib/host/wizardSteps'
 import { GOOD_TO_KNOW_PRESETS, visibleItems } from '@/lib/invite/goodToKnow'
 import type { GoodToKnowItem } from '@/lib/invite/schema'
+import PageSkeleton from '@/components/host/PageSkeleton'
 
 interface SubEvent {
   id: number
@@ -195,9 +196,10 @@ export default function SubEventsSetupPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-eco-beige flex items-center justify-center">
-        <p className="text-gray-600">Loading…</p>
-      </div>
+      <>
+        <WizardProgress currentStep="sub-events" eventId={eventId} includeSubEvents />
+        <PageSkeleton shape="form" width="2xl" />
+      </>
     )
   }
 

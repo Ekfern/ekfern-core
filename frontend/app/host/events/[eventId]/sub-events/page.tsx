@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import api, { uploadImage } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import RichTextEditor from '@/components/invite/RichTextEditor'
 import DescriptionEditorModal from '@/components/invite/DescriptionEditorModal'
 import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
 import type { GoodToKnowItem } from '@/lib/invite/schema'
+import PageSkeleton from '@/components/host/PageSkeleton'
 
 interface Event {
   id: number
@@ -360,16 +361,7 @@ export default function SubEventsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-eco-beige">
-        <div className="text-center">
-          <div className="text-4xl mb-4">🌿</div>
-          <p className="text-gray-600">Loading sub-events...</p>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <PageSkeleton shape="grid" />
 
   if (!event) {
     return (
