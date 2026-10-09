@@ -37,7 +37,7 @@ export default function PrivacyPolicyPage() {
             Privacy Policy
           </h1>
           <p className="text-earth-brown mb-8 text-sm">
-            Last updated: January 18, 2026
+            Last updated: October 9, 2026
           </p>
 
           <div className="prose prose-lg max-w-none text-earth-brown">
@@ -139,12 +139,26 @@ export default function PrivacyPolicyPage() {
                 <li>Comply with legal obligations</li>
                 <li>Resolve disputes or enforce agreements</li>
               </ul>
-              <p className="mt-4">
-                After an event ends, guests can no longer RSVP, and gifting closes after a period shown to the host. An
-                invitation link may stop working some time after the event; the host is told by email before that
-                happens. A link that stops working is not deleted data: the event, its guest list, RSVPs and gift
-                record stay in the host&apos;s account until the host deletes them or asks us to.
-              </p>
+              <h3 className="text-xl font-semibold text-forest-green mt-6 mb-3">After an event</h3>
+              <ul className="list-disc pl-6 mb-4 space-y-2">
+                <li>When an event ends, guests can no longer RSVP. If the host cancels an event, RSVPs and gifting close straight away.</li>
+                <li>
+                  Gifting closes a set period after the event, normally 30 days. The host can close it sooner, and is
+                  emailed before it closes.
+                </li>
+                <li>
+                  An invitation link may stop working some time after the event. It never stops before the host has been
+                  told by email.
+                </li>
+                <li>
+                  A link that stops working does not delete anything. The event, its guest list, RSVPs and gift record
+                  stay in the host&apos;s account until the host deletes them or asks us to.
+                </li>
+                <li>
+                  If you were a guest and want your details removed, you can ask the host or contact us (see
+                  section 10).
+                </li>
+              </ul>
             </section>
 
             <section className="mb-8">
