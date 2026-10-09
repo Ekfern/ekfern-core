@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nthOfMonth, rhythmLabel, weekdayOf } from './recurrence'
+import { nthOfMonth, rhythmLabel, specSummary, weekdayOf } from './recurrence'
 
 describe('rhythmLabel', () => {
   it('says the rhythm the way people do', () => {
@@ -27,5 +27,14 @@ describe('weekdayOf / nthOfMonth', () => {
     expect(nthOfMonth('2026-11-08')).toBe('2nd')
     expect(nthOfMonth('2026-11-22')).toBe('4th')
     expect(nthOfMonth('2026-11-29')).toBe('Last')
+  })
+})
+
+describe('specSummary', () => {
+  it('reads as one line, defaulting to "Doesn’t repeat"', () => {
+    expect(specSummary(null)).toBe('Doesn’t repeat')
+    expect(specSummary({ freq: 'weekly', weekdays: [5], until: '2026-12-26', skipped: ['2026-10-17'] }, '2026-10-10'))
+      .toBe('Every Saturday until 26 Dec · 1 date skipped')
+    expect(specSummary({ freq: 'monthly', weekdays: [], until: null, skipped: [] }, '2026-10-10')).toBe('2nd Saturday of each month')
   })
 })

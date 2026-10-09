@@ -62,3 +62,27 @@ export function rhythmLabel(rrule: string | null | undefined): string {
   if (days.length === 0) return fields.INTERVAL === '2' ? 'Every 2 weeks' : 'Weekly'
   return `${every} ${joinDays(days, days.length > 1 ? WEEKDAY_SHORT : WEEKDAY_NAMES)}`
 }
+
+/**
+ * The host's choice in one line, for the form's collapsed row:
+ * "Every Saturday until 27 Dec · 1 date skipped".
+ */
+export function specSummary(spec: RecurrenceSpec | null | undefined, firstDate?: string): string {
+  if (!spec) return 'Doesn’t repeat'
+  let rhythm: string
+  if (spec.freq === 'monthly') {
+    rhythm = firstDate ? `${nthOfMonth(firstDate)} ${WEEKDAY_NAMES[weekdayOf(firstDate)]} of each month` : 'Monthly'
+  } else {
+    const days = spec.weekdays.length ? spec.weekdays : firstDate ? [weekdayOf(firstDate)] : []
+    const every = spec.freq === 'fortnightly' ? 'Every other' : 'Every'
+    rhythm = days.length ? `${every} ${joinDays(days, days.length > 1 ? WEEKDAY_SHORT : WEEKDAY_NAMES)}` : 'Weekly'
+  }
+  const until = spec.until ? ` until ${dayMonth(spec.until)}` : ''
+  const skipped = spec.skipped.length ? ` · ${spec.skipped.length} date${spec.skipped.length > 1 ? 's' : ''} skipped` : ''
+  return `${rhythm}${until}${skipped}`
+}
+
+function dayMonth(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' }).format(new Date(Date.UTC(y, m - 1, d)))
+}

@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useId, useState } from 'react'
+import { Repeat } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
   WEEKDAY_NAMES,
   WEEKDAY_SHORT,
   nthOfMonth,
+  specSummary,
   weekdayOf,
   type RecurrenceSpec,
   type RepeatFreq,
@@ -32,6 +34,8 @@ const CHOICES: Array<{ value: RepeatFreq | 'none'; label: string }> = [
 export default function RepeatField({ firstDate, value, onChange }: Props) {
   const uid = useId()
   const [skipDraft, setSkipDraft] = useState('')
+  // One line until the host asks to change it, like "Times in … · Change".
+  const [open, setOpen] = useState(false)
   const anchor = firstDate ? weekdayOf(firstDate) : null
   const freq = value?.freq ?? 'none'
 
@@ -62,8 +66,24 @@ export default function RepeatField({ firstDate, value, onChange }: Props) {
 
   return (
     <fieldset className="space-y-3">
-      <legend className="block text-sm font-medium mb-1">Repeats</legend>
-      <div className="flex flex-wrap gap-2" role="radiogroup">
+      <legend className="sr-only">Repeats</legend>
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-gray-700">
+        <Repeat className="h-4 w-4 text-gray-500" aria-hidden="true" />
+        <span>
+          <strong className="text-eco-green">{specSummary(value, firstDate)}</strong> ·
+        </span>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          className="font-medium text-eco-teal underline underline-offset-2"
+        >
+          {open ? 'Done' : 'Change'}
+        </button>
+      </div>
+
+      {open && (<>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Repeats">
         {CHOICES.map((choice) => (
           <button
             key={choice.value}
@@ -168,6 +188,7 @@ export default function RepeatField({ firstDate, value, onChange }: Props) {
           ))}
         </ul>
       )}
+      </>)}
     </fieldset>
   )
 }
