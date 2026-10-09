@@ -14,7 +14,7 @@ from .serializers import (
     PasswordCheckSerializer, PasswordLoginSerializer, SetPasswordSerializer,
     ChangePasswordSerializer, DisablePasswordSerializer,
     ForgotPasswordSerializer, ResetPasswordSerializer,
-    StaffUserLookupSerializer, StaffSetActiveSerializer, StaffExtendExpirySerializer,
+    StaffUserLookupSerializer, StaffSetActiveSerializer,
 )
 from apps.notifications.models import NotificationLog
 from apps.common import emails
@@ -24,6 +24,7 @@ from django.db import transaction
 from .age import AgeCheckError, check_date_of_birth, local_today
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.decorators import throttle_classes
+from apps.events.public_access import not_guest_endpoint
 
 
 def _client_ip(request):
@@ -33,6 +34,7 @@ def _client_ip(request):
     return ip
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -92,6 +94,7 @@ def signup(request):
     return _send_otp(user)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -190,6 +193,7 @@ def _send_otp(user):
     return Response(response_data, status=status.HTTP_200_OK)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def otp_verify(request):
@@ -241,6 +245,7 @@ def me(request):
     return Response(UserSerializer(request.user).data)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['GET'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -265,6 +270,7 @@ def check_password_enabled(request):
         }, status=status.HTTP_200_OK)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -425,6 +431,7 @@ def disable_password(request):
     }, status=status.HTTP_200_OK)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -494,6 +501,7 @@ def forgot_password(request):
     return Response(response_data, status=status.HTTP_200_OK)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -644,48 +652,6 @@ def staff_set_account_active(request):
     return Response({'message': f'Account {action_label} for {email}.'})
 
 
-@api_view(['POST'])
-@permission_classes([IsAdminUser])
-def staff_extend_event_expiry(request):
-    """Staff: extend an event's expiry date."""
-    serializer = StaffExtendExpirySerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    slug = serializer.validated_data['event_slug']
-    days = serializer.validated_data['extend_days']
-
-    from apps.events.models import Event
-    from datetime import date, timedelta
-
-    try:
-        event = Event.objects.select_related('host').get(slug=slug)
-    except Event.DoesNotExist:
-        return Response({'error': 'Event not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-    base_date = max(event.expiry_date or event.date or date.today(), date.today())
-    event.expiry_date = base_date + timedelta(days=days)
-    event.save()
-
-    NotificationLog.objects.create(
-        channel='email',
-        to=event.host.email,
-        template='staff_event_expiry_extended',
-        payload_json={
-            'by': request.user.email,
-            'event_slug': slug,
-            'new_expiry': event.expiry_date.isoformat(),
-            'extend_days': days,
-        },
-        status='sent',
-    )
-    return Response({
-        'message': f'Event "{event.title}" expiry extended by {days} day(s).',
-        'new_expiry_date': event.expiry_date.isoformat(),
-        'host_email': event.host.email,
-    })
-
-
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def staff_order_lookup(request):
@@ -725,6 +691,7 @@ def staff_order_lookup(request):
 import logging as _logging
 _contact_logger = _logging.getLogger(__name__)
 
+@not_guest_endpoint('Site contact form; no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])

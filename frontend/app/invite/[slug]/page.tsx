@@ -3,6 +3,7 @@ import { unstable_noStore } from 'next/cache'
 import React from 'react'
 import InvitePageClient from './InvitePageClient'
 import ComingSoon from '@/components/invite/ComingSoon'
+import InviteUnavailable from '@/components/invite/InviteUnavailable'
 import { InviteConfig, Tile } from '@/lib/invite/schema'
 import { eventFromInvitePayload, type InviteEvent } from '@/lib/invite/inviteEvent'
 import { migrateToTileConfig } from '@/lib/invite/migrateConfig'
@@ -661,6 +662,15 @@ export async function generateMetadata({
 
   // Pulled-back (unpublished) invite pages render a Coming Soon placeholder and
   // must never be indexed.
+  // A closed link says nothing about the event, in the preview card either.
+  if (inviteData && inviteData.status === 'archived') {
+    return {
+      title: 'Invitation no longer available',
+      description: 'This invitation has closed.',
+      robots: { index: false, follow: false },
+    }
+  }
+
   if (inviteData && inviteData.status === 'coming_soon') {
     return {
       title: 'Coming soon',
@@ -963,6 +973,10 @@ export default async function InvitePage({
     // Pulled-back (unpublished) page: the backend returns 200 with a coming_soon
     // status instead of a 404. Render the branded placeholder. The client keeps
     // polling so the page flips back to live automatically on re-publish.
+    if (inviteData && inviteData.status === 'archived') {
+      return <InviteUnavailable showBranding={inviteData.show_branding !== false} />
+    }
+
     if (inviteData && inviteData.status === 'coming_soon') {
       tracker?.step('COMING_SOON', 'Rendering Coming Soon placeholder')
       return (

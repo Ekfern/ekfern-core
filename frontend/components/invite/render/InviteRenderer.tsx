@@ -10,6 +10,7 @@ import ScrollIndicator from '@/components/invite/ScrollIndicator'
 import TextureOverlay from './TextureOverlay'
 import ComposedPage from './ComposedPage'
 import { INVITE_LAYER, PAPER_ROOT_STYLE } from '@/lib/invite/layers'
+import { LifecycleRibbon } from './LifecycleContext'
 
 
 interface InviteRendererProps {
@@ -171,7 +172,7 @@ function InviteRendererContent({
           data-invite-tiles
           style={{ gap: 'var(--space-section)' }}
         >
-          {sortedTiles.map((tile) => {
+          {sortedTiles.map((tile, index) => {
             const tileEl = ssrTiles?.[tile.id] ?? <TilePreview tile={tile} {...sharedProps} />
 
             if (tile.type === 'feature-buttons' && hasRsvp && rsvpCount !== undefined && rsvpCount >= 5) {
@@ -182,6 +183,7 @@ function InviteRendererContent({
                     ✓ {rsvpCount} {rsvpCount === 1 ? 'person' : 'people'} attending
                   </p>
                   {tileEl}
+                  {index === 0 && <LifecycleRibbon />}
                 </div>
               )
             }
@@ -189,6 +191,9 @@ function InviteRendererContent({
             return (
               <React.Fragment key={tile.id}>
                 {tileEl}
+                {/* Under the headline, clear of the corner ornaments: the first
+                    thing read after the names, not a banner over them. */}
+                {index === 0 && <LifecycleRibbon />}
               </React.Fragment>
             )
           })}

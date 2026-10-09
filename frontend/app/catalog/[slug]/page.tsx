@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Heart } from 'lucide-react'
 import { getMyCatalogResponses, getPublicCatalog, submitCatalogResponse } from '@/lib/catalog/api'
+import InviteUnavailable from '@/components/invite/InviteUnavailable'
+import { GUEST_COPY, lifecycleRefusal } from '@/lib/invite/lifecycle'
 import { getCatalogCopy, getCatalogContextLine } from '@/lib/catalog/copy'
 import { isEmptyIntroHtml } from '@/lib/catalog/introHtml'
 import { parseCatalogSource } from '@/lib/catalog/source'
@@ -81,6 +83,7 @@ export default function PublicCatalogPage() {
   const [submitted, setSubmitted] = useState(false)
   const [formError, setFormError] = useState('')
   const [externalItem, setExternalItem] = useState<PublicCatalogItem | null>(null)
+  const [linkClosed, setLinkClosed] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -124,7 +127,9 @@ export default function PublicCatalogPage() {
         }
         const code = err?.response?.data?.code
         const status = err?.response?.status
-        if (status === 403 && code === 'private_event') {
+        if (code === 'EVENT_ARCHIVED') {
+          setLinkClosed(true)
+        } else if (status === 403 && code === 'private_event') {
           // Private event and no credential: offer the same phone check the RSVP
           // page uses rather than a dead end.
           setNeedsPhone(true)
@@ -279,6 +284,13 @@ export default function PublicCatalogPage() {
       setSubmitted(true)
       refreshMyResponses()
     } catch (e: unknown) {
+      // Closed while the form was open: show the closed list, not a failed form.
+      const refusal = lifecycleRefusal(e)
+      if (refusal?.lifecycle && catalog) {
+        setCatalog({ ...catalog, lifecycle: refusal.lifecycle })
+        closeActionModal()
+        return
+      }
       const err = e as { response?: { data?: { error?: string } } }
       setFormError(err?.response?.data?.error || 'Something went wrong. Please try again.')
     } finally {
@@ -308,6 +320,8 @@ export default function PublicCatalogPage() {
       </div>
     )
   }
+
+  if (linkClosed) return <InviteUnavailable />
 
   if (needsPhone) {
     return (
@@ -360,6 +374,9 @@ export default function PublicCatalogPage() {
   const guestName = invite?.guest_context?.name
   const contextLine = getCatalogContextLine(source, cat.purpose)
 
+  const giftingOpen = catalog.lifecycle?.catalog_open !== false
+  const closedNote = catalog.lifecycle?.phase === 'cancelled' ? `${GUEST_COPY.cancelled}.` : `${GUEST_COPY.giftsClosed}.`
+
   const isSingle = items.length === 1
   const gridClass = isSingle
     ? 'flex justify-center'
@@ -388,7 +405,13 @@ export default function PublicCatalogPage() {
         trustLine={copy.trustLine}
         theme={theme}
       >
-        {items.length === 0 ? (
+        {!giftingOpen && (
+          <p role="status" className="mb-8 text-center text-base" style={{ color: theme.fg }}>
+            {closedNote}{' '}
+            <span style={{ color: theme.muted }}>Thank you to everyone who gave.</span>
+          </p>
+        )}
+        {items.length === 0 && !giftingOpen ? null : items.length === 0 ? (
           <CatalogEmptyState
             message={copy.emptyItems}
             slug={slug}
@@ -403,7 +426,7 @@ export default function PublicCatalogPage() {
                 item={item}
                 primary={theme.primary}
                 hero={isSingle}
-                onAction={(amount) => openItem(item, amount)}
+                onAction={giftingOpen ? (amount) => openItem(item, amount) : undefined}
               />
             ))}
           </div>

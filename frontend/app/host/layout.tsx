@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { ViewTransitions } from 'next-view-transitions'
 import HostShell from '@/components/host/HostShell'
 
 /**
@@ -26,6 +27,12 @@ export const metadata: Metadata = {
 }
 
 export default function HostLayout({ children }: { children: React.ReactNode }) {
-  return <HostShell>{children}</HostShell>
+  // ViewTransitions lets host links animate between pages with the browser's
+  // own View Transitions; browsers without it simply navigate.
+  return (
+    <ViewTransitions>
+      <HostShell>{children}</HostShell>
+    </ViewTransitions>
+  )
 }
 

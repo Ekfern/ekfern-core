@@ -272,3 +272,76 @@ input[type="number"] {
 .public-site * {
   cursor: url('/cursor-fern.svg') 2 21, auto;
 }
+/*
+ * Host page transitions (View Transitions API; see lib/host/navDirection.ts).
+ *
+ * Only the page area - <main>, named host-page - moves; the sidebar and tabs
+ * stay still. Going deeper slides the new page in from the right over the
+ * old one drifting left, as on a phone; coming back does the reverse; moving
+ * between an event's tabs does not animate (components/host/HostLink.tsx).
+ * Browsers without view transitions just navigate, and anyone who asked for
+ * less motion gets no animation.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* The phone's floating tab bar stays still and on top while the page slides. */
+::view-transition-group(host-tabbar) {
+  animation: none;
+  z-index: 2;
+}
+::view-transition-old(host-tabbar) {
+  display: none;
+}
+::view-transition-new(host-tabbar) {
+  animation: none;
+}
+
+/* Keep the moving page inside its own area (not over the sidebar), and let it
+   take its new size at once rather than morphing between heights. */
+::view-transition-group(host-page) {
+  overflow: clip;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Coming back, the page leaving slides away on top of the one revealed. */
+  html[data-nav='back']::view-transition-old(host-page) {
+    z-index: 1;
+  }
+
+  /* No cross-fade between tabs (reached by the Back button): a fade shows the
+     previous page behind the next. Only forward and back move. */
+  ::view-transition-old(host-page),
+  ::view-transition-new(host-page) {
+    animation: none;
+  }
+
+  html[data-nav='forward']::view-transition-old(host-page) {
+    animation: 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both host-out-left;
+  }
+  html[data-nav='forward']::view-transition-new(host-page) {
+    animation: 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both host-in-right;
+  }
+  html[data-nav='back']::view-transition-old(host-page) {
+    animation: 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both host-out-right;
+  }
+  html[data-nav='back']::view-transition-new(host-page) {
+    animation: 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both host-in-left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+@keyframes host-in-right { from { transform: translateX(100%); } }
+@keyframes host-out-left { to { transform: translateX(-30%); opacity: 0.6; } }
+@keyframes host-in-left { from { transform: translateX(-30%); opacity: 0.6; } }
+@keyframes host-out-right { to { transform: translateX(100%); } }

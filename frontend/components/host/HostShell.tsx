@@ -1,8 +1,8 @@
 'use client'
 import { Home } from "lucide-react";
 import { Pencil } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import Link from '@/components/host/HostLink'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -30,6 +30,7 @@ import { TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
 import OverflowNav from '@/components/host/OverflowNav'
+import { navDirection } from '@/lib/host/navDirection'
 
 const AUTH_ROUTES = new Set([
   '/host/login',
@@ -87,6 +88,17 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
 
   const isAuthRoute = AUTH_ROUTES.has(pathname)
   const eventId = getEventIdFromPath(pathname)
+
+  // Tell the page transition which way this navigation goes (see
+  // lib/host/navDirection.ts and the view-transition rules in globals.css).
+  // A layout effect runs while the browser is between its "before" and
+  // "after" pictures, so the direction is set before anything moves - for
+  // links, router.push and the Back button alike.
+  const previousPath = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    document.documentElement.dataset.nav = navDirection(previousPath.current, pathname)
+    previousPath.current = pathname
+  }, [pathname])
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -224,7 +236,10 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
       >
         <div className="flex h-full flex-col overflow-y-auto">
           <div className="flex items-center justify-between border-b border-eco-green-light px-4 py-4">
-            <Logo href="/host/dashboard" textClassName={cn(isDesktopNavCollapsed && 'md:hidden')} />
+            {/* The animated host link around a link-less logo; the public site's logo stays as it is. */}
+            <Link href="/host/dashboard" className="flex items-center">
+              <Logo href="" textClassName={cn(isDesktopNavCollapsed && 'md:hidden')} />
+            </Link>
             <button
               type="button"
               className="hidden rounded-md p-1 text-eco-green hover:bg-eco-green-light md:inline-flex"
@@ -496,19 +511,17 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
         {/* pb-28 clears the floating event-tab bar on mobile; the desktop
             gutter is there so the last card never sits flush against the
             bottom edge and it is obvious the page has ended. */}
-        <main className="min-w-0 flex-1 pb-28 lg:pb-16">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={pathname}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
-        </main>
+        {/* The page goes in as it is - no transition wrapper. A fade keyed on
+            the path (AnimatePresence mode="wait") rendered the incoming page
+            inside the outgoing wrapper, then built it a second time when the
+            fade finished: every click showed the page, a blank "Loading...",
+            and the page again, and fetched its data twice. Next.js already
+            gives each route a fresh page; HostShell.test.tsx holds this. */}
+        {/* Named for the page transition: only this area moves; the sidebar
+            and tabs stay put, like a phone's navigation bar. */}
+        {/* It also paints the page colour, so no page - even one that forgets
+            its own background - is see-through during a transition. */}
+        <main className="min-w-0 flex-1 bg-eco-beige pb-28 lg:pb-16" style={{ viewTransitionName: 'host-page' }}>{children}</main>
         {/* Mobile Bottom Navigation */}
         {mounted && eventId && eventTabItems.length > 0 && !isMobileDrawerOpen && (
           // Anchored to the viewport edges rather than centred on a fixed width:
@@ -516,7 +529,11 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
           // pushed the first and last tab off both edges with no way to reach
           // them. Tabs that still do not fit move into the More menu, which
           // opens upward here rather than off the bottom of the screen.
-          <div className="fixed inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex justify-center lg:hidden">
+          <div
+            className="fixed inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex justify-center lg:hidden"
+            // Its own layer in a page transition, held still above the sliding page - a phone's tab bar does not move.
+            style={{ viewTransitionName: 'host-tabbar' }}
+          >
             <div className="flex w-full max-w-md items-center rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-xl">
               <OverflowNav
                 variant="stacked"

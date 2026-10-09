@@ -117,7 +117,8 @@ export default function EventDetailsEditPage() {
     }
   }
 
-  async function saveChanges(data: EventDetailsFormData): Promise<void> {
+  /** `then`: where to go once saved - the messages page, when the host chose to tell guests of a new date. */
+  async function saveChanges(data: EventDetailsFormData, then?: string): Promise<void> {
     setLoading(true)
     try {
       // is_multi_sub_event is a create-flow-only routing flag; not persisted here.
@@ -135,7 +136,7 @@ export default function EventDetailsEditPage() {
       await writeInvitationContent(patch, eventPayload.title)
       showToast('Event details updated.', 'success')
       // On to the first step still to do; once laid out, straight back to the editor.
-      router.push(nextStepAfter('details', event!, is_multi_sub_event))
+      router.push(then ?? nextStepAfter('details', event!, is_multi_sub_event))
     } catch (err: unknown) {
       logError('EventDetailsEditPage: save failed', err)
       showToast(getErrorMessage(err), 'error')
@@ -229,29 +230,41 @@ export default function EventDetailsEditPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-gray-700">
-                <strong className="text-orange-600">{rsvpWarningCount}</strong> guest{rsvpWarningCount === 1 ? '' : 's'} already RSVP&apos;d yes to the current date. Changing it won&apos;t notify them automatically.
+                <strong className="text-orange-600">{rsvpWarningCount}</strong> guest{rsvpWarningCount === 1 ? '' : 's'} already said yes to the current date. They won&apos;t hear about the new one unless you tell them.
               </p>
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col gap-2 pt-2">
                 <Button
-                  variant="outline"
-                  onClick={() => {
+                  onClick={async () => {
+                    const data = pendingData
                     setPendingData(null)
                     setRsvpWarningCount(null)
+                    if (data) await saveChanges(data, `/host/events/${eventId}/communications?tab=send`)
                   }}
-                  className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
+                  className="min-h-[44px] bg-eco-green hover:bg-eco-green-dark text-white"
                 >
-                  Cancel
+                  Change date and message them
                 </Button>
                 <Button
+                  variant="outline"
                   onClick={async () => {
                     const data = pendingData
                     setPendingData(null)
                     setRsvpWarningCount(null)
                     if (data) await saveChanges(data)
                   }}
-                  className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
+                  className="min-h-[44px] border-gray-300 text-gray-700 hover:bg-gray-50"
                 >
-                  Change date anyway
+                  Change date only
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setPendingData(null)
+                    setRsvpWarningCount(null)
+                  }}
+                  className="min-h-[44px] text-gray-600"
+                >
+                  Keep the current date
                 </Button>
               </div>
             </CardContent>

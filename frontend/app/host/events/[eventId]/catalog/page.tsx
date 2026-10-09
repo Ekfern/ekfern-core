@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { useParams } from 'next/navigation'
 import { ExternalLink, Plus } from 'lucide-react'
 import api from '@/lib/api'
@@ -22,6 +22,7 @@ import { CatalogSettingsCard } from '@/components/catalog/host/CatalogSettingsCa
 import { CatalogSharingCard } from '@/components/catalog/host/CatalogSharingCard'
 import { CatalogItemList } from '@/components/catalog/host/CatalogItemList'
 import { CatalogItemDrawer } from '@/components/catalog/host/CatalogItemDrawer'
+import PageSkeleton from '@/components/host/PageSkeleton'
 import {
   CATALOG_ITEM_TEMPLATES,
   EMPTY_CATALOG_ITEM,
@@ -244,11 +245,12 @@ export default function HostCatalogPage() {
     }
   }
 
-  if (loading || !catalog) {
-    return <div className="p-8 text-center text-gray-500">Loading catalog…</div>
-  }
+  if (loading || !catalog) return <PageSkeleton shape="form" />
 
   return (
+    // Paints its own page, like every host page: a see-through page let the
+    // previous one show behind it during a page transition.
+    <div className="min-h-screen bg-eco-beige">
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-eco-green">Host Catalog</h1>
@@ -356,6 +358,7 @@ export default function HostCatalogPage() {
         onSave={saveItem}
         onClose={() => setDrawerOpen(false)}
       />
+    </div>
     </div>
   )
 }

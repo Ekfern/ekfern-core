@@ -740,6 +740,11 @@ class PublicInvitePayloadFieldContractTestCase(TestCase):
         # serves the authoritative value. Safe because it renders as a label, not
         # a decision - move it if that ever stops being true.
         'rsvp_count',
+        # Where the event is in its life. Carries valid_until (its next calendar
+        # change); the view caps every cache layer to it and drops a cached copy
+        # past it, so it is never served stale across a change. Hand changes
+        # (cancel, close gifts) purge CloudFront when made.
+        'lifecycle',
     })
 
     def test_cached_invite_payload_field_set_is_pinned(self):
@@ -1303,11 +1308,12 @@ class InvitePageCacheTestCase(TestCase):
         Pass `invite_page` for published pages so the key includes the current
         updated_at version segment; omit it to get the unversioned base key.
         """
-        from apps.events.views import get_invite_page_cache_key
+        from apps.events.views import _invite_cache_version, get_invite_page_cache_key
         version = None
         if invite_page is not None:
-            invite_page.refresh_from_db(fields=['updated_at'])
-            version = invite_page.updated_at.timestamp()
+            invite_page.refresh_from_db(fields=['updated_at', 'published_at'])
+            event_updated = Event.objects.filter(pk=invite_page.event_id).values_list('updated_at', flat=True).first()
+            version = _invite_cache_version(invite_page.published_at or invite_page.updated_at, event_updated)
         return get_invite_page_cache_key(slug, version=version)
     
     def test_cache_hit_for_published_page(self):
@@ -1537,6 +1543,9 @@ class InvitePageCacheTestCase(TestCase):
         # Current serializer computes several event-derived fields and RSVP count,
         # so this endpoint executes multiple queries even for SIMPLE events.
         # +1 for the lightweight updated_at version lookup that precedes caching.
+        # The lifecycle settings row is cached for a minute; warm it as production would be.
+        from apps.events.models import EventLifecycleSettings
+        EventLifecycleSettings.get_config()
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(f'/api/events/invite/{invite_page.slug}/')
 

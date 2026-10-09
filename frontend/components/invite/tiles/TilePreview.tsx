@@ -12,6 +12,8 @@ import FeatureButtonsTile from './FeatureButtonsTile'
 import FooterTile from './FooterTile'
 import EventCarouselTile from './EventCarouselTile'
 import PosterTile from './PosterTile'
+import { useLifecycle } from '@/components/invite/render/LifecycleContext'
+import { GUEST_COPY } from '@/lib/invite/lifecycle'
 
 export interface TilePreviewProps {
   tile: Tile
@@ -44,6 +46,7 @@ export default function TilePreview({
   allowedSubEvents = [],
   guestToken,
 }: TilePreviewProps) {
+  const lifecycle = useLifecycle()
   if (!tile.enabled) return null
 
   const renderTile = () => {
@@ -80,8 +83,21 @@ export default function TilePreview({
           ? (eventDetailsTile.settings as import('@/lib/invite/schema').EventDetailsTileSettings).time
           : undefined
         // Use date from event-details tile if available, otherwise use eventDate prop
-        const timerDate = eventDetailsDate || eventDate
-        return <TimerTile settings={tile.settings as any} preview eventDate={timerDate} eventTime={eventTime} eventSlug={eventSlug} eventTitle={eventTitle} />
+        let timerDate = eventDetailsDate || eventDate
+        if (lifecycle) {
+          // Nothing left to count down to once it has ended or been called off.
+          if (lifecycle.phase === 'ended' || lifecycle.phase === 'cancelled' || lifecycle.phase === 'archived') return null
+          // A series counts to its next gathering, not its first.
+          if (lifecycle.series) {
+            if (lifecycle.series.today) return <TodayLine />
+            timerDate = lifecycle.series.next_date || undefined
+          } else if (lifecycle.phase === 'happening') {
+            // Under way - possibly a multi-day wedding between its functions -
+            // so neither a countdown to its first day nor "today" is true.
+            return null
+          }
+        }
+        return <TimerTile settings={tile.settings as any} preview eventDate={timerDate} eventTime={eventTime} eventTimezone={eventTimezone} eventSlug={eventSlug} eventTitle={eventTitle} />
       case 'event-details':
         return <EventDetailsTile settings={tile.settings as any} preview tileId={tile.id} eventSlug={eventSlug} eventTitle={eventTitle} eventDate={eventDate} eventTimezone={eventTimezone} />
       case 'directions':
@@ -132,3 +148,14 @@ export default function TilePreview({
   )
 }
 
+/** In place of a countdown that has reached its day. */
+function TodayLine() {
+  return (
+    <p
+      className="w-full px-4 text-center text-lg tracking-wide"
+      style={{ color: 'var(--theme-primary)', fontFamily: 'var(--theme-font-title)' }}
+    >
+      {GUEST_COPY.happening}
+    </p>
+  )
+}

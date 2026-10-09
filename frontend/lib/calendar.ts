@@ -32,6 +32,39 @@ export interface CalendarEvent {
   sequence?: number
   startISO: string
   endISO: string
+  /**
+   * A repeating series. Its times are then written on the event's own clock
+   * (TZID), not in UTC: "every Saturday at 7 pm" must stay Saturday at the
+   * venue even when the UTC date is Friday.
+   */
+  series?: {
+    rrule: string
+    /** ISO dates with no gathering. */
+    skipped?: string[]
+    timeZone: string
+  }
+}
+
+/** `YYYYMMDDTHHmmss` on a zone's wall clock - what TZID-qualified times are written in. */
+export function localStamp(iso: string, timeZone: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date(iso)).map((p) => [p.type, p.value]),
+  )
+  return `${parts.year}${parts.month}${parts.day}T${parts.hour}${parts.minute}${parts.second}`
+}
+
+/**
+ * The stored rule, as calendars want it: UNTIL becomes the end of that day in
+ * UTC, which is the form RFC 5545 requires next to a TZID start.
+ */
+function calendarRrule(rrule: string): string {
+  return rrule
+    .split(';')
+    .map((part) => (/^UNTIL=\d{8}$/i.test(part) ? `${part}T235959Z` : part))
+    .join(';')
 }
 
 /**
@@ -47,11 +80,19 @@ function buildDescription(event: CalendarEvent): string {
  * Generate Google Calendar URL
  */
 export function getGoogleCalendarHref(event: CalendarEvent): string {
+  const series = event.series
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: event.title,
-    dates: `${formatGoogleDate(event.startISO)}/${formatGoogleDate(event.endISO)}`,
+    // A series is written on the venue's clock and Google told which one.
+    dates: series
+      ? `${localStamp(event.startISO, series.timeZone)}/${localStamp(event.endISO, series.timeZone)}`
+      : `${formatGoogleDate(event.startISO)}/${formatGoogleDate(event.endISO)}`,
   })
+  if (series) {
+    params.append('ctz', series.timeZone)
+    params.append('recur', `RRULE:${calendarRrule(series.rrule)}`)
+  }
 
   const details = buildDescription(event)
   if (details) {
@@ -133,10 +174,26 @@ export function generateICS(event: CalendarEvent): string {
     'BEGIN:VEVENT',
     `UID:${event.uid || generateUID()}`,
     `DTSTAMP:${now}`,
-    `DTSTART:${startDate}`,
-    `DTEND:${endDate}`,
-    `SUMMARY:${escapeICS(event.title)}`,
   ]
+
+  const series = event.series
+  if (series) {
+    const zone = series.timeZone
+    const startLocal = localStamp(event.startISO, zone)
+    lines.push(
+      `DTSTART;TZID=${zone}:${startLocal}`,
+      `DTEND;TZID=${zone}:${localStamp(event.endISO, zone)}`,
+      `RRULE:${calendarRrule(series.rrule)}`,
+    )
+    // A skipped date is that day at the series' own start time.
+    const time = startLocal.slice(8)
+    for (const day of series.skipped ?? []) {
+      lines.push(`EXDATE;TZID=${zone}:${day.replace(/-/g, '')}${time}`)
+    }
+  } else {
+    lines.push(`DTSTART:${startDate}`, `DTEND:${endDate}`)
+  }
+  lines.push(`SUMMARY:${escapeICS(event.title)}`)
 
   const description = buildDescription(event)
   if (description) {

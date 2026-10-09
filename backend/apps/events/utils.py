@@ -386,18 +386,11 @@ def calculate_event_impact(event):
     3. Gifts Received: Paid orders with physical items
     4. Paper Saved on Gifts: Cash gifts and donations (no physical gift cards)
     """
-    from datetime import date
     from django.db.models import Sum, Q
-    
-    # Check if event is expired
-    # Handle case where expiry_date field might not exist yet (migration not run)
-    try:
-        expiry = event.expiry_date or event.date
-    except AttributeError:
-        # expiry_date field doesn't exist yet, use event.date
-        expiry = event.date
-    if not expiry or expiry >= date.today():
-        return None  # Event not expired
+    from .lifecycle import is_over
+
+    if not is_over(event):
+        return None  # Not over yet
     
     # 1. Food Saved: Guests from list who didn't RSVP (exclude removed guests and RSVPs)
     total_guests = event.guest_list.filter(is_removed=False).count()

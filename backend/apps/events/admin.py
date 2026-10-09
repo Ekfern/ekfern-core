@@ -16,6 +16,9 @@ from .models import (
     AnalyticsBatchRun,
     GreetingCardSample,
     HostSendQuota,
+    EventLifecycleOverride,
+    EventLifecycleSettings,
+    EventLifecycleTransition,
     LLMPlatformSettings,
     WhatsAppSettings,
     WaitlistEntry,
@@ -23,17 +26,78 @@ from .models import (
 )
 
 
+# Event fields staff may change by hand that move the lifecycle; each change is audited.
+AUDITED_LIFECYCLE_FIELDS = {
+    'link_active_until': 'link_active_until',
+    'link_days_after_end': 'windows',
+    'catalog_days_after_end': 'windows',
+    'catalog_closed_at': 'close_catalog',
+    'cancelled_at': 'cancel',
+}
+
+
+class EventAdminForm(forms.ModelForm):
+    lifecycle_change_reason = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 2}),
+        help_text='Why you changed a lifecycle field (link override, gift/link days, cancel). Saved to the audit log.',
+    )
+
+    class Meta:
+        model = Event
+        fields = '__all__'
+
+    def clean(self):
+        cleaned = super().clean()
+        changed = set(self.changed_data) & set(AUDITED_LIFECYCLE_FIELDS)
+        if self.instance.pk and changed and not (cleaned.get('lifecycle_change_reason') or '').strip():
+            self.add_error('lifecycle_change_reason', 'Say why: this change is audited.')
+        return cleaned
+
+
+class EventLifecycleTransitionInline(admin.TabularInline):
+    model = EventLifecycleTransition
+    extra = 0
+    can_delete = False
+    readonly_fields = ('kind', 'for_moment', 'at')
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class EventLifecycleOverrideInline(admin.TabularInline):
+    model = EventLifecycleOverride
+    extra = 0
+    can_delete = False
+    readonly_fields = ('action', 'old_value', 'new_value', 'reason', 'by', 'at')
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 class EventAdmin(admin.ModelAdmin):
-    list_display = ('title', 'slug', 'host', 'event_type', 'date', 'is_public', 'show_branding', 'created_at')
+    form = EventAdminForm
+    list_display = ('title', 'slug', 'host', 'event_type', 'date', 'ends_at', 'is_public', 'show_branding', 'created_at')
     list_filter = ('event_type', 'is_public', 'show_branding', 'created_at')
     search_fields = ('title', 'slug', 'city')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'ends_at', 'expiry_date', 'host_warned_link_off_at')
+    inlines = [EventLifecycleOverrideInline, EventLifecycleTransitionInline]
 
     def save_model(self, request, obj, form, change):
         old_show_branding = None
+        old_lifecycle = {}
         if change and obj.pk:
             old_show_branding = Event.objects.filter(pk=obj.pk).values_list('show_branding', flat=True).first()
+            old_lifecycle = Event.objects.filter(pk=obj.pk).values(*AUDITED_LIFECYCLE_FIELDS).first() or {}
         super().save_model(request, obj, form, change)
+        if change:
+            reason = (form.cleaned_data.get('lifecycle_change_reason') or '').strip()
+            for field in set(form.changed_data) & set(AUDITED_LIFECYCLE_FIELDS):
+                EventLifecycleOverride.objects.create(
+                    event=obj, action=AUDITED_LIFECYCLE_FIELDS[field], by=request.user, reason=reason,
+                    old_value={field: _jsonable(old_lifecycle.get(field))},
+                    new_value={field: _jsonable(getattr(obj, field))},
+                )
         if change and old_show_branding is not None and old_show_branding != obj.show_branding:
             if hasattr(obj, 'invite_page') and obj.invite_page:
                 from .views import invalidate_invite_page_cache, invalidate_cloudfront_cache_immediate
@@ -294,6 +358,54 @@ class LLMPlatformSettingsAdmin(admin.ModelAdmin):
 
 
 admin_site.register(LLMPlatformSettings, LLMPlatformSettingsAdmin)
+
+
+class EventLifecycleSettingsAdmin(admin.ModelAdmin):
+    fieldsets = [
+        (
+            'After an event ends',
+            {
+                'fields': ['catalog_days_after_end', 'link_days_after_end', 'warn_days_before'],
+                'description': (
+                    'Defaults for every event; an event can carry its own day counts. '
+                    'A link never goes off sooner than the warning period after its host was warned.'
+                ),
+            },
+        ),
+        (
+            'Links going off',
+            {
+                'fields': ['enforce_link_off'],
+                'description': (
+                    'Turn on only after run_lifecycle_transitions is confirmed running and hosts '
+                    'receive its warning emails. While off, every invite link stays active.'
+                ),
+            },
+        ),
+        ('Audit', {'fields': ['updated_by', 'updated_at'], 'classes': ['collapse']}),
+    ]
+    readonly_fields = ['updated_at', 'updated_by']
+
+    def has_add_permission(self, request):
+        return not EventLifecycleSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def changelist_view(self, request, extra_context=None):
+        EventLifecycleSettings.objects.get_or_create(pk=1)
+        return self.change_view(request, '1', extra_context=extra_context)
+
+
+admin_site.register(EventLifecycleSettings, EventLifecycleSettingsAdmin)
+
+
+def _jsonable(value):
+    return value.isoformat() if hasattr(value, 'isoformat') else value
 
 
 class WaitlistEntryAdmin(admin.ModelAdmin):

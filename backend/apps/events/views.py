@@ -27,6 +27,9 @@ from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
 from .access import get_event_or_404, require_event_access, resolve_event_access
+from . import public_access
+from .public_access import guest_endpoint, not_guest_endpoint, require_public_access
+from .lifecycle import LIFECYCLE_EVENT_FIELDS, lifecycle_payload
 from .config_guards import (
     MESSAGE as CONFIG_GUARD_MESSAGE,
     collect_oversized_data_uris,
@@ -91,6 +94,50 @@ def get_invite_page_cache_key(slug, version=None, guest_token=None):
     if guest_token:
         return f'{base}:guest:{guest_token}'
     return base
+
+
+GUEST_INVITE_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600, max-age=60'
+
+
+def _invite_cache_version(published, event_updated):
+    """
+    The guest invite's cache version: the published design, and the event
+    itself. The event half rotates the key when a host cancels, closes gifts,
+    changes a repeat or a date - changes that do not republish the design but
+    do change the lifecycle the payload carries.
+    """
+    if not published:
+        return None
+    stamp = f'{published.timestamp()}'
+    return f'{stamp}-{event_updated.timestamp()}' if event_updated else stamp
+
+
+def _lifecycle_valid_until(payload):
+    from datetime import datetime as _dt
+    raw = ((payload or {}).get('lifecycle') or {}).get('valid_until')
+    try:
+        return _dt.fromisoformat(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _guest_cache_control(payload, now=None):
+    """
+    Cache-Control for the guest invite, capped so that no layer - CloudFront
+    (s-maxage + stale-while-revalidate), the browser (max-age) - can serve it
+    past the payload's next lifecycle change. Under a minute to go: no-store.
+    """
+    valid_until = _lifecycle_valid_until(payload)
+    if valid_until is None:
+        return GUEST_INVITE_CACHE_CONTROL
+    remaining = int((valid_until - (now or timezone.now())).total_seconds())
+    if remaining >= 300 + 3600:
+        return GUEST_INVITE_CACHE_CONTROL
+    if remaining < 60:
+        return 'no-store, no-cache, must-revalidate, private'
+    s_maxage = min(300, remaining)
+    stale = max(0, remaining - s_maxage)
+    return f'public, s-maxage={s_maxage}, stale-while-revalidate={min(3600, stale)}, max-age={min(60, s_maxage)}'
 
 
 def invalidate_invite_page_cache(slug):
@@ -263,7 +310,12 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         try:
-            return Event.objects.for_user(self.request.user).select_related('invite_page', 'host_catalog')
+            queryset = Event.objects.for_user(self.request.user).select_related('invite_page', 'host_catalog')
+            if self.action == 'list':
+                # Each card shows its lifecycle; one subquery instead of one query per event.
+                from .lifecycle import latest_sub_event_subquery
+                queryset = queryset.annotate(latest_sub_event_at=latest_sub_event_subquery())
+            return queryset
         except Exception:
             try:
                 return Event.objects.for_user(self.request.user).select_related('invite_page', 'host_catalog').only(
@@ -317,6 +369,91 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = serializer.save()
         record_event_version(event, saved_by=self.request.user)
+
+    # --- Lifecycle: the host's hand on what closes when (apps/events/lifecycle.py) ---
+
+    def _lifecycle_changed(self, event, action_name, old, new, reason=''):
+        """Audit a host's lifecycle change and drop cached copies of the invite."""
+        from .models import EventLifecycleOverride
+
+        public_access.record_metric(f'host_{action_name}', event)
+
+        EventLifecycleOverride.objects.create(
+            event=event, action=action_name, old_value=old, new_value=new,
+            reason=(reason or '')[:1000], by=self.request.user,
+        )
+        slug = InvitePage.objects.filter(event=event).values_list('slug', flat=True).first()
+        if slug:
+            InvitePage.objects.filter(event=event).update(updated_at=timezone.now())
+            invalidate_invite_page_cache(slug)
+            invalidate_cloudfront_cache_immediate(slug)
+
+    def _lifecycle_response(self, event):
+        from .lifecycle import host_lifecycle_payload
+        return Response({'lifecycle': host_lifecycle_payload(event)})
+
+    @action(detail=True, methods=['post'], url_path='close-catalog')
+    def close_catalog(self, request, id=None):
+        """Close gifts now. Reopenable until the normal window would have closed them."""
+        event = self.get_object()
+        self._verify_event_ownership(event, EDIT_CATALOG)
+        if not event.catalog_closed_at:
+            event.catalog_closed_at = timezone.now()
+            event.save(update_fields=['catalog_closed_at', 'updated_at'])
+            self._lifecycle_changed(event, 'close_catalog', None, event.catalog_closed_at.isoformat(),
+                                    request.data.get('reason', ''))
+        return self._lifecycle_response(event)
+
+    @action(detail=True, methods=['post'], url_path='reopen-catalog')
+    def reopen_catalog(self, request, id=None):
+        """Undo an early close. It never stretches the window past its normal end."""
+        from .lifecycle import host_lifecycle_payload
+
+        event = self.get_object()
+        self._verify_event_ownership(event, EDIT_CATALOG)
+        if event.catalog_closed_at:
+            if not host_lifecycle_payload(event)['can_reopen_catalog']:
+                raise ValidationError({'code': 'CATALOG_WINDOW_OVER',
+                                       'error': 'Gifts can no longer be reopened for this event.'})
+            old = event.catalog_closed_at.isoformat()
+            event.catalog_closed_at = None
+            event.save(update_fields=['catalog_closed_at', 'updated_at'])
+            self._lifecycle_changed(event, 'reopen_catalog', old, None, request.data.get('reason', ''))
+        return self._lifecycle_response(event)
+
+    def _require_owner(self, event, what):
+        access = self._verify_event_ownership(event)
+        if not access.is_owner:
+            raise PermissionDenied(f"Only the event host can {what}.")
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, id=None):
+        """Cancel the event: RSVP and gifts close at once, guests see the host's note."""
+        event = self.get_object()
+        self._require_owner(event, 'cancel this event')
+        note = str(request.data.get('note', '') or '').strip()[:1000]
+        if not event.cancelled_at or event.cancel_note != note:
+            old = {'cancelled_at': event.cancelled_at.isoformat() if event.cancelled_at else None,
+                   'note': event.cancel_note}
+            event.cancelled_at = event.cancelled_at or timezone.now()
+            event.cancel_note = note
+            event.save(update_fields=['cancelled_at', 'cancel_note', 'updated_at'])
+            self._lifecycle_changed(event, 'cancel', old,
+                                    {'cancelled_at': event.cancelled_at.isoformat(), 'note': note},
+                                    request.data.get('reason', ''))
+        return self._lifecycle_response(event)
+
+    @action(detail=True, methods=['post'], url_path='uncancel')
+    def uncancel(self, request, id=None):
+        """Undo a cancellation: the event goes back to following its dates."""
+        event = self.get_object()
+        self._require_owner(event, 'restore this event')
+        if event.cancelled_at:
+            old = {'cancelled_at': event.cancelled_at.isoformat(), 'note': event.cancel_note}
+            event.cancelled_at = None
+            event.save(update_fields=['cancelled_at', 'updated_at'])
+            self._lifecycle_changed(event, 'uncancel', old, None, request.data.get('reason', ''))
+        return self._lifecycle_response(event)
 
     def _verify_event_ownership(self, event, capability=None):
         """
@@ -1697,6 +1834,7 @@ class InvitePageViewSet(viewsets.ModelViewSet):
             )
 
 
+@guest_endpoint(public_access.READ)
 class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Public invite page view - no authentication required
@@ -1728,6 +1866,38 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
         response['Pragma'] = 'no-cache'
         return response
+
+    def _archived_response(self, event, slug):
+        """
+        The link has gone off. Says only that: no title, image or host, since a
+        dead link can still be forwarded. no-store, like coming-soon.
+        """
+        public_access.record_metric('archived_link_opened', event)
+        response = Response({
+            'status': 'archived',
+            'slug': slug,
+            'show_branding': getattr(event, 'show_branding', True),
+        }, status=status.HTTP_200_OK)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        response['Pragma'] = 'no-cache'
+        return response
+
+    def _archived_event(self, slug):
+        """
+        The event behind this slug if its link has gone off, else None. Checked
+        before the cache, so a warm cache can never serve an archived invite.
+        Costs nothing while link-off enforcement is switched off.
+        """
+        from .lifecycle import _config, link_active
+
+        if not _config()['enforce_link_off']:
+            return None
+        event = Event.objects.filter(slug=slug).only(
+            'id', 'host_id', 'slug', 'timezone', 'show_branding', *LIFECYCLE_EVENT_FIELDS,
+        ).first()
+        if event is None or link_active(event):
+            return None
+        return event
 
     def retrieve(self, request, *args, **kwargs):
         """Retrieve invite page with guest-scoped sub-events if token provided"""
@@ -1766,6 +1936,15 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Check if this is an editor preview request
         is_preview = request.query_params.get('preview', '').lower() == 'true'
+
+        # Guests of an archived event get the archived notice. The host (or a
+        # co-host) previewing in the editor still sees the page; anyone else
+        # adding ?preview=true does not.
+        archived = self._archived_event(slug)
+        if archived is not None and not (
+            is_preview and resolve_event_access(request.user, archived).has_access
+        ):
+            return self._archived_response(archived, slug)
         
         # Check cache for published pages without guest tokens AND not editor preview
         guest_token = request.query_params.get('g', '').strip()
@@ -1778,18 +1957,20 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             version_row = (
                 InvitePage.objects
                 .filter(slug=slug, is_published=True)
-                .values_list('published_at', 'updated_at')
+                .values_list('published_at', 'updated_at', 'event__updated_at')
                 .first()
             )
             cache_version = None
             if version_row:
-                cache_version = version_row[0] or version_row[1]
-            cache_key = get_invite_page_cache_key(
-                slug,
-                version=cache_version.timestamp() if cache_version else None,
-            )
+                cache_version = _invite_cache_version(version_row[0] or version_row[1], version_row[2])
+            cache_key = get_invite_page_cache_key(slug, version=cache_version)
             cache_check_start = time.time()
             cached_response = cache.get(cache_key) if cache_version else None
+            # A cached copy made before the event ended (or gifts closed) is stale
+            # the moment that happens, whatever its TTL says.
+            valid_until = _lifecycle_valid_until(cached_response)
+            if cached_response and valid_until and valid_until <= timezone.now():
+                cached_response = None
             cache_check_time = (time.time() - cache_check_start) * 1000  # Convert to ms
             
             if cached_response:
@@ -1811,7 +1992,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 # Return cached response with stale-while-revalidate headers for guests
                 # s-maxage=300 (5 min CDN), stale-while-revalidate=3600 (1 hour), max-age=60 (1 min browser)
                 response = Response(cached_response)
-                response['Cache-Control'] = 'public, s-maxage=300, stale-while-revalidate=3600, max-age=60'
+                response['Cache-Control'] = _guest_cache_control(cached_response)
                 return response
             logger.info(
                 f"[Cache] MISS - slug: {slug}, key: {cache_key}, "
@@ -1840,7 +2021,11 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__public_sub_events_count',
                 'event__total_sub_events_count', 'event__host_id',  # host_id needed for editor check
                 # Serialized fields - loaded here rather than as deferred-field queries
-                'event__country', 'event__title', 'event__host__name'
+                'event__country', 'event__title', 'event__host__name',
+                'event__timezone', 'event__has_rsvp', 'event__has_registry', 'event__show_branding',
+                'event__updated_at',
+                # The lifecycle (apps/events/lifecycle.py) - one deferred query each otherwise
+                *[f'event__{field}' for field in LIFECYCLE_EVENT_FIELDS],
             ).get(slug=slug, is_published=True)
             event = invite_page.event
             query_time = time.time() - query_start
@@ -2117,7 +2302,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             # Guest/public: Use stale-while-revalidate with optimized TTL
             # s-maxage=300 (5 min CDN), stale-while-revalidate=3600 (1 hour), max-age=60 (1 min browser)
-            response['Cache-Control'] = 'public, s-maxage=300, stale-while-revalidate=3600, max-age=60'
+            response['Cache-Control'] = _guest_cache_control(serializer.data)
             logger.info(
                 f"[Cache] SET - Guest/public request for slug: {slug}, "
                 f"cache_control: stale-while-revalidate"
@@ -2128,8 +2313,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             # Use the version-scoped key (matches the read path, keyed by published_at
             # so auto-saving does not churn the guest cache). The TTL also acts as
             # garbage collection for orphaned old-version entries.
-            version_dt = invite_page.published_at or invite_page.updated_at
-            cache_version = version_dt.timestamp() if version_dt else None
+            cache_version = _invite_cache_version(
+                invite_page.published_at or invite_page.updated_at, invite_page.event.updated_at,
+            )
             cache_key = get_invite_page_cache_key(slug, version=cache_version)
             cache.set(cache_key, serializer.data, 60)  # 1 minute TTL
             logger.info(
@@ -2247,6 +2433,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         return response
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_rsvp(request, event_id):
@@ -2255,6 +2442,7 @@ def get_rsvp(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.READ)
     
     # Check if RSVP is enabled for this event
     if not event.has_rsvp:
@@ -2376,6 +2564,7 @@ def _rsvp_capacity_response_fields(event, existing_rsvp=None):
     }
 
 
+@guest_endpoint(public_access.RSVP)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def check_phone_for_rsvp(request, event_id):
@@ -2384,6 +2573,7 @@ def check_phone_for_rsvp(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.RSVP)
     
     # Check if RSVP is enabled for this event
     if not event.has_rsvp:
@@ -2465,6 +2655,7 @@ def check_phone_for_rsvp(request, event_id):
     return Response(guest_data, status=status.HTTP_200_OK)
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def rsvp_registration_status(request, event_id):
@@ -2473,6 +2664,7 @@ def rsvp_registration_status(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.READ)
 
     if not event.has_rsvp:
         return Response({'error': 'RSVP is not enabled for this event'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2510,6 +2702,7 @@ def rsvp_registration_status(request, event_id):
     return Response(payload, status=status.HTTP_200_OK)
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_guest_by_token(request, event_id):
@@ -2518,6 +2711,7 @@ def get_guest_by_token(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.READ)
     
     # Check if RSVP is enabled for this event
     if not event.has_rsvp:
@@ -2583,6 +2777,7 @@ def get_guest_by_token(request, event_id):
         return Response({'error': 'Invalid guest token'}, status=status.HTTP_404_NOT_FOUND)
 
 
+@not_guest_endpoint('Redirects to the invite, RSVP or catalog page, each guarded itself; the redirect carries no event data.')
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def attribution_redirect(request, token):
@@ -2719,6 +2914,7 @@ def _notify_rsvp_recipient(event, rsvp, host):
         )
 
 
+@guest_endpoint(public_access.RSVP)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_rsvp(request, event_id):
@@ -2727,6 +2923,7 @@ def create_rsvp(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.RSVP)
     
     # Check if RSVP is enabled for this event
     if not event.has_rsvp:
@@ -4477,22 +4674,19 @@ def get_event_impact(request, id):
     impact = calculate_event_impact(event)
     
     if impact is None:
-        # Event not expired yet
         return Response({
             'event_id': event.id,
             'event_title': event.title,
             'event_date': event.date.isoformat() if event.date else None,
-            'expiry_date': event.expiry_date.isoformat() if event.expiry_date else None,
             'is_expired': False,
             'impact': None,
-            'message': 'Event has not expired yet. Impact data will be available after the event expiry date.'
+            'message': 'Impact is ready once the event has ended.'
         })
     
     return Response({
         'event_id': event.id,
         'event_title': event.title,
         'event_date': event.date.isoformat() if event.date else None,
-        'expiry_date': event.expiry_date.isoformat() if event.expiry_date else None,
         'is_expired': True,
         'impact': impact
     })
@@ -4505,18 +4699,10 @@ def get_overall_impact(request):
     from .utils import calculate_event_impact
     from datetime import date
     
-    # Get all expired events for the user
-    user_events = Event.objects.for_user(request.user)
-    expired_events = []
-    
-    for event in user_events:
-        try:
-            expiry = event.expiry_date or event.date
-        except AttributeError:
-            expiry = event.date
-        
-        if expiry and expiry < date.today():
-            expired_events.append(event)
+    from .lifecycle import over_q
+
+    # Events that are over (ended or cancelled); calculate_event_impact re-checks each.
+    expired_events = list(Event.objects.for_user(request.user).filter(over_q()))
     
     # Calculate impact for each expired event
     total_plates_saved = 0
@@ -4541,7 +4727,6 @@ def get_overall_impact(request):
                 'event_id': event.id,
                 'event_title': event.title,
                 'event_date': event.date.isoformat() if event.date else None,
-                'expiry_date': event.expiry_date.isoformat() if event.expiry_date else None,
                 'impact': impact
             })
     
@@ -5054,10 +5239,12 @@ def booking_slots_reorder(request, event_id):
     return Response({'message': 'Reordered successfully'})
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_booking_calendar(request, slug):
     event = get_object_or_404(Event, slug=slug)
+    require_public_access(event, public_access.READ)
     schedule = BookingSchedule.objects.filter(event=event, is_enabled=True).first()
     if not schedule:
         return Response({'results': []})
@@ -5104,11 +5291,13 @@ def public_booking_calendar(request, slug):
     return Response({'results': results})
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_rsvp_sub_events(request, slug):
     """Public session catalog for PER_SUBEVENT RSVP (open link or guest-token assignments)."""
     event = get_object_or_404(Event, slug=slug.lower())
+    require_public_access(event, public_access.READ)
     if not event.has_rsvp or event.get_canonical_rsvp_mode() != 'sub_event':
         return Response({'results': []})
     if event.rsvp_mode != 'PER_SUBEVENT':
@@ -5167,6 +5356,7 @@ def place_suggest(request):
     return response
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def public_verify_phone(request, slug):
@@ -5180,6 +5370,7 @@ def public_verify_phone(request, slug):
     from . import membership
 
     event = get_object_or_404(Event, slug=slug.lower())
+    require_public_access(event, public_access.READ)
 
     phone = (request.data.get('phone') or '').strip()
     country_code = request.data.get('country_code', '')
@@ -5201,6 +5392,7 @@ def public_verify_phone(request, slug):
     return response
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_rsvp_config(request, slug):
@@ -5219,6 +5411,7 @@ def public_rsvp_config(request, slug):
     from .utils import get_country_code
 
     event = get_object_or_404(Event, slug=slug.lower())
+    require_public_access(event, public_access.READ)
 
     payload = {
         'event_id': event.id,
@@ -5244,6 +5437,8 @@ def public_rsvp_config(request, slug):
         'rsvp_form_config': (
             event.page_config.get('rsvpForm') if isinstance(event.page_config, dict) else None
         ),
+        # Whether RSVP / gifts are open right now: a gate, so it lives here, not on the cached invite.
+        'lifecycle': lifecycle_payload(event),
     }
 
     response = Response(payload)
@@ -5253,10 +5448,12 @@ def public_rsvp_config(request, slug):
     return response
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_booking_slots_by_date(request, slug):
     event = get_object_or_404(Event, slug=slug)
+    require_public_access(event, public_access.READ)
     schedule = BookingSchedule.objects.filter(event=event, is_enabled=True).first()
     if not schedule:
         return Response({'results': []})
@@ -5293,10 +5490,12 @@ def public_booking_slots_by_date(request, slug):
     return Response({'results': results})
 
 
+@guest_endpoint(public_access.RSVP)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_slot_booking(request, event_id):
     event = get_object_or_404(Event, id=event_id)
+    require_public_access(event, public_access.RSVP)
     if event.get_canonical_rsvp_mode() != Event.RSVP_EXPERIENCE_MODE_SLOT_BASED:
         return Response(
             {'error': 'Slot booking is not active for this event'},
@@ -5536,6 +5735,7 @@ def host_override_slot_booking_capacity(request, event_id, booking_id):
 # WhatsApp webhook + status endpoints
 # ---------------------------------------------------------------------------
 
+@not_guest_endpoint('Meta delivery webhook, signature-verified; not a guest page.')
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def whatsapp_webhook(request):
@@ -5646,6 +5846,7 @@ def _update_recipient_from_webhook(wamid, meta_status, ts):
 # SES delivery webhook  (SNS → POST /api/events/email/webhook/<token>/)
 # ---------------------------------------------------------------------------
 
+@not_guest_endpoint('SES delivery webhook, token-verified; not a guest page.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def ses_webhook(request, token):
@@ -5781,6 +5982,7 @@ def _update_recipient_from_ses(email_message_id: str, new_status: str, ts_str: s
 # Email click-tracking redirect  (GET /api/events/r/)
 # ---------------------------------------------------------------------------
 
+@not_guest_endpoint('Email click tracking redirect; the destination page is guarded itself.')
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def email_click_redirect(request):

@@ -206,8 +206,28 @@ class Event(models.Model):
     additional_photos = models.JSONField(default=list, blank=True, help_text="Array of up to 5 photo URLs or data URLs (deprecated - use page_config)")
     page_config = models.JSONField(default=dict, blank=True, help_text="Invitation page configuration: appearance plus an ordered list of tiles")
     
-    # Event expiry and messaging
-    expiry_date = models.DateField(null=True, blank=True, help_text="Date when event expires (for impact calculation)")
+    # Messaging. expiry_date is retired (the lifecycle replaced Extend); kept
+    # read-only until a later release drops the column.
+    expiry_date = models.DateField(null=True, blank=True, help_text="Retired: replaced by the event lifecycle (apps/events/lifecycle.py). Not read.")
+
+    # Lifecycle - see apps/events/lifecycle.py for the rule.
+    ends_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="Stored copy of lifecycle.compute_ends_at for queries: start of the day after the last day, "
+                  "in the event's zone. Null: undated, or a series with no end. Kept in sync on save.",
+    )
+    recurrence_rrule = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text="RFC 5545 RRULE for a repeating series (e.g. FREQ=WEEKLY;BYDAY=SU), anchored on `date`. Empty: one-off.",
+    )
+    recurrence_exdates = models.JSONField(default=list, blank=True, help_text="Series dates the host skipped (ISO dates).")
+    cancelled_at = models.DateTimeField(null=True, blank=True, help_text="Set when the host cancels: RSVP and gifts close at once.")
+    cancel_note = models.TextField(blank=True, default='', help_text="The host's message to guests about the cancellation.")
+    catalog_closed_at = models.DateTimeField(null=True, blank=True, help_text="Host closed gifts early. Clearing it reopens them, up to the normal window.")
+    catalog_days_after_end = models.PositiveIntegerField(null=True, blank=True, help_text="Gifts stay open this many days after the end. Blank: the platform default.")
+    link_days_after_end = models.PositiveIntegerField(null=True, blank=True, help_text="The link stops working this many days after the end. Blank: the platform default.")
+    link_active_until = models.DateField(null=True, blank=True, help_text="Staff override: keep the link working through this day (event's zone).")
+    host_warned_link_off_at = models.DateTimeField(null=True, blank=True, help_text="When the host was warned the link is closing. The link never goes off before this plus the notice period.")
     whatsapp_message_template = models.TextField(blank=True, help_text="Custom WhatsApp message template for sharing")
 
     # Attribution insights visibility gate (collection remains always-on)
@@ -247,16 +267,9 @@ class Event(models.Model):
     
     @property
     def is_expired(self):
-        """
-        Expired once its last day has passed: an explicit expiry_date, else the
-        last day of a multi-day event, else its date. A three-day wedding is
-        not over on day two.
-        """
-        from datetime import date
-        expiry = self.expiry_date or self.event_end_date or self.date
-        if not expiry:
-            return False
-        return expiry < date.today()
+        """Over: ended, cancelled or archived (see apps/events/lifecycle.py)."""
+        from . import lifecycle
+        return lifecycle.is_over(self)
     
     def upgrade_to_envelope_if_needed(self):
         """Automatically upgrade event to ENVELOPE when conditions are met"""
@@ -272,10 +285,20 @@ class Event(models.Model):
                 self.event_structure = 'ENVELOPE'
                 self.save(update_fields=['event_structure', 'updated_at'])
     
+    # Fields lifecycle.compute_ends_at reads from the event itself.
+    ENDS_AT_INPUTS = frozenset({'date', 'event_end_date', 'timezone', 'recurrence_rrule', 'recurrence_exdates'})
+
     def save(self, *args, **kwargs):
-        """Normalize slug to lowercase before saving"""
+        """Normalize slug to lowercase and keep the stored ends_at in step."""
         if self.slug:
             self.slug = self.slug.lower()
+        update_fields = kwargs.get('update_fields')
+        if update_fields is None or self.ENDS_AT_INPUTS & set(update_fields):
+            from . import lifecycle
+            self.__dict__.pop('latest_sub_event_at', None)  # never store from a remembered value
+            self.ends_at = lifecycle.compute_ends_at(self)
+            if update_fields is not None:
+                kwargs['update_fields'] = set(update_fields) | {'ends_at'}
         super().save(*args, **kwargs)
     
     def __str__(self):
@@ -1340,6 +1363,9 @@ class RSVP(models.Model):
     )
     
     is_removed = models.BooleanField(default=False, help_text="Soft delete flag - RSVP is removed but record preserved")
+
+    # Reserved for per-date attendance in a repeating series. Null: the whole series (or a one-off event).
+    occurrence_date = models.DateField(null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2339,6 +2365,133 @@ class WhatsAppSettings(models.Model):
         return config
 
 
+class EventLifecycleSettings(models.Model):
+    """
+    Singleton (pk=1): how long gifts and the invite link last after an event,
+    edited by staff in Django admin. Falls back to settings.EVENT_* when no row
+    exists, matching WhatsAppSettings / PrivacySettings. Per-event values on
+    Event override the day counts.
+    """
+    link_days_after_end = models.PositiveIntegerField(default=30, help_text='The invite link stops working this many days after the event ends.')
+    catalog_days_after_end = models.PositiveIntegerField(default=30, help_text='Gifts stay open this many days after the event ends.')
+    warn_days_before = models.PositiveIntegerField(default=7, help_text='Hosts are warned this many days before gifts close or the link goes off. The link never goes off sooner than this after the warning.')
+    enforce_link_off = models.BooleanField(
+        default=False,
+        help_text='Master switch for links going off. Leave off until the lifecycle job is confirmed '
+                  'running and its warning emails arrive; while off, every link stays active.',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+
+    CACHE_KEY = 'event_lifecycle_settings'
+
+    class Meta:
+        db_table = 'event_lifecycle_settings'
+        verbose_name = 'Event Lifecycle Settings'
+        verbose_name_plural = 'Event Lifecycle Settings'
+
+    def __str__(self):
+        return (f"Event Lifecycle (link {self.link_days_after_end}d, gifts {self.catalog_days_after_end}d, "
+                f"{'enforced' if self.enforce_link_off else 'not enforced'})")
+
+    def save(self, *args, **kwargs):
+        from django.core.cache import cache
+        self.pk = 1  # Singleton — always pk=1
+        super().save(*args, **kwargs)
+        cache.delete(self.CACHE_KEY)
+
+    @classmethod
+    def get_config(cls) -> dict:
+        """Cached config dict from DB, or settings fallback. Never raises."""
+        from django.conf import settings as django_settings
+        from django.core.cache import cache
+
+        cached = cache.get(cls.CACHE_KEY)
+        if cached is not None:
+            return cached
+        try:
+            obj = cls.objects.get(pk=1)
+            config = {
+                'link_days_after_end': obj.link_days_after_end,
+                'catalog_days_after_end': obj.catalog_days_after_end,
+                'warn_days_before': obj.warn_days_before,
+                'enforce_link_off': obj.enforce_link_off,
+            }
+        except cls.DoesNotExist:
+            config = {
+                'link_days_after_end': int(getattr(django_settings, 'EVENT_LINK_DAYS_AFTER_END', 30)),
+                'catalog_days_after_end': int(getattr(django_settings, 'EVENT_CATALOG_DAYS_AFTER_END', 30)),
+                'warn_days_before': int(getattr(django_settings, 'EVENT_LIFECYCLE_WARN_DAYS', 7)),
+                'enforce_link_off': bool(getattr(django_settings, 'EVENT_ENFORCE_LINK_OFF', False)),
+            }
+        cache.set(cls.CACHE_KEY, config, 60)
+        return config
+
+
+class EventLifecycleTransition(models.Model):
+    """
+    A moment in an event's life, recorded once by run_lifecycle_transitions:
+    the phase it entered, or a warning sent. Answers "why did my link stop
+    working, and were we told?".
+    """
+    KIND_CHOICES = [
+        ('happening', 'Started'),
+        ('ended', 'Ended'),
+        ('catalog_closed', 'Gifts closed'),
+        ('archived', 'Link went off'),
+        ('warned_catalog', 'Host warned: gifts closing'),
+        ('warned_link', 'Host warned: link going off'),
+        ('ended_summary', 'Host sent the after-event summary'),
+    ]
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='lifecycle_transitions')
+    kind = models.CharField(max_length=32, choices=KIND_CHOICES)
+    # The deadline this entry is about, so a moved date earns a fresh warning.
+    for_moment = models.DateTimeField(null=True, blank=True)
+    at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'event_lifecycle_transitions'
+        ordering = ['-at']
+        constraints = [
+            models.UniqueConstraint(fields=['event', 'kind', 'for_moment'], name='uniq_lifecycle_transition'),
+        ]
+
+    def __str__(self):
+        return f"{self.event_id} {self.kind} @ {self.at:%Y-%m-%d %H:%M}"
+
+
+class EventLifecycleOverride(models.Model):
+    """Append-only audit of every hand change to an event's lifecycle: who, what, why."""
+    ACTION_CHOICES = [
+        ('close_catalog', 'Closed gifts'),
+        ('reopen_catalog', 'Reopened gifts'),
+        ('cancel', 'Cancelled event'),
+        ('uncancel', 'Restored cancelled event'),
+        ('link_active_until', 'Changed link override'),
+        ('windows', 'Changed gift/link days'),
+        ('series', 'Changed repeat rule'),
+    ]
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='lifecycle_overrides')
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES)
+    old_value = models.JSONField(null=True, blank=True)
+    new_value = models.JSONField(null=True, blank=True)
+    reason = models.TextField(blank=True, default='')
+    by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'event_lifecycle_overrides'
+        ordering = ['-at']
+
+    def __str__(self):
+        return f"{self.event_id} {self.action} by {self.by_id} @ {self.at:%Y-%m-%d %H:%M}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise RuntimeError("EventLifecycleOverride is append-only")
+        return super().save(*args, **kwargs)
+
+
 class LLMPlatformSettings(models.Model):
     """
     Singleton (pk=1) — operational LLM knobs for super-admins via Django admin.
@@ -2640,6 +2793,10 @@ def update_counts_on_subevent_save(sender, instance, created, **kwargs):
         # Update cached counts
         update_event_sub_event_counts(instance.event)
 
+        # A sub-event can run past the event's last day.
+        from . import lifecycle
+        lifecycle.sync_ends_at(instance.event_id)
+
 
 @receiver(post_delete, sender=SubEvent)
 def update_counts_on_subevent_delete(sender, instance, **kwargs):
@@ -2677,6 +2834,8 @@ def update_counts_on_subevent_delete(sender, instance, **kwargs):
             # Get event directly by ID to avoid accessing deleted relationship
             event = Event.objects.get(pk=event_id)
             update_event_sub_event_counts(event)
+            from . import lifecycle
+            lifecycle.sync_ends_at(event_id)
         except Event.DoesNotExist:
             # Event was deleted, nothing to update
             pass

@@ -2,17 +2,20 @@
 
 import React, { useState, useEffect } from 'react'
 import { TimerTileSettings } from '@/lib/invite/schema'
+import { zonedTimeToUtc } from '@/lib/invite/timezone'
 
 export interface TimerTileProps {
   settings: TimerTileSettings
   preview?: boolean
   eventDate?: string
   eventTime?: string // Time from event details (e.g., "18:00")
+  /** The venue's zone: 6 pm is 6 pm there, so a guest abroad counts to the same moment. */
+  eventTimezone?: string
   eventSlug?: string
   eventTitle?: string
 }
 
-export default function TimerTile({ settings, preview = false, eventDate, eventTime, eventSlug, eventTitle }: TimerTileProps) {
+export default function TimerTile({ settings, preview = false, eventDate, eventTime, eventTimezone, eventSlug, eventTitle }: TimerTileProps) {
   const [timeRemaining, setTimeRemaining] = useState<{
     days: number
     hours: number
@@ -33,35 +36,41 @@ export default function TimerTile({ settings, preview = false, eventDate, eventT
       }
 
       const now = new Date()
-      // Parse date string (handles both ISO date strings and date-only strings)
+      // The event's wall clock in its own zone. Without a zone, fall back to the
+      // reader's clock, as before.
+      const zoned = eventTimezone && !eventDate.includes('T') ? zonedTimeToUtc(eventDate, eventTime, eventTimezone) : null
       let target: Date
       try {
-        if (eventDate.includes('T')) {
-          // ISO datetime string
-          target = new Date(eventDate)
+        if (zoned) {
+          target = zoned
         } else {
-          // Date-only string (YYYY-MM-DD), parse as local date
-          const [year, month, day] = eventDate.split('-').map(Number)
-          if (isNaN(year) || isNaN(month) || isNaN(day)) {
-            throw new Error('Invalid date format')
+          if (eventDate.includes('T')) {
+            // ISO datetime string
+            target = new Date(eventDate)
+          } else {
+            // Date-only string (YYYY-MM-DD), parse as local date
+            const [year, month, day] = eventDate.split('-').map(Number)
+            if (isNaN(year) || isNaN(month) || isNaN(day)) {
+              throw new Error('Invalid date format')
+            }
+            target = new Date(year, month - 1, day)
           }
-          target = new Date(year, month - 1, day)
-        }
         
-        // Validate the date
-        if (isNaN(target.getTime())) {
-          throw new Error('Invalid date')
-        }
-        
-        // Combine date and time if time is provided
-        if (eventTime) {
-          const [hours, minutes] = eventTime.split(':').map(Number)
-          if (!isNaN(hours) && !isNaN(minutes)) {
-            target.setHours(hours, minutes || 0, 0, 0)
+          // Validate the date
+          if (isNaN(target.getTime())) {
+            throw new Error('Invalid date')
           }
-        } else {
-          // If no time provided, default to midnight
-          target.setHours(0, 0, 0, 0)
+        
+          // Combine date and time if time is provided
+          if (eventTime) {
+            const [hours, minutes] = eventTime.split(':').map(Number)
+            if (!isNaN(hours) && !isNaN(minutes)) {
+              target.setHours(hours, minutes || 0, 0, 0)
+            }
+          } else {
+            // If no time provided, default to midnight
+            target.setHours(0, 0, 0, 0)
+          }
         }
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
@@ -90,7 +99,7 @@ export default function TimerTile({ settings, preview = false, eventDate, eventT
     const interval = setInterval(calculateTimeRemaining, 1000)
 
     return () => clearInterval(interval)
-  }, [eventDate, eventTime])
+  }, [eventDate, eventTime, eventTimezone])
 
   // A countdown is switched off by switching its tile off, like every other
   // tile. There is no second gate: this tile used to carry `settings.enabled`

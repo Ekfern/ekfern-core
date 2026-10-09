@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const payload = await response.json()
 
     // An unpublished invite answers 200 with a placeholder rather than a 404.
-    if (!payload || payload.status === 'coming_soon') {
+    if (!payload || payload.status === 'coming_soon' || payload.status === 'archived') {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     }
 
@@ -102,6 +102,9 @@ export async function GET(request: NextRequest) {
       sequence,
       startISO: startDate.toISOString(),
       endISO: endDate.toISOString(),
+      series: payload.lifecycle?.series
+        ? { rrule: payload.lifecycle.series.rrule, skipped: payload.lifecycle.series.skipped, timeZone }
+        : undefined,
     })
 
     // Return ICS file

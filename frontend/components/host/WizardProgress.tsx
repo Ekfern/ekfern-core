@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/lib/api'
 import { completedSteps, type WizardEvent } from '@/lib/host/wizardSteps'

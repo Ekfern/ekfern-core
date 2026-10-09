@@ -24,3 +24,7 @@ tzdata==2026.4
 # Time zone for a city from its coordinates (create-event city search).
 # Offline zone boundaries, a single prebuilt wheel with no dependencies.
 tzfpy==2.1.0
+
+# Repeating events: RFC 5545 RRULE expansion (lifecycle.series_dates).
+# Already installed by botocore; pinned because we now use it directly.
+python-dateutil==2.9.0.post0

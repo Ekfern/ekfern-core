@@ -1,12 +1,12 @@
-"""An event is over once its last day has passed - not its first."""
+"""An event is over once its last day has passed - not its first. The full rule: test_lifecycle.py."""
 from datetime import date, timedelta
 
-from django.test import SimpleTestCase, TestCase
+from django.test import TestCase
 
 from apps.events.models import Event
 
 
-class EventExpiryTests(SimpleTestCase):
+class EventExpiryTests(TestCase):
     def test_a_one_day_event_expires_after_its_date(self):
         self.assertTrue(Event(date=date.today() - timedelta(days=1)).is_expired)
         self.assertFalse(Event(date=date.today()).is_expired)
@@ -18,11 +18,6 @@ class EventExpiryTests(SimpleTestCase):
     def test_a_multi_day_event_expires_after_its_last_day(self):
         event = Event(date=date.today() - timedelta(days=3), event_end_date=date.today() - timedelta(days=1))
         self.assertTrue(event.is_expired)
-
-    def test_an_explicit_expiry_still_wins(self):
-        event = Event(date=date.today() - timedelta(days=3), event_end_date=date.today() - timedelta(days=1),
-                      expiry_date=date.today() + timedelta(days=30))
-        self.assertFalse(event.is_expired)
 
     def test_no_date_never_expires(self):
         self.assertFalse(Event().is_expired)

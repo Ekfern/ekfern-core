@@ -62,6 +62,10 @@ def cleanup_layout_drafts_task(days: int = 30, repeat_seconds: int = 24 * 3600):
         logger.exception("[cleanup_layout_drafts_task] failed to self-reschedule")
 
 
+#: Campaign audiences whose message is, in effect, "please RSVP".
+ASKS_GUESTS_TO_RSVP = frozenset({'not_sent', 'rsvp_pending'})
+
+
 @background(schedule=0)
 def dispatch_campaign(campaign_id: int):
     """
@@ -85,6 +89,18 @@ def dispatch_campaign(campaign_id: int):
     if campaign.status == MessageCampaign.STATUS_CANCELLED:
         logger.info('[Campaign] %d cancelled — skipping dispatch', campaign_id)
         return
+
+    # A queued invite or RSVP chaser must not go out once RSVP has closed (the
+    # event ended or was cancelled): it would ask guests to answer a form that
+    # refuses them. Messages to people who already answered - a thank-you, a
+    # cancellation notice - still go.
+    if campaign.guest_filter in ASKS_GUESTS_TO_RSVP:
+        from apps.events.lifecycle import rsvp_open
+        if not rsvp_open(campaign.event):
+            campaign.status = MessageCampaign.STATUS_CANCELLED
+            campaign.save(update_fields=['status', 'updated_at'])
+            logger.info('[Campaign] %d skipped — RSVP closed for event %d', campaign_id, campaign.event_id)
+            return
 
     # Transition to SENDING
     campaign.status = MessageCampaign.STATUS_SENDING

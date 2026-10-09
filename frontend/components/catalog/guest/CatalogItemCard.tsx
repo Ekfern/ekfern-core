@@ -62,7 +62,8 @@ export function CatalogItemCard({
   item: PublicCatalogItem
   primary: string
   hero?: boolean
-  onAction: (preselectedAmount?: string) => void
+  /** Absent once gifting has closed: the card still shows the item, with nothing to tap. */
+  onAction?: (preselectedAmount?: string) => void
 }) {
   const actionLabel = getActionLabel(item.action_type)
   const hasSuggested = item.amount_type === 'suggested' && !!item.suggested_amounts?.length
@@ -112,28 +113,28 @@ export function CatalogItemCard({
               Any amount you&apos;d like
             </p>
           )}
-          {hasSuggested && (
+          {hasSuggested && onAction && (
             <div className="flex flex-wrap justify-center gap-2 mb-4">
               {item.suggested_amounts!.map((p) => (
                 <SuggestedPill
                   key={p}
                   paise={p}
                   primary={primary}
-                  onClick={() => onAction(String(p / 100))}
+                  onClick={() => onAction?.(String(p / 100))}
                 />
               ))}
             </div>
           )}
-          <div className="mt-auto w-full">
+          {onAction && <div className="mt-auto w-full">
             <button
               type="button"
-              onClick={() => onAction()}
+              onClick={() => onAction?.()}
               className="w-full py-3 px-4 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: primary }}
             >
               {actionLabel}
             </button>
-          </div>
+          </div>}
         </div>
       </div>
     )
@@ -184,28 +185,28 @@ export function CatalogItemCard({
             Any amount
           </p>
         )}
-        {hasSuggested && (
+        {hasSuggested && onAction && (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {item.suggested_amounts!.map((p) => (
               <SuggestedPill
                 key={p}
                 paise={p}
                 primary={primary}
-                onClick={() => onAction(String(p / 100))}
+                onClick={() => onAction?.(String(p / 100))}
               />
             ))}
           </div>
         )}
-        <div className="mt-auto">
+        {onAction && <div className="mt-auto">
           <button
             type="button"
-            onClick={() => onAction()}
+            onClick={() => onAction?.()}
             className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: primary }}
           >
             {actionLabel}
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   )

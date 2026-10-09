@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getMyCoHostInvites, type CoHostInvite } from '@/lib/cohosts'

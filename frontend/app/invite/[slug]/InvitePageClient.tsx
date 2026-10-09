@@ -16,6 +16,8 @@ import OpeningLayer from '@/components/invite/animations/OpeningLayer'
 import ExperienceLayer from '@/components/invite/animations/ExperienceLayer'
 import PoweredByBranding from '@/components/invite/PoweredByBranding'
 import ComingSoon from '@/components/invite/ComingSoon'
+import InviteUnavailable from '@/components/invite/InviteUnavailable'
+import { LifecycleProvider } from '@/components/invite/render/LifecycleContext'
 import {
   getCatalogButtonLabel,
   shouldShowCatalogOnEventPage,
@@ -72,6 +74,9 @@ export default function InvitePageClient({
   // Set when the invite has been pulled back (unpublished). Polling keeps running so
   // the page automatically flips back to live once the host re-publishes.
   const [comingSoon, setComingSoon] = useState<{ title?: string; showBranding: boolean } | null>(null)
+  // Set when the link has closed. A page served from a cache made earlier
+  // corrects itself here, on the refetch every visit makes.
+  const [archived, setArchived] = useState<{ showBranding: boolean } | null>(null)
   
   // DEBUG: Log initial config order when invite page loads
   useEffect(() => {
@@ -184,8 +189,15 @@ export default function InvitePageClient({
         setLoading(false)
         return
       }
+      if (inviteData && inviteData.status === 'archived') {
+        setArchived({ showBranding: inviteData.show_branding !== false })
+        setError(null)
+        setLoading(false)
+        return
+      }
       // Live again (or normal live page) — clear any prior coming-soon state.
       setComingSoon(null)
+      setArchived(null)
       
       // Extract event data and allowed_sub_events
       const dataProcessingStart = Date.now()
@@ -498,6 +510,10 @@ export default function InvitePageClient({
     return <ComingSoon title={comingSoon.title} showBranding={comingSoon.showBranding} />
   }
 
+  if (archived) {
+    return <InviteUnavailable showBranding={archived.showBranding} />
+  }
+
   // Display error
   if (error) {
     devLog('[InvitePageClient] ⚠️ CLIENT RENDER: Rendering error state', {
@@ -739,6 +755,7 @@ export default function InvitePageClient({
   const pageRhythm = resolveAppearance(config).spaceSection
 
   return (
+    <LifecycleProvider lifecycle={event?.lifecycle ?? null}>
     <OpeningLayer
       key={`opening:${opening ?? 'none'}:${slug}`}
       id={opening}
@@ -887,6 +904,7 @@ export default function InvitePageClient({
       )}
       <ExperienceLayer id={experience} slug={slug} />
     </OpeningLayer>
+    </LifecycleProvider>
   )
 }
 

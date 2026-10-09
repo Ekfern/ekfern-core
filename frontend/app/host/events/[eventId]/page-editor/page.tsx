@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,6 +47,7 @@ import {
 } from '@/components/invite/InviteMobileAnimationPreview'
 import DesignHistoryPanel from '@/components/host/DesignHistoryPanel'
 import { previewDescriptionFromHtml } from '@/lib/invite/previewText'
+import PageSkeleton from '@/components/host/PageSkeleton'
 
 interface Event {
   id: number
@@ -1468,16 +1469,7 @@ export default function DesignInvitationPage(): JSX.Element {
     }
   }, [previewAnim.replayOpening])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-eco-beige">
-        <div className="text-center">
-          <div className="text-4xl mb-4">🌿</div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <PageSkeleton shape="editor" />
 
   // Ensure we have valid tiles before rendering
   if (!config.tiles || config.tiles.length === 0) {

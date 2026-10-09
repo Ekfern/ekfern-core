@@ -22,6 +22,9 @@ import {
 } from '@/lib/catalog/placement'
 import { catalogUrl } from '@/lib/catalog/source'
 import type { CatalogPurpose } from '@/lib/catalog/types'
+import InviteUnavailable from '@/components/invite/InviteUnavailable'
+import { GUEST_COPY, closingLabel, lifecycleRefusal, type Lifecycle } from '@/lib/invite/lifecycle'
+import { deviceTimeZone } from '@/lib/eventTimezone'
 
 const rsvpSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -112,6 +115,9 @@ export default function RSVPPage() {
   const [verifyingPhone, setVerifyingPhone] = useState(false)
   const [checkingRegistration, setCheckingRegistration] = useState(false)
   const [registrationBlocked, setRegistrationBlocked] = useState(false)
+  // RSVP has closed (the event ended or was cancelled), or the link has.
+  const [closedLifecycle, setClosedLifecycle] = useState<Lifecycle | null>(null)
+  const [linkClosed, setLinkClosed] = useState(false)
   const [availableSubEvents, setAvailableSubEvents] = useState<RsvpSubEvent[]>([])
   const [selectedSubEventIds, setSelectedSubEventIds] = useState<number[]>([])
   const [currentStep, setCurrentStep] = useState<Step>('details')
@@ -259,6 +265,7 @@ export default function RSVPPage() {
         return
       }
       setEvent({ ...eventData, slug })
+      if (config.lifecycle && !config.lifecycle.rsvp_open) setClosedLifecycle(config.lifecycle)
       setValue('country_code', eventData.country_code || '+91', { shouldValidate: false })
       const full =
         !!eventData.rsvp_registration_full &&
@@ -267,6 +274,10 @@ export default function RSVPPage() {
       setRegistrationBlocked(full && !!eventData.is_public)
       if (eventData.rsvp_experience_mode === 'slot_based') await fetchCalendarByMonth(formatMonthKey(new Date()))
     } catch (error: any) {
+      if (lifecycleRefusal(error)?.code === 'EVENT_ARCHIVED') {
+        setLinkClosed(true)
+        return
+      }
       logError('Failed to fetch event', error)
       showToast(getErrorMessage(error, 'Unable to load event'), 'error')
     } finally {
@@ -482,6 +493,13 @@ export default function RSVPPage() {
       showToast('Thank you for your response', 'success')
     } catch (error: any) {
       logError('RSVP submit failed', error)
+      // Closed while they were filling it in: say so plainly instead of a generic failure.
+      const refusal = lifecycleRefusal(error)
+      if (refusal) {
+        if (refusal.code === 'EVENT_ARCHIVED') setLinkClosed(true)
+        else if (refusal.lifecycle) setClosedLifecycle(refusal.lifecycle)
+        return
+      }
       if (error.response?.data?.errorCode === 'CAPACITY_FULL') {
         setRegistrationBlocked(true)
         showToast(CAPACITY_FULL_MESSAGE, 'error')
@@ -494,7 +512,48 @@ export default function RSVPPage() {
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-eco-beige">Loading...</div>
+  if (linkClosed) return <InviteUnavailable />
   if (!event) return <div className="min-h-screen flex items-center justify-center bg-eco-beige">Event not found</div>
+
+  if (closedLifecycle) {
+    const cancelled = closedLifecycle.phase === 'cancelled'
+    const closedOn = closedLifecycle.ends_at
+      ? closingLabel(closedLifecycle.ends_at, closedLifecycle.timezone, deviceTimeZone())
+      : ''
+    return (
+      <div className="min-h-screen bg-eco-beige py-8 px-4">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-4 text-center">
+            <h1 className="text-3xl font-semibold text-gray-900">{event.title}</h1>
+          </div>
+          <Card className="shadow-sm rounded-2xl border-gray-200">
+            <CardHeader>
+              <CardTitle className="text-2xl text-gray-900">{GUEST_COPY.rsvpClosed}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4" role="status">
+              <p className="text-base text-gray-800">
+                {cancelled ? GUEST_COPY.cancelled : closedLifecycle.series ? GUEST_COPY.seriesEnded : GUEST_COPY.ended}.
+                {!cancelled && closedOn ? ` RSVPs closed ${closedOn}.` : ''}
+              </p>
+              {cancelled && closedLifecycle.cancelled_note ? (
+                <p className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-line">
+                  {closedLifecycle.cancelled_note}
+                </p>
+              ) : null}
+              {event.host_name ? (
+                <p className="text-sm text-gray-600">
+                  Questions? Reach out to <span className="font-medium text-gray-800">{event.host_name}</span>.
+                </p>
+              ) : null}
+              <Link href={`/invite/${slug}`} className="inline-block text-sm text-eco-green hover:underline">
+                Back to invite
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   if (registrationBlocked && capacityApplies) {
     return (
