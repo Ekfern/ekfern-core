@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { closingLabel, guestRibbon, lifecycleRefusal, nextDateLabel, type Lifecycle } from './lifecycle'
+import { closingLabel, guestRibbon, hostBadge, isPast, lifecycleRefusal, nextDateLabel, type Lifecycle } from './lifecycle'
 
 const base: Lifecycle = {
   phase: 'upcoming',
@@ -64,5 +64,25 @@ describe('lifecycleRefusal', () => {
 describe('nextDateLabel', () => {
   it('reads a plain date without shifting it by the reader’s zone', () => {
     expect(nextDateLabel('2026-10-12')).toBe('Mon 12 Oct')
+  })
+})
+
+describe('hostBadge', () => {
+  it('names the last day an event ran, in its own zone', () => {
+    expect(hostBadge({ ...base, phase: 'ended', ends_at: '2026-10-04T00:00:00+05:30' })).toBe('Ended 3 Oct')
+  })
+
+  it('has a word for every phase', () => {
+    expect(hostBadge({ ...base, phase: 'cancelled' })).toBe('Cancelled')
+    expect(hostBadge({ ...base, phase: 'archived', link_off_at: '2026-11-03T00:00:00+05:30' })).toBe('Link off since 3 Nov')
+    expect(hostBadge({ ...base, phase: 'ongoing' })).toBe('Ongoing series')
+    expect(hostBadge(base)).toBe('Upcoming')
+  })
+})
+
+describe('isPast', () => {
+  it('files ended, cancelled and closed-link events as past', () => {
+    expect(['ended', 'cancelled', 'archived'].map((phase) => isPast({ ...base, phase: phase as Lifecycle['phase'] }))).toEqual([true, true, true])
+    expect(isPast({ ...base, phase: 'ongoing' })).toBe(false)
   })
 })

@@ -19,6 +19,8 @@ import NextActionCard from '@/components/events/NextActionCard'
 import { updateCatalog } from '@/lib/catalog/api'
 import CoHostPanel from '@/components/host/CoHostPanel'
 import type { EventRole } from '@/lib/cohosts'
+import EventLifecycleCard, { type HostLifecycle } from '@/components/host/EventLifecycleCard'
+import { hostBadge } from '@/lib/invite/lifecycle'
 
 interface Event {
   id: number
@@ -28,8 +30,9 @@ interface Event {
   my_role?: EventRole
   event_type: string
   date: string
-  expiry_date?: string | null
   is_expired?: boolean
+  lifecycle?: HostLifecycle
+  my_capabilities?: string[]
   city: string
   is_public: boolean
   page_config?: Record<string, any>
@@ -87,9 +90,6 @@ export default function EventDetailPage() {
   const [copiedLinkKey, setCopiedLinkKey] = useState<string | null>(null)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const [pendingPrivacyChange, setPendingPrivacyChange] = useState<boolean | null>(null)
-  const [showExpiryEditor, setShowExpiryEditor] = useState(false)
-  const [expiryDate, setExpiryDate] = useState('')
-  const [savingExpiry, setSavingExpiry] = useState(false)
   const [showSlugEditor, setShowSlugEditor] = useState(false)
   const [slugDraft, setSlugDraft] = useState('')
   const [savingSlug, setSavingSlug] = useState(false)
@@ -132,12 +132,6 @@ export default function EventDetailPage() {
       .catch(() => { if (!cancelled) setAnalyticsSummary(null) })
     return () => { cancelled = true }
   }, [eventId])
-
-  useEffect(() => {
-    if (event && showExpiryEditor) {
-      setExpiryDate(event.expiry_date || event.date || '')
-    }
-  }, [event, showExpiryEditor])
 
   useEffect(() => {
     // Fetch impact if event is expired
@@ -290,25 +284,6 @@ export default function EventDetailPage() {
     } catch (error: any) {
       // Silently fail - impact is optional
       logError('Failed to fetch impact:', error)
-    }
-  }
-
-  const handleSaveExpiry = async () => {
-    if (!eventId || eventId === 'undefined' || !event) {
-      return
-    }
-    setSavingExpiry(true)
-    try {
-      await api.patch(`/api/events/${eventId}/`, {
-        expiry_date: expiryDate || null,
-      })
-      showToast('Expiry date updated successfully', 'success')
-      setShowExpiryEditor(false)
-      fetchEvent()
-    } catch (error: any) {
-      showToast('Failed to update expiry date', 'error')
-    } finally {
-      setSavingExpiry(false)
     }
   }
 
@@ -583,7 +558,9 @@ export default function EventDetailPage() {
         : 'Not Configured'
   const inviteVisibilityLabel = event.is_public ? 'Public' : 'Private'
 
-  const eventDateObj = event.date ? new Date(event.date) : null
+  // A calendar date, so read it as local midnight: new Date('2026-04-13') is UTC
+  // midnight and shows as 12 Apr anywhere west of Greenwich.
+  const eventDateObj = event.date ? new Date(`${event.date}T00:00:00`) : null
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   let countdownLabel: string | null = null
@@ -613,6 +590,7 @@ export default function EventDetailPage() {
               status={invitePublishStatus}
               isPublic={event.is_public}
               isExpired={event.is_expired}
+              pastLabel={hostBadge(event.lifecycle)}
             />
             {countdownLabel && (
               <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
@@ -639,6 +617,24 @@ export default function EventDetailPage() {
           responseRate={responseRate}
           isExpired={event.is_expired}
         />
+
+        {/* When each part closes, and the host's hand on it. Out in the open, not
+            under Settings: a host should know these dates without looking. */}
+        {event.lifecycle && (
+          <div className="mb-8">
+            <EventLifecycleCard
+              eventId={event.id}
+              lifecycle={event.lifecycle}
+              hasGifts={!!event.has_registry}
+              isOwner={event.my_role === 'owner'}
+              canEditGifts={event.my_role === 'owner' || !!event.my_capabilities?.includes('edit_catalog')}
+              onChange={(lifecycle) => {
+                setEvent((current) => (current ? { ...current, lifecycle } : current))
+                fetchEvent()
+              }}
+            />
+          </div>
+        )}
 
         <Card className="bg-white border-2 border-eco-green-light mb-8">
           <CardHeader>
@@ -1115,84 +1111,6 @@ export default function EventDetailPage() {
 
                   {/* Right Column: Wrapper for conditional cards */}
                   <div className="space-y-6">
-                  {/* Event Expiry Management */}
-                  {event.is_expired && (
-                    <Card className="bg-white border-2 border-gray-300">
-                      <CardHeader>
-                        <CardTitle className="text-gray-600">Event Expired</CardTitle>
-                        <p className="text-sm text-gray-500 mt-1">
-                          This event has passed its expiry date. You can extend it to reactivate.
-                        </p>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {!showExpiryEditor ? (
-                          <>
-                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                              <p className="text-sm text-gray-700">
-                                <strong>Event Date:</strong> {event.date ? new Date(event.date).toLocaleDateString('en-IN', {
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric',
-                                }) : 'Not set'}
-                              </p>
-                              <p className="text-sm text-gray-700 mt-2">
-                                <strong>Expiry Date:</strong> {event.expiry_date ? new Date(event.expiry_date).toLocaleDateString('en-IN', {
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric',
-                                }) : (event.date ? new Date(event.date).toLocaleDateString('en-IN', {
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric',
-                                }) : 'Not set')}
-                              </p>
-                            </div>
-                            <Button
-                              onClick={() => setShowExpiryEditor(true)}
-                              className="bg-eco-green hover:bg-eco-green-dark text-white"
-                            >
-                              Extend Expiry Date
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-gray-700">New Expiry Date</label>
-                              <input
-                                type="date"
-                                value={expiryDate}
-                                onChange={(e) => setExpiryDate(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                              />
-                              <p className="text-xs text-gray-500">
-                                Set a future date to reactivate this event. Leave empty to use event date.
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                onClick={handleSaveExpiry}
-                                disabled={savingExpiry}
-                                className="bg-eco-green hover:bg-eco-green-dark text-white"
-                              >
-                                {savingExpiry ? 'Saving...' : 'Save Expiry Date'}
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  setExpiryDate(event.expiry_date || event.date || '')
-                                  setShowExpiryEditor(false)
-                                }}
-                                variant="outline"
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
                   {/* Invite URL (slug) */}
                   <Card className="bg-white border-2 border-eco-green-light">
                     <CardHeader>

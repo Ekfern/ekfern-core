@@ -116,3 +116,38 @@ export function nextDateLabel(isoDate: string | null | undefined): string {
     timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short',
   }).format(new Date(Date.UTC(y, m - 1, d)))
 }
+
+/** "3 Oct" - the last day of an event that ends at the start of the next, in its own zone. */
+export function lastDayLabel(endsAt: string | null | undefined, timeZone: string): string {
+  if (!endsAt) return ''
+  const lastMinute = new Date(new Date(endsAt).getTime() - 60_000)
+  return new Intl.DateTimeFormat('en-GB', { timeZone: timeZone || 'UTC', day: 'numeric', month: 'short' }).format(lastMinute)
+}
+
+/** The host's short word for where an event is: badges on the dashboard and overview. */
+export function hostBadge(lifecycle: Lifecycle | null | undefined): string {
+  if (!lifecycle) return ''
+  switch (lifecycle.phase) {
+    case 'cancelled':
+      return 'Cancelled'
+    case 'archived':
+      return lifecycle.link_off_at
+        ? `Link off since ${new Intl.DateTimeFormat('en-GB', { timeZone: lifecycle.timezone || 'UTC', day: 'numeric', month: 'short' }).format(new Date(lifecycle.link_off_at))}`
+        : 'Link off'
+    case 'ended': {
+      const day = lastDayLabel(lifecycle.ends_at, lifecycle.timezone)
+      return day ? `Ended ${day}` : 'Ended'
+    }
+    case 'ongoing':
+      return 'Ongoing series'
+    case 'happening':
+      return 'Happening now'
+    default:
+      return 'Upcoming'
+  }
+}
+
+/** Past = ended, cancelled or archived: what the dashboard files under "Past". */
+export function isPast(lifecycle: Lifecycle | null | undefined): boolean {
+  return !!lifecycle && (lifecycle.phase === 'ended' || lifecycle.phase === 'cancelled' || lifecycle.phase === 'archived')
+}

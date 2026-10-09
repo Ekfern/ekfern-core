@@ -4,12 +4,14 @@ interface EventStatusBadgeProps {
   status: InvitePublishStatus
   isPublic: boolean
   isExpired?: boolean
+  /** What to call a past event: "Ended 3 Oct", "Cancelled" (lib/invite/lifecycle.ts hostBadge). */
+  pastLabel?: string
 }
 
-export default function EventStatusBadge({ status, isPublic, isExpired }: EventStatusBadgeProps) {
+export default function EventStatusBadge({ status, isPublic, isExpired, pastLabel }: EventStatusBadgeProps) {
   const getStatusConfig = () => {
     if (isExpired) {
-      return { dot: 'bg-gray-400', label: 'Expired', textColor: 'text-gray-500' }
+      return { dot: 'bg-gray-400', label: pastLabel || 'Ended', textColor: 'text-gray-500' }
     }
     switch (status) {
       case 'Published':

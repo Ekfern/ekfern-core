@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast'
 import type { InviteConfig } from '@/lib/invite/schema'
 import type { EventRole } from '@/lib/cohosts'
 import CoHostInviteBanner from '@/components/host/CoHostInviteBanner'
+import { hostBadge, isPast, type Lifecycle } from '@/lib/invite/lifecycle'
 
 const PageLayoutCardPreview = dynamic(
   () => import('@/components/invite/PageLayoutCardPreview'),
@@ -85,8 +86,9 @@ interface Event {
   title: string
   event_type: string
   date: string
-  expiry_date?: string | null
   is_expired?: boolean
+  /** Where the event is in its life (lib/invite/lifecycle.ts). */
+  lifecycle?: Lifecycle
   city: string
   is_public: boolean
   invite_page_summary?: InvitePageSummary | null
@@ -105,7 +107,6 @@ interface ImpactData {
     event_id: number
     event_title: string
     event_date: string | null
-    expiry_date: string | null
     impact: any
   }>
 }
@@ -181,11 +182,6 @@ export default function DashboardPage() {
       setSelectedEventIds(new Set(impact.events.map(e => e.event_id)))
     }
   }, [impact])
-
-  const handleExtendExpiry = async (eventId: number) => {
-    // Navigate to event detail page where they can extend expiry
-    router.push(`/host/events/${eventId}`)
-  }
 
   const handleManageEvent = async (eventId: number) => {
     try {
@@ -292,14 +288,10 @@ export default function DashboardPage() {
                 })}
               </p>
             )}
-            {event.expiry_date && event.expiry_date !== event.date && (
-              <p className="text-xs flex items-center gap-2 text-gray-600">
-                <span>⏰</span>
-                Expires: {new Date(event.expiry_date).toLocaleDateString('en-IN', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+            {(event.lifecycle?.phase === 'happening' || event.lifecycle?.phase === 'ongoing') && (
+              <p className="text-xs flex items-center gap-2 text-eco-green font-medium">
+                <span>●</span>
+                {hostBadge(event.lifecycle)}
               </p>
             )}
             {event.city && (
@@ -335,11 +327,13 @@ export default function DashboardPage() {
     )
   }
 
-  const activeEvents = events.filter(e => !e.is_expired)
+  // Past = ended, cancelled or link off; everything else is upcoming or ongoing.
+  const isPastEvent = (e: Event) => (e.lifecycle ? isPast(e.lifecycle) : !!e.is_expired)
+  const activeEvents = events.filter(e => !isPastEvent(e))
   // my_role comes from the API: 'owner' for events you host, 'cohost' for shared ones.
   const hostedEvents = activeEvents.filter(e => e.my_role !== 'cohost')
   const sharedEvents = activeEvents.filter(e => e.my_role === 'cohost')
-  const expiredEvents = events.filter(e => e.is_expired)
+  const expiredEvents = events.filter(isPastEvent)
 
   if (loading) {
     return (
@@ -400,11 +394,11 @@ export default function DashboardPage() {
                     <div>
                       <h3 className="text-xl font-semibold text-eco-green">Sustainability Impact</h3>
                       <p className="text-sm text-gray-600">
-                        Expand to filter expired events and view environmental metrics.
+                        Expand to filter past events and view environmental metrics.
                       </p>
                     </div>
                     <span className="text-xs font-medium rounded-full bg-eco-green-light text-eco-green px-3 py-1 w-fit">
-                      {impact.expired_events_count} expired event{impact.expired_events_count > 1 ? 's' : ''}
+                      {impact.expired_events_count} past event{impact.expired_events_count > 1 ? 's' : ''}
                     </span>
                   </div>
                 </summary>
@@ -555,7 +549,7 @@ export default function DashboardPage() {
               <details>
                 <summary className="cursor-pointer list-none">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-700">Expired Events</h3>
+                    <h3 className="text-lg font-semibold text-gray-700">Past events</h3>
                     <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
                       {expiredEvents.length}
                     </span>
@@ -568,7 +562,7 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between">
                           <p className="font-semibold text-gray-700">{event.title}</p>
                           <span className="text-xs font-medium rounded bg-gray-200 px-2 py-1 text-gray-700">
-                            Expired
+                            {hostBadge(event.lifecycle) || 'Ended'}
                           </span>
                         </div>
                         <p className="mt-1 text-xs text-gray-500 capitalize">{event.event_type}</p>
@@ -579,12 +573,6 @@ export default function DashboardPage() {
                             className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
                           >
                             Open
-                          </Button>
-                          <Button
-                            onClick={() => handleExtendExpiry(event.id)}
-                            className="flex-1 bg-eco-green hover:bg-eco-green-dark text-white"
-                          >
-                            Extend
                           </Button>
                         </div>
                       </CardContent>
