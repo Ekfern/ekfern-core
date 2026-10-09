@@ -376,6 +376,8 @@ class EventViewSet(viewsets.ModelViewSet):
         """Audit a host's lifecycle change and drop cached copies of the invite."""
         from .models import EventLifecycleOverride
 
+        public_access.record_metric(f'host_{action_name}', event)
+
         EventLifecycleOverride.objects.create(
             event=event, action=action_name, old_value=old, new_value=new,
             reason=(reason or '')[:1000], by=self.request.user,
@@ -1870,6 +1872,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         The link has gone off. Says only that: no title, image or host, since a
         dead link can still be forwarded. no-store, like coming-soon.
         """
+        public_access.record_metric('archived_link_opened', event)
         response = Response({
             'status': 'archived',
             'slug': slug,
@@ -5385,22 +5388,6 @@ def public_verify_phone(request, slug):
         'access_pass': membership.issue_pass(event, guest),
         'name': guest.name,
     })
-    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
-    return response
-
-
-@guest_endpoint(public_access.READ)
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def public_invite_status(request, slug):
-    """
-    Where the event is in its life, never cached. The invite page renders from
-    the cached payload, then checks here, so a page served from a cache just
-    before the event ended (or gifts closed) corrects itself.
-    """
-    event = get_object_or_404(Event, slug=slug.lower())
-    require_public_access(event, public_access.READ)
-    response = Response({'lifecycle': lifecycle_payload(event)})
     response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
     return response
 

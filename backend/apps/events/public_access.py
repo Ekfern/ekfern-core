@@ -14,10 +14,28 @@ for the rare public view that has no event to guard (a webhook, a sign-in
 step). test_public_access walks every URL and fails on an AllowAny view that
 carries neither mark, so a new endpoint cannot quietly skip the lifecycle.
 """
+import logging
+
 from rest_framework import status
 from rest_framework.exceptions import APIException
 
 from . import lifecycle
+
+logger = logging.getLogger(__name__)
+
+
+def record_metric(kind, event, **extra):
+    """
+    One LIFECYCLE_METRIC log line, in the CACHE_METRIC style CloudWatch already
+    collects. How often guests meet a closed RSVP, gift list or link is what
+    the windows' real defaults should be chosen from.
+    """
+    logger.info('LIFECYCLE_METRIC', extra={
+        'event_type': kind,
+        'event_id': getattr(event, 'id', None),
+        'phase': lifecycle.phase(event) if event is not None else None,
+        **extra,
+    })
 
 READ = 'read'
 RSVP = 'rsvp'
@@ -34,6 +52,7 @@ class LifecycleClosed(APIException):
     def __init__(self, code, message, event, http_status=None):
         if http_status:
             self.status_code = http_status
+        record_metric('guest_refused', event, code=code)
         super().__init__({
             'code': code,
             'error': message,

@@ -140,7 +140,10 @@ export default function PrivacyPolicyPage() {
                 <li>Resolve disputes or enforce agreements</li>
               </ul>
               <p className="mt-4">
-                Event data may be deleted or anonymized after the event concludes, subject to system and legal requirements.
+                After an event ends, guests can no longer RSVP, and gifting closes after a period shown to the host. An
+                invitation link may stop working some time after the event; the host is told by email before that
+                happens. A link that stops working is not deleted data: the event, its guest list, RSVPs and gift
+                record stay in the host&apos;s account until the host deletes them or asks us to.
               </p>
             </section>
 

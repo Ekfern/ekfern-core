@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from apps.events import public_access
 from apps.events.access import resolve_event_access
-from apps.events.lifecycle import lifecycle_payload
+from apps.events.lifecycle import lifecycle_payload, phase as lifecycle_phase
 from apps.events.public_access import guest_endpoint, require_public_access
 from apps.events.capabilities import EDIT_CATALOG
 from apps.events.models import CatalogPageView, Event, Guest, RSVP, invite_view_bucket
@@ -411,6 +411,8 @@ class CatalogRespondView(APIView):
         slug = slug.lower().strip()
         event = get_object_or_404(Event, slug=slug)
         require_public_access(event, public_access.CATALOG)
+        if lifecycle_phase(event) == 'ended':
+            public_access.record_metric('gift_after_event', event)
 
         guest_token = request.query_params.get('g', '').strip()
         access_pass = request.query_params.get('p', '').strip()
