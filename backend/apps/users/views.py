@@ -14,7 +14,7 @@ from .serializers import (
     PasswordCheckSerializer, PasswordLoginSerializer, SetPasswordSerializer,
     ChangePasswordSerializer, DisablePasswordSerializer,
     ForgotPasswordSerializer, ResetPasswordSerializer,
-    StaffUserLookupSerializer, StaffSetActiveSerializer, StaffExtendExpirySerializer,
+    StaffUserLookupSerializer, StaffSetActiveSerializer,
 )
 from apps.notifications.models import NotificationLog
 from apps.common import emails
@@ -642,48 +642,6 @@ def staff_set_account_active(request):
         status='sent',
     )
     return Response({'message': f'Account {action_label} for {email}.'})
-
-
-@api_view(['POST'])
-@permission_classes([IsAdminUser])
-def staff_extend_event_expiry(request):
-    """Staff: extend an event's expiry date."""
-    serializer = StaffExtendExpirySerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    slug = serializer.validated_data['event_slug']
-    days = serializer.validated_data['extend_days']
-
-    from apps.events.models import Event
-    from datetime import date, timedelta
-
-    try:
-        event = Event.objects.select_related('host').get(slug=slug)
-    except Event.DoesNotExist:
-        return Response({'error': 'Event not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-    base_date = max(event.expiry_date or event.date or date.today(), date.today())
-    event.expiry_date = base_date + timedelta(days=days)
-    event.save()
-
-    NotificationLog.objects.create(
-        channel='email',
-        to=event.host.email,
-        template='staff_event_expiry_extended',
-        payload_json={
-            'by': request.user.email,
-            'event_slug': slug,
-            'new_expiry': event.expiry_date.isoformat(),
-            'extend_days': days,
-        },
-        status='sent',
-    )
-    return Response({
-        'message': f'Event "{event.title}" expiry extended by {days} day(s).',
-        'new_expiry_date': event.expiry_date.isoformat(),
-        'host_email': event.host.email,
-    })
 
 
 @api_view(['GET'])

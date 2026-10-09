@@ -263,7 +263,12 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         try:
-            return Event.objects.for_user(self.request.user).select_related('invite_page', 'host_catalog')
+            queryset = Event.objects.for_user(self.request.user).select_related('invite_page', 'host_catalog')
+            if self.action == 'list':
+                # Each card shows its lifecycle; one subquery instead of one query per event.
+                from .lifecycle import latest_sub_event_subquery
+                queryset = queryset.annotate(latest_sub_event_at=latest_sub_event_subquery())
+            return queryset
         except Exception:
             try:
                 return Event.objects.for_user(self.request.user).select_related('invite_page', 'host_catalog').only(
@@ -317,6 +322,89 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = serializer.save()
         record_event_version(event, saved_by=self.request.user)
+
+    # --- Lifecycle: the host's hand on what closes when (apps/events/lifecycle.py) ---
+
+    def _lifecycle_changed(self, event, action_name, old, new, reason=''):
+        """Audit a host's lifecycle change and drop cached copies of the invite."""
+        from .models import EventLifecycleOverride
+
+        EventLifecycleOverride.objects.create(
+            event=event, action=action_name, old_value=old, new_value=new,
+            reason=(reason or '')[:1000], by=self.request.user,
+        )
+        slug = InvitePage.objects.filter(event=event).values_list('slug', flat=True).first()
+        if slug:
+            InvitePage.objects.filter(event=event).update(updated_at=timezone.now())
+            invalidate_invite_page_cache(slug)
+            invalidate_cloudfront_cache_immediate(slug)
+
+    def _lifecycle_response(self, event):
+        from .lifecycle import host_lifecycle_payload
+        return Response({'lifecycle': host_lifecycle_payload(event)})
+
+    @action(detail=True, methods=['post'], url_path='close-catalog')
+    def close_catalog(self, request, id=None):
+        """Close gifts now. Reopenable until the normal window would have closed them."""
+        event = self.get_object()
+        self._verify_event_ownership(event, EDIT_CATALOG)
+        if not event.catalog_closed_at:
+            event.catalog_closed_at = timezone.now()
+            event.save(update_fields=['catalog_closed_at', 'updated_at'])
+            self._lifecycle_changed(event, 'close_catalog', None, event.catalog_closed_at.isoformat(),
+                                    request.data.get('reason', ''))
+        return self._lifecycle_response(event)
+
+    @action(detail=True, methods=['post'], url_path='reopen-catalog')
+    def reopen_catalog(self, request, id=None):
+        """Undo an early close. It never stretches the window past its normal end."""
+        from .lifecycle import host_lifecycle_payload
+
+        event = self.get_object()
+        self._verify_event_ownership(event, EDIT_CATALOG)
+        if event.catalog_closed_at:
+            if not host_lifecycle_payload(event)['can_reopen_catalog']:
+                raise ValidationError({'code': 'CATALOG_WINDOW_OVER',
+                                       'error': 'Gifts can no longer be reopened for this event.'})
+            old = event.catalog_closed_at.isoformat()
+            event.catalog_closed_at = None
+            event.save(update_fields=['catalog_closed_at', 'updated_at'])
+            self._lifecycle_changed(event, 'reopen_catalog', old, None, request.data.get('reason', ''))
+        return self._lifecycle_response(event)
+
+    def _require_owner(self, event, what):
+        access = self._verify_event_ownership(event)
+        if not access.is_owner:
+            raise PermissionDenied(f"Only the event host can {what}.")
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, id=None):
+        """Cancel the event: RSVP and gifts close at once, guests see the host's note."""
+        event = self.get_object()
+        self._require_owner(event, 'cancel this event')
+        note = str(request.data.get('note', '') or '').strip()[:1000]
+        if not event.cancelled_at or event.cancel_note != note:
+            old = {'cancelled_at': event.cancelled_at.isoformat() if event.cancelled_at else None,
+                   'note': event.cancel_note}
+            event.cancelled_at = event.cancelled_at or timezone.now()
+            event.cancel_note = note
+            event.save(update_fields=['cancelled_at', 'cancel_note', 'updated_at'])
+            self._lifecycle_changed(event, 'cancel', old,
+                                    {'cancelled_at': event.cancelled_at.isoformat(), 'note': note},
+                                    request.data.get('reason', ''))
+        return self._lifecycle_response(event)
+
+    @action(detail=True, methods=['post'], url_path='uncancel')
+    def uncancel(self, request, id=None):
+        """Undo a cancellation: the event goes back to following its dates."""
+        event = self.get_object()
+        self._require_owner(event, 'restore this event')
+        if event.cancelled_at:
+            old = {'cancelled_at': event.cancelled_at.isoformat(), 'note': event.cancel_note}
+            event.cancelled_at = None
+            event.save(update_fields=['cancelled_at', 'updated_at'])
+            self._lifecycle_changed(event, 'uncancel', old, None, request.data.get('reason', ''))
+        return self._lifecycle_response(event)
 
     def _verify_event_ownership(self, event, capability=None):
         """
@@ -4477,22 +4565,19 @@ def get_event_impact(request, id):
     impact = calculate_event_impact(event)
     
     if impact is None:
-        # Event not expired yet
         return Response({
             'event_id': event.id,
             'event_title': event.title,
             'event_date': event.date.isoformat() if event.date else None,
-            'expiry_date': event.expiry_date.isoformat() if event.expiry_date else None,
             'is_expired': False,
             'impact': None,
-            'message': 'Event has not expired yet. Impact data will be available after the event expiry date.'
+            'message': 'Impact is ready once the event has ended.'
         })
     
     return Response({
         'event_id': event.id,
         'event_title': event.title,
         'event_date': event.date.isoformat() if event.date else None,
-        'expiry_date': event.expiry_date.isoformat() if event.expiry_date else None,
         'is_expired': True,
         'impact': impact
     })
@@ -4505,18 +4590,10 @@ def get_overall_impact(request):
     from .utils import calculate_event_impact
     from datetime import date
     
-    # Get all expired events for the user
-    user_events = Event.objects.for_user(request.user)
-    expired_events = []
-    
-    for event in user_events:
-        try:
-            expiry = event.expiry_date or event.date
-        except AttributeError:
-            expiry = event.date
-        
-        if expiry and expiry < date.today():
-            expired_events.append(event)
+    from .lifecycle import over_q
+
+    # Events that are over (ended or cancelled); calculate_event_impact re-checks each.
+    expired_events = list(Event.objects.for_user(request.user).filter(over_q()))
     
     # Calculate impact for each expired event
     total_plates_saved = 0
@@ -4541,7 +4618,6 @@ def get_overall_impact(request):
                 'event_id': event.id,
                 'event_title': event.title,
                 'event_date': event.date.isoformat() if event.date else None,
-                'expiry_date': event.expiry_date.isoformat() if event.expiry_date else None,
                 'impact': impact
             })
     

@@ -160,7 +160,3 @@ class StaffSetActiveSerializer(serializers.Serializer):
         return normalize_auth_email(value)
 
 
-class StaffExtendExpirySerializer(serializers.Serializer):
-    event_slug = serializers.SlugField()
-    extend_days = serializers.IntegerField(min_value=1, max_value=365)
-

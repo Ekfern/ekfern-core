@@ -138,24 +138,10 @@ def admin_analytics(request):
         'with_events': User.objects.filter(events__isnull=False).distinct().count(),
     }
     
-    # Event Metrics
-    # Active events: not expired (expiry_date >= today OR (expiry_date is null AND date >= today) OR both null)
-    active_events = Event.objects.filter(
-        Q(expiry_date__gte=today) | 
-        Q(expiry_date__isnull=True, date__gte=today) |
-        Q(expiry_date__isnull=True, date__isnull=True)
-    )
-    
-    # Expired events: expiry_date < today OR (expiry_date is null AND date < today)
-    expired_events = Event.objects.filter(
-        Q(expiry_date__lt=today) |
-        Q(expiry_date__isnull=True, date__lt=today)
-    )
-    
-    # Extended events: expiry_date exists and was updated after creation
-    extended_events = Event.objects.exclude(expiry_date__isnull=True).filter(
-        updated_at__gt=F('created_at')
-    )
+    # Event Metrics: over = ended or cancelled (apps/events/lifecycle.py)
+    from apps.events.lifecycle import over_q
+    expired_events = Event.objects.filter(over_q())
+    active_events = Event.objects.exclude(over_q())
     
     events = {
         'total': Event.objects.count(),
@@ -168,7 +154,6 @@ def admin_analytics(request):
         'private': Event.objects.filter(is_public=False).count(),
         'with_rsvp': Event.objects.filter(has_rsvp=True).count(),
         'with_catalog': HostCatalog.objects.filter(is_enabled=True).count(),
-        'extended': extended_events.count(),
     }
     
     # Engagement Metrics

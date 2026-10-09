@@ -118,6 +118,7 @@ class EventListSerializer(MyRoleMixin, serializers.ModelSerializer):
     the full EventSerializer.
     """
     is_expired = serializers.BooleanField(read_only=True)
+    lifecycle = serializers.SerializerMethodField()
     invite_page_summary = InvitePageSummarySerializer(source='invite_page', read_only=True)
     my_role = serializers.SerializerMethodField()
     my_capabilities = serializers.SerializerMethodField()
@@ -127,9 +128,13 @@ class EventListSerializer(MyRoleMixin, serializers.ModelSerializer):
         fields = (
             'id', 'slug', 'title', 'event_type', 'date', 'event_end_date',
             'city', 'country', 'timezone', 'is_public', 'has_rsvp', 'has_registry',
-            'event_structure', 'expiry_date', 'is_expired', 'created_at',
+            'event_structure', 'is_expired', 'lifecycle', 'created_at',
             'invite_page_summary', 'my_role', 'my_capabilities',
         )
+
+    def get_lifecycle(self, obj):
+        from .lifecycle import host_lifecycle_payload
+        return host_lifecycle_payload(obj)
 
 
 
@@ -146,6 +151,7 @@ class EventSerializer(MyRoleMixin, serializers.ModelSerializer):
     host_name = serializers.CharField(source='host.name', read_only=True, allow_null=True)
     country_code = serializers.SerializerMethodField()
     is_expired = serializers.BooleanField(read_only=True)
+    lifecycle = serializers.SerializerMethodField()
     rsvp_experience_mode = serializers.ChoiceField(
         choices=Event.RSVP_EXPERIENCE_MODE_CHOICES,
         required=False,
@@ -164,8 +170,12 @@ class EventSerializer(MyRoleMixin, serializers.ModelSerializer):
 
     class Meta:
         model = Event
-        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'created_at', 'updated_at', 'invite_page_summary', 'my_role', 'my_capabilities')
-        read_only_fields = ('id', 'host_name', 'country_code', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'created_at', 'updated_at', 'invite_page_summary', 'my_role', 'my_capabilities')
+        fields = ('id', 'host_name', 'slug', 'title', 'event_type', 'date', 'event_end_date', 'city', 'country', 'timezone', 'country_code', 'is_public', 'has_rsvp', 'has_registry', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'rsvp_total_capacity', 'rsvp_block_on_full_capacity', 'rsvp_require_sub_event_selection', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'banner_image', 'description', 'additional_photos', 'page_config', 'expiry_date', 'whatsapp_message_template', 'custom_fields_metadata', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'lifecycle', 'created_at', 'updated_at', 'invite_page_summary', 'my_role', 'my_capabilities')
+        read_only_fields = ('id', 'host_name', 'country_code', 'expiry_date', 'lifecycle', 'analytics_insights_enabled', 'analytics_enabled_at', 'analytics_enabled_by', 'is_expired', 'rsvp_registration_full', 'rsvp_mode_readiness', 'mode_switch_locked', 'mode_switch_lock_reasons', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'created_at', 'updated_at', 'invite_page_summary', 'my_role', 'my_capabilities')
+
+    def get_lifecycle(self, obj):
+        from .lifecycle import host_lifecycle_payload
+        return host_lifecycle_payload(obj)
 
     def get_catalog_show_on_event_page(self, obj):
         return _catalog_show_on_event_page(obj)

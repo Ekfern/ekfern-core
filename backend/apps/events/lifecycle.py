@@ -274,6 +274,49 @@ def lifecycle_payload(event, now=None) -> dict:
     }
 
 
+def host_lifecycle_payload(event, now=None) -> dict:
+    """The guest payload plus what only the host's controls need."""
+    now = _now(now)
+    payload = lifecycle_payload(event, now)
+    ends = compute_ends_at(event)
+    automatic_close = ends + timedelta(days=_days(event, 'catalog_days_after_end')) if ends else None
+    payload.update({
+        'cancelled_at': _iso(getattr(event, 'cancelled_at', None)),
+        'cancel_note': getattr(event, 'cancel_note', '') or '',
+        'link_off_enforced': bool(_config()['enforce_link_off']),
+        # Reopening only undoes an early close; it never stretches the window.
+        'can_reopen_catalog': bool(
+            getattr(event, 'catalog_closed_at', None)
+            and not is_cancelled(event)
+            and (automatic_close is None or now < automatic_close)
+        ),
+    })
+    return payload
+
+
+def over_q(now=None):
+    """
+    Database filter for events that are over (ended or cancelled), from the
+    stored ends_at. For counts and buckets; per-event decisions use phase().
+    """
+    from django.db.models import Q
+    return Q(ends_at__lte=_now(now)) | Q(cancelled_at__isnull=False)
+
+
+def latest_sub_event_subquery():
+    """Annotation for latest_sub_event_at, so a list of events costs no query each."""
+    from django.db.models import OuterRef, Subquery
+    from django.db.models.functions import Coalesce
+    from .models import SubEvent
+
+    return Subquery(
+        SubEvent.objects.filter(event=OuterRef('pk'), is_removed=False)
+        .annotate(moment=Coalesce('end_at', 'start_at'))
+        .order_by('-moment')
+        .values('moment')[:1]
+    )
+
+
 def sync_ends_at(event_id) -> None:
     """Re-store Event.ends_at after something it depends on changed (a sub-event)."""
     from .models import Event
