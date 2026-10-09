@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { closingLabel, guestRibbon, hostBadge, isPast, lifecycleRefusal, nextDateLabel, type Lifecycle } from './lifecycle'
+import { closingLabel, daysBetween, guestRibbon, hostBadge, isPast, lifecycleRefusal, nextDateLabel, todayInZone, type Lifecycle } from './lifecycle'
 
 const base: Lifecycle = {
   phase: 'upcoming',
@@ -84,5 +84,20 @@ describe('isPast', () => {
   it('files ended, cancelled and closed-link events as past', () => {
     expect(['ended', 'cancelled', 'archived'].map((phase) => isPast({ ...base, phase: phase as Lifecycle['phase'] }))).toEqual([true, true, true])
     expect(isPast({ ...base, phase: 'ongoing' })).toBe(false)
+  })
+})
+
+describe('todayInZone', () => {
+  // 20:00 in Chicago on 8 Oct is already 9 Oct in India.
+  const now = new Date('2026-10-09T01:00:00Z')
+
+  it('is the event’s calendar day, not the reader’s', () => {
+    expect(todayInZone('Asia/Kolkata', now)).toBe('2026-10-09')
+    expect(todayInZone('America/Chicago', now)).toBe('2026-10-08')
+  })
+
+  it('counts whole days between plain dates', () => {
+    expect(daysBetween('2026-10-09', '2026-10-10')).toBe(1)
+    expect(daysBetween('2026-10-09', '2026-03-29')).toBe(-194)
   })
 })

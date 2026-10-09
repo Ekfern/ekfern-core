@@ -20,7 +20,7 @@ import { updateCatalog } from '@/lib/catalog/api'
 import CoHostPanel from '@/components/host/CoHostPanel'
 import type { EventRole } from '@/lib/cohosts'
 import EventLifecycleCard, { type HostLifecycle } from '@/components/host/EventLifecycleCard'
-import { hostBadge } from '@/lib/invite/lifecycle'
+import { daysBetween, hostBadge, todayInZone } from '@/lib/invite/lifecycle'
 
 interface Event {
   id: number
@@ -31,6 +31,7 @@ interface Event {
   event_type: string
   date: string
   is_expired?: boolean
+  timezone?: string
   lifecycle?: HostLifecycle
   my_capabilities?: string[]
   city: string
@@ -561,13 +562,10 @@ export default function EventDetailPage() {
   // A calendar date, so read it as local midnight: new Date('2026-04-13') is UTC
   // midnight and shows as 12 Apr anywhere west of Greenwich.
   const eventDateObj = event.date ? new Date(`${event.date}T00:00:00`) : null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
   let countdownLabel: string | null = null
-  if (eventDateObj) {
-    const eventDay = new Date(eventDateObj)
-    eventDay.setHours(0, 0, 0, 0)
-    const diffDays = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (event.date) {
+    // "Today" is the venue's today: at 9 pm in Chicago an Indian wedding is already tomorrow.
+    const diffDays = daysBetween(todayInZone(event.timezone), event.date)
     if (diffDays === 0) countdownLabel = 'Today'
     else if (diffDays === 1) countdownLabel = 'Tomorrow'
     else if (diffDays > 1) countdownLabel = `In ${diffDays} days`

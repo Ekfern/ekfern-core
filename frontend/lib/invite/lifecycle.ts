@@ -151,3 +151,21 @@ export function hostBadge(lifecycle: Lifecycle | null | undefined): string {
 export function isPast(lifecycle: Lifecycle | null | undefined): boolean {
   return !!lifecycle && (lifecycle.phase === 'ended' || lifecycle.phase === 'cancelled' || lifecycle.phase === 'archived')
 }
+
+/** Today's date (ISO) on the event's own calendar, wherever the reader is. */
+export function todayInZone(timeZone: string | null | undefined, now: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timeZone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  } catch {
+    return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  }
+}
+
+/** Whole days from one plain ISO date to another. */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const utc = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number)
+    return Date.UTC(y, m - 1, d)
+  }
+  return Math.round((utc(toIso) - utc(fromIso)) / 86_400_000)
+}

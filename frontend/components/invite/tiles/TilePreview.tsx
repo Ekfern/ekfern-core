@@ -97,7 +97,7 @@ export default function TilePreview({
             return null
           }
         }
-        return <TimerTile settings={tile.settings as any} preview eventDate={timerDate} eventTime={eventTime} eventSlug={eventSlug} eventTitle={eventTitle} />
+        return <TimerTile settings={tile.settings as any} preview eventDate={timerDate} eventTime={eventTime} eventTimezone={eventTimezone} eventSlug={eventSlug} eventTitle={eventTitle} />
       case 'event-details':
         return <EventDetailsTile settings={tile.settings as any} preview tileId={tile.id} eventSlug={eventSlug} eventTitle={eventTitle} eventDate={eventDate} eventTimezone={eventTimezone} />
       case 'directions':
