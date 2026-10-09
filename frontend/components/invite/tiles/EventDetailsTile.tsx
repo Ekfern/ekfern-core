@@ -10,6 +10,7 @@ import { getGoogleCalendarHref } from '@/lib/calendar'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
 import { useLifecycle } from '@/components/invite/render/LifecycleContext'
+import { rhythmLabel } from '@/lib/invite/recurrence'
 import { buildCompactRows, formatTimeRange } from '@/lib/invite/eventDetailsCompact'
 import { GOOD_TO_KNOW_PRESETS, visibleItems } from '@/lib/invite/goodToKnow'
 import GoodToKnowList from '@/components/invite/GoodToKnowList'
@@ -165,9 +166,16 @@ function renderDecorativeBorder(
   return null
 }
 
-export default function EventDetailsTile({ settings, preview = false, eventSlug, eventTitle, eventDate, eventTimezone, tileId }: EventDetailsTileProps) {
+export default function EventDetailsTile({ settings: tileSettings, preview = false, eventSlug, eventTitle, eventDate, eventTimezone, tileId }: EventDetailsTileProps) {
   const [showCalendarMenu, setShowCalendarMenu] = useState(false)
-  const lifecyclePhase = useLifecycle()?.phase
+  const lifecycle = useLifecycle()
+  const lifecyclePhase = lifecycle?.phase
+  // A series reads as its rhythm and its next date - "Every Sunday", then
+  // Sun 12 Oct - not the first date it started on.
+  const series = lifecycle?.series
+  const settings = series
+    ? { ...tileSettings, repeats: rhythmLabel(series.rrule) || tileSettings.repeats, date: series.next_date || tileSettings.date }
+    : tileSettings
   const over = lifecyclePhase === 'ended' || lifecyclePhase === 'cancelled' || lifecyclePhase === 'archived'
   // No fallback. An invitation that does not know its zone prints no zone,
   // rather than telling a Chicago guest their event is in IST.
@@ -357,7 +365,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
 
           {(() => {
             if (isCompact) {
-              const rows = buildCompactRows(settings, tz, zoneLabelDate)
+              const rows = buildCompactRows(settings, tz, zoneLabelDate, series ? 'Next' : undefined)
               if (rows.length === 0) return null
               const cardStyle: React.CSSProperties = isGlass
                 ? { maxWidth: '420px' }
@@ -412,6 +420,9 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                 return (
                   <div className="space-y-8" style={recipe('body')}>
                     <div className="space-y-4">
+                      {series && (
+                        <div style={recipe('eyebrow')}>{settings.repeats} · Next</div>
+                      )}
                       <div
                         className="text-4xl md:text-5xl lg:text-6xl font-bold leading-none tracking-tight"
                         style={recipe('data')}
@@ -459,7 +470,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
                       className="mb-3"
                       style={recipe('eyebrow')}
                     >
-                      Date
+                      {series ? `${settings.repeats} · Next` : 'Date'}
                     </div>
                     <div
                       className="text-xl md:text-2xl font-normal leading-relaxed"

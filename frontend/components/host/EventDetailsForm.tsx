@@ -13,6 +13,8 @@ import EventTypePicker from '@/components/host/EventTypePicker'
 import WhereField, { type WhereMode } from '@/components/host/WhereField'
 import BackstageChips from '@/components/host/BackstageChips'
 import GoodToKnowEditor from '@/components/invite/GoodToKnowEditor'
+import RepeatField from '@/components/host/RepeatField'
+import type { RecurrenceSpec } from '@/lib/invite/recurrence'
 
 export const eventDetailsSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -38,6 +40,8 @@ export const eventDetailsSchema = z.object({
   time: z.string().optional(),
   venue: z.string().optional(),
   good_to_know: z.array(z.custom<GoodToKnowItem>()).default([]),
+  // A single event that repeats (a weekly satsang). Null: a one-off.
+  recurrence: z.custom<RecurrenceSpec>().nullable().default(null),
 })
 
 export type EventDetailsFormData = z.infer<typeof eventDetailsSchema>
@@ -45,7 +49,7 @@ export type EventDetailsFormData = z.infer<typeof eventDetailsSchema>
 /** The fields the Event API takes. Everything else is UI state or invitation content. */
 export type EventPayload = Pick<
   EventDetailsFormData,
-  'title' | 'event_type' | 'date' | 'event_end_date' | 'city' | 'country' | 'timezone' | 'is_public' | 'has_rsvp' | 'has_registry'
+  'title' | 'event_type' | 'date' | 'event_end_date' | 'city' | 'country' | 'timezone' | 'is_public' | 'has_rsvp' | 'has_registry' | 'recurrence'
 >
 
 export function eventPayloadOf(data: EventDetailsFormData): EventPayload {
@@ -63,6 +67,8 @@ export function eventPayloadOf(data: EventDetailsFormData): EventPayload {
     is_public,
     has_rsvp,
     has_registry,
+    // Only a single event repeats; several events keep their own dates.
+    recurrence: data.is_multi_sub_event ? null : data.recurrence ?? null,
   }
 }
 
@@ -82,6 +88,7 @@ const BASE_DEFAULTS: EventDetailsFormData = {
   time: '',
   venue: '',
   good_to_know: [],
+  recurrence: null,
 }
 
 interface EventDetailsFormProps {
@@ -266,30 +273,39 @@ export default function EventDetailsForm({
         )}
 
         {!isMultiSubEvent ? (
-          <div className={`grid gap-4 ${inviteContent ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-            <div>
-              <label htmlFor={`date-${uid}`} className="block text-sm font-medium mb-1">
-                Date
-              </label>
-              <Input id={`date-${uid}`} type="date" {...register('date')} aria-invalid={!!errors.date} />
-              {errors.date && <p className="text-red-600 text-sm mt-1">{errors.date.message}</p>}
-            </div>
-            {inviteContent && (
+          <div className="space-y-4">
+            <div className={`grid gap-4 ${inviteContent ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
               <div>
-                <label htmlFor={`time-${uid}`} className="block text-sm font-medium mb-1">
-                  Time <span className="font-normal text-gray-500">(optional)</span>
+                <label htmlFor={`date-${uid}`} className="block text-sm font-medium mb-1">
+                  Date
                 </label>
-                <Input
-                  id={`time-${uid}`}
-                  type="time"
-                  {...register('time')}
-                  readOnly={locked}
-                  aria-readonly={locked}
-                  className={lockedInput}
-                />
-                {editOnInvitationShort}
+                <Input id={`date-${uid}`} type="date" {...register('date')} aria-invalid={!!errors.date} />
+                {errors.date && <p className="text-red-600 text-sm mt-1">{errors.date.message}</p>}
               </div>
-            )}
+              {inviteContent && (
+                <div>
+                  <label htmlFor={`time-${uid}`} className="block text-sm font-medium mb-1">
+                    Time <span className="font-normal text-gray-500">(optional)</span>
+                  </label>
+                  <Input
+                    id={`time-${uid}`}
+                    type="time"
+                    {...register('time')}
+                    readOnly={locked}
+                    aria-readonly={locked}
+                    className={lockedInput}
+                  />
+                  {editOnInvitationShort}
+                </div>
+              )}
+            </div>
+            <Controller
+              control={control}
+              name="recurrence"
+              render={({ field }) => (
+                <RepeatField firstDate={watch('date') || undefined} value={field.value ?? null} onChange={field.onChange} />
+              )}
+            />
           </div>
         ) : (
           // Several events: the span of days. The event expires after its last

@@ -52,6 +52,8 @@ export function buildCompactRows(
   settings: Pick<EventDetailsTileSettings, 'date' | 'time' | 'endTime' | 'repeats' | 'location' | 'goodToKnow'>,
   timeZone?: string,
   on?: Date,
+  /** What the date under a repeating rhythm is: when it starts, or (a live series) the next one. */
+  startsLabel: string = 'Starts',
 ): CompactRow[] {
   const rows: CompactRow[] = []
   const repeats = settings.repeats?.trim()
@@ -61,7 +63,7 @@ export function buildCompactRows(
   if (repeats) {
     // A repeating class: "When" carries the rhythm, the date is when it starts.
     rows.push({ label: 'When', value: [repeats, time].filter(Boolean).join(' · ') })
-    if (date) rows.push({ label: 'Starts', value: date })
+    if (date) rows.push({ label: startsLabel, value: date })
   } else {
     if (date) rows.push({ label: 'Date', value: date })
     if (time) rows.push({ label: 'Time', value: time })
