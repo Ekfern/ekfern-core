@@ -165,3 +165,35 @@ describe('getGoogleCalendarHref', () => {
     expect(url.searchParams.get('details')).toBeNull()
   })
 })
+
+describe('a repeating series', () => {
+  // 2 am on Saturday in India is still Friday in UTC, so a weekly rule written
+  // in UTC would land on Fridays. Series times are written on the venue clock.
+  const series = {
+    title: 'Satsang',
+    startISO: '2026-10-09T20:30:00.000Z', // Sat 10 Oct, 02:00 IST
+    endISO: '2026-10-10T00:30:00.000Z',
+    series: { rrule: 'FREQ=WEEKLY;BYDAY=SA;UNTIL=20261128', skipped: ['2026-10-17'], timeZone: 'Asia/Kolkata' },
+  }
+
+  it('writes the start on the venue clock, with the rule and skipped dates', () => {
+    const ics = generateICS(series)
+    expect(ics).toContain('DTSTART;TZID=Asia/Kolkata:20261010T020000')
+    expect(ics).toContain('DTEND;TZID=Asia/Kolkata:20261010T060000')
+    expect(ics).toContain('RRULE:FREQ=WEEKLY;BYDAY=SA;UNTIL=20261128T235959Z')
+    expect(ics).toContain('EXDATE;TZID=Asia/Kolkata:20261017T020000')
+    expect(ics).not.toMatch(/^DTSTART:/m)
+  })
+
+  it('tells Google the rule and the zone', () => {
+    const href = new URL(getGoogleCalendarHref(series))
+    expect(href.searchParams.get('dates')).toBe('20261010T020000/20261010T060000')
+    expect(href.searchParams.get('ctz')).toBe('Asia/Kolkata')
+    expect(href.searchParams.get('recur')).toBe('RRULE:FREQ=WEEKLY;BYDAY=SA;UNTIL=20261128T235959Z')
+  })
+
+  it('leaves a one-off event in UTC as before', () => {
+    const { series: _ignored, ...oneOff } = series
+    expect(generateICS(oneOff)).toContain('DTSTART:20261009T203000Z')
+  })
+})

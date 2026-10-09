@@ -307,6 +307,7 @@ export default function EventDetailsTile({ settings: tileSettings, preview = fal
         url: inviteUrl,
         startISO: startDate.toISOString(),
         endISO: endDate.toISOString(),
+        series: series && tz ? { rrule: series.rrule, skipped: series.skipped, timeZone: tz } : undefined,
       }),
       '_blank',
     )
