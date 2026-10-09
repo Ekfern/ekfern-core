@@ -1308,11 +1308,12 @@ class InvitePageCacheTestCase(TestCase):
         Pass `invite_page` for published pages so the key includes the current
         updated_at version segment; omit it to get the unversioned base key.
         """
-        from apps.events.views import get_invite_page_cache_key
+        from apps.events.views import _invite_cache_version, get_invite_page_cache_key
         version = None
         if invite_page is not None:
-            invite_page.refresh_from_db(fields=['updated_at'])
-            version = invite_page.updated_at.timestamp()
+            invite_page.refresh_from_db(fields=['updated_at', 'published_at'])
+            event_updated = Event.objects.filter(pk=invite_page.event_id).values_list('updated_at', flat=True).first()
+            version = _invite_cache_version(invite_page.published_at or invite_page.updated_at, event_updated)
         return get_invite_page_cache_key(slug, version=version)
     
     def test_cache_hit_for_published_page(self):

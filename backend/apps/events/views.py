@@ -99,6 +99,19 @@ def get_invite_page_cache_key(slug, version=None, guest_token=None):
 GUEST_INVITE_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600, max-age=60'
 
 
+def _invite_cache_version(published, event_updated):
+    """
+    The guest invite's cache version: the published design, and the event
+    itself. The event half rotates the key when a host cancels, closes gifts,
+    changes a repeat or a date - changes that do not republish the design but
+    do change the lifecycle the payload carries.
+    """
+    if not published:
+        return None
+    stamp = f'{published.timestamp()}'
+    return f'{stamp}-{event_updated.timestamp()}' if event_updated else stamp
+
+
 def _lifecycle_valid_until(payload):
     from datetime import datetime as _dt
     raw = ((payload or {}).get('lifecycle') or {}).get('valid_until')
@@ -1941,16 +1954,13 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             version_row = (
                 InvitePage.objects
                 .filter(slug=slug, is_published=True)
-                .values_list('published_at', 'updated_at')
+                .values_list('published_at', 'updated_at', 'event__updated_at')
                 .first()
             )
             cache_version = None
             if version_row:
-                cache_version = version_row[0] or version_row[1]
-            cache_key = get_invite_page_cache_key(
-                slug,
-                version=cache_version.timestamp() if cache_version else None,
-            )
+                cache_version = _invite_cache_version(version_row[0] or version_row[1], version_row[2])
+            cache_key = get_invite_page_cache_key(slug, version=cache_version)
             cache_check_start = time.time()
             cached_response = cache.get(cache_key) if cache_version else None
             # A cached copy made before the event ended (or gifts closed) is stale
@@ -2010,6 +2020,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 # Serialized fields - loaded here rather than as deferred-field queries
                 'event__country', 'event__title', 'event__host__name',
                 'event__timezone', 'event__has_rsvp', 'event__has_registry', 'event__show_branding',
+                'event__updated_at',
                 # The lifecycle (apps/events/lifecycle.py) - one deferred query each otherwise
                 *[f'event__{field}' for field in LIFECYCLE_EVENT_FIELDS],
             ).get(slug=slug, is_published=True)
@@ -2299,8 +2310,9 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             # Use the version-scoped key (matches the read path, keyed by published_at
             # so auto-saving does not churn the guest cache). The TTL also acts as
             # garbage collection for orphaned old-version entries.
-            version_dt = invite_page.published_at or invite_page.updated_at
-            cache_version = version_dt.timestamp() if version_dt else None
+            cache_version = _invite_cache_version(
+                invite_page.published_at or invite_page.updated_at, invite_page.event.updated_at,
+            )
             cache_key = get_invite_page_cache_key(slug, version=cache_version)
             cache.set(cache_key, serializer.data, 60)  # 1 minute TTL
             logger.info(

@@ -221,3 +221,10 @@ class InviteCacheLifecycleTests(TestCase):
         response = self.client.get(f'/api/events/invite/{self.event.slug}/status/')
         self.assertEqual(response.data['lifecycle']['phase'], 'upcoming')
         self.assertIn('no-store', response['Cache-Control'])
+
+    def test_a_hand_change_reaches_guests_on_the_next_request(self):
+        """Cancelling does not republish the design, but must not wait for the cache."""
+        self.assertEqual(self.get().data['lifecycle']['phase'], 'upcoming')  # now cached
+        self.event.cancelled_at = timezone.now()
+        self.event.save()
+        self.assertEqual(self.get().data['lifecycle']['phase'], 'cancelled')
