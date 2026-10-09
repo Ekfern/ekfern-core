@@ -22,6 +22,7 @@
 
 import type { InviteConfig } from './schema'
 import type { CatalogPurpose } from '@/lib/catalog/types'
+import type { Lifecycle } from './lifecycle'
 
 export interface InviteEvent {
   id: number
@@ -41,6 +42,8 @@ export interface InviteEvent {
   /** IANA name, e.g. `America/Chicago`. Absent is meaningful - see below. */
   timezone?: string
   rsvp_count?: number
+  /** Where the event is in its life; drives the ribbon, RSVP button and countdown. */
+  lifecycle?: Lifecycle
 }
 
 /**

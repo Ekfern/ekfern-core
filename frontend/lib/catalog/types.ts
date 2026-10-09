@@ -86,6 +86,8 @@ export interface PublicCatalog {
   access_pass?: string | null
   /** Present once the visitor is identified, so the form can confirm rather than ask. */
   guest?: { name: string; phone: string } | null
+  /** Whether gifting is still open (see lib/invite/lifecycle.ts). */
+  lifecycle?: import('@/lib/invite/lifecycle').Lifecycle
 }
 
 export interface MyCatalogResponse {

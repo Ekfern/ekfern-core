@@ -9,6 +9,7 @@ import { formatEventTime, zonedTimeToUtc } from '@/lib/invite/timezone'
 import { getGoogleCalendarHref } from '@/lib/calendar'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
+import { useLifecycle } from '@/components/invite/render/LifecycleContext'
 import { buildCompactRows, formatTimeRange } from '@/lib/invite/eventDetailsCompact'
 import { GOOD_TO_KNOW_PRESETS, visibleItems } from '@/lib/invite/goodToKnow'
 import GoodToKnowList from '@/components/invite/GoodToKnowList'
@@ -166,6 +167,8 @@ function renderDecorativeBorder(
 
 export default function EventDetailsTile({ settings, preview = false, eventSlug, eventTitle, eventDate, eventTimezone, tileId }: EventDetailsTileProps) {
   const [showCalendarMenu, setShowCalendarMenu] = useState(false)
+  const lifecyclePhase = useLifecycle()?.phase
+  const over = lifecyclePhase === 'ended' || lifecyclePhase === 'cancelled' || lifecyclePhase === 'archived'
   // No fallback. An invitation that does not know its zone prints no zone,
   // rather than telling a Chicago guest their event is in IST.
   const tz = eventTimezone
@@ -516,6 +519,8 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
           )}
 
           {/* Save the Date Button */}
+          {/* Nothing to save once it has ended or been called off. */}
+          {!over && (<>
           <style dangerouslySetInnerHTML={{ __html: BUTTON_CSS }} />
           <div className={`relative ${isCompact ? 'mt-5' : 'mt-8'} flex`} style={{ justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center' }}>
             <button
@@ -564,6 +569,7 @@ export default function EventDetailsTile({ settings, preview = false, eventSlug,
               </>
             )}
           </div>
+          </>)}
         </div>
       </div>
     )

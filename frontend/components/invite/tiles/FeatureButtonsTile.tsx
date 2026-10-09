@@ -12,6 +12,8 @@ import { catalogUrl } from '@/lib/catalog/source'
 import type { CatalogPurpose } from '@/lib/catalog/types'
 import { BUTTON_CSS, getButtonStyles } from '@/lib/invite/buttonStyles'
 import { usePageDesign } from '@/components/invite/render/AppearanceProvider'
+import { useLifecycle } from '@/components/invite/render/LifecycleContext'
+import { GUEST_COPY } from '@/lib/invite/lifecycle'
 
 export interface FeatureButtonsTileProps {
   settings: FeatureButtonsTileSettings
@@ -47,13 +49,20 @@ export default function FeatureButtonsTile({
   const radius = 'var(--radius-control)'
   const { extraClass, style: btnStyle } = getButtonStyles(buttonColor, variant, radius)
 
-  const buttons: Array<{ label: string; href: string }> = []
+  const lifecycle = useLifecycle()
+  // `closed` keeps the button's place but not its link: a guest reads that RSVPs
+  // have closed where they would have tapped, and the card never empties out.
+  const buttons: Array<{ label: string; href: string; closed?: boolean }> = []
 
   if (hasRsvp) {
-    buttons.push({
-      label: settings.rsvpLabel || 'RSVP',
-      href: guestToken ? `/event/${eventSlug}/rsvp?g=${guestToken}` : `/event/${eventSlug}/rsvp`
-    })
+    buttons.push(
+      lifecycle && !lifecycle.rsvp_open
+        ? { label: GUEST_COPY.rsvpClosedShort, href: '', closed: true }
+        : {
+            label: settings.rsvpLabel || 'RSVP',
+            href: guestToken ? `/event/${eventSlug}/rsvp?g=${guestToken}` : `/event/${eventSlug}/rsvp`,
+          },
+    )
   }
   if (shouldShowCatalogOnEventPage(hasRegistry, catalogShowOnEventPage) && eventSlug) {
     buttons.push({
@@ -90,29 +99,35 @@ export default function FeatureButtonsTile({
     const cardWrapperStyle: React.CSSProperties =
       ctaCardStyle === 'none' ? {} : { ...surface(tileId), padding: '20px 24px' }
 
+    const renderButton = (button: (typeof buttons)[number], className: string, key?: number) =>
+      button.closed ? (
+        // Text in the button's slot, not a button: muted, no hover, nothing to tap.
+        <p
+          key={key}
+          aria-disabled="true"
+          className={`${className} border`}
+          style={{
+            color: 'var(--theme-muted)',
+            borderColor: 'color-mix(in srgb, var(--theme-fg) 18%, transparent)',
+            borderRadius: radius,
+          }}
+        >
+          {button.label}
+        </p>
+      ) : (
+        <Link key={key} href={button.href} className={`${className} ${extraClass}`} style={btnStyle}>
+          {button.label}
+        </Link>
+      )
+
     const buttonsRow = (
       buttons.length === 1 ? (
         <div className="flex justify-center">
-          <Link
-            href={buttons[0].href}
-            className={`px-8 py-3 text-center ${extraClass}`}
-            style={btnStyle}
-          >
-            {buttons[0].label}
-          </Link>
+          {renderButton(buttons[0], 'px-8 py-3 text-center')}
         </div>
       ) : (
         <div className="flex gap-4 justify-center">
-          {buttons.map((button, idx) => (
-            <Link
-              key={idx}
-              href={button.href}
-              className={`flex-1 max-w-[200px] px-6 py-3 text-center ${extraClass}`}
-              style={btnStyle}
-            >
-              {button.label}
-            </Link>
-          ))}
+          {buttons.map((button, idx) => renderButton(button, 'flex-1 max-w-[200px] px-6 py-3 text-center', idx))}
         </div>
       )
     )
