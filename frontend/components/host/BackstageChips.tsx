@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { ArrowRight, Check, Globe, Lock, UserPlus, X } from 'lucide-react'
 
 export interface BackstageValue {

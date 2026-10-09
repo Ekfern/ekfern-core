@@ -1,8 +1,8 @@
 'use client'
 
 import { Component, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useTransitionRouter as useRouter } from 'next-view-transitions'
+import { Link } from 'next-view-transitions'
 import dynamic from 'next/dynamic'
 import api from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'

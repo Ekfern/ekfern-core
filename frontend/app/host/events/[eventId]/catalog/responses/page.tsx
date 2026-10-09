@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import { useParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { getCatalogResponses, updateResponseStatus } from '@/lib/catalog/api'

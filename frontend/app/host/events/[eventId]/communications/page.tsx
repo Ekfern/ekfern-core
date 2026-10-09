@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams, usePathname } from 'next/navigation'
-import Link from 'next/link'
+import { Link } from 'next-view-transitions'
 import api, { getWhatsAppTemplates, WhatsAppTemplate, deleteWhatsAppTemplate, archiveWhatsAppTemplate, activateWhatsAppTemplate, setDefaultTemplate, getAvailableVariables, getSystemDefaultTemplate, MessageCampaign, incrementWhatsAppTemplateUsage, getWhatsAppStatus, checkWaitlist, joinWaitlist } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

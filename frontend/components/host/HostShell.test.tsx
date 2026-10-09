@@ -23,6 +23,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/link', () => ({
   default: ({ href, children, prefetch: _prefetch, ...rest }: any) => <a href={String(href)} {...rest}>{children}</a>,
 }))
+// The shell's links animate through next-view-transitions; here they are plain links.
+vi.mock('next-view-transitions', () => ({
+  Link: ({ href, children, prefetch: _prefetch, ...rest }: any) => <a href={String(href)} {...rest}>{children}</a>,
+}))
 vi.mock('@/lib/api', () => ({
   default: { get: vi.fn(() => Promise.resolve({ data: { id: 1, title: 'Event', has_rsvp: true, has_registry: true } })) },
 }))
