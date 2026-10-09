@@ -9,7 +9,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.events import public_access
 from apps.events.access import resolve_event_access
+from apps.events.lifecycle import lifecycle_payload
+from apps.events.public_access import guest_endpoint, require_public_access
 from apps.events.capabilities import EDIT_CATALOG
 from apps.events.models import CatalogPageView, Event, Guest, RSVP, invite_view_bucket
 from apps.events.utils import upload_to_s3
@@ -337,12 +340,14 @@ def _record_catalog_view(event, guest):
         logger.exception('[Analytics] Failed to record catalog view')
 
 
+@guest_endpoint(public_access.READ)
 class PublicCatalogView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
         slug = slug.lower().strip()
         event = get_object_or_404(Event, slug=slug)
+        require_public_access(event, public_access.READ)
 
         guest_token = request.query_params.get('g', '').strip()
         access_pass = request.query_params.get('p', '').strip()
@@ -389,11 +394,15 @@ class PublicCatalogView(APIView):
             # Lets the form confirm who it is about to give as, instead of
             # asking a guest we have already identified for their number again.
             'guest': {'name': guest.name, 'phone': guest.phone} if guest else None,
+            # Gifting may have closed while the page stays readable: the guest
+            # still sees the list and their own gifts, just not the give buttons.
+            'lifecycle': lifecycle_payload(event),
         })
         response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
         return response
 
 
+@guest_endpoint(public_access.CATALOG)
 class CatalogRespondView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [CatalogSubmissionThrottle]
@@ -401,6 +410,7 @@ class CatalogRespondView(APIView):
     def post(self, request, slug):
         slug = slug.lower().strip()
         event = get_object_or_404(Event, slug=slug)
+        require_public_access(event, public_access.CATALOG)
 
         guest_token = request.query_params.get('g', '').strip()
         access_pass = request.query_params.get('p', '').strip()
@@ -505,6 +515,7 @@ class CatalogRespondView(APIView):
         )
 
 
+@guest_endpoint(public_access.READ)
 class MyCatalogResponsesView(APIView):
     """
     A guest's own contributions for this event.
@@ -519,6 +530,7 @@ class MyCatalogResponsesView(APIView):
     def get(self, request, slug):
         slug = slug.lower().strip()
         event = get_object_or_404(Event, slug=slug)
+        require_public_access(event, public_access.READ)
 
         guest_token = request.query_params.get('g', '').strip()
         access_pass = request.query_params.get('p', '').strip()

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 
 from .models import NotificationPreference
 from .serializers import NotificationPreferenceSerializer
+from apps.events.public_access import not_guest_endpoint
 
 
 @api_view(['GET', 'PUT'])
@@ -24,6 +25,7 @@ def notification_preferences(request):
     return Response(serializer.data)
 
 
+@not_guest_endpoint('Email unsubscribe by signed token; must keep working after any event ends.')
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def unsubscribe(request, token):

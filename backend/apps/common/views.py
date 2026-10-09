@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status
 import json
 from .cloudwatch_logger import log_to_cloudwatch
+from apps.events.public_access import not_guest_endpoint
 
 
 @csrf_exempt  # Safe for GET/HEAD - CSRF doesn't apply to read-only requests
@@ -46,6 +47,7 @@ def health_check(request):
         return JsonResponse({"status": "unhealthy", "database": "disconnected", "error": error_msg}, status=503)
 
 
+@not_guest_endpoint('Frontend log sink; no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])  # Allow frontend to send logs
 @csrf_exempt

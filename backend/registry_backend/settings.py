@@ -194,7 +194,7 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
     ),
     # Custom exception handler to ensure JSON error responses
-    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+    'EXCEPTION_HANDLER': 'apps.events.public_access.exception_handler',
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',

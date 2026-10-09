@@ -27,6 +27,9 @@ from .tasks import dispatch_campaign
 
 logger = logging.getLogger(__name__)
 from .access import get_event_or_404, require_event_access, resolve_event_access
+from . import public_access
+from .public_access import guest_endpoint, not_guest_endpoint, require_public_access
+from .lifecycle import lifecycle_payload
 from .config_guards import (
     MESSAGE as CONFIG_GUARD_MESSAGE,
     collect_oversized_data_uris,
@@ -1785,6 +1788,7 @@ class InvitePageViewSet(viewsets.ModelViewSet):
             )
 
 
+@guest_endpoint(public_access.READ)
 class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Public invite page view - no authentication required
@@ -1816,6 +1820,39 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
         response['Pragma'] = 'no-cache'
         return response
+
+    def _archived_response(self, event, slug):
+        """
+        The link has gone off. Says only that: no title, image or host, since a
+        dead link can still be forwarded. no-store, like coming-soon.
+        """
+        response = Response({
+            'status': 'archived',
+            'slug': slug,
+            'show_branding': getattr(event, 'show_branding', True),
+        }, status=status.HTTP_200_OK)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+        response['Pragma'] = 'no-cache'
+        return response
+
+    def _archived_event(self, slug):
+        """
+        The event behind this slug if its link has gone off, else None. Checked
+        before the cache, so a warm cache can never serve an archived invite.
+        Costs nothing while link-off enforcement is switched off.
+        """
+        from .lifecycle import _config, link_active
+
+        if not _config()['enforce_link_off']:
+            return None
+        event = Event.objects.filter(slug=slug).only(
+            'id', 'host_id', 'slug', 'date', 'event_end_date', 'timezone', 'show_branding',
+            'recurrence_rrule', 'recurrence_exdates', 'link_days_after_end',
+            'link_active_until', 'host_warned_link_off_at',
+        ).first()
+        if event is None or link_active(event):
+            return None
+        return event
 
     def retrieve(self, request, *args, **kwargs):
         """Retrieve invite page with guest-scoped sub-events if token provided"""
@@ -1854,6 +1891,15 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Check if this is an editor preview request
         is_preview = request.query_params.get('preview', '').lower() == 'true'
+
+        # Guests of an archived event get the archived notice. The host (or a
+        # co-host) previewing in the editor still sees the page; anyone else
+        # adding ?preview=true does not.
+        archived = self._archived_event(slug)
+        if archived is not None and not (
+            is_preview and resolve_event_access(request.user, archived).has_access
+        ):
+            return self._archived_response(archived, slug)
         
         # Check cache for published pages without guest tokens AND not editor preview
         guest_token = request.query_params.get('g', '').strip()
@@ -2335,6 +2381,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         return response
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_rsvp(request, event_id):
@@ -2343,6 +2390,7 @@ def get_rsvp(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.READ)
     
     # Check if RSVP is enabled for this event
     if not event.has_rsvp:
@@ -2464,6 +2512,7 @@ def _rsvp_capacity_response_fields(event, existing_rsvp=None):
     }
 
 
+@guest_endpoint(public_access.RSVP)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def check_phone_for_rsvp(request, event_id):
@@ -2472,6 +2521,7 @@ def check_phone_for_rsvp(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.RSVP)
     
     # Check if RSVP is enabled for this event
     if not event.has_rsvp:
@@ -2553,6 +2603,7 @@ def check_phone_for_rsvp(request, event_id):
     return Response(guest_data, status=status.HTTP_200_OK)
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def rsvp_registration_status(request, event_id):
@@ -2561,6 +2612,7 @@ def rsvp_registration_status(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.READ)
 
     if not event.has_rsvp:
         return Response({'error': 'RSVP is not enabled for this event'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2598,6 +2650,7 @@ def rsvp_registration_status(request, event_id):
     return Response(payload, status=status.HTTP_200_OK)
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_guest_by_token(request, event_id):
@@ -2606,6 +2659,7 @@ def get_guest_by_token(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.READ)
     
     # Check if RSVP is enabled for this event
     if not event.has_rsvp:
@@ -2671,6 +2725,7 @@ def get_guest_by_token(request, event_id):
         return Response({'error': 'Invalid guest token'}, status=status.HTTP_404_NOT_FOUND)
 
 
+@not_guest_endpoint('Redirects to the invite, RSVP or catalog page, each guarded itself; the redirect carries no event data.')
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def attribution_redirect(request, token):
@@ -2807,6 +2862,7 @@ def _notify_rsvp_recipient(event, rsvp, host):
         )
 
 
+@guest_endpoint(public_access.RSVP)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_rsvp(request, event_id):
@@ -2815,6 +2871,7 @@ def create_rsvp(request, event_id):
         event = get_object_or_404(Event, id=event_id)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    require_public_access(event, public_access.RSVP)
     
     # Check if RSVP is enabled for this event
     if not event.has_rsvp:
@@ -5130,10 +5187,12 @@ def booking_slots_reorder(request, event_id):
     return Response({'message': 'Reordered successfully'})
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_booking_calendar(request, slug):
     event = get_object_or_404(Event, slug=slug)
+    require_public_access(event, public_access.READ)
     schedule = BookingSchedule.objects.filter(event=event, is_enabled=True).first()
     if not schedule:
         return Response({'results': []})
@@ -5180,11 +5239,13 @@ def public_booking_calendar(request, slug):
     return Response({'results': results})
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_rsvp_sub_events(request, slug):
     """Public session catalog for PER_SUBEVENT RSVP (open link or guest-token assignments)."""
     event = get_object_or_404(Event, slug=slug.lower())
+    require_public_access(event, public_access.READ)
     if not event.has_rsvp or event.get_canonical_rsvp_mode() != 'sub_event':
         return Response({'results': []})
     if event.rsvp_mode != 'PER_SUBEVENT':
@@ -5243,6 +5304,7 @@ def place_suggest(request):
     return response
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def public_verify_phone(request, slug):
@@ -5256,6 +5318,7 @@ def public_verify_phone(request, slug):
     from . import membership
 
     event = get_object_or_404(Event, slug=slug.lower())
+    require_public_access(event, public_access.READ)
 
     phone = (request.data.get('phone') or '').strip()
     country_code = request.data.get('country_code', '')
@@ -5277,6 +5340,7 @@ def public_verify_phone(request, slug):
     return response
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_rsvp_config(request, slug):
@@ -5295,6 +5359,7 @@ def public_rsvp_config(request, slug):
     from .utils import get_country_code
 
     event = get_object_or_404(Event, slug=slug.lower())
+    require_public_access(event, public_access.READ)
 
     payload = {
         'event_id': event.id,
@@ -5320,6 +5385,8 @@ def public_rsvp_config(request, slug):
         'rsvp_form_config': (
             event.page_config.get('rsvpForm') if isinstance(event.page_config, dict) else None
         ),
+        # Whether RSVP / gifts are open right now: a gate, so it lives here, not on the cached invite.
+        'lifecycle': lifecycle_payload(event),
     }
 
     response = Response(payload)
@@ -5329,10 +5396,12 @@ def public_rsvp_config(request, slug):
     return response
 
 
+@guest_endpoint(public_access.READ)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_booking_slots_by_date(request, slug):
     event = get_object_or_404(Event, slug=slug)
+    require_public_access(event, public_access.READ)
     schedule = BookingSchedule.objects.filter(event=event, is_enabled=True).first()
     if not schedule:
         return Response({'results': []})
@@ -5369,10 +5438,12 @@ def public_booking_slots_by_date(request, slug):
     return Response({'results': results})
 
 
+@guest_endpoint(public_access.RSVP)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_slot_booking(request, event_id):
     event = get_object_or_404(Event, id=event_id)
+    require_public_access(event, public_access.RSVP)
     if event.get_canonical_rsvp_mode() != Event.RSVP_EXPERIENCE_MODE_SLOT_BASED:
         return Response(
             {'error': 'Slot booking is not active for this event'},
@@ -5612,6 +5683,7 @@ def host_override_slot_booking_capacity(request, event_id, booking_id):
 # WhatsApp webhook + status endpoints
 # ---------------------------------------------------------------------------
 
+@not_guest_endpoint('Meta delivery webhook, signature-verified; not a guest page.')
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def whatsapp_webhook(request):
@@ -5722,6 +5794,7 @@ def _update_recipient_from_webhook(wamid, meta_status, ts):
 # SES delivery webhook  (SNS → POST /api/events/email/webhook/<token>/)
 # ---------------------------------------------------------------------------
 
+@not_guest_endpoint('SES delivery webhook, token-verified; not a guest page.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def ses_webhook(request, token):
@@ -5857,6 +5930,7 @@ def _update_recipient_from_ses(email_message_id: str, new_status: str, ts_str: s
 # Email click-tracking redirect  (GET /api/events/r/)
 # ---------------------------------------------------------------------------
 
+@not_guest_endpoint('Email click tracking redirect; the destination page is guarded itself.')
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def email_click_redirect(request):

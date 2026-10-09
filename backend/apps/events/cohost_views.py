@@ -39,6 +39,7 @@ from .capabilities import (
     normalize_notifications,
 )
 from .models import Event, EventCoHost
+from .public_access import not_guest_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -309,6 +310,7 @@ def leave_event(request, event_id):
     return Response({'status': cohost.status})
 
 
+@not_guest_endpoint('Co-host invitation by token, for a would-be host, not a guest.')
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def cohost_invite_detail(request, token):

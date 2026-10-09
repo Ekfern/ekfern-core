@@ -24,6 +24,7 @@ from django.db import transaction
 from .age import AgeCheckError, check_date_of_birth, local_today
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.decorators import throttle_classes
+from apps.events.public_access import not_guest_endpoint
 
 
 def _client_ip(request):
@@ -33,6 +34,7 @@ def _client_ip(request):
     return ip
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -92,6 +94,7 @@ def signup(request):
     return _send_otp(user)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -190,6 +193,7 @@ def _send_otp(user):
     return Response(response_data, status=status.HTTP_200_OK)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def otp_verify(request):
@@ -241,6 +245,7 @@ def me(request):
     return Response(UserSerializer(request.user).data)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['GET'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -265,6 +270,7 @@ def check_password_enabled(request):
         }, status=status.HTTP_200_OK)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -425,6 +431,7 @@ def disable_password(request):
     }, status=status.HTTP_200_OK)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -494,6 +501,7 @@ def forgot_password(request):
     return Response(response_data, status=status.HTTP_200_OK)
 
 
+@not_guest_endpoint('Sign-in and account step; reads no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])
@@ -683,6 +691,7 @@ def staff_order_lookup(request):
 import logging as _logging
 _contact_logger = _logging.getLogger(__name__)
 
+@not_guest_endpoint('Site contact form; no event data.')
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([UserRateThrottle])

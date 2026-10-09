@@ -1537,6 +1537,9 @@ class InvitePageCacheTestCase(TestCase):
         # Current serializer computes several event-derived fields and RSVP count,
         # so this endpoint executes multiple queries even for SIMPLE events.
         # +1 for the lightweight updated_at version lookup that precedes caching.
+        # The lifecycle settings row is cached for a minute; warm it as production would be.
+        from apps.events.models import EventLifecycleSettings
+        EventLifecycleSettings.get_config()
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(f'/api/events/invite/{invite_page.slug}/')
 
