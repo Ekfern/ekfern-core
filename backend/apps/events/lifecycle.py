@@ -36,6 +36,13 @@ ENDED = 'ended'
 CANCELLED = 'cancelled'
 ARCHIVED = 'archived'
 
+# Every Event field the lifecycle reads (besides timezone), for .only() querysets.
+LIFECYCLE_EVENT_FIELDS = (
+    'date', 'event_end_date', 'recurrence_rrule', 'recurrence_exdates', 'cancelled_at',
+    'cancel_note', 'catalog_closed_at', 'catalog_days_after_end', 'link_days_after_end',
+    'link_active_until', 'host_warned_link_off_at',
+)
+
 # Phases a host dashboard files under "Past".
 PAST_PHASES = frozenset({ENDED, CANCELLED, ARCHIVED})
 
@@ -124,17 +131,28 @@ def next_occurrence(event, now=None) -> date | None:
 
 def _latest_sub_event_day(event) -> date | None:
     """
-    The local date of the latest sub-event's end (or start). Uses the list
-    query's annotation when present, so a dashboard is not one query per event.
+    The local date of the latest sub-event's end (or start). Reuses, in order:
+    the list query's annotation, the request's prefetched sub-events, or one
+    query remembered on the instance - a payload asks several times.
+    Event.save() forgets the remembered value, so the stored ends_at is
+    always computed fresh.
     """
-    latest = getattr(event, 'latest_sub_event_at', None)
-    if latest is None and event.pk and not hasattr(event, 'latest_sub_event_at'):
-        from django.db.models import Max
-        from django.db.models.functions import Coalesce
+    if not hasattr(event, 'latest_sub_event_at'):
+        prefetched = getattr(event, '_prefetched_objects_cache', {}).get('sub_events')
+        if prefetched is not None:
+            moments = [sub.end_at or sub.start_at for sub in prefetched if not sub.is_removed]
+            latest = max(moments, default=None)
+        elif event.pk:
+            from django.db.models import Max
+            from django.db.models.functions import Coalesce
 
-        latest = event.sub_events.filter(is_removed=False).aggregate(
-            latest=Max(Coalesce('end_at', 'start_at'))
-        )['latest']
+            latest = event.sub_events.filter(is_removed=False).aggregate(
+                latest=Max(Coalesce('end_at', 'start_at'))
+            )['latest']
+        else:
+            return None
+        event.latest_sub_event_at = latest
+    latest = event.latest_sub_event_at
     if latest is None:
         return None
     return timezone.localtime(latest, event_tz(event)).date()

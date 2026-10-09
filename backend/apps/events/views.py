@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 from .access import get_event_or_404, require_event_access, resolve_event_access
 from . import public_access
 from .public_access import guest_endpoint, not_guest_endpoint, require_public_access
-from .lifecycle import lifecycle_payload
+from .lifecycle import LIFECYCLE_EVENT_FIELDS, lifecycle_payload
 from .config_guards import (
     MESSAGE as CONFIG_GUARD_MESSAGE,
     collect_oversized_data_uris,
@@ -1877,9 +1877,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         if not _config()['enforce_link_off']:
             return None
         event = Event.objects.filter(slug=slug).only(
-            'id', 'host_id', 'slug', 'date', 'event_end_date', 'timezone', 'show_branding',
-            'recurrence_rrule', 'recurrence_exdates', 'link_days_after_end',
-            'link_active_until', 'host_warned_link_off_at',
+            'id', 'host_id', 'slug', 'timezone', 'show_branding', *LIFECYCLE_EVENT_FIELDS,
         ).first()
         if event is None or link_active(event):
             return None
@@ -2010,7 +2008,10 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 'event__rsvp_mode', 'event__rsvp_experience_mode', 'event__public_sub_events_count',
                 'event__total_sub_events_count', 'event__host_id',  # host_id needed for editor check
                 # Serialized fields - loaded here rather than as deferred-field queries
-                'event__country', 'event__title', 'event__host__name'
+                'event__country', 'event__title', 'event__host__name',
+                'event__timezone', 'event__has_rsvp', 'event__has_registry', 'event__show_branding',
+                # The lifecycle (apps/events/lifecycle.py) - one deferred query each otherwise
+                *[f'event__{field}' for field in LIFECYCLE_EVENT_FIELDS],
             ).get(slug=slug, is_published=True)
             event = invite_page.event
             query_time = time.time() - query_start

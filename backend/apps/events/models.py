@@ -295,6 +295,7 @@ class Event(models.Model):
         update_fields = kwargs.get('update_fields')
         if update_fields is None or self.ENDS_AT_INPUTS & set(update_fields):
             from . import lifecycle
+            self.__dict__.pop('latest_sub_event_at', None)  # never store from a remembered value
             self.ends_at = lifecycle.compute_ends_at(self)
             if update_fields is not None:
                 kwargs['update_fields'] = set(update_fields) | {'ends_at'}
