@@ -496,19 +496,13 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
         {/* pb-28 clears the floating event-tab bar on mobile; the desktop
             gutter is there so the last card never sits flush against the
             bottom edge and it is obvious the page has ended. */}
-        <main className="min-w-0 flex-1 pb-28 lg:pb-16">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={pathname}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
-        </main>
+        {/* The page goes in as it is - no transition wrapper. A fade keyed on
+            the path (AnimatePresence mode="wait") rendered the incoming page
+            inside the outgoing wrapper, then built it a second time when the
+            fade finished: every click showed the page, a blank "Loading...",
+            and the page again, and fetched its data twice. Next.js already
+            gives each route a fresh page; HostShell.test.tsx holds this. */}
+        <main className="min-w-0 flex-1 pb-28 lg:pb-16">{children}</main>
         {/* Mobile Bottom Navigation */}
         {mounted && eventId && eventTabItems.length > 0 && !isMobileDrawerOpen && (
           // Anchored to the viewport edges rather than centred on a fixed width:
