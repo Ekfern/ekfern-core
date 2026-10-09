@@ -171,3 +171,53 @@ class CatalogGateTests(TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertFalse(page.data['lifecycle']['catalog_open'])
         self.assertEqual(len(page.data['items']), 1)
+
+
+class InviteCacheLifecycleTests(TestCase):
+    """No cache layer may serve the invite past its next lifecycle change."""
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        host = User.objects.create_user(email='cache-host@test.com', name='Host')
+        self.event = Event.objects.create(host=host, slug='cache-event', title='Cache', is_public=True,
+                                          date=date.today() + timedelta(days=10))
+        InvitePage.objects.create(event=self.event, slug=self.event.slug, is_published=True,
+                                  published_at=timezone.now(), config={'tiles': []}, published_config={'tiles': []})
+
+    def get(self):
+        return self.client.get(f'/api/events/invite/{self.event.slug}/')
+
+    def test_the_payload_says_where_the_event_is_and_until_when(self):
+        lifecycle = self.get().data['lifecycle']
+        self.assertEqual(lifecycle['phase'], 'upcoming')
+        self.assertIsNotNone(lifecycle['valid_until'])
+        self.assertNotIn('cancel_note', lifecycle)  # host-only fields stay off the guest payload
+
+    def test_far_from_a_change_the_usual_headers_apply(self):
+        self.assertIn('s-maxage=300, stale-while-revalidate=3600', self.get()['Cache-Control'])
+
+    def test_close_to_a_change_the_headers_shrink_to_fit(self):
+        from apps.events.views import _guest_cache_control
+        now = timezone.now()
+        payload = {'lifecycle': {'valid_until': (now + timedelta(minutes=20)).isoformat()}}
+        self.assertEqual(_guest_cache_control(payload, now),
+                         'public, s-maxage=300, stale-while-revalidate=900, max-age=60')
+        payload = {'lifecycle': {'valid_until': (now + timedelta(seconds=150)).isoformat()}}
+        self.assertEqual(_guest_cache_control(payload, now),
+                         'public, s-maxage=150, stale-while-revalidate=0, max-age=60')
+        payload = {'lifecycle': {'valid_until': (now + timedelta(seconds=30)).isoformat()}}
+        self.assertIn('no-store', _guest_cache_control(payload, now))
+
+    def test_a_cached_copy_is_dropped_once_its_moment_passes(self):
+        from unittest import mock
+        self.get()  # cached as upcoming
+        later = timezone.now() + timedelta(days=12)
+        with mock.patch('django.utils.timezone.now', return_value=later):
+            response = self.get()
+        self.assertEqual(response.data['lifecycle']['phase'], 'ended')
+
+    def test_status_is_never_cached(self):
+        response = self.client.get(f'/api/events/invite/{self.event.slug}/status/')
+        self.assertEqual(response.data['lifecycle']['phase'], 'upcoming')
+        self.assertIn('no-store', response['Cache-Control'])

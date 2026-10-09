@@ -274,6 +274,25 @@ def lifecycle_payload(event, now=None) -> dict:
     }
 
 
+def next_change_at(event, now=None) -> datetime | None:
+    """
+    The next moment anything in lifecycle_payload changes by the calendar
+    alone. A cached copy of the payload must not outlive it. Hand changes
+    (cancel, close gifts) instead rotate or purge the caches when made.
+    """
+    now = _now(now)
+    candidates = [compute_ends_at(event), catalog_closes_at(event)]
+    if event.date:
+        candidates.append(start_of_day(event, event.date))
+    if _config()['enforce_link_off']:
+        candidates.append(link_off_at(event))
+    if is_series(event):
+        # The next date and "today" roll over at local midnight.
+        candidates.append(start_of_day(event, local_today(event, now) + timedelta(days=1)))
+    future = [moment for moment in candidates if moment and moment > now]
+    return min(future) if future else None
+
+
 def host_lifecycle_payload(event, now=None) -> dict:
     """The guest payload plus what only the host's controls need."""
     now = _now(now)

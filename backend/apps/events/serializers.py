@@ -334,11 +334,23 @@ class InvitePageSerializer(serializers.ModelSerializer):
     catalog_show_on_rsvp_confirmation = serializers.SerializerMethodField()
     catalog_title = serializers.SerializerMethodField()
     catalog_purpose = serializers.SerializerMethodField()
+    # Where the event is in its life (ended, cancelled, a series' next date).
+    # Cacheable only because it carries valid_until - the next calendar change -
+    # and every cache layer is capped to it (see _guest_cache_control). The
+    # server still enforces RSVP and gifts on submit.
+    lifecycle = serializers.SerializerMethodField()
 
     class Meta:
         model = InvitePage
-        fields = ('id', 'event', 'event_slug', 'event_country', 'event_timezone', 'slug', 'title', 'host_name', 'background_url', 'config', 'published_config', 'is_published', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'country_code', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+        fields = ('id', 'event', 'event_slug', 'event_country', 'event_timezone', 'slug', 'title', 'host_name', 'background_url', 'config', 'published_config', 'is_published', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'country_code', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'lifecycle', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
         read_only_fields = ('id', 'event_slug', 'event_country', 'event_timezone', 'title', 'host_name', 'published_config', 'published_at', 'state', 'allowed_sub_events', 'guest_context', 'event_structure', 'rsvp_mode', 'rsvp_experience_mode', 'has_rsvp', 'has_registry', 'country_code', 'catalog_show_on_event_page', 'catalog_show_on_rsvp_confirmation', 'catalog_title', 'catalog_purpose', 'show_branding', 'rsvp_count', 'created_at', 'updated_at')
+
+    def get_lifecycle(self, obj):
+        from .lifecycle import lifecycle_payload, next_change_at
+        payload = lifecycle_payload(obj.event)
+        valid_until = next_change_at(obj.event)
+        payload['valid_until'] = valid_until.isoformat() if valid_until else None
+        return payload
 
     def get_catalog_show_on_event_page(self, obj):
         return _catalog_show_on_event_page(obj.event)

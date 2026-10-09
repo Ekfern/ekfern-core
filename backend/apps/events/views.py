@@ -96,6 +96,37 @@ def get_invite_page_cache_key(slug, version=None, guest_token=None):
     return base
 
 
+GUEST_INVITE_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600, max-age=60'
+
+
+def _lifecycle_valid_until(payload):
+    from datetime import datetime as _dt
+    raw = ((payload or {}).get('lifecycle') or {}).get('valid_until')
+    try:
+        return _dt.fromisoformat(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _guest_cache_control(payload, now=None):
+    """
+    Cache-Control for the guest invite, capped so that no layer - CloudFront
+    (s-maxage + stale-while-revalidate), the browser (max-age) - can serve it
+    past the payload's next lifecycle change. Under a minute to go: no-store.
+    """
+    valid_until = _lifecycle_valid_until(payload)
+    if valid_until is None:
+        return GUEST_INVITE_CACHE_CONTROL
+    remaining = int((valid_until - (now or timezone.now())).total_seconds())
+    if remaining >= 300 + 3600:
+        return GUEST_INVITE_CACHE_CONTROL
+    if remaining < 60:
+        return 'no-store, no-cache, must-revalidate, private'
+    s_maxage = min(300, remaining)
+    stale = max(0, remaining - s_maxage)
+    return f'public, s-maxage={s_maxage}, stale-while-revalidate={min(3600, stale)}, max-age={min(60, s_maxage)}'
+
+
 def invalidate_invite_page_cache(slug):
     """Invalidate all cache entries for an invite page"""
     # Invalidate public cache
@@ -1924,6 +1955,11 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
             )
             cache_check_start = time.time()
             cached_response = cache.get(cache_key) if cache_version else None
+            # A cached copy made before the event ended (or gifts closed) is stale
+            # the moment that happens, whatever its TTL says.
+            valid_until = _lifecycle_valid_until(cached_response)
+            if cached_response and valid_until and valid_until <= timezone.now():
+                cached_response = None
             cache_check_time = (time.time() - cache_check_start) * 1000  # Convert to ms
             
             if cached_response:
@@ -1945,7 +1981,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
                 # Return cached response with stale-while-revalidate headers for guests
                 # s-maxage=300 (5 min CDN), stale-while-revalidate=3600 (1 hour), max-age=60 (1 min browser)
                 response = Response(cached_response)
-                response['Cache-Control'] = 'public, s-maxage=300, stale-while-revalidate=3600, max-age=60'
+                response['Cache-Control'] = _guest_cache_control(cached_response)
                 return response
             logger.info(
                 f"[Cache] MISS - slug: {slug}, key: {cache_key}, "
@@ -2251,7 +2287,7 @@ class PublicInviteViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             # Guest/public: Use stale-while-revalidate with optimized TTL
             # s-maxage=300 (5 min CDN), stale-while-revalidate=3600 (1 hour), max-age=60 (1 min browser)
-            response['Cache-Control'] = 'public, s-maxage=300, stale-while-revalidate=3600, max-age=60'
+            response['Cache-Control'] = _guest_cache_control(serializer.data)
             logger.info(
                 f"[Cache] SET - Guest/public request for slug: {slug}, "
                 f"cache_control: stale-while-revalidate"
@@ -5336,6 +5372,22 @@ def public_verify_phone(request, slug):
         'access_pass': membership.issue_pass(event, guest),
         'name': guest.name,
     })
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+    return response
+
+
+@guest_endpoint(public_access.READ)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_invite_status(request, slug):
+    """
+    Where the event is in its life, never cached. The invite page renders from
+    the cached payload, then checks here, so a page served from a cache just
+    before the event ended (or gifts closed) corrects itself.
+    """
+    event = get_object_or_404(Event, slug=slug.lower())
+    require_public_access(event, public_access.READ)
+    response = Response({'lifecycle': lifecycle_payload(event)})
     response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
     return response
 

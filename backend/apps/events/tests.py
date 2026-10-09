@@ -740,6 +740,11 @@ class PublicInvitePayloadFieldContractTestCase(TestCase):
         # serves the authoritative value. Safe because it renders as a label, not
         # a decision - move it if that ever stops being true.
         'rsvp_count',
+        # Where the event is in its life. Carries valid_until (its next calendar
+        # change); the view caps every cache layer to it and drops a cached copy
+        # past it, so it is never served stale across a change. Hand changes
+        # (cancel, close gifts) purge CloudFront when made.
+        'lifecycle',
     })
 
     def test_cached_invite_payload_field_set_is_pinned(self):
