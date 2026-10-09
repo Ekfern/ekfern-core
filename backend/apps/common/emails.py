@@ -186,6 +186,71 @@ def cohost_invite_reminder(
     )
 
 
+# --- Event lifecycle (apps/events/lifecycle.py) ---------------------------------
+
+def event_ended_next_steps(
+    *, event_title: str, gifts_until: str, link_until: str, overview_url: str
+) -> RenderedEmail:
+    """
+    To the host, the day after the event: what guests now see, and when each
+    part closes. Sent once. The dates are told now so nothing later surprises.
+    """
+    rows = [('RSVPs', 'Closed')]
+    if gifts_until:
+        rows.append(('Gifts open until', gifts_until))
+    if link_until:
+        rows.append(('Invite link works until', link_until))
+    return render_email(
+        subject=f'Your event has ended – here is what happens next ({event_title})',
+        preheader='Guests can still read your invitation. Here is when each part closes.',
+        blocks=[
+            eyebrow('After the event'),
+            headline(event_title),
+            paragraph('Your invitation now tells guests the event has ended. They can still read it.'),
+            details(rows),
+            paragraph('You can close gifts early, or reopen them, from the event overview.'),
+            button('Open event overview', overview_url),
+        ],
+    )
+
+
+def event_gifts_closing(*, event_title: str, gifts_until: str, overview_url: str) -> RenderedEmail:
+    """To the host, a week before gifts close on their own."""
+    return render_email(
+        subject=f'Gifts close on {gifts_until} – {event_title}',
+        preheader='After that, guests can still see the list but cannot give.',
+        blocks=[
+            eyebrow('Gifts closing soon'),
+            headline(event_title),
+            details([('Gifts open until', gifts_until)]),
+            paragraph('After that, guests can still see your list and what they gave, but cannot give.'),
+            button('Open event overview', overview_url),
+        ],
+    )
+
+
+def event_link_closing(*, event_title: str, link_until: str, overview_url: str) -> RenderedEmail:
+    """
+    To the host, before their invite link stops working. The link cannot go
+    off until this has been sent and the notice period has passed.
+    """
+    return render_email(
+        subject=f'Your invite link stops working on {link_until} – {event_title}',
+        preheader='Guests opening it after that will see it is no longer available.',
+        blocks=[
+            eyebrow('Invite link closing'),
+            headline(event_title),
+            details([('Link works until', link_until)]),
+            paragraph(
+                'After that, anyone opening your invitation will see it is no longer available. '
+                'Your guest list, RSVPs and gift record stay in your account.'
+            ),
+            paragraph('Need it longer? Reply to this email and we will help.'),
+            button('Open event overview', overview_url),
+        ],
+    )
+
+
 # --- RSVPs --------------------------------------------------------------------
 
 ATTEND_FOR_GUEST = {'yes': 'attending', 'no': 'not attending', 'maybe': 'tentatively attending'}

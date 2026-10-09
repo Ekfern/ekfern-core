@@ -25,6 +25,18 @@ SAMPLES = {
     'cohost_declined': lambda: emails.cohost_declined(
         cohost_email='priya@example.com', event_title='Marathi class',
         cohosts_url='https://ekfern.com/host/events/1/details'),
+    'event_ended_next_steps': lambda: emails.event_ended_next_steps(
+        event_title='Asha & Rohan', gifts_until='Saturday, December 7, 2026',
+        link_until='Saturday, December 7, 2026', overview_url='https://ekfern.com/host/events/1',
+    ),
+    'event_gifts_closing': lambda: emails.event_gifts_closing(
+        event_title='Asha & Rohan', gifts_until='Saturday, December 7, 2026',
+        overview_url='https://ekfern.com/host/events/1',
+    ),
+    'event_link_closing': lambda: emails.event_link_closing(
+        event_title='Asha & Rohan', link_until='Saturday, December 7, 2026',
+        overview_url='https://ekfern.com/host/events/1',
+    ),
     'cohost_invite_reminder': lambda: emails.cohost_invite_reminder(
         cohost_email='priya@example.com', event_title='Marathi class',
         expires_label='10 October 2026', cohosts_url='https://ekfern.com/host/events/1/details'),
