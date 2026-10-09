@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to setup AWS EventBridge scheduler for the event lifecycle job
-# Runs run_lifecycle_transitions every 15 minutes: records when events end,
+# Runs run_lifecycle_transitions once a day at 09:00 IST: records when events end,
 # gifts close and links go off, and emails hosts before anything closes.
 # Usage: ./setup-lifecycle-scheduler.sh
 #
@@ -22,7 +22,10 @@ SG_ID="sg-02c8a03bf690d592f"
 REGION="us-east-1"
 ACCOUNT_ID="630147069059"
 
-SCHEDULE_EXPRESSION="rate(15 minutes)"
+# Once a day is enough: hosts are warned a week ahead, and guest pages switch
+# state on time without this job. 03:30 UTC = 09:00 IST, so hosts in India get
+# the emails in the morning. cron(Minutes Hours Day-of-month Month Day-of-week Year)
+SCHEDULE_EXPRESSION="cron(30 3 * * ? *)"
 
 echo "Setting up AWS EventBridge scheduler for the event lifecycle job"
 echo "============================================================="
@@ -30,7 +33,7 @@ echo ""
 echo "Configuration:"
 echo "  Cluster: $CLUSTER_NAME"
 echo "  Task Definition: $TASK_DEF"
-echo "  Schedule: every 15 minutes"
+echo "  Schedule: daily at 03:30 UTC (09:00 IST)"
 echo "  Region: $REGION"
 echo "  Account: $ACCOUNT_ID"
 echo ""
@@ -134,7 +137,7 @@ fi
 if [ "$UPDATE_RULE" = true ]; then
     aws events put-rule \
         --name "$RULE_NAME" \
-        --description "Runs run_lifecycle_transitions every 15 minutes" \
+        --description "Runs run_lifecycle_transitions daily at 09:00 IST" \
         --schedule-expression "$SCHEDULE_EXPRESSION" \
         --state ENABLED \
         --region "$REGION"
@@ -193,7 +196,7 @@ echo "============================================================="
 echo "Rule Name:  $RULE_NAME"
 echo "Status:     $RULE_STATUS"
 echo "Targets:    $TARGET_COUNT"
-echo "Schedule:   every 15 minutes"
+echo "Schedule:   daily at 03:30 UTC (09:00 IST)"
 echo ""
 echo "Next Steps:"
 echo "1. Watch the first runs in CloudWatch Logs: /ecs/event-registry-staging/backend (grep Lifecycle)"

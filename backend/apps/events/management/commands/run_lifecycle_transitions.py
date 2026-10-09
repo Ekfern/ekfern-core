@@ -22,7 +22,7 @@ Usage:
     python manage.py run_lifecycle_transitions
     python manage.py run_lifecycle_transitions --dry-run
 
-Schedule every 15 minutes (infrastructure/setup-lifecycle-scheduler.sh).
+Scheduled once a day, 09:00 IST (infrastructure/setup-lifecycle-scheduler.sh).
 """
 import logging
 from datetime import timedelta
