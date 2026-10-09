@@ -278,8 +278,9 @@ input[type="number"] {
  * Only the page area - <main>, named host-page - moves; the sidebar and tabs
  * stay still. Going deeper slides the new page in from the right over the
  * old one drifting left, as on a phone; coming back does the reverse; moving
- * between an event's tabs is a short fade. Browsers without view transitions
- * just navigate, and anyone who asked for less motion gets no animation.
+ * between an event's tabs does not animate (components/host/HostLink.tsx).
+ * Browsers without view transitions just navigate, and anyone who asked for
+ * less motion gets no animation.
  */
 ::view-transition-old(root),
 ::view-transition-new(root) {
@@ -311,10 +312,11 @@ input[type="number"] {
     z-index: 1;
   }
 
+  /* No cross-fade between tabs (reached by the Back button): a fade shows the
+     previous page behind the next. Only forward and back move. */
   ::view-transition-old(host-page),
   ::view-transition-new(host-page) {
-    animation-duration: 140ms;
-    animation-timing-function: ease-out;
+    animation: none;
   }
 
   html[data-nav='forward']::view-transition-old(host-page) {

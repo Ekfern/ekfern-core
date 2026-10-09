@@ -71,6 +71,9 @@ export default function CatalogResponsesPage() {
   const grouped = useMemo(() => groupByItem(filtered), [filtered])
 
   return (
+    // Paints its own page, like every host page: a see-through page let the
+    // previous one show behind it during a page transition.
+    <div className="min-h-screen bg-eco-beige">
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="flex items-center gap-3">
         <Link
@@ -187,6 +190,7 @@ export default function CatalogResponsesPage() {
           ))}
         </div>
       )}
+    </div>
     </div>
   )
 }

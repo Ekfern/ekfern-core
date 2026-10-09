@@ -2,7 +2,7 @@
 import { Home } from "lucide-react";
 import { Pencil } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'next-view-transitions'
+import Link from '@/components/host/HostLink'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -519,7 +519,9 @@ export default function HostShell({ children }: { children: React.ReactNode }) {
             gives each route a fresh page; HostShell.test.tsx holds this. */}
         {/* Named for the page transition: only this area moves; the sidebar
             and tabs stay put, like a phone's navigation bar. */}
-        <main className="min-w-0 flex-1 pb-28 lg:pb-16" style={{ viewTransitionName: 'host-page' }}>{children}</main>
+        {/* It also paints the page colour, so no page - even one that forgets
+            its own background - is see-through during a transition. */}
+        <main className="min-w-0 flex-1 bg-eco-beige pb-28 lg:pb-16" style={{ viewTransitionName: 'host-page' }}>{children}</main>
         {/* Mobile Bottom Navigation */}
         {mounted && eventId && eventTabItems.length > 0 && !isMobileDrawerOpen && (
           // Anchored to the viewport edges rather than centred on a fixed width:
